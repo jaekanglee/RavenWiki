@@ -105,3 +105,41 @@
 - `_meta/ai-roadmap` → 링크 제거 (W5에서 파일 생성 예정)
 - `content/beyond-karpathy-llm-wiki.md` outbound ≥ 2 보강
 - 검증: dangling wikilink grep → 0건
+
+## [2026-06-25] M1 W2 | build_db.py (TDD, SQLite v2.4 schema)
+- **구조**:
+  - `scripts/build_db.py` — vault scan → `wiki.db` 빌드
+  - `scripts/pyproject.toml` — `python-frontmatter` 의존, dev=`pytest`
+  - `scripts/README.md` — 사용법
+  - `scripts/tests/__init__.py` (빈 파일), `conftest.py` (SYS_PATH)
+  - `scripts/tests/fixtures/sample-vault/` — 6 content/*.md + 1 _meta/rules.md
+  - `scripts/tests/test_build_db.py` — 16 pytest (TDD)
+- **TDD 사이클**:
+  - [RED] 초기 pytest: 16개 모두 실패 (build_db.py 없음)
+  - [GREEN] 구현 후 pytest: **16 passed**
+- **SQLite v2.4 schema**:
+  - tables: `pages`, `tags`, `links`, `pages_fts` (FTS5)
+  - views: `v_backlinks`, `v_pages_with_tags`
+  - triggers: pages_ai/ad/au + tags_ai (FTS5 동기화)
+  - indexes: `idx_tags_tag`, `idx_links_target`
+- **구현 디테일**:
+  - slug 전략 v2.2 (frontmatter slug 우선 → path fallback → content/ prefix 제거 → _meta/ 유지)
+  - wikilink intent v2.3 (`[[link]]` auto / `[[!]]` broken / `[[?]]` missing)
+  - context 추출 (링크 주변 ±50자)
+  - 제외 경로: raw/, _archive/, scripts/, node_modules/, .venv/, .git/
+  - frontmatter 없는 페이지는 default (type=rule, 오늘 날짜)로 인덱싱
+  - FTS5: 비-contentless 패턴 사용 (tags 동적 재계산 위해 GROUP_CONCAT 서브쿼리)
+- **실제 vault 실행 결과**:
+  - `~/wiki/wiki.db` 348 KB
+  - **11 pages** (3 content + 4 _meta + 4 root: SCHEMA/RULES/index/log)
+  - **80 links** (55 auto + 3 missing — SCHEMA/RULES/log에 `[[link]]?` syntax 문서화)
+  - **34 tags** (top: system=9, meta=6, llm-wiki=3)
+- **FTS5 BM25 검증**:
+  - `MATCH 'karpathy'` → llm-wiki 1st, beyond-karpathy 2nd ✅
+  - `MATCH 'cognit*'` → beyond-karpathy 1st ✅
+  - `MATCH 'rag'` → rag-vs-llm-wiki 1st ✅
+- **v_backlinks 검증**:
+  - SCHEMA 페이지에 6개 inbound (RULES, index, mvp-prd, system-design, wiki-scenario, beyond-karpathy, _meta/system-design)
+- **부가**: `.gitignore`에 `*.egg-info/` 추가 (pip install -e 부산물)
+- **commit**: `3689df9` feat(scripts): build_db.py (SQLite v2.4 schema + TDD)
+- **다음 (W3)**: lint.py — wiki.db 읽어서 🔴 broken / 🟡 orphan / 🟡 200줄 / 🔵 weak connection / 🔵 tag-not-core / 🔵 contested 등 룰 9개 자동 탐지
