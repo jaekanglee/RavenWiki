@@ -143,3 +143,65 @@
 - **부가**: `.gitignore`에 `*.egg-info/` 추가 (pip install -e 부산물)
 - **commit**: `3689df9` feat(scripts): build_db.py (SQLite v2.4 schema + TDD)
 - **다음 (W3)**: lint.py — wiki.db 읽어서 🔴 broken / 🟡 orphan / 🟡 200줄 / 🔵 weak connection / 🔵 tag-not-core / 🔵 contested 등 룰 9개 자동 탐지
+
+## [2026-06-25] M1 W3 | lint.py (TDD, 9 lint rules, wiki.db read-only)
+- **구조**:
+  - `scripts/lint.py` — `lint_db(db_path, vault_root=None)` + `main()` CLI (345 lines)
+  - `scripts/tests/test_lint.py` — **18 pytest** (TDD; in-memory schema, deterministic timestamps)
+  - `scripts/tests/fixtures/sample-vault/content/` — 8 lint fixtures (orphan-young/old, big, short-concept, bad-frontmatter, broken-explicit, missing-explicit, custom-tag)
+  - `scripts/pyproject.toml` — `py-modules = ["build_db", "lint"]`
+  - `scripts/README.md` — lint 사용법 + 9 룰 표 추가
+  - `scripts/tests/test_build_db.py` — `test_pages_indexed` expected set 확장 (7 → 15 pages)
+- **TDD 사이클**:
+  - [RED] 초기 pytest: collection error (`ModuleNotFoundError: No module named 'lint'`)
+  - [GREEN] 구현 후 pytest: **34 passed** (16 build_db + 18 lint)
+- **구현 디테일**:
+  - **읽기 전용** — `wiki.db`만 SELECT; markdown re-parse ❌
+  - `Issue` dataclass + `format()` (🔴/🟡/🔵 emoji prefix) + `summarize()` (📊 N crit/M warn/K info/T total)
+  - `lint_db()`: pages fetch 1회 + inbound/outbound/tags pre-aggregation 3회 → 9 룰은 모두 in-memory 평가 (총 5 SELECT)
+  - `stale` 룰은 `vault_root` 받아 `raw/<stem>.md` mtime 확인 (재렌더 후 자동 OK 처리)
+  - `_parse_date()`: ISO-8601 YYYY-MM-DD; NULL/garbage → None (lint skip)
+  - `CORE_TAGS` frozenset (29개 — 시스템 8 + 컨텐츠 7 + 도메인 8 + 상태 5 + 비교 1)
+  - `WEAK_CONN_EXEMPT_TYPES` = `{"comparison"}` (비교 페이지는 단일 대상 OK)
+  - 임계값: `ORPHAN_GRACE_DAYS=7`, `OVERSIZED_LINES=200`, `STALE_DAYS=90`, `WEAK_CONNECTION_MIN_OUTBOUND=2`
+  - CLI exit code: critical 0건 → 0, 1건+ → 1, DB 없음 → 2
+- **실제 vault 실행 결과** (`cd ~/wiki && python3 scripts/lint.py`):
+  ```
+  🟡 [warning] SCHEMA.md: 216 lines (>200)
+  🟡 [warning] _meta/system-design.md: 412 lines (>200)
+  🔵 [info] RULES.md: tag not in core taxonomy: meta
+  🔵 [info] RULES.md: placeholder wikilink [[link]]? - intentional TODO
+  🔵 [info] SCHEMA.md: tag not in core taxonomy: meta
+  🔵 [info] SCHEMA.md: placeholder wikilink [[link]]? - intentional TODO
+  🔵 [info] _meta/mvp-prd.md: tag not in core taxonomy: harumoa, meta, prd
+  🔵 [info] _meta/system-design.md: tag not in core taxonomy: architecture, meta, prd
+  🔵 [info] _meta/wiki-persona.md: tag not in core taxonomy: meta, persona
+  🔵 [info] _meta/wiki-scenario.md: tag not in core taxonomy: harumoa, meta, scenario
+  🔵 [info] content/beyond-karpathy-llm-wiki.md: tag not in core taxonomy: criticism, governance
+  🔵 [info] content/rag-vs-llm-wiki.md: tag not in core taxonomy: rag
+  🔵 [info] log.md: placeholder wikilink [[link]]? - intentional TODO
+  📊 0 critical, 2 warning, 11 info, 13 total
+  ```
+  exit=0 ✅
+- **룰별 발견 (실제 vault, 11 pages)**:
+  - broken_link: 0건 ✅
+  - missing frontmatter: 0건 ✅
+  - missing_link (`[[?]]`): 3건 (RULES, SCHEMA, log — 문서 내 syntax 예시)
+  - orphan (7d+): 0건 (모든 페이지가 어제 생성)
+  - 200줄 초과: 2건 (SCHEMA 216줄, system-design 412줄) 🟡
+  - weak connection: 0건 (각 페이지 outbound ≥ 2)
+  - custom tag: 8건 (meta, prd, scenario, persona, architecture, harumoa, criticism, governance, rag)
+  - contested: 0건
+  - stale: 0건
+- **lint 통과**: 🔴 0건 ✅
+- **발견한 이슈** (W4에서 fix 권장):
+  - `meta` 태그 6건 — `CORE_TAGS`에 추가할지 결정 필요 (project-level vs taxonomy-level)
+  - `prd`, `persona`, `scenario` 1건씩 — `_meta/` 페이지의 `type:` 필드를 태그로 중복 사용 중 → type과 tag 분리 검토
+  - `harumoa` (기고자명) — 태그로 부적절; frontmatter `author:` 필드로 이동 검토
+  - SCHEMA.md 216줄 — 분리 후보 (개념 / 빌드 원칙 / lint 규칙 3개 파일로)
+  - system-design.md 412줄 — 분리 강력 권장 (요구사항 / 5-layer / 결정)
+- **다음 (W4 wiki-writer) 알림**:
+  - 현재 vault: **0 critical, 2 warning, 11 info** — lint OK 상태에서 시작 가능
+  - `meta` 태그가 6건 → W4에서 taxonomy 합의 시 `CORE_TAGS`에 포함 여부 결정
+  - `broken` / `missing` 룰 intent (W2에서 `[[!]]`, `[[?]]` syntax 도입) — W4 작성자 가이드에 명시 필요
+- commit: (W3 작업분)

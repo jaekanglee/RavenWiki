@@ -72,14 +72,19 @@ def test_schema_created(db: Path) -> None:
 
 
 def test_pages_indexed(conn: sqlite3.Connection) -> None:
-    """All .md in content/ + _meta/ are scanned and inserted (7 pages)."""
+    """All .md in content/ + _meta/ are scanned and inserted (15 pages)."""
     rows = conn.execute(
         "SELECT slug, type, length(content) AS n FROM pages ORDER BY slug"
     ).fetchall()
     slugs = {r["slug"] for r in rows}
     expected = {
+        # W2 originals
         "a", "b", "c-broken", "d-missing", "e-tags", "f-custom-tag",
         "_meta/rules",
+        # W3 lint-fixture additions (see tests/fixtures/sample-vault/content/)
+        "orphan-young", "orphan-old", "big", "short-concept",
+        "bad-frontmatter", "broken-explicit", "missing-explicit",
+        "custom-tag",
     }
     assert slugs == expected, f"slugs mismatch: {slugs}"
     for r in rows:
