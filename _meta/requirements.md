@@ -1,0 +1,69 @@
+---
+title: 시스템 요구사항 (Requirements)
+created: 2026-06-25
+updated: 2026-06-25
+type: rule
+tags: [system, meta, requirements]
+sources: [raw/articles/karpathy-llm-wiki-2026.md]
+confidence: high
+---
+
+# 시스템 요구사항 (Requirements)
+
+> **한 줄 요약**: 자체구축 위키 시스템이 만족해야 할 사용자 니즈 6개와 제약 5개
+
+> 원본: [[_meta/system-design]] (412줄) → 분리됨 (M1 W5). 백업: `/tmp/system-design-backup.md`.
+
+---
+
+## 1. 사용자 니즈 (Needs)
+
+| # | 니즈 | 근거 |
+|---|---|---|
+| N1 | **Obsidian 없이 위키 운영** | 유료 구독 거부, 데이터 주권 |
+| N2 | **개발자 친화적** | CLI/git/마크다운 중심 |
+| N3 | **Tailscale로 안전 외부 접근** | VPS에 직접 공개포트 ❌ |
+| N4 | **폰/웹에서 사용** | PWA 또는 모바일 친화 UI |
+| N5 | **자동 정리/유지보수** | LLM이 bookkeeping 담당 (Karpathy 패턴) |
+| N6 | **표준 인터페이스** | 어떤 AI에서든 같은 방식으로 접근 |
+
+---
+
+## 2. 제약 (Constraints)
+
+| # | 제약 | 영향 |
+|---|---|---|
+| C1 | **월 비용 최소화** (목표: $10 이하) | VPS 사양, 외부 서비스 의존 ❌ |
+| C2 | **로컬 개발 가능** | macOS에서 직접 빌드/실행 |
+| C3 | **VPS 자체 운영 중** | 인프라 통제 가능 |
+| C4 | **1인 사용자** (MVP) | 다중 사용자/권한은 out of scope |
+| C5 | **git 사용 가능** | 형상관리 도구로 충분 |
+
+---
+
+## 3. 핵심 사용자 인용
+
+> "옵시디언 안 사고, 모티브만 빌려서 내가 직접 만들 거야."
+> "구축만 잘 해놓으면 무료고, 내 입맛에 맞게 쓰고."
+
+→ **원칙**: 직접 구축 + 무료 + 커스텀 자유
+
+---
+
+## 4. 비-목표 (Non-Goals)
+
+- 다중 사용자 / 권한 관리 (1인 사용자에 집중)
+- 실시간 협업 (git conflict 해결은 사용자 책임)
+- 모바일 앱 (PWA 수준에서 충분)
+- 외부 SaaS 의존 (모든 핵심 기능 자체 호스팅)
+- 유료 LLM API (로컬/구독 모델 우선)
+
+---
+
+## 관련
+
+- [[_meta/mvp-prd]] — 초기 PRD
+- [[_meta/architecture-5layer]] — 5-Layer 아키텍처 (다음 문서)
+- [[_meta/decisions-d1-d6]] — 결정사항 (다음 문서)
+- [[_meta/wiki-persona]] — 사용자 페르소나
+- [[SCHEMA]] — vault 규약

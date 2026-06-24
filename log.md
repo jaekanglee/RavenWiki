@@ -263,3 +263,71 @@
 
 ### commit
 - `git commit -m "feat(content): add 15 wiki pages (concept/tool/person/comparison/project/query)"`
+
+## 2026-06-25 (M1 W5 wiki-architect)
+
+### 작업: `_meta/` 6개 문서 (분할 3 + 신규 3)
+
+**원본**: `_meta/system-design.md` 412줄 (lint 🟡 warning: 200줄 초과)
+
+### system-design.md 분리 (412줄 → 3개)
+
+| 신규 파일 | 줄 | 내용 |
+|---|---|---|
+| `_meta/requirements.md` | 69 | 니즈 N1-N6 / 제약 C1-C5 / 사용자 인용 / 비-목표 |
+| `_meta/architecture-5layer.md` | 195 | 5개 레이어 / 데이터 플로우 (ingest/query/MCP) / 비용 분석 |
+| `_meta/decisions-d1-d6.md` | 157 | 결정 매트릭스 / D1-D6 근거 / 리스크 R1-R6 / M0-M6 마일스톤 / K1-K7 성공지표 |
+
+### 신규 문서 3개
+
+| 파일 | 줄 | 내용 |
+|---|---|---|
+| `_meta/dr-runbook.md` | 186 | RPO 1h / RTO 30m / 3-2-1 / S1-S4 시나리오 + 복구 명령어 / 분기 훈련 일정 |
+| `_meta/deployment.md` | 197 | VPS + Tailscale + docker-compose + Caddyfile + GitHub webhook + systemd |
+| `_meta/ai-roadmap.md` | 194 | M3-M6 단계 / Vector Search (sqlite-vec) / 관련 문서 추천 / RAG Q&A / 자동 태깅 |
+
+### 빌드 / lint 결과
+
+- **build_db**: 26 → 31 pages (+5: 분할 3 + 신규 3, system-design 제거로 순 +5) / 286 → 337 links / 90 → 108 tags
+- **lint (최종)**: 🔴 0 / 🟡 3 / 🔵 21 / total 24
+  - critical 0 ✅ (요구사항: 0 유지)
+  - warning 3 (모두 기존): SCHEMA 216줄, content/how-to-start-vault 235줄, log 266줄
+  - info 21: custom tag (meta, requirements, architecture, decisions, deployment, dr, backup, roadmap, prd, scenario, persona, harumoa, template, criticism, governance, onboarding, rag, security) + placeholder wikilink 예시
+- **system-design 412줄 경고 제거**: warning 4 → 3 (split으로 해결)
+
+### 분리 효과 (200줄 룰)
+
+- 분할 전: SCHEMA 216, system-design 412, log 266, how-to-start-vault 235 (4건)
+- 분할 후: SCHEMA 216, how-to-start-vault 235, log 266 (3건, 모두 기존) — system-design 분할로 1건 해결 ✅
+
+### index.md 갱신
+
+- 6개 항목 추가 (3개 분할 + 3개 신규)
+- `[[_meta/system-design]]` 제거 (분할로 대체)
+- 페이지 카운트 갱신: 15 content + 9 _meta
+
+### git status (commit 직전)
+
+```
+M  index.md
+M  log.md
+D  _meta/system-design.md
+A  _meta/requirements.md
+A  _meta/architecture-5layer.md
+A  _meta/decisions-d1-d6.md
+A  _meta/dr-runbook.md
+A  _meta/deployment.md
+A  _meta/ai-roadmap.md
+```
+
+### 발견한 이슈
+
+- `meta` 태그 9건 (W3: 6건 → W5: +3 신규) — `CORE_TAGS` 포함 결정 계속 보류. 9건은 threshold 넘었으니 다음 단계에서 결정 권장
+- `harumoa` (기고자명) 태그 — 여전히 부적절; frontmatter `author:` 필드로 이동 검토
+- `_template.md`의 custom tag `template` — `CORE_TAGS` 승격 후보 (W6)
+- SCHEMA 216줄 분리 후보 (개념 / 빌드 원칙 / lint 규칙 3개 파일로) — W6 작업 권장
+- `how-to-start-vault.md` 235줄 — 페이지당 100줄 권장 초과, 분리는 사용자 판단 보류
+- `log.md` 266줄 — 자체 분리 (예: `log-2026-06.md`) 검토 (W6)
+
+### commit
+- `refactor(meta): split system-design.md into 3 files + add DR/deployment/ai-roadmap`
