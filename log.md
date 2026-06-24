@@ -205,3 +205,61 @@
   - `meta` 태그가 6건 → W4에서 taxonomy 합의 시 `CORE_TAGS`에 포함 여부 결정
   - `broken` / `missing` 룰 intent (W2에서 `[[!]]`, `[[?]]` syntax 도입) — W4 작성자 가이드에 명시 필요
 - commit: (W3 작업분)
+
+## 2026-06-25 (M1 W4 wiki-writer)
+
+### 작업: content/ 15페이지 작성
+
+**위임**: `wiki-writer` 프로필 (MiniMax-M3)
+
+**작성한 페이지 (15개)**:
+
+| type | 파일 | outbound | 라인 |
+|---|---|---|---|
+| concept | `content/mcp-server.md` | 6 | 80 |
+| concept | `content/tailscale-mesh.md` | 3 | 86 |
+| concept | `content/bm25-search.md` | 4 | 89 |
+| concept | `content/react-spa-architecture.md` | 4 | 98 |
+| tool | `content/hermes-agent.md` | 5 | 78 |
+| tool | `content/minimax-m3.md` | 3 | 70 |
+| person | `content/andrej-karpathy.md` | 4 | 62 |
+| person | `content/jonadas-techio.md` | 4 | 70 |
+| comparison | `content/ssg-vs-spa.md` | 2 | 86 |
+| comparison | `content/mcp-vs-rest-api.md` | 4 | 95 |
+| comparison | `content/sqlite-vs-postgres.md` | 3 | 100 |
+| project | `content/harumoa-overview.md` | 5 | 65 |
+| project | `content/_template.md` | 7 | 122 |
+| query | `content/search-result-2026-06-24.md` | 5 | 86 |
+| journal | `content/how-to-start-vault.md` | 8 | 159 |
+
+### 빌드/lint 결과
+- **build_db**: 11 → 26 페이지 (+15), 90 → 286 링크 (+196), 34 → 90 태그 (+56)
+- **lint** (최종): 🔴 0 / 🟡 4 / 🔵 16 / total 20
+  - critical 0 ✅
+  - warning 4: SCHEMA 216줄, system-design 412줄, log 208줄, how-to-start-vault 235줄
+  - info 16: custom tag (governance, rag, security, template, onboarding, criticism, meta, prd, scenario, persona, architecture, harumoa) + placeholder wikilink 예시 (RULES, SCHEMA, log, _template)
+
+### outbound ≥ 2 강제 검증 (concept/person/tool)
+- 모든 대상 페이지가 ≥ 3 outbound (최소: tailscale-mesh 3) ✅
+- 강제 규칙 위반: **0건** 🔴
+
+### 발견한 이슈 (W5 wiki-architect 알림)
+- `_meta/system-design.md` 412줄 — 분리 **강력 권장** (요구사항 / 5-layer / 결정 3개로)
+  - 분리안: `_meta/requirements.md` (니즈+제약), `_meta/architecture.md` (5-layer + 데이터 플로우), `_meta/decisions.md` (D1-D6)
+- `SCHEMA.md` 216줄 — 분리 후보 (개념 / 빌드 원칙 / lint 규칙)
+- `how-to-start-vault.md` 235줄 — 페이지당 100줄 권장 초과 (warning이지만 lint 통과)
+  - 권장 분리: `content/how-to-start-vault/{overview, setup, common-mistakes, next-steps}.md`
+- `meta` 태그 — `CORE_TAGS`에 포함할지 결정 필요 (W3에서 8건, W4 종료 시점에 동일)
+- `prd`, `persona`, `scenario`, `harumoa`, `architecture` 태그 — type과 중복; frontmatter `author:`, `category:` 필드로 분리 검토
+
+### 다음 (W5 wiki-architect) 알림
+- `_meta/` 3개 문서 작성 필요:
+  1. `_meta/dr-runbook.md` (재해 복구 절차)
+  2. `_meta/deployment.md` (VPS 배포 + Tailscale + systemd)
+  3. `_meta/ai-roadmap.md` (M3-M6 상세)
+- `_meta/system-design.md` 분리 결정 (412줄 → 3개 파일? 또는 외부 보관?)
+- `meta` 태그 `CORE_TAGS` 포함 여부 결정
+- `_template.md`의 custom tag `template` → `CORE_TAGS` 승격 후보
+
+### commit
+- `git commit -m "feat(content): add 15 wiki pages (concept/tool/person/comparison/project/query)"`
