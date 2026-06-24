@@ -269,9 +269,10 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
 # ─────────────────────────── CLI ───────────────────────────────────
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Build ~/wiki SQLite query index.")
-    p.add_argument("vault", nargs="?", default=str(Path.home() / "wiki"),
-                   help="vault root (default: ~/wiki)")
+    _default_vault = Path(__file__).resolve().parent.parent
+    p = argparse.ArgumentParser(description=f"Build {_default_vault} SQLite query index.")
+    p.add_argument("vault", nargs="?", default=str(_default_vault),
+                   help=f"vault root (default: {_default_vault})")
     p.add_argument("--db", default=None,
                    help="output DB path (default: <vault>/wiki.db)")
     args = p.parse_args(argv)

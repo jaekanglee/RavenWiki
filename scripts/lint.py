@@ -308,18 +308,19 @@ def _print_report(issues: Sequence[Issue], stream=sys.stdout) -> None:
 # ---------------------------------------------------------------------------
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    _default_vault = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(
         description="Lint wiki.db against 9 SCHEMA-defined rules.",
     )
     parser.add_argument(
         "--db",
-        default=str(Path.home() / "wiki" / "wiki.db"),
-        help="Path to wiki.db (default: ~/wiki/wiki.db)",
+        default=str(_default_vault / "wiki.db"),
+        help=f"Path to wiki.db (default: {_default_vault}/wiki.db)",
     )
     parser.add_argument(
         "--vault",
-        default=str(Path.home() / "wiki"),
-        help="Vault root for raw/ freshness heuristic (default: ~/wiki)",
+        default=str(_default_vault),
+        help=f"Vault root for raw/ freshness heuristic (default: {_default_vault})",
     )
     parser.add_argument(
         "--quiet", action="store_true",
