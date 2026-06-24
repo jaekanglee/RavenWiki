@@ -331,3 +331,22 @@ A  _meta/ai-roadmap.md
 
 ### commit
 - `refactor(meta): split system-design.md into 3 files + add DR/deployment/ai-roadmap`
+
+## [2026-06-25] M2 | MCP Server (FastMCP)
+- `mcp/` 디렉토리 신규 (11 files)
+- 7 tools (read 5 + write 2 + admin 2)
+- 5 resources (`wiki://index`, `page/{slug}`, `graph`, `log/recent`, `schema`)
+- 권한 모델: read (default) / --write / --admin
+- transport: stdio (Hermes) + HTTP (Tailscale, 8765)
+- **cli.py 명명**: `mcp/server.py`는 SDK `mcp.server` namespace와 충돌 → 우회
+- `_load_sdk_fastmcp()`: sys.modules + sys.path scrub으로 SDK 보호
+- stdio handshake 검증: initialize/tools/list 정상 (mode별 5/7/9 도구 노출)
+- pytest: 32 passed / 3 failed (write.py 사전 버그, M3 fix 예정)
+- commit `c74877d`
+- 누적 10 commits, lint 0 critical 유지
+
+### 발견 (M3 작업 대상)
+- `tools/write.py:46` `wiki_update`가 top-level slug 거부
+- `tools/write.py:94` `wiki_ingest`가 str vault로 TypeError
+- admin tools (delete/rename)은 stub만 (`{ok:false, "M3 stub"}`)
+- `wiki_lint` 이중 subprocess 호출
