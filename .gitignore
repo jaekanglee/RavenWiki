@@ -1,0 +1,32 @@
+# Build artifacts (regenerable from markdown)
+wiki.db
+wiki.db-journal
+wiki.db-wal
+wiki.db-shm
+wiki.db.backup
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Node (M3 dashboard)
+node_modules/
+dist/
