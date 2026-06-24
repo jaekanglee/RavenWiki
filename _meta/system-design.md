@@ -54,10 +54,10 @@ confidence: high
 
 | 컴포넌트 | 역할 | 빌드 주체 |
 |---|---|---|
-| `*.md` + YAML frontmatter | 페이지 본문 | [[wiki-writer]] |
-| `index.json` | 페이지 카탈로그 (slug/tags/links) | [[wiki-curator]] 자동 생성 |
-| `search.idx` | BM25 검색 인덱스 (MiniSearch 직렬화) | [[wiki-curator]] 자동 생성 |
-| `graph.json` | 노드/엣지 (D3 force용) | [[wiki-curator]] 자동 생성 |
+| `*.md` + YAML frontmatter | 페이지 본문 | `wiki-writer` |
+| `index.json` | 페이지 카탈로그 (slug/tags/links) | `wiki-curator` 자동 생성 |
+| `search.idx` | BM25 검색 인덱스 (MiniSearch 직렬화) | `wiki-curator` 자동 생성 |
+| `graph.json` | 노드/엣지 (D3 force용) | `wiki-curator` 자동 생성 |
 | git | 모든 변경 추적/롤백 | 사용자 (커밋) |
 
 **핵심 결정**:
@@ -404,8 +404,8 @@ vs Notion Plus: $10/월 × 12 = $120/년
 
 ## 관련
 
-- [[mvp-prd]] — 초기 PRD
-- [[wiki-persona]] — 페르소나
-- [[wiki-scenario]] — 시나리오
-- [[wiki-schema]] — 데이터 규약
+- [[_meta/mvp-prd]] — 초기 PRD
+- [[_meta/wiki-persona]] — 페르소나
+- [[_meta/wiki-scenario]] — 시나리오
+- [[SCHEMA]] — 데이터 규약
 - [architecture.html](architecture.html) — 통합 아키텍처 다이어그램 (브라우저로 열기)

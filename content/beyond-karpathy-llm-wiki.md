@@ -54,7 +54,7 @@ Karpathy는 "왜 통합이 좋은가"를 짚었지만, **"어떻게 통합할 �
 
 ## 우리 시스템에 적용
 
-[[wiki-schema]]에 다음을 포함:
+[[SCHEMA]]에 다음을 포함:
 
 | 규칙 | 효과 |
 |---|---|
@@ -72,8 +72,7 @@ Karpathy의 "유지보수 자동화"는 그대로 + **Jônadas의 "지적 지배
 - lint가 governance 위반 자동 탐지
 
 ## 관련
-
-- [[llm-wiki]] — Karpathy 원본 패턴
-- [[rag-vs-llm-wiki]] — RAG와 비교
-- [[wiki-schema]] — 우리 vault 규약 (governance 포함)
-- [[mvp-prd]] — 시스템 PRD
+- [[content/llm-wiki]] — Karpathy 원본 패턴
+- [[content/rag-vs-llm-wiki]] — RAG와 비교
+- [[SCHEMA]] — 우리 vault 규약 (governance 포함)
+- [[_meta/mvp-prd]] — 시스템 PRD

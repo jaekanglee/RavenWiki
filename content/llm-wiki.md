@@ -15,7 +15,7 @@ confidence: high
 > LLM이 **점진적으로 빌드하고 유지보수하는 영구적 위키** — RAG와 달리 매번 답을 재구성하지 않음.
 
 원본: [Karpathy, "LLM Wiki" gist (2026-04-04)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-(원본은 [[raw-karpathy-llm-wiki-2026]] 에 저장)
+(원본은 [[raw/articles/karpathy-llm-wiki-2026]] 에 저장)
 
 ## 핵심 아이디어 (The core idea)
 
@@ -73,7 +73,7 @@ LLM의 역할: 나머지 전부
 
 | Karpathy 제안 | 우리 채택 여부 | 대안 |
 |---|---|---|
-| Obsidian | ❌ | [[wiki-dashboard]] 자체 뷰어 |
+| Obsidian | ❌ | `wiki-dashboard` 자체 뷰어 |
 | Obsidian Sync | ❌ | git push |
 | Obsidian Web Clipper | ❌ | 자체 chrome ext (S5 시나리오) |
 | Dataview | ❌ | 자체 BM25 검색 |
@@ -87,7 +87,7 @@ LLM의 역할: 나머지 전부
 
 ## 한계 / 비판 (반드시 인지)
 
-[[beyond-karpathy-llm-wiki]] (Jônadas Techio)의 핵심 비판:
+[[content/beyond-karpathy-llm-wiki]] (Jônadas Techio)의 핵심 비판:
 > "지배력 없는 LLM 컴파일러는 평균으로 회귀한다. 결과는 정확하지만 죽어있다."
 
 해결: **Cognitive Governance** — schema에 **어떻게 사고할지** 규칙 추가
@@ -98,16 +98,15 @@ LLM의 역할: 나머지 전부
 
 ## 우리 시스템에서의 Governance
 
-[[wiki-schema]]에 다음 규칙 포함:
+[[SCHEMA]]에 다음 규칙 포함:
 - 모든 페이지는 `[[wikilinks]]` ≥ 2 (고립 금지)
 - 모순 발견 시 `contested: true` + `contradictions:` 명기
 - `confidence: low` 페이지는 lint에서 플래그
 - 200줄 초과 시 분리 강제
 
 ## 관련
-
-- [[rag-vs-llm-wiki]] — 왜 RAG가 아닌가
-- [[beyond-karpathy-llm-wiki]] — 비판과 Cognitive Governance
-- [[wiki-schema]] — 우리 vault 규약
-- [[mvp-prd]] — 시스템 PRD
-- [[raw-karpathy-llm-wiki-2026]] — 원본 소스
+- [[content/rag-vs-llm-wiki]] — 왜 RAG가 아닌가
+- [[content/beyond-karpathy-llm-wiki]] — 비판과 Cognitive Governance
+- [[SCHEMA]] — 우리 vault 규약
+- [[_meta/mvp-prd]] — 시스템 PRD
+- [[raw/articles/karpathy-llm-wiki-2026]] — 원본 소스

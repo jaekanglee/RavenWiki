@@ -46,7 +46,7 @@ confidence: high
 ### 4. synthesis 품질
 - **RAG**: 5개 raw 합성 → 매번 다시 → 약간씩 다름
 - **LLM Wiki**: 이미 통합된 페이지 → 일관성
-- **승**: LLM Wiki (단, governance 필요 — [[beyond-karpathy-llm-wiki]])
+- **승**: LLM Wiki (단, governance 필요 — [[content/beyond-karpathy-llm-wiki]])
 
 ### 5. freshness
 - **RAG**: raw만 업데이트하면 끝
@@ -74,11 +74,10 @@ confidence: high
 
 > **LLM Wiki 패턴 채택 + 자체 도구로 구현 (Obsidian 의존 ❌)**
 
-[[wiki-architect]]가 SCHEMA를 잡고, [[wiki-writer]]가 ingest하며, [[wiki-curator]]가 index/log/lint를 돌리고, [[wiki-dashboard]]가 자체 뷰어로 보여준다.
+`wiki-architect`가 SCHEMA를 잡고, `wiki-writer`가 ingest하며, `wiki-curator`가 index/log/lint를 돌리고, `wiki-dashboard`가 자체 뷰어로 보여준다.
 
 ## 관련
-
-- [[llm-wiki]] — Karpathy 패턴 정리
-- [[beyond-karpathy-llm-wiki]] — LLM Wiki의 한계와 governance
-- [[mvp-prd]] — 우리 시스템 PRD
-- [[wiki-schema]] — 우리 vault 규약
+- [[content/llm-wiki]] — Karpathy 패턴 정리
+- [[content/beyond-karpathy-llm-wiki]] — LLM Wiki의 한계와 governance
+- [[_meta/mvp-prd]] — 우리 시스템 PRD
+- [[SCHEMA]] — 우리 vault 규약

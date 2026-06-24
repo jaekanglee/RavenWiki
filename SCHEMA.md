@@ -33,7 +33,7 @@ wiki/
 ├── raw/                            # 불변 1차 소스
 ├── _meta/                          # vault 운영 문서 (frontmatter 면제 X, type: rule)
 ├── _archive/                       # retired 페이지
-├── scripts/                        # 빌드/lint 스크립트
+├── scripts/                        # W2에서 생성 (build_db.py, lint.py, backup_db.py)
 └── wiki.db                         # ⭐ SQLite Query Index (gitignore)
 ```
 
@@ -107,7 +107,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 - **파일명**: lowercase, hyphens, no spaces (예: `wiki-architect.md`, `rag-vs-llm-wiki.md`)
 - **인코딩**: UTF-8
 - **줄바꿈**: LF
-- **위키링크**: `[[wikilinks]]` (slug만, prefix 없이)
+- **위키링크**: `[[wikilinks]]` (slug = vault-relative path, 예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)
 - **wikilink intent (v2.3)**:
   - `[[link]]` — auto (target 존재하면 ok, 없으면 info)
   - `[[link]]!` — broken (CRITICAL)
@@ -120,7 +120,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 ## Governance (Cognitive Governance)
 
 > LLM의 자연스러운 중력은 합의/평균. governance는 저항.
-> 출처: [[beyond-karpathy-llm-wiki]]
+> 출처: [[content/beyond-karpathy-llm-wiki]]
 
 ### 작성 규칙 (wiki-writer)
 
@@ -212,4 +212,4 @@ python3 -m wiki_mcp.server --admin
 - [[content/llm-wiki]] — Karpathy 패턴
 - [[content/beyond-karpathy-llm-wiki]] — governance 동기
 - [[content/rag-vs-llm-wiki]] — RAG와 비교
-- [[_meta/ai-roadmap]] — AI 활용 상세 (M3-M6)
+- (W5에서 `_meta/ai-roadmap.md` 생성 예정 — M3-M6 상세 로드맵)

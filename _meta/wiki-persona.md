@@ -15,7 +15,7 @@ confidence: medium
 ### 배경
 - 30대, 풀스택/백엔드 위주, 10년차
 - 진행 프로젝트 여러 개 동시 (harumoa, homeauto 등)
-- Telegram으로 [[wiki-orchestrator]]와 소통
+- Telegram으로 `wiki-orchestrator`와 소통
 - macOS 로컬, Obsidian **구매 의향 없음**
 - git 사용, CLI 편함
 
@@ -47,7 +47,7 @@ raw/에 저장, 10-15 페이지 자동 업데이트
 ↓
 "완료, 업데이트된 파일: ..." 보고
 ↓
-[[wiki-dashboard]]에서 그래프/검색으로 확인
+`wiki-dashboard`에서 그래프/검색으로 확인
 ```
 
 ### 인용 (Quote)
@@ -73,9 +73,9 @@ raw/에 저장, 10-15 페이지 자동 업데이트
 - 인용 자동 관리
 
 ### 우리 시스템이 줄 수 있는 것
-- [[wiki-curator]]가 cross-reference 자동 갱신
+- `wiki-curator`가 cross-reference 자동 갱신
 - lint가 "이거 6개월 전 자료, 신버전 있음" 알림
-- [[wiki-architect]]가 "이 두 엔티티 페이지 통합해도 됨" 제안
+- `wiki-architect`가 "이 두 엔티티 페이지 통합해도 됨" 제안
 
 ---
 
@@ -97,6 +97,6 @@ raw/에 저장, 10-15 페이지 자동 업데이트
 
 | 페르소나 | 주로 쓰는 Phase |
 |---|---|
-| Jake (Primary) | [[wiki-orchestrator]] (Telegram) → 4 Phase 전부 |
-| Riya (Secondary) | [[wiki-writer]] (직접 ingest 호출) + [[wiki-curator]] |
+| Jake (Primary) | `wiki-orchestrator` (Telegram) → 4 Phase 전부 |
+| Riya (Secondary) | `wiki-writer` (직접 ingest 호출) + `wiki-curator` |
 | Anti-persona | (지원 안 함) |

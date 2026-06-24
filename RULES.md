@@ -79,7 +79,7 @@ cd ~/wiki/scripts && python3 lint.py
 
 - **git push = 진짜 백업** (markdown이 SoT)
 - `wiki.db.backup` = `backup_db.py` 일 1회 (DB만 복구 가능)
-- **v2.2**: `git push` 실패 감지 (RULES 우선순위)
+- **v2.4**: `git push` 실패 감지 (RULES 우선순위)
   - webhook 실패 시 Telegram 알림
   - push 실패 → wiki.db.backup 즉시 확인 + 수동 push
 - 로컬 Time Machine = OS 의존

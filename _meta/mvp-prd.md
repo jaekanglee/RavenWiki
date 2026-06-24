@@ -27,14 +27,14 @@ confidence: medium
 
 - LLM Wiki 패턴(Karpathy 2026-04) — **컴파일 후 reuse**, not 매번 재구성
 - markdown + git = 무료, 영구적, 도구 독립
-- [[wiki-architect]] / [[wiki-curator]] / [[wiki-writer]] / [[wiki-dashboard]] 4개 Phase 프로필로
+- `wiki-architect` / `wiki-curator` / `wiki-writer` / `wiki-dashboard` 4개 Phase 프로필로
   반복 작업 자동화
 
 ## 목표 (Goals)
 
 | # | 목표 | 성공 기준 |
 |---|---|---|
-| G1 | **vault 일관성** | 모든 페이지가 [[wiki-schema]] (SCHEMA.md) 준수 |
+| G1 | **vault 일관성** | 모든 페이지가 [[SCHEMA]] (SCHEMA.md) 준수 |
 | G2 | **ingest 비용 감소** | 한 소스당 평균 10-15페이지 자동 업데이트 |
 | G3 | **자체 뷰어 작동** | Obsidian 없이도 그래프/검색/사이드바 가능 |
 | G4 | **도메인 독립** | harumoa 외 다른 프로젝트도 같은 시스템으로 동작 |
@@ -50,7 +50,7 @@ confidence: medium
 
 ## 페르소나
 
-자세한 페르소나는 [[wiki-persona]] 참조.
+자세한 페르소나는 [[_meta/wiki-persona]] 참조.
 
 | 페르소나 | 핵심 니즈 |
 |---|---|
@@ -60,7 +60,7 @@ confidence: medium
 
 ## 사용자 시나리오
 
-자세한 시나리오는 [[wiki-scenario]] 참조.
+자세한 시나리오는 [[_meta/wiki-scenario]] 참조.
 
 | 시나리오 | 핵심 플로우 |
 |---|---|
@@ -99,7 +99,7 @@ confidence: medium
 
 1. **vault 100페이지 도달** — harumoa 프로젝트 문서 100페이지
 2. **링크 밀도 ≥ 2.0** — 페이지당 평균 outbound 2개
-3. **모두 [[wiki-architect]]/[[wiki-curator]]/[[wiki-writer]]/[[wiki-dashboard]]로 처리된 1사이클**
+3. **모두 `wiki-architect`/`wiki-curator`/`wiki-writer`/`wiki-dashboard`로 처리된 1사이클**
 4. **자체 뷰어에서 그래프/검색 작동**
 5. **다른 프로젝트 1개** 추가해서 같은 시스템으로 동작 검증
 
@@ -116,15 +116,15 @@ confidence: medium
 
 | 리스크 | 영향 | 완화 |
 |---|---|---|
-| LLM이 평범한 요약만 만듦 | High | [[wiki-scenario]] S3의 governance 규칙 적용 |
+| LLM이 평범한 요약만 만듦 | High | [[_meta/wiki-scenario]] S3의 governance 규칙 적용 |
 | 자체 뷰어 개발 지연 | Medium | 1차는 정적 사이트, TUI도 옵션 |
 | 카르파시 패턴이 우리 도메인에 안 맞음 | Medium | 1차 MVP는 harumoa 한정으로 검증 |
 | vault 비대해져서 성능 저하 | Low | lint로 페이지 분리/아카이브 자동화 |
 
 ## 관련
 
-- [[llm-wiki]] — Karpathy 원본 패턴 정리
-- [[rag-vs-llm-wiki]] — 왜 RAG가 아닌 LLM Wiki인가
-- [[wiki-persona]] — 사용자 페르소나
-- [[wiki-scenario]] — MVP 시나리오
-- [[wiki-schema]] — vault 규약
+- [[content/llm-wiki]] — Karpathy 원본 패턴 정리
+- [[content/rag-vs-llm-wiki]] — 왜 RAG가 아닌 LLM Wiki인가
+- [[_meta/wiki-persona]] — 사용자 페르소나
+- [[_meta/wiki-scenario]] — MVP 시나리오
+- [[SCHEMA]] — vault 규약

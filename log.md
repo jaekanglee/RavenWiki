@@ -90,4 +90,18 @@
   - Slug rename 절차
 - **index.md 갱신**: v2.4 경로 (`content/...`)로 wikilink 모두 수정
 - **log.md 갱신**: W1 완료 기록
-- **git init** + 첫 commit 예정
+- **git init** + 첫 commit 완료 (commit 2c8d62c)
+
+## [2026-06-24] fix | W1 dangling wikilinks (B안: prefix 유지)
+- 문제: 4건 critical
+  - 잘못된 slug로 SCHEMA 참조 (6 files)
+  - 잘못된 slug로 mvp-prd 참조 (4 files)
+  - 존재하지 않는 `_meta/ai-roadmap` 링크 (1 file)
+  - content/ 미프리픽스 wikilink (5 cases)
+- 결정: B안 — wikilink = slug = vault-relative path (예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)
+- SCHEMA.md L110 규약 문구 갱신
+- RULES.md L83 v2.2 → v2.4
+- agent role wikilink (wiki-architect 등) → 백틱 (W4에서 페이지 생성 시 복원)
+- `_meta/ai-roadmap` → 링크 제거 (W5에서 파일 생성 예정)
+- `content/beyond-karpathy-llm-wiki.md` outbound ≥ 2 보강
+- 검증: dangling wikilink grep → 0건

@@ -19,12 +19,12 @@ confidence: medium
 - **wiki-curator** (인덱스/링크 정리)
 
 ### 사전 조건
-- vault 초기화 완료 ([[wiki-schema]] 존재)
+- vault 초기화 완료 ([[SCHEMA]] 존재)
 - harumoa 프로젝트 디렉토리 존재
 
 ### 플로우
 1. **Jake**: Telegram으로 "https://spring.io/guides/tutorial-rest 이거 위키에 넣어줘" 입력
-2. **wiki-orchestrator**: 의도 분류 → "ingest" → [[wiki-writer]]로 위임
+2. **`wiki-orchestrator`**: 의도 분류 → "ingest" → `wiki-writer`로 위임
 3. **wiki-writer**:
    - URL fetch → markdown 변환 → `raw/articles/spring-rest-tutorial.md` 저장
    - frontmatter 추가 (`source_url`, `ingested`, `sha256`)
@@ -42,7 +42,7 @@ confidence: medium
 
 ### 사후 조건
 - 1개 raw + N개 wiki 페이지 생성/갱신
-- 모두 `[[wiki-schema]]` frontmatter 보유
+- 모두 SCHEMA frontmatter 보유
 - `log.md`에 기록
 
 ### 변형 (Variations)
@@ -124,9 +124,9 @@ confidence: medium
 
 ### 플로우
 1. **Jake**: Telegram "새 프로젝트 `homeauto` 시작할 건데 같은 시스템으로 세팅해줘"
-2. **wiki-orchestrator** → [[wiki-architect]]
+2. **`wiki-orchestrator`** → `wiki-architect`
 3. **wiki-architect**:
-   - 기존 [[wiki-schema]] 검토
+   - 기존 [[SCHEMA]] 검토
    - homeauto 도메인에 맞는 tag 추가 (예: `zigbee`, `homekit`, `mqtt`)
    - 새 디렉토리: `homeauto/`
    - RULES.md 작성 (프로젝트별 컨벤션)
@@ -137,7 +137,7 @@ confidence: medium
 
 ### 사후 조건
 - homeauto가 harumoa와 **독립적으로** 같은 시스템 동작
-- 두 프로젝트는 같은 [[wiki-schema]] 공유
+- 두 프로젝트는 같은 [[SCHEMA]] 공유
 
 ---
 
