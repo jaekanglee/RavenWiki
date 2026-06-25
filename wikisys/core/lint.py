@@ -142,6 +142,8 @@ def check_orphans(vault: Vault) -> list[dict]:
     """#4 orphan: inbound wikilink 0 인 페이지. grace 기간 (기본 7일) 지나면 warning.
 
     Returns: [{"id":"#4", "severity":"warning|info", "slug":..., "message":...}, ...]
+
+    면제 (v0.5.2+ SCHEMA): _meta/ 안 페이지 (rule/reference). 운영 문서는 inbound 0이 정상.
     """
     grace = _orphan_grace_days(vault)
     today = date.today()
@@ -163,6 +165,9 @@ def check_orphans(vault: Vault) -> list[dict]:
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
         if inbound.get(slug, 0) > 0:
+            continue
+        # 면제: _meta/ 안 (rule/reference, 운영 문서)
+        if slug.startswith("_meta/"):
             continue
         # orphan: created 기준 grace 계산
         fm = _parse_fm(fp)
@@ -227,7 +232,7 @@ def check_confidence_low(vault: Vault) -> list[dict]:
 def check_stale(vault: Vault) -> list[dict]:
     """#7 stale: updated > 90일 + content/RAG/위키 등 도메인 페이지 → info.
 
-    운영 문서 (`type: rule`) + `_meta/`는 면제.
+    운영 문서 (`type: rule` 또는 `_meta/` 안) 면제 (v0.5.2+).
     """
     today = date.today()
     out: list[dict] = []
@@ -255,10 +260,15 @@ def check_stale(vault: Vault) -> list[dict]:
 
 
 def check_page_size(vault: Vault) -> list[dict]:
-    """#8 page size > 200줄 → info (분할 권장)."""
+    """#8 page size > 200줄 → info (분할 권장).
+
+    면제 (v0.5.2+ SCHEMA): _meta/ 안 (rule/reference, 운영 문서).
+    """
     out: list[dict] = []
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue  # 운영 문서 면제
         try:
             n = sum(1 for _ in fp.open(encoding="utf-8", errors="replace"))
         except Exception:

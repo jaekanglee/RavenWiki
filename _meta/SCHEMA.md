@@ -136,7 +136,10 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 ### 분리/아카이브
 
 - 200줄 초과 → 분리 대상 (lint warning)
+  - **면제**: `type: rule` (운영 문서, reference 페이지) — `_meta/` 안 페이지
+  - **면제**: 1,000줄 미만의 reference/FAQ/guide 류
 - 90일 미갱신 + 새 출처 → stale
+  - **면제**: `type: rule` (변경 빈도 낮음)
 - 365일 미갱신 → `_archive/` 후보
 
 ### Lint 자동 탐지
@@ -145,11 +148,12 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 2. 🔴 broken_link (`[[target!]]` 명시 OR target 존재하면 안 됨)
 3. 🔵 missing_link (`[[target?]]` 명시 OR target 미존재)
 4. 🟡 orphan (>7일 + inbound 0) — **즉시 ❌, 7일 후 ✅**
-5. 🟡 200줄 초과
+   - **면제**: `_meta/` 안 페이지 (rule/reference)
+5. 🟡 200줄 초과 — **type: rule 면제** (v0.5.2+)
 6. 🔵 weak connection (concept/person/tool 중 outbound < 2)
 7. 🔵 tag not in core taxonomy
 8. 🔵 `contested: true` 페이지 목록
-9. 🔵 90일+ 미갱신 + 새 출처
+9. 🔵 90일+ 미갱신 + 새 출처 — **type: rule 면제** (v0.5.2+)
 
 ## 빌드 원칙
 
