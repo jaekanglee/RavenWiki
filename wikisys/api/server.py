@@ -250,6 +250,14 @@ def create_page(name: str, payload: PageCreate):
     body = f"# {payload.title}\n{payload.content}".rstrip() + "\n"
     rendered = frontmatter_module.render(meta, body)
     fp.write_text(rendered, encoding="utf-8")
+    # v0.5.1+: log.md에 create entry 자동 append
+    try:
+        log_module.append(
+            v, action="create", subject=normalized,
+            files=[normalized], note=f"type={payload.type}",
+        )
+    except Exception:
+        pass
     return {"ok": True, "vault": name, "slug": normalized}
 
 
@@ -279,6 +287,14 @@ def update_page(name: str, slug: str, payload: PageUpdate):
     body = payload.content.rstrip() + "\n"
     rendered = frontmatter_module.render(meta, body)
     fp.write_text(rendered, encoding="utf-8")
+    # v0.5.1+: log.md에 update entry 자동 append
+    try:
+        log_module.append(
+            v, action="update", subject=slug,
+            files=[slug], note=f"updated={today}",
+        )
+    except Exception:
+        pass
     return {"ok": True, "vault": name, "slug": slug, "created": meta.get("created")}
 
 
@@ -301,6 +317,14 @@ def delete_page(name: str, slug: str):
     dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     fp.rename(dest)
+    # v0.5.1+: log.md에 archive entry 자동 append
+    try:
+        log_module.append(
+            v, action="archive", subject=slug,
+            files=[str(dest.relative_to(v.root))], note=f"원본: {slug}",
+        )
+    except Exception:
+        pass
     return {"ok": True, "vault": name, "slug": slug, "archived_to": str(dest)}
 
 
@@ -540,6 +564,57 @@ def post_log_rotate(name: str, year: Optional[int] = None, force: bool = False):
         "vault": name,
         "rotated_to": str(target),
         "preserved_entries": total,
+    }
+
+
+# ────────────────────────── lint endpoints (v0.5.1+) ──────────────────────────
+
+
+@app.get("/api/vaults/{name}/lint")
+def get_lint(
+    name: str,
+    check: Optional[str] = Query(None, description="특정 check id (#1-#12)"),
+    severity: Optional[str] = Query(None, description="critical|warning|info"),
+    write_log: bool = Query(False, description="log.md에 lint entry 자동 append"),
+):
+    """lint 12개 (카파시 가이드) 실행."""
+    v = _vault_or_404(name)
+    result = lint_module.run_all(v)
+    issues = result["issues"]
+    if check:
+        issues = [i for i in issues if i.get("id") == check]
+    if severity:
+        issues = [i for i in issues if i.get("severity") == severity]
+    if write_log:
+        try:
+            c = result["counts"]
+            log_module.append(
+                v,
+                action="lint",
+                subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
+            )
+        except Exception:
+            pass
+    return {
+        "ok": result["ok"],
+        "vault": name,
+        "counts": result["counts"],
+        "by_check": result["by_check"],
+        "issues": issues,
+    }
+
+
+@app.get("/api/vaults/{name}/lint/summary")
+def get_lint_summary(name: str):
+    """12개 check별 통계 (빠른 헬스체크)."""
+    v = _vault_or_404(name)
+    result = lint_module.run_all(v)
+    return {
+        "ok": result["ok"],
+        "vault": name,
+        "counts": result["counts"],
+        "by_check": result["by_check"],
     }
 
 

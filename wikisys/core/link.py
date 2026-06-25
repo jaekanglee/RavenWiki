@@ -97,3 +97,31 @@ def find_missing(vault: Vault, slug: Optional[str] = None) -> list[dict]:
             if not (vault.root / f"{tgt}.md").exists():
                 out.append({"source_slug": src, "target": tgt, "intent": lnk.intent})
     return out
+
+
+def find_broken_intent(vault: Vault, slug: Optional[str] = None) -> list[dict]:
+    """#2: `[[x]]!` 인데 target 존재 → CRITICAL (잘못된 intent).
+
+    의도적으로 broken 표시했는데 실제론 존재 → 모순. 사용자가 확인 필요.
+    """
+    if slug:
+        fp = vault.root / f"{slug}.md"
+        if not fp.exists():
+            return []
+        targets = [(slug, fp.read_text(errors="replace"))]
+    else:
+        targets = [
+            (str(p.relative_to(vault.root))[:-3], p.read_text(errors="replace"))
+            for p in vault.content_root.rglob("*.md")
+        ]
+    out = []
+    for src, text in targets:
+        for lnk in parse(text):
+            if lnk.intent != "broken":
+                continue
+            tgt = _resolve(lnk.target)
+            if "/" not in tgt:
+                continue
+            if (vault.root / f"{tgt}.md").exists():
+                out.append({"source_slug": src, "target": tgt, "intent": lnk.intent})
+    return out

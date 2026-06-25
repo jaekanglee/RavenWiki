@@ -33,12 +33,14 @@ link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki 패턴.")
+lint_app = typer.Typer(help="lint 12개 (카파시 가이드) — broken/orphan/contradictions/stale 등.")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
 app.add_typer(meta_app, name="meta")
 app.add_typer(archive_app, name="archive")
 app.add_typer(log_app, name="log")
+app.add_typer(lint_app, name="lint")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -333,6 +335,17 @@ def page_new(
     body = f"# {title}\n"
     rendered = frontmatter_module.render(meta, body)
     fp.write_text(rendered, encoding="utf-8")
+    # v0.5.1+: log.md에 create entry 자동 append
+    try:
+        log_module.append(
+            v,
+            action="create",
+            subject=normalized,
+            files=[normalized],
+            note=f"type={type_}",
+        )
+    except Exception:
+        pass
     typer.echo(f"✅ created: {normalized}")
 
 
@@ -367,6 +380,17 @@ def page_delete(
     dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     fp.rename(dest)
+    # v0.5.1+: log.md에 archive entry 자동 append
+    try:
+        log_module.append(
+            v,
+            action="archive",
+            subject=slug,
+            files=[str(dest.relative_to(v.root))],
+            note=f"원본: {slug}",
+        )
+    except Exception:
+        pass
     typer.echo(f"✅ archived: {slug} → {dest.relative_to(v.root)}")
 
 
@@ -517,18 +541,17 @@ def link_check(
 def build(
     vault: Optional[str] = typer.Option(None, "--vault"),
     db: Optional[Path] = typer.Option(None, "--db", help="output db path (default: <vault>/wiki.db)"),
-    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="run lint after build"),
+    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 12개 실행"),
 ) -> None:
-    """Rebuild wiki.db for the active vault."""
+    """Rebuild wiki.db for the active vault. lint 12개 자동 실행 (v0.5.1+)."""
     v = _resolve_vault_or_die(vault)
-    result = db_module.build_db(v, db_path=db)
+    result = db_module.build_db(v, db_path=db, run_lint=lint_after)
     if result["ok"]:
         typer.echo(f"✅ built: {result.get('db_path') or v.db_path}")
         if "pages" in result:
             typer.echo(f"   pages: {result['pages']}")
-        if lint_after:
-            lr = lint_module.run_lint(v)
-            c = lr.get("counts", {})
+        if lint_after and "lint" in result:
+            c = result["lint"]["counts"]
             typer.echo(f"   lint: {c.get('critical', '?')}C / {c.get('warning', '?')}W / {c.get('info', '?')}I")
     else:
         typer.echo(f"❌ build failed (rc={result.get('returncode')})", err=True)
@@ -682,6 +705,136 @@ def log_status(
         typer.echo(f"   last:     [{last['date']}] {last['action']} | {last['subject']}")
     if needs_rotate:
         typer.echo(f"   ⚠️  rotation 권장: `wikisys log rotate`")
+
+
+# ────────────────────────── lint (12 checks) ──────────────────────────
+
+
+@lint_app.command("run")
+def lint_run(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    check: Optional[str] = typer.Option(None, "--check", "-c", help="특정 check만 (#1-#12)"),
+    severity: Optional[str] = typer.Option(None, "--severity", "-s", help="critical|warning|info 만 표시"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="이슈 전체 표시"),
+    json_out: bool = typer.Option(False, "--json"),
+    write_log: bool = typer.Option(False, "--log", help="log.md에 lint entry 자동 append"),
+) -> None:
+    """vault에 대해 lint 12개 실행. v0.5.1+ 카파시 가이드 100% 자동화."""
+    v = _resolve_vault_or_die(vault)
+    result = lint_module.run_all(v)
+    issues = result["issues"]
+    # filter
+    if check:
+        issues = [i for i in issues if i.get("id") == check]
+    if severity:
+        issues = [i for i in issues if i.get("severity") == severity]
+    if json_out:
+        typer.echo(json.dumps({
+            "vault": result["vault"],
+            "ok": result["ok"],
+            "counts": result["counts"],
+            "by_check": result["by_check"],
+            "issues": issues,
+        }, indent=2, ensure_ascii=False))
+        return
+    c = result["counts"]
+    marker = "✅" if result["ok"] else "❌"
+    typer.echo(f"{marker} {result['vault']} — {c['critical']}C / {c['warning']}W / {c['info']}I (total {c['total']})")
+    if result["by_check"]:
+        typer.echo(f"\n📊 by check:")
+        for cid in sorted(result["by_check"].keys()):
+            n = result["by_check"][cid]
+            typer.echo(f"   {cid}: {n}")
+    if verbose and issues:
+        typer.echo(f"\n🔍 issues ({len(issues)}):")
+        for iss in issues[:50]:
+            typer.echo(f"  [{iss.get('id', '?'):3s}] {iss.get('severity', '?'):8s} {iss.get('slug', '?'):40s} {iss.get('message', '')}")
+        if len(issues) > 50:
+            typer.echo(f"   ... +{len(issues) - 50} more (--json으로 전체 확인)")
+    # log 기록
+    if write_log:
+        try:
+            log_module.append(
+                v,
+                action="lint",
+                subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
+            )
+        except Exception:
+            pass
+    # critical 있으면 exit 1
+    if c["critical"] > 0:
+        raise typer.Exit(1)
+
+
+@lint_app.command("summary")
+def lint_summary(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """12개 check별 통계 (빠른 헬스체크)."""
+    v = _resolve_vault_or_die(vault)
+    result = lint_module.run_all(v)
+    if json_out:
+        typer.echo(json.dumps({
+            "vault": result["vault"],
+            "ok": result["ok"],
+            "counts": result["counts"],
+            "by_check": result["by_check"],
+        }, indent=2, ensure_ascii=False))
+        return
+    c = result["counts"]
+    typer.echo(f"📊 {result['vault']} lint summary:")
+    typer.echo(f"   total:     {c['total']}")
+    typer.echo(f"   critical:  {c['critical']} 🔴")
+    typer.echo(f"   warning:   {c['warning']}  🟡")
+    typer.echo(f"   info:      {c['info']}     🔵")
+    typer.echo(f"\n   by check:")
+    for cid in [f"#{i}" for i in range(1, 13)]:
+        n = result["by_check"].get(cid, 0)
+        bar = "█" * min(n, 20)
+        typer.echo(f"     {cid}  {n:3d}  {bar}")
+
+
+@lint_app.command("check")
+def lint_check(
+    check_id: str = typer.Argument(..., help="실행할 check id (#1-#12)"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """특정 check 1개만 실행 (디버깅/타겟 검증)."""
+    v = _resolve_vault_or_die(vault)
+    fn_name = f"check_{_CHECK_ID_TO_NAME.get(check_id, '')}"
+    fn = getattr(lint_module, fn_name, None)
+    if not fn:
+        typer.echo(f"❌ unknown check: {check_id}. 1-12 중 하나.", err=True)
+        raise typer.Exit(1)
+    issues = fn(v)
+    if json_out:
+        typer.echo(json.dumps(issues, indent=2, ensure_ascii=False))
+        return
+    if not issues:
+        typer.echo(f"✅ {check_id} ({_CHECK_ID_TO_NAME[check_id]}): no issues")
+        return
+    typer.echo(f"🔍 {check_id} ({_CHECK_ID_TO_NAME[check_id]}): {len(issues)} issues")
+    for iss in issues:
+        typer.echo(f"  [{iss.get('severity', '?'):8s}] {iss.get('slug', '?'):40s} {iss.get('message', '')}")
+
+
+# check id → 함수 이름 매핑
+_CHECK_ID_TO_NAME = {
+    "#1": "orphans",  # #1 broken은 link_module
+    "#3": "orphans",  # placeholder
+    "#4": "orphans",
+    "#5": "contradictions",
+    "#6": "confidence_low",
+    "#7": "stale",
+    "#8": "page_size",
+    "#9": "tag_audit",
+    "#10": "frontmatter_completeness",
+    "#11": "index_completeness",
+    "#12": "log_size",
+}
 
 
 # ────────────────────────── entrypoint ──────────────────────────

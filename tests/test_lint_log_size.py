@@ -1,6 +1,7 @@
-"""Tests for wikisys.core.lint — v0.5.0+ log_size check (#12 of 12).
+"""Tests for wikisys.core.lint — v0.5.1+ log_size check (#12 of 12, 회귀).
 
 카파시 가이드: log.md > 500 entries → info (rotation 권장).
+v0.5.1+: check_log_size는 list[dict] (issue 리스트) 반환.
 """
 from __future__ import annotations
 
@@ -33,34 +34,31 @@ def test_log_size_below_threshold(vault):
     """499 entries → info 0."""
     for i in range(LOG_ROTATE_THRESHOLD - 1):
         append(vault, "chore", f"entry {i}")
-    result = check_log_size(vault)
-    assert result["info"] == 0
-    assert result["needs_rotate"] is False
-    assert result["entries"] == LOG_ROTATE_THRESHOLD - 1
+    issues = check_log_size(vault)
+    assert issues == []
 
 
 def test_log_size_at_threshold(vault):
-    """500 entries → info 1, needs_rotate True."""
+    """500 entries → info 1."""
     for i in range(LOG_ROTATE_THRESHOLD):
         append(vault, "chore", f"entry {i}")
-    result = check_log_size(vault)
-    assert result["info"] == 1
-    assert result["needs_rotate"] is True
-    assert result["entries"] == LOG_ROTATE_THRESHOLD
+    issues = check_log_size(vault)
+    assert len(issues) == 1
+    assert issues[0]["id"] == "#12"
+    assert issues[0]["severity"] == "info"
+    assert "500" in issues[0]["message"]
 
 
 def test_log_size_no_log_file(vault):
-    """log.md 없으면 info 0 (bootstrap이 알아서 만듦)."""
-    result = check_log_size(vault)
-    assert result["info"] == 0
-    assert result["exists"] is False
-    assert result["entries"] == 0
+    """log.md 없으면 빈 리스트."""
+    issues = check_log_size(vault)
+    assert issues == []
 
 
 def test_log_size_above_threshold(vault):
-    """600 entries → 여전히 info 1 (1개 권고)."""
+    """600 entries → 1개 info."""
     for i in range(600):
         append(vault, "chore", f"entry {i}")
-    result = check_log_size(vault)
-    assert result["info"] == 1
-    assert result["entries"] == 600
+    issues = check_log_size(vault)
+    assert len(issues) == 1
+    assert issues[0]["id"] == "#12"

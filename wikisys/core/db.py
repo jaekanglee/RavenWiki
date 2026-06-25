@@ -25,12 +25,13 @@ from .vault import Vault
 # ────────────────────────── public API ──────────────────────────
 
 
-def build_db(vault: Vault, db_path: Optional[Path] = None) -> dict:
+def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = True) -> dict:
     """Rebuild the wiki.db index for `vault`. Returns a small status dict.
 
     Args:
         vault: the active vault handle (root + meta).
         db_path: where to write the DB (default: <vault>/wiki.db).
+        run_lint: v0.5.1+ — build 직후 lint 12개 자동 실행. 기본 True.
 
     Side effect: appends a `build` entry to log.md on success or failure.
     """
@@ -56,6 +57,15 @@ def build_db(vault: Vault, db_path: Optional[Path] = None) -> dict:
     except Exception:
         # log append 실패는 무시 — build 자체엔 영향 ❌
         pass
+
+    # v0.5.1+: build 직후 lint 12개 자동 실행
+    if run_lint:
+        try:
+            from . import lint as _lint
+            lint_result = _lint.run_all(vault)
+            result["lint"] = lint_result
+        except Exception as e:
+            result["lint_error"] = f"{type(e).__name__}: {e}"
 
     return result
 
