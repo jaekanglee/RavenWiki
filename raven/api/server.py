@@ -136,7 +136,15 @@ class VaultCreate(BaseModel):
     mode: str = Field("personal", description="personal | shared | agent")
     owner: str = Field("user", description="user or agent name")
     description: str = Field("", description="free text")
-    bootstrap: bool = Field(True, description="copy SCHEMA/RULES templates into _meta/")
+    bootstrap: bool = Field(
+        True,
+        description=(
+            "Lite bootstrap policy (v2026-06-26, 2-tier model): if True, copy ONLY "
+            "user-facing essentials (SCHEMA, RULES, log.md). Tier 1 raven-internal "
+            "docs (OPERATIONS, agent/*, raven-policy) are NEVER auto-copied. "
+            "Use `raven docs` command to read raven-internal docs."
+        ),
+    )
 
 
 @app.post("/api/vaults/create")
@@ -144,6 +152,11 @@ def create_vault(payload: VaultCreate):
     """Create a new vault on disk + register it.
 
     Mirrors `raven vault create <name> <path> --mode <mode>`.
+
+    Tier boundary policy: regardless of bootstrap flag, raven-internal
+    operational docs (OPERATIONS.md, agent/*, raven-policy.md) are NEVER
+    copied into the user vault. This enforces the 2-tier boundary
+    (Tier 1 = raven package, Tier 2 = user vault).
     """
     from raven.core.vault import Vault as _Vault
 

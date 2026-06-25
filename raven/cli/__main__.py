@@ -39,6 +39,13 @@ migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리
 note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
 collection_app = typer.Typer(help="collection sync — vault FS ↔ yaml diff (Stateless Curator 합의안 v3).")
 curator_app = typer.Typer(help="curator run — Stateless Curator execute() (git diff 기반 change set 큐레이션).")
+docs_app = typer.Typer(
+    help=(
+        "Tier 1 raven-internal docs (v2026-06-26, 2-tier model). "
+        "Reads OPERATIONS.md, agent/*, raven-policy.md from the raven package — "
+        "NEVER copies them into the user vault."
+    ),
+)
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
@@ -50,6 +57,7 @@ app.add_typer(migrate_app, name="migrate")
 app.add_typer(note_app, name="note")
 app.add_typer(collection_app, name="collection")
 app.add_typer(curator_app, name="curator")
+app.add_typer(docs_app, name="docs")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -776,28 +784,51 @@ def page_delete(
 def meta_sync(
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
-    with_log: bool = typer.Option(False, "--with-log", help="vault 루트에 log.md + raven-policy.md도 복사 (기존 파일 있으면 skip)"),
+    full: bool = typer.Option(
+        False,
+        "--full",
+        help="Full set (Lite + raven-internal: OPERATIONS, agent/*, raven-policy). Lite 정책 무시. --force 필요.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="기존 파일 덮어쓰기 (user-edited 보호 해제). --full과 함께 사용 권장.",
+    ),
 ) -> None:
     """Re-copy SCHEMA.md / RULES.md from raven templates into _meta/.
 
-    --with-log: vault 루트에 log.md + raven-policy.md도 복사 (없을 때만).
-                기존 vault 보강용 (v0.5.0+, 카파시 가이드 도입 시).
+    Tier boundary policy (v2026-06-26, 2-tier model):
+        Default = Lite 모드 (Tier 1 ↔ Tier 2 경계 존중).
+        --full = Tier 1 raven-internal docs도 복사 (raven 개발자/디버깅용).
+                 기존 파일 있으면 --force 없이는 거부됨.
+
+    Examples:
+        raven meta sync                    # Lite (SCHEMA, RULES, log.md)
+        raven meta sync --full --force     # Full + 덮어쓰기 (주의)
+        raven meta sync --full             # Full, 기존 파일 있으면 에러
     """
     v = _resolve_vault_or_die(vault)
-    result = v.sync_meta(with_log=with_log)
+    try:
+        result = v.sync_meta(lite=not full, force=force)
+    except ValueError as e:
+        # safety check violation
+        typer.echo(f"❌ {e}", err=True)
+        raise typer.Exit(code=1)
     if json_out:
         typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if result["copied"]:
-        typer.echo(f"✅ synced: {', '.join(result['copied'])}")
+        typer.echo(f"✅ copied: {', '.join(result['copied'])}")
+    if result["skipped"]:
+        typer.echo(f"⏭  skipped (existing): {', '.join(result['skipped'])}")
     if result["errors"]:
-        typer.echo(f"⚠️  errors / skipped:", err=True)
+        typer.echo("⚠️  errors:", err=True)
         for err in result["errors"]:
             typer.echo(f"   {err['file']}: {err['error']}", err=True)
-    if not result["copied"] and not result["errors"]:
+    if not result["copied"] and not result["skipped"] and not result["errors"]:
         typer.echo("⚠️  no templates found (package install broken?)")
-    if with_log:
-        typer.echo("💡 log.md + raven-policy.md 보강 완료 (없던 vault에 한해)")
+    if full:
+        typer.echo("💡 full 모드 — Tier 1 raven-internal docs 복사됨 (주의)")
 
 
 # ────────────────────────── archive (vault _archive/ mgmt) ──────────────────────────
@@ -1357,6 +1388,63 @@ def main() -> int:
     except KeyboardInterrupt:
         return 130
     return 0
+
+
+# ────────────────────────── docs (Tier 1 raven-internal) ──────────────────────────
+# v2026-06-26: 2-tier boundary enforcement. These docs are Tier 1 (raven package),
+# not Tier 2 (user vault). They are NEVER auto-copied during vault bootstrap.
+# Use `raven docs <topic>` to read them.
+
+
+@docs_app.command("list")
+def docs_list() -> None:
+    """List available Tier 1 raven-internal docs."""
+    from importlib import resources
+
+    items = [
+        ("operations", "templates/system/OPERATIONS.md", "Raven 빌드/lint/마이그레이션 운영"),
+        ("agent-readme", "templates/agent/README.md", "에이전트 행동 지침 (진입점)"),
+        ("agent-tools", "templates/agent/TOOLS.md", "에이전트 인터페이스 + scope"),
+        ("agent-workflow", "templates/agent/WORKFLOW.md", "트리거 / Phase 게이트"),
+        ("agent-safety", "templates/agent/SAFETY.md", "에이전트 절대 금지"),
+        ("policy", "templates/wikisys-policy.md", "raven 운영 정책"),
+    ]
+    typer.echo("📚 Tier 1 raven-internal docs (vault에 복사되지 않음):\n")
+    for name, path, desc in items:
+        exists = resources.files("raven.core").joinpath(path).is_file()
+        marker = "✓" if exists else "✗"
+        typer.echo(f"  {marker} {name:20s} {desc}")
+    typer.echo(f"\n💡 사용법: raven docs operations")
+
+
+@docs_app.command("show")
+def docs_show(
+    topic: str = typer.Argument(
+        ...,
+        help="operations | agent-readme | agent-tools | agent-workflow | agent-safety | policy",
+    ),
+) -> None:
+    """Print a Tier 1 doc to stdout. Never writes to disk."""
+    from importlib import resources
+
+    topic_map = {
+        "operations": "templates/system/OPERATIONS.md",
+        "agent-readme": "templates/agent/README.md",
+        "agent-tools": "templates/agent/TOOLS.md",
+        "agent-workflow": "templates/agent/WORKFLOW.md",
+        "agent-safety": "templates/agent/SAFETY.md",
+        "policy": "templates/wikisys-policy.md",
+    }
+    if topic not in topic_map:
+        typer.echo(f"❌ unknown topic: {topic!r}. Try: {', '.join(topic_map)}", err=True)
+        raise typer.Exit(code=1)
+
+    src = resources.files("raven.core").joinpath(topic_map[topic])
+    if not src.is_file():
+        typer.echo(f"❌ doc not found: {topic_map[topic]}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(src.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

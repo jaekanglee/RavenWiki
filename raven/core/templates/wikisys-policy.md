@@ -1,3 +1,9 @@
+<!--
+이 템플릿은 vault 루트의 `raven-policy.md`로 복사됩니다.
+raven-internal 운영 정책이라 Lite bootstrap에서는 자동 복사 ❌.
+`raven sync_meta(full=True, force=True)` 또는 `raven docs policy`로 접근.
+-->
+
 ---
 title: Vault Operating Policy
 created: 2026-06-26

@@ -11,6 +11,13 @@ The CLI resolves the *active* vault via:
   1. `--vault NAME` flag (explicit override)
   2. `WIKI_VAULT` env var
   3. registry's `default` vault
+
+Tier boundary policy (v2026-06-26, 2-tier model):
+    Tier 1 = raven package (this codebase) — owns its own docs, build, lint
+    Tier 2 = user vault (~/vaults/<name>/) — user runtime data, NEVER receives
+             raven-internal operational docs (OPERATIONS.md, agent/*, raven-policy.md).
+    Lite bootstrap policy: vault create() only copies the minimum a user needs
+    (SCHEMA + RULES + empty log). To read raven-internal docs, use `raven docs`.
 """
 from __future__ import annotations
 
@@ -22,6 +29,15 @@ from pathlib import Path
 from typing import Optional
 
 from .registry import registry, VaultMeta
+
+
+# Lite bootstrap whitelist — only files every user needs.
+# These are user-facing schema/rules, NOT raven internals.
+_LITE_BOOTSTRAP_FILES = (
+    "_meta/system/SCHEMA.md",
+    "_meta/system/RULES.md",
+    "log.md",
+)
 
 
 @dataclass
@@ -54,7 +70,7 @@ class Vault:
         Args:
             name, path, mode, owner, description: standard vault meta.
             bootstrap: if True (default), create content/ + _meta/ and copy
-                SCHEMA.md / RULES.md templates into _meta/. Use False when
+                SCHEMA.md / RULES.md templates (Lite policy). Use False when
                 registering an existing folder that already has content.
         """
         path = Path(path).expanduser().resolve()
@@ -70,7 +86,7 @@ class Vault:
         # write per-vault meta
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
         if bootstrap:
-            cls._bootstrap(path)
+            cls._bootstrap_lite(path)
         else:
             # Even without bootstrap, content/ + _meta/ should exist as empty dirs
             # so users have a writable starting point. (v0.4 fix — discovered via clone test)
@@ -81,120 +97,126 @@ class Vault:
         return cls(meta=meta, root=path)
 
     @classmethod
-    def _bootstrap(cls, path: Path) -> None:
-        """Create content/, _meta/system/, _meta/agent/, and copy templates.
+    def _bootstrap_lite(cls, path: Path) -> None:
+        """Lite bootstrap (v2026-06-26): copy ONLY the user-facing essentials.
 
-        Idempotent: existing files are NOT overwritten. To refresh templates,
-        use `raven meta sync`.
+        Creates:
+            content/                     (empty)
+            _meta/system/SCHEMA.md       (frontmatter/type/tag/wikilink 규약)
+            _meta/system/RULES.md        (편집 5규칙)
+            log.md                       (빈 로그 헤더)
 
-        Structure created:
-            _meta/system/{SCHEMA,RULES,OPERATIONS}.md
-            _meta/agent/{README,TOOLS,WORKFLOW,SAFETY}.md
-            log.md, raven-policy.md  (vault root)
+        Does NOT copy:
+            OPERATIONS.md  → raven internal docs, use `raven docs operations`
+            agent/*        → raven LLM agent behavior, use `raven docs agent`
+            raven-policy.md → raven internal policy, use `raven docs policy`
+
+        Idempotent: existing files are NOT overwritten. To refresh templates
+        after raven upgrade, use `raven meta sync --lite`.
         """
         from importlib import resources
 
         content_dir = path / "content"
         meta_dir = path / "_meta"
         system_dir = meta_dir / "system"
-        agent_dir = meta_dir / "agent"
 
         content_dir.mkdir(parents=True, exist_ok=True)
         meta_dir.mkdir(parents=True, exist_ok=True)
         system_dir.mkdir(parents=True, exist_ok=True)
-        agent_dir.mkdir(parents=True, exist_ok=True)
 
-        # _meta/system/: SCHEMA, RULES, OPERATIONS
-        for filename in ("SCHEMA.md", "RULES.md", "OPERATIONS.md"):
-            target = system_dir / filename
+        # Map: target relative path → template resource path
+        template_map = {
+            "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
+            "_meta/system/RULES.md":  "templates/system/RULES.md",
+            "log.md":                  "templates/log.md",
+        }
+
+        for rel_target, tmpl_path in template_map.items():
+            target = path / rel_target
             if target.exists():
                 continue  # never overwrite user-edited files
             try:
-                src = resources.files("raven.core").joinpath(f"templates/system/{filename}")
+                src = resources.files("raven.core").joinpath(tmpl_path)
+                target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-            except Exception:
-                pass
+            except Exception as e:
+                # Loud, not silent — caller (CLI) will surface this.
+                raise RuntimeError(
+                    f"Lite bootstrap failed: could not copy {rel_target} "
+                    f"from {tmpl_path}: {e}"
+                ) from e
 
-        # _meta/agent/: README, TOOLS, WORKFLOW, SAFETY
-        for filename in ("README.md", "TOOLS.md", "WORKFLOW.md", "SAFETY.md"):
-            target = agent_dir / filename
-            if target.exists():
-                continue  # never overwrite user-edited files
-            try:
-                src = resources.files("raven.core").joinpath(f"templates/agent/{filename}")
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-            except Exception:
-                pass
-
-        # vault 루트: log.md (카파시 가이드), raven-policy.md
-        for filename in ("log.md", "raven-policy.md"):
-            target = path / filename
-            if target.exists():
-                continue
-            try:
-                src = resources.files("raven.core").joinpath(f"templates/{filename}")
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-            except Exception:
-                pass
-
-    def sync_meta(self, with_log: bool = False) -> dict:
-        """Re-copy system/* and agent/* templates (overwrites).
+    def sync_meta(self, *, lite: bool = True, force: bool = False) -> dict:
+        """Re-copy meta templates into the vault.
 
         Args:
-            with_log: if True, also copy log.md (template) and raven-policy.md
-                      to the vault root. Default False to honor 카파시 가이드
-                      ("don't modify existing data without explicit user action").
+            lite: if True (default), copy only the Lite whitelist
+                  (SCHEMA, RULES, log). If False, copy full set including
+                  raven-internal docs (OPERATIONS, agent/*, raven-policy).
+                  Default lite=True to enforce Tier 1 ↔ Tier 2 boundary.
+            force: if False (default), do not overwrite existing files
+                   (user-edited protection). If True, overwrite.
 
         Returns dict with counts of copied/skipped files.
-        Use this after raven upgrade to refresh meta docs.
-        Creates _meta/system/ and _meta/agent/ if missing (idempotent).
+
+        Raises:
+            ValueError: if --force is combined with full set on a vault that
+                        has user-edited internal docs (safety check).
         """
         from importlib import resources
+
+        # Determine target files based on lite flag
+        if lite:
+            file_map = {
+                "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
+                "_meta/system/RULES.md":  "templates/system/RULES.md",
+                "log.md":                  "templates/log.md",
+            }
+        else:
+            # Full set — only for raven internal development, not user vaults
+            file_map = {
+                "_meta/system/SCHEMA.md":     "templates/system/SCHEMA.md",
+                "_meta/system/RULES.md":      "templates/system/RULES.md",
+                "_meta/system/OPERATIONS.md": "templates/system/OPERATIONS.md",
+                "_meta/agent/README.md":      "templates/agent/README.md",
+                "_meta/agent/TOOLS.md":       "templates/agent/TOOLS.md",
+                "_meta/agent/WORKFLOW.md":    "templates/agent/WORKFLOW.md",
+                "_meta/agent/SAFETY.md":      "templates/agent/SAFETY.md",
+                "log.md":                      "templates/log.md",
+                "raven-policy.md":             "templates/wikisys-policy.md",
+            }
+            if not force:
+                # Safety: full set without force could overwrite user-edited
+                # raven-internal files. Refuse unless force=True.
+                for rel_target in file_map:
+                    target = self.root / rel_target
+                    if target.exists():
+                        raise ValueError(
+                            f"sync_meta(full): target exists at {target}. "
+                            f"Refusing to overwrite without force=True. "
+                            f"This protects user-edited raven-internal docs."
+                        )
 
         system_dir = self.meta_root / "system"
         agent_dir = self.meta_root / "agent"
         system_dir.mkdir(parents=True, exist_ok=True)
-        agent_dir.mkdir(parents=True, exist_ok=True)
+        if not lite:
+            agent_dir.mkdir(parents=True, exist_ok=True)
 
-        out = {"copied": [], "errors": []}
+        out = {"copied": [], "skipped": [], "errors": []}
 
-        # _meta/system/: SCHEMA, RULES, OPERATIONS (항상 overwrite)
-        for filename in ("SCHEMA.md", "RULES.md", "OPERATIONS.md"):
-            target = system_dir / filename
+        for rel_target, tmpl_path in file_map.items():
+            target = self.root / rel_target
+            if target.exists() and not force:
+                out["skipped"].append(str(target.relative_to(self.root)))
+                continue
             try:
-                src = resources.files("raven.core").joinpath(f"templates/system/{filename}")
+                src = resources.files("raven.core").joinpath(tmpl_path)
+                target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
                 out["copied"].append(str(target.relative_to(self.root)))
             except Exception as e:
-                out["errors"].append({"file": f"system/{filename}", "error": str(e)})
-
-        # _meta/agent/: README, TOOLS, WORKFLOW, SAFETY (항상 overwrite)
-        for filename in ("README.md", "TOOLS.md", "WORKFLOW.md", "SAFETY.md"):
-            target = agent_dir / filename
-            try:
-                src = resources.files("raven.core").joinpath(f"templates/agent/{filename}")
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                out["copied"].append(str(target.relative_to(self.root)))
-            except Exception as e:
-                out["errors"].append({"file": f"agent/{filename}", "error": str(e)})
-
-        # vault 루트: log.md + raven-policy.md (with_log=True 일 때만)
-        if with_log:
-            for filename in ("log.md", "raven-policy.md"):
-                target = self.root / filename
-                if target.exists():
-                    # 이미 있으면 덮어쓰지 않음 (사용자 데이터 보호)
-                    out["errors"].append({
-                        "file": filename,
-                        "error": f"exists at {target}, not overwritten (delete manually if you want refresh)",
-                    })
-                    continue
-                try:
-                    src = resources.files("raven.core").joinpath(f"templates/{filename}")
-                    target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                    out["copied"].append(str(target.relative_to(self.root)))
-                except Exception as e:
-                    out["errors"].append({"file": filename, "error": str(e)})
+                out["errors"].append({"file": rel_target, "error": str(e)})
         return out
 
     @classmethod
@@ -208,23 +230,29 @@ class Vault:
         owner: Optional[str] = None,
         description: str = "",
         copy_meta: bool = True,
+        data_only: bool = False,
     ) -> "Vault":
-        """Create a new vault by copying `src`'s content + meta to `path`.
+        """Create a new vault by copying `src`'s content to `path`.
 
         Args:
             src: source Vault instance.
             name: new vault name (must not already be registered).
             path: absolute path for new vault directory.
             mode, owner, description: optional overrides (default: copy from src).
-            copy_meta: if True, copy _meta/ from src too. If False, leave _meta/ empty
-                       (caller can run `raven meta sync` afterwards).
+            copy_meta: if True (default), copy _meta/ from src too. If False,
+                       leave _meta/ empty (caller can run `raven meta sync`).
+            data_only: if True, copy ONLY content/ (no _meta/, no .vault.json
+                       policy inheritance). Use for data migration / backup
+                       where you don't want source vault's policy semantics
+                       to leak into the new vault. Mutually exclusive with
+                       copy_meta=True (data_only wins).
 
         Returns:
             New Vault instance (already registered in the registry).
 
         Copies:
-            content/  — all user markdown (1:1)
-            _meta/    — system docs (only if copy_meta=True)
+            content/  — all user markdown (1:1) [always]
+            _meta/    — system docs (only if copy_meta=True and not data_only)
 
         Skips:
             _archive/ — not transferred (it's transient)
@@ -246,14 +274,15 @@ class Vault:
         new_path.mkdir(parents=True, exist_ok=True)
 
         import shutil
-        # content/ 1:1
+        # content/ 1:1 (always)
         src_content = src.root / "content"
         if src_content.exists():
             shutil.copytree(src_content, new_path / "content")
         else:
             (new_path / "content").mkdir(exist_ok=True)
 
-        # _meta/ optional copy
+        # _meta/ optional copy (only if copy_meta=True AND not data_only)
+        copy_meta = copy_meta and not data_only
         if copy_meta and (src.root / "_meta").exists():
             shutil.copytree(src.root / "_meta", new_path / "_meta")
         else:
@@ -294,7 +323,7 @@ class Vault:
     def ensure_dirs(self) -> None:
         self.content_root.mkdir(parents=True, exist_ok=True)
         self.meta_root.mkdir(parents=True, exist_ok=True)
-        # log.md 자동 보장 (없으면 템플릿에서)
+        # log.md 자동 보장 (없으면 빈 헤더)
         from . import log as _log
         _log.ensure_log(self)
 

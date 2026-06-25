@@ -226,15 +226,19 @@ def test_cli_page_delete_validates_slug(fresh_env):
 def test_cli_meta_sync_copies_when_missing(fresh_env):
     target = fresh_env["target_root"] / "v12"
     runner.invoke(app, ["vault", "create", "v12", str(target), "--no-bootstrap"])
-    # _meta/ does not exist — sync_meta creates it
+    # Lite sync_meta default copies SCHEMA, RULES, log.md
     result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
     assert result.exit_code == 0, result.stderr
     assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "agent" / "README.md").is_file()
+    # No agent/ subdir created (Lite policy)
+    assert not (target / "_meta" / "agent").exists()
+    # No OPERATIONS.md
+    assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()
 
 
-def test_cli_meta_sync_overwrites_existing(fresh_env):
+def test_cli_meta_sync_does_not_overwrite_by_default(fresh_env):
+    """Default sync_meta is Lite + no-force (does NOT overwrite)."""
     target = fresh_env["target_root"] / "v13"
     runner.invoke(app, ["vault", "create", "v13", str(target)])
     # customize RULES.md in new location
@@ -242,8 +246,8 @@ def test_cli_meta_sync_overwrites_existing(fresh_env):
     rules_path.write_text("# CUSTOM OLD\n")
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13"])
     assert result.exit_code == 0, result.stderr
-    # overwritten
-    assert "Vault Editing Rules" in rules_path.read_text()
+    # NOT overwritten (Lite policy: user-edited protected)
+    assert "# CUSTOM OLD" in rules_path.read_text()
 
 
 def test_cli_meta_sync_json_out(fresh_env):
@@ -252,10 +256,24 @@ def test_cli_meta_sync_json_out(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    # v0.8+: copied는 vault-relative path, system/ + agent/ 분리 구조
+    # Lite: only 3 files (no agent/, no OPERATIONS, no raven-policy)
     assert "_meta/system/SCHEMA.md" in data["copied"]
     assert "_meta/system/RULES.md" in data["copied"]
-    assert "_meta/agent/README.md" in data["copied"]
+    assert "log.md" in data["copied"]
+    assert "_meta/agent/README.md" not in data["copied"]
+    assert "_meta/system/OPERATIONS.md" not in data["copied"]
+
+
+def test_cli_meta_sync_full_with_force(fresh_env):
+    """--full --force copies all raven-internal docs (for raven developers)."""
+    target = fresh_env["target_root"] / "vfull"
+    runner.invoke(app, ["vault", "create", "vfull", str(target), "--no-bootstrap"])
+    result = runner.invoke(app, ["meta", "sync", "--full", "--force", "--vault", "vfull"])
+    assert result.exit_code == 0, result.stderr
+    # Full set present
+    assert (target / "_meta" / "system" / "OPERATIONS.md").is_file()
+    assert (target / "_meta" / "agent" / "README.md").is_file()
+    assert (target / "raven-policy.md").is_file()
 
 
 # ─── vault clone ────────────────────────────────────────────
