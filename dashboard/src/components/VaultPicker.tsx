@@ -51,14 +51,19 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
   // ─── close on outside click ──────────────────────────────
   useEffect(() => {
     if (!open) return;
-    function onDoc(e: MouseEvent) {
+    function onDoc(e: MouseEvent | PointerEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
         setShowCreate(false);
       }
     }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    // capture: true — xyflow/react가 bubbling에서 stopPropagation해도 받음
+    document.addEventListener("pointerdown", onDoc, { capture: true });
+    document.addEventListener("mousedown", onDoc, { capture: true });
+    return () => {
+      document.removeEventListener("pointerdown", onDoc, { capture: true } as any);
+      document.removeEventListener("mousedown", onDoc, { capture: true } as any);
+    };
   }, [open]);
 
   // ─── select vault ────────────────────────────────────────
