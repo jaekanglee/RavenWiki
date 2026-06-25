@@ -4,6 +4,10 @@ wiki.db-journal
 wiki.db-wal
 wiki.db-shm
 wiki.db.backup
+backups/
+
+# Service logs
+logs/
 
 # Python
 __pycache__/

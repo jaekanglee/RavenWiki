@@ -1,0 +1,22 @@
+[Unit]
+Description=Wiki DB backup (one-shot)
+After=network.target
+Documentation=https://github.com/<user>/wiki
+
+[Service]
+Type=oneshot
+User=%i
+Group=%i
+WorkingDirectory=/home/%i/wiki
+
+Environment=VAULT=/home/%i/wiki
+Environment=PYTHONUNBUFFERED=1
+
+# --keep 7 : 최근 7일치 일자별 백업 + 단순 백업 유지
+ExecStart=/home/%i/wiki/scripts/.venv/bin/python /home/%i/wiki/scripts/backup_db.py --keep 7
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wiki-backup
+
+# 실패 시 0이 아닌 exit → systemd가 timer에 알림 (선택적: OnFailure=)

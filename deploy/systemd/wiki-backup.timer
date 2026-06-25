@@ -1,0 +1,17 @@
+[Unit]
+Description=Wiki DB daily backup timer
+Documentation=https://github.com/<user>/wiki
+
+[Timer]
+# 매일 03:00 KST (UTC 18:00) — 서버 idle 시간대
+OnCalendar=*-*-* 18:00:00 UTC
+# 시스템 다운 후 복귀 시 누락된 백업 즉시 실행
+Persistent=true
+# 5분 랜덤 지터 (동시 백업 방지)
+RandomizedDelaySec=300
+# 정확도 — 1초 단위
+AccuracySec=1s
+Unit=wiki-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,33 @@
+[Unit]
+Description=Wiki Dashboard (vite preview)
+After=network.target
+Documentation=https://github.com/<user>/wiki
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=/home/%i/wiki/dashboard
+
+# VAULT 위치는 환경변수로 오버라이드 가능 (기본: ~/wiki = /home/%i/wiki)
+Environment=VAULT=/home/%i/wiki
+Environment=NODE_ENV=production
+Environment=NODE_PATH=/usr/local/lib/node_modules
+
+ExecStart=/home/%i/wiki/dashboard/node_modules/.bin/vite preview --port 5173 --host 127.0.0.1
+
+Restart=always
+RestartSec=10
+
+# Logging — journald에 누적 (journalctl -u wiki-dashboard)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wiki-dashboard
+
+# Hardening (선택 — 필요시 주석 해제)
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

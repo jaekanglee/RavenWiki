@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wiki.dashboard</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{VAULT}}/dashboard/node_modules/.bin/vite</string>
+        <string>preview</string>
+        <string>--port</string>
+        <string>5173</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{VAULT}}/dashboard</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>{{VAULT}}/logs/dashboard.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{VAULT}}/logs/dashboard.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

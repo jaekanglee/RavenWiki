@@ -370,7 +370,53 @@ A  _meta/ai-roadmap.md
 - commit `285d64d`
 - 누적 12 commits, lint 0 critical 유지
 
-### 발견 (M4 작업 대상)
-- vitest `npm run test` 기본이 watch 모드 → hang. `vitest --run` 명시 필요
-- `MiniSearchás.loadJSON` 같은 오타 가능성 (코드는 동작하지만 의미 없는 유니코드) — lint로 잡을 수 없음
-- `wiki_lint` 이중 subprocess 호출 (M2에서 발견, M4까지 미해결)
+## [2026-06-25] M5 | 설치형 배포 (macOS+Linux 듀얼)
+- **`install.sh`** (루트): OS 자동 감지 (darwin* / linux*) → `install/{macos,linux}.sh` 분기 호출
+  - env vars: `VAULT`, `REPO`, `SERVICE_USER`
+  - `SCRIPT_DIR` 자체 해결 (curl-pipe 호출 호환)
+- **`install/macos.sh`**: Homebrew 확인 → `brew install python@3.11 node git` + Tailscale cask → vault clone → venv 생성 → dashboard 빌드 → build_db + export_static → backup_db 초기 실행 → `com.wiki.dashboard.plist`를 `{{VAULT}}` 치환 후 `~/Library/LaunchAgents/` 등록
+- **`install/linux.sh`**: apt/dnf 자동 감지 → 시스템 패키지 → Tailscale → vault clone → venv → dashboard 빌드 → 빌드/export → 백업 → systemd 4개 unit 복사 + `daemon-reload` + `enable --now`
+- **`deploy/launchd/com.wiki.dashboard.plist`**:
+  - vite preview on 127.0.0.1:5173
+  - `RunAtLoad=true`, `KeepAlive={Crashed:true}` (크래시 시만 재시작)
+  - `StandardOutPath=/StandardErrorPath` → `{{VAULT}}/logs/`
+  - `EnvironmentVariables.PATH` 에 homebrew 경로 포함
+- **`deploy/systemd/wiki-dashboard.service`** (`%i` 템플릿):
+  - `vite preview --port 5173 --host 127.0.0.1` (외부 노출 X)
+  - `Restart=always`, `RestartSec=10`, `journal` 로깅
+- **`deploy/systemd/wiki-mcp.service`**:
+  - `python -m mcp.cli --transport http --host 127.0.0.1 --port 8765`
+- **`deploy/systemd/wiki-backup.timer`**:
+  - `OnCalendar=*-*-* 18:00:00 UTC` (한국 시간 03:00)
+  - `Persistent=true` (다운 후 복귀 시 누락 실행)
+  - `RandomizedDelaySec=300` (동시 백업 방지)
+- **`deploy/systemd/wiki-backup.service`** (`Type=oneshot`):
+  - `backup_db.py --keep 7` 호출
+- **`scripts/backup_db.py`** 신규 (M1부터 미구현 해결):
+  - `--vault PATH`, `--keep N` (기본 7), `--quiet`
+  - 두 종류 백업: `backups/wiki-YYYYMMDD.db` (일자별) + `wiki.db.backup` (최신 1개)
+  - rotation: glob sort + 오래된 것부터 삭제
+  - idempotent: 오늘 일자별 백업 이미 존재 시 skip
+- **`scripts/deploy.sh`** 신규:
+  - `VPS=user@host ./scripts/deploy.sh` 사용법
+  - 로컬 `git push` → ssh 원격 heredoc → `git pull --ff-only` → `pip install -e` → `npm install && npm run build` → build_db + export_static → backup_db → `systemctl restart wiki-dashboard wiki-mcp`
+  - `SKIP_PUSH=1` 옵션 (로컬 변경 없이 강제 배포)
+  - 환경에 `systemctl` 없으면 안내 메시지만 출력 (개발 머신 호환)
+- **`README.md`** (루트, 신규 — 기존 wiki README는 별도):
+  - 빠른 시작 (로컬) / 처음 설치 (macOS, Linux VPS, Windows WSL2) / 일상 운영
+  - 5 Layer 아키텍처 표 + ASCII 다이어그램
+  - systemd + LaunchAgent 관리 명령어
+  - 보안 (Tailscale + 127.0.0.1 바인딩) / 비용 ($5/월) / 트러블슈팅
+- **검증**:
+  - `bash -n`: install.sh / macos.sh / linux.sh / deploy.sh ✅
+  - `xmllint` + `plutil -lint`: plist XML ✅
+  - Python configparser: 3 service + 1 timer ✅
+  - `backup_db.py --help`: ✅
+  - 실 백업 실행: 27MB → `backups/wiki-20260625.db` + `wiki.db.backup` ✅
+- 누적 **14 commits** (M3 → M5, 2 commits), lint 0 critical 유지
+
+### 발견 (다음 작업 대상)
+- macOS LaunchAgent에 `--keep N` 옵션으로 백업 등록 미포함 → `deploy/launchd/com.wiki.backup.plist` 별도 추가 검토
+- `install.sh` 가 sudo 권한 상승 시 `$HOME` 변경 문제 → 향후 `--user` 플래그 또는 `$SUDO_USER` 활용 강화
+- 백업 retention 정책 (7일) 외에 weekly/monthly 별도 보관은 미구현 (필요 시 추가)
+- deploy.sh 에서 git conflict 발생 시 수동 해결 필요 — 자동 stash/rebase 옵션 검토
