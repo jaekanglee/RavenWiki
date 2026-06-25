@@ -37,8 +37,24 @@ class Vault:
         return cls(meta=meta, root=root)
 
     @classmethod
-    def create(cls, name: str, path: Path, mode: str = "personal", owner: str = "user", description: str = "") -> "Vault":
-        """Create a new vault on disk and register it."""
+    def create(
+        cls,
+        name: str,
+        path: Path,
+        mode: str = "personal",
+        owner: str = "user",
+        description: str = "",
+        *,
+        bootstrap: bool = True,
+    ) -> "Vault":
+        """Create a new vault on disk and register it.
+
+        Args:
+            name, path, mode, owner, description: standard vault meta.
+            bootstrap: if True (default), create content/ + _meta/ and copy
+                SCHEMA.md / RULES.md templates into _meta/. Use False when
+                registering an existing folder that already has content.
+        """
         path = Path(path).expanduser().resolve()
         path.mkdir(parents=True, exist_ok=True)
         meta = VaultMeta(
@@ -51,9 +67,59 @@ class Vault:
         )
         # write per-vault meta
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
+        if bootstrap:
+            cls._bootstrap(path)
         # register
         registry().add(meta)
         return cls(meta=meta, root=path)
+
+    @classmethod
+    def _bootstrap(cls, path: Path) -> None:
+        """Create content/, _meta/, and copy template SCHEMA/RULES.
+
+        Idempotent: existing files are NOT overwritten. To refresh templates,
+        use `wikisys meta sync`.
+        """
+        from importlib import resources
+
+        content_dir = path / "content"
+        meta_dir = path / "_meta"
+        content_dir.mkdir(parents=True, exist_ok=True)
+        meta_dir.mkdir(parents=True, exist_ok=True)
+
+        for filename in ("SCHEMA.md", "RULES.md"):
+            target = meta_dir / filename
+            if target.exists():
+                continue  # never overwrite user-edited rules
+            try:
+                # Python 3.9+: importlib.resources.files
+                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
+                # template missing or package broken — skip silently
+                # (vault still works, just no SCHEMA.md / RULES.md)
+                pass
+
+    def sync_meta(self) -> dict:
+        """Re-copy SCHEMA.md / RULES.md from templates (overwrites).
+
+        Returns dict with counts of copied/skipped files.
+        Use this after wikisys upgrade to refresh meta docs.
+        Creates _meta/ if missing (idempotent).
+        """
+        from importlib import resources
+
+        self.meta_root.mkdir(parents=True, exist_ok=True)
+        out = {"copied": [], "errors": []}
+        for filename in ("SCHEMA.md", "RULES.md"):
+            target = self.meta_root / filename
+            try:
+                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                out["copied"].append(filename)
+            except Exception as e:
+                out["errors"].append({"file": filename, "error": str(e)})
+        return out
 
     # ─── path helpers ──────────────────────────────
 

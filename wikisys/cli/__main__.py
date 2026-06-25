@@ -16,6 +16,7 @@ import typer
 
 from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
 from wikisys.core import db_module, lint_module, export_module, link_module
+from wikisys.core import slug_module, frontmatter_module
 from wikisys.core.vault import Vault
 
 app = typer.Typer(
@@ -28,9 +29,11 @@ app = typer.Typer(
 vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
+meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
+app.add_typer(meta_app, name="meta")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -111,6 +114,7 @@ def vault_create(
     mode: str = typer.Option("personal", help="personal | shared | agent"),
     owner: str = typer.Option("user"),
     description: str = typer.Option(""),
+    bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="copy SCHEMA/RULES templates into _meta/"),
 ) -> None:
     """Create new vault on disk and register it."""
     v = Vault.create(
@@ -119,8 +123,13 @@ def vault_create(
         mode=mode,
         owner=owner,
         description=description,
+        bootstrap=bootstrap,
     )
-    typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
+    if bootstrap:
+        typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
+        typer.echo(f"   bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md}}")
+    else:
+        typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 
 
 @vault_app.command("register")
@@ -231,28 +240,43 @@ def page_new(
     tags: str = typer.Option("", help="comma-separated tags"),
     vault: Optional[str] = typer.Option(None, "--vault"),
 ) -> None:
-    """Create a new page with frontmatter + empty body."""
+    """Create a new page with frontmatter + empty body.
+
+    Slug handling (v0.3+):
+        - 'foo' → 'content/foo' (auto prefix when no '/' in slug)
+        - 'meta/welcome' → '_meta/welcome' (explicit prefix preserved)
+        - Invalid slugs (.., ~, absolute, NUL, ':') are rejected.
+    """
     v = _resolve_vault_or_die(vault)
-    fp = v.root / f"{slug}.md"
+    # R3: auto-prefix short names
+    normalized = slug_module.normalize_prefix(slug)
+    # R1: validate (raises SlugError on bad path)
+    try:
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+    except slug_module.SlugError as e:
+        typer.echo(f"❌ invalid slug: {e}", err=True)
+        raise typer.Exit(1)
+    fp = safe_path.with_suffix(".md")
     if fp.exists():
-        typer.echo(f"❌ exists: {slug}", err=True)
+        typer.echo(f"❌ exists: {normalized}", err=True)
         raise typer.Exit(1)
     fp.parent.mkdir(parents=True, exist_ok=True)
+    # R2: use unified frontmatter.render() — consistent with API/Agent
     today = __import__("datetime").date.today().isoformat()
-    fm_lines = [
-        "---",
-        f"title: {title}",
-        f"type: {type_}",
-        f"tags: [{tags}]" if tags else "tags: []",
-        f"created: {today}",
-        f"updated: {today}",
-        "---",
-        "",
-        f"# {title}",
-        "",
-    ]
-    fp.write_text("\n".join(fm_lines))
-    typer.echo(f"✅ created: {slug}")
+    meta = frontmatter_module.merge(
+        {},
+        {
+            "title": title,
+            "type": type_,
+            "tags": tags,
+            "created": today,
+            "updated": today,
+        },
+    )
+    body = f"# {title}\n"
+    rendered = frontmatter_module.render(meta, body)
+    fp.write_text(rendered, encoding="utf-8")
+    typer.echo(f"✅ created: {normalized}")
 
 
 @page_app.command("delete")
@@ -261,9 +285,15 @@ def page_delete(
     vault: Optional[str] = typer.Option(None, "--vault"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
-    """Archive page (moves to _archive/<slug>-<timestamp>.md)."""
+    """Archive page (moves to _archive/<original-path>-<timestamp>.md)."""
     v = _resolve_vault_or_die(vault)
-    fp = v.root / f"{slug}.md"
+    # R1: validate slug
+    try:
+        safe_path = slug_module.validate(slug, vault_root=v.root)
+    except slug_module.SlugError as e:
+        typer.echo(f"❌ invalid slug: {e}", err=True)
+        raise typer.Exit(1)
+    fp = safe_path.with_suffix(".md")
     if not fp.exists():
         typer.echo(f"❌ not found: {slug}", err=True)
         raise typer.Exit(1)
@@ -275,9 +305,40 @@ def page_delete(
     ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     archive_dir = v.root / "_archive"
     archive_dir.mkdir(exist_ok=True)
-    dest = archive_dir / f"{slug.replace('/', '_')}-{ts}.md"
+    # mirror original path under _archive (preserves nested structure)
+    rel = fp.relative_to(v.root)
+    dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
     fp.rename(dest)
     typer.echo(f"✅ archived: {slug} → {dest.relative_to(v.root)}")
+
+
+# ────────────────────────── meta (vault _meta/ management) ──────────────────────────
+
+
+@meta_app.command("sync")
+def meta_sync(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """Re-copy SCHEMA.md / RULES.md from wikisys templates into _meta/.
+
+    Overwrites existing files. Use after wikisys upgrade to refresh meta docs.
+    """
+    v = _resolve_vault_or_die(vault)
+    result = v.sync_meta()
+    if json_out:
+        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if result["copied"]:
+        typer.echo(f"✅ synced: {', '.join(result['copied'])} → {v.root / '_meta'}")
+    if result["errors"]:
+        typer.echo(f"❌ errors:", err=True)
+        for err in result["errors"]:
+            typer.echo(f"   {err['file']}: {err['error']}", err=True)
+        raise typer.Exit(1)
+    if not result["copied"]:
+        typer.echo("⚠️  no templates found (package install broken?)")
 
 
 # ────────────────────────── link ──────────────────────────
