@@ -18,7 +18,7 @@ confidence: high
 ## 우리 시스템과의 관계
 
 [[content/llm-wiki]] — "LLM이 점진적으로 빌드하고 유지보수하는 영구적 위키" 패턴.
-2026년 4월 gist로 공개 (우리 [[raw/articles/karpathy-llm-wiki-2026]]에 저장).
+2026년 4월 gist로 공개 (우리 [[_meta/raw/articles/karpathy-llm-wiki-2026]]에 저장).
 
 **우리 시스템 = Karpathy 패턴의 변형**:
 - ✅ 차용: 3-Layer (raw/wiki/schema), index/log, wikilinks
@@ -76,4 +76,4 @@ Karpathy 패턴 그대로 따르면 **"정확하지만 죽어있는 페이지 30
 - [[content/llm-wiki]] — Karpathy 패턴 정리
 - [[content/beyond-karpathy-llm-wiki]] — 패턴에 대한 비판 (Cognitive Governance)
 - [[content/rag-vs-llm-wiki]] — Karpathy 패턴 vs RAG 비교
-- [[raw/articles/karpathy-llm-wiki-2026]] — 원본 소스
+- [[_meta/raw/articles/karpathy-llm-wiki-2026]] — 원본 소스

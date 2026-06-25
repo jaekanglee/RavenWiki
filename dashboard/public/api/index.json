@@ -153,24 +153,6 @@
     "tags": "ai,project,wiki"
   },
   {
-    "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0",
-    "title": "M3 delete test",
-    "type": "query",
-    "path": "queries/m3_delete_test_test_wiki_delete_archives_and_0.md",
-    "created": "2026-06-25",
-    "updated": "2026-06-25",
-    "tags": ""
-  },
-  {
-    "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02",
-    "title": "M3 delete test",
-    "type": "query",
-    "path": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02.md",
-    "created": "2026-06-25",
-    "updated": "2026-06-25",
-    "tags": ""
-  },
-  {
     "slug": "search-result-2026-06-24",
     "title": "검색 결과: \"LLM Wiki 패턴이란?\" (2026-06-24)",
     "type": "query",

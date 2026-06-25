@@ -169,8 +169,8 @@ git commit -m "feat(<project>): _overview + initial pages"
 **서로 다른 프로젝트가 cross-link 가능** ([[content/llm-wiki]] "영구 누적"):
 ```markdown
 ## 관련
-- [[projects/harumoa/_overview]]
-- [[projects/papers/quantum-2026/_overview]]
+- [[content/projects/harumoa/_overview]]
+- [[content/projects/papers/quantum-2026/_overview]]
 ```
 
 → dashboard graph view에서 노드 간 엣지로 시각화.

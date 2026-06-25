@@ -15,7 +15,7 @@ confidence: medium
 > 하벨리아나(Haveliana) — "절대 해변은 하지 마라" 류의 격언/사고 실험으로 알려진 작가.
 > 2026년 4월 Karpathy의 LLM Wiki 패턴에 대한 결정적 비판을 제기.
 
-→ 본명/세부 신원은 [[raw/articles/]]에 미수집. 직접 콘텐츠로만 평가.
+→ 본명/세부 신원은 [[_meta/raw/articles/]]에 미수집. 직접 콘텐츠로만 평가.
 
 ## Cognitive Governance 비판
 
@@ -82,7 +82,7 @@ Karpathy 패턴:    자동 유지보수  ──→  정확하지만 죽음
 
 - Cognitive Governance 자체를 자동화하기 어려움 (LLM의 governance 평가도 LLM...)
 - 일부 규칙(`confidence: low` lint)은 휴리스틱 — false positive 가능
-- Jônadas의 다른 글/작품은 [[raw/articles/]]에 미수집 (M0 이후 추가 가능)
+- Jônadas의 다른 글/작품은 [[_meta/raw/articles/]]에 미수집 (M0 이후 추가 가능)
 
 ## 관련
 

@@ -15,7 +15,7 @@ confidence: high
 > LLM이 **점진적으로 빌드하고 유지보수하는 영구적 위키** — RAG와 달리 매번 답을 재구성하지 않음.
 
 원본: [Karpathy, "LLM Wiki" gist (2026-04-04)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-(원본은 [[raw/articles/karpathy-llm-wiki-2026]] 에 저장)
+(원본은 [[_meta/raw/articles/karpathy-llm-wiki-2026]] 에 저장)
 
 ## 핵심 아이디어 (The core idea)
 
@@ -109,4 +109,4 @@ LLM의 역할: 나머지 전부
 - [[content/beyond-karpathy-llm-wiki]] — 비판과 Cognitive Governance
 - [[SCHEMA]] — 우리 vault 규약
 - [[_meta/mvp-prd]] — 시스템 PRD
-- [[raw/articles/karpathy-llm-wiki-2026]] — 원본 소스
+- [[_meta/raw/articles/karpathy-llm-wiki-2026]] — 원본 소스

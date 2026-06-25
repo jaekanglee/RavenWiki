@@ -136,16 +136,6 @@
       "type": "tool"
     },
     {
-      "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0",
-      "title": "M3 delete test",
-      "type": "query"
-    },
-    {
-      "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02",
-      "title": "M3 delete test",
-      "type": "query"
-    },
-    {
       "slug": "rag-vs-llm-wiki",
       "title": "RAG vs LLM Wiki",
       "type": "comparison"
@@ -1138,6 +1128,166 @@
       "intent": "auto"
     },
     {
+      "source_slug": "dashboard/README",
+      "target_slug": "some/page",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/@rollup/plugin-babel/README",
+      "target_slug": "'@babel/plugin-transform-runtime', { useESModules: true }",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/@rollup/plugin-babel/README",
+      "target_slug": "'@babel/plugin-transform-runtime', { useESModules: false }",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/aria-query/README",
+      "target_slug": "\"roletype\", \"structure\", \"section\"",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/babel-plugin-polyfill-corejs2/README",
+      "target_slug": "\"polyfill-corejs2\", { \"method\": \"usage-global\" }",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/babel-plugin-polyfill-corejs3/README",
+      "target_slug": "\"polyfill-corejs3\", { \"method\": \"usage-global\", \"version\": \"3.48\" }",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/babel-plugin-polyfill-regenerator/README",
+      "target_slug": "\"polyfill-regenerator\", { \"method\": \"usage-global\" }",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/cytoscape-fcose/README",
+      "target_slug": "'n2', 'n4'",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/d3-sankey/node_modules/internmap/README",
+      "target_slug": "978307200000, \"red\"",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/es-abstract/CHANGELOG",
+      "target_slug": "NextMethod",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/es-abstract/CHANGELOG",
+      "target_slug": "UnicodeSets",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/get-proto/README",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/has-property-descriptors/README",
+      "target_slug": "Defined",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/has-proto/README",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/internmap/README",
+      "target_slug": "978307200000, \"red\"",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/is-callable/CHANGELOG",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/is-document.all/README",
+      "target_slug": "IsHTMLDDA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/is-typed-array/CHANGELOG",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/minimatch/README",
+      "target_slug": ":alpha:",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/minimatch/README",
+      "target_slug": "=e=",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/minimatch/README",
+      "target_slug": ".ch.",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/picomatch/README",
+      "target_slug": ":word:",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/pretty-format/README",
+      "target_slug": "'prop', 'value'",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/react-markdown/readme",
+      "target_slug": "remarkGfm, {singleTilde: false}",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/react-router/docs/how-to/file-route-conventions",
+      "target_slug": "so-weird",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/rehype-katex/readme",
+      "target_slug": "'className', /^language-./, 'math-inline', 'math-display'",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/safe-array-concat/README",
+      "target_slug": "4",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/serialize-javascript/README",
+      "target_slug": "'hello', 'world'",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/serialize-javascript/README",
+      "target_slug": "\"hello\",\"world\"",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/set-proto/README",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/stackback/README",
+      "target_slug": "Class",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "dashboard/node_modules/which-typed-array/CHANGELOG",
+      "target_slug": "Prototype",
+      "intent": "auto"
+    },
+    {
       "source_slug": "index",
       "target_slug": "content/beyond-karpathy-llm-wiki",
       "intent": "auto"
@@ -1219,11 +1369,6 @@
     },
     {
       "source_slug": "log",
-      "target_slug": "link",
-      "intent": "missing"
-    },
-    {
-      "source_slug": "log",
       "target_slug": "!",
       "intent": "auto"
     },
@@ -1235,6 +1380,11 @@
     {
       "source_slug": "log",
       "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "link",
       "intent": "auto"
     },
     {

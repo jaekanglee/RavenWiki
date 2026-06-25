@@ -188,23 +188,6 @@
           "type": "rule"
         }
       ]
-    },
-    {
-      "slug": "queries",
-      "title": "queries",
-      "type": "folder",
-      "children": [
-        {
-          "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0",
-          "title": "M3 delete test",
-          "type": "query"
-        },
-        {
-          "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02",
-          "title": "M3 delete test",
-          "type": "query"
-        }
-      ]
     }
   ]
 }

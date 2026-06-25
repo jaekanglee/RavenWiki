@@ -108,7 +108,7 @@ confidence: high
 - [[content/rag-vs-llm-wiki]] — RAG와 상세 비교
 - [[content/andrej-karpathy]] — 원저자
 - [[content/jonadas-techio]] — 비판자
-- [[raw/articles/karpathy-llm-wiki-2026]] — 원본 gist
+- [[_meta/raw/articles/karpathy-llm-wiki-2026]] — 원본 gist
 
 ## 메타
 
