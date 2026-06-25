@@ -35,3 +35,4 @@ Thumbs.db
 # Node (M3 dashboard)
 node_modules/
 dist/
+dashboard/public/api/
