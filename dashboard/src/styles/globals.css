@@ -1,21 +1,31 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
- * Design tokens — travel-marketplace-warm (Airbnb archetype)
+ * Viewport tiers — explicit mobile/desktop separation
+ *
+ *   Mobile:  ≤1023px (sidebar drawer, single column, condensed chrome)
+ *   Tablet:  1024–1279px (intermediate)
+ *   Desktop: ≥1280px (full sidebar, multi-column, generous whitespace)
+ *
+ * Components should declare their layout via these tiers in @media
+ * blocks — never assume a single breakpoint. The off-canvas drawer
+ * (≤744px) is a special case inside the mobile tier.
+ * ─────────────────────────────────────────────────────────────
+ *
+ * Design tokens — BMW-tone swap (blue accent, near-black ink, DM Sans).
  * Adapted for raven dashboard (text-card, not photo-card).
- * See ~/.hermes/external-skills/design-specs/airbnb/templates/DESIGN.md
  * ───────────────────────────────────────────────────────────── */
 :root {
   /* colors */
-  --color-primary: #ff385c;          /* Rausch */
-  --color-primary-active: #e00b41;
-  --color-primary-disabled: #ffd1da;
+  --color-primary: #1c69d4;          /* BMW Blue, interactive accent */
+  --color-primary-active: #0653b6;   /* BMW Focus Blue */
+  --color-primary-disabled: #d4e3f7; /* softer blue tint */
   --color-error-text: #c13515;
 
-  --color-ink: #222222;
-  --color-body: #3f3f3f;
-  --color-muted: #6a6a6a;
-  --color-muted-soft: #929292;
+  --color-ink: #262626;              /* BMW near-black */
+  --color-body: #404040;             /* slightly darker */
+  --color-muted: #757575;            /* BMW Meta Gray */
+  --color-muted-soft: #999999;       /* closer to Silver */
 
   --color-canvas: #ffffff;
   --color-surface-soft: #f7f7f7;
@@ -30,14 +40,13 @@
     rgba(0, 0, 0, 0.1) 0 4px 8px 0;
 
   /* rounded */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --radius-full: 9999px;
 
-  /* typography stack — Airbnb Cereal VF unavailable, use Inter (closest OS substitute) */
-  --font-display: "Airbnb Cereal VF", Circular, "Inter", -apple-system,
-    system-ui, Roboto, "Helvetica Neue", sans-serif;
+  /* typography stack — DM Sans (Google Fonts) replaces Airbnb Cereal VF / Inter */
+  --font-display: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 html,
@@ -47,7 +56,7 @@ body {
   margin: 0;
   font-family: var(--font-display);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.30;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -58,9 +67,9 @@ body[data-theme="dark"] {
   --color-canvas: #ffffff;
   --color-surface-soft: #f7f7f7;
   --color-surface-strong: #f2f2f2;
-  --color-ink: #222222;
-  --color-body: #3f3f3f;
-  --color-muted: #6a6a6a;
+  --color-ink: #262626;              /* BMW near-black */
+  --color-body: #404040;             /* slightly darker */
+  --color-muted: #757575;            /* BMW Meta Gray */
   --color-hairline: #ebebeb;
   --color-hairline-strong: #dddddd;
 }
@@ -75,7 +84,7 @@ h1 {
 }
 h2 {
   font-size: 22px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.18;
   letter-spacing: -0.44px;
   color: var(--color-ink);
@@ -83,14 +92,14 @@ h2 {
 }
 h3 {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-ink);
   margin: 0;
 }
 
 /* ── Wiki prose body ─────────────────────────────────────── */
 .prose {
-  line-height: 1.6;
+  line-height: 1.40;
   color: var(--color-ink);
 }
 .prose h1,
@@ -192,7 +201,7 @@ h3 {
   padding: 14px 24px;
   height: 48px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.25;
   border: none;
   cursor: pointer;
@@ -235,7 +244,7 @@ h3 {
   padding: 13px 23px;
   height: 48px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.25;
   cursor: pointer;
   transition: background-color 0.12s ease, border-color 0.12s ease;
@@ -255,7 +264,7 @@ h3 {
   color: var(--color-ink);
   border: none;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   padding: 8px 4px;
   transition: color 0.12s ease;
@@ -373,7 +382,7 @@ h3 {
 .nav-link {
   color: var(--color-muted);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 900;
   text-decoration: none;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
