@@ -85,11 +85,9 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
             ))
           )}
           <div className="border-t p-2 text-xs text-gray-500">
-            💡 CLI: <code>wikisys vault list</code>
+            💡 새 vault: <code>wikisys vault create &lt;name&gt; &lt;path&gt;</code>
             <br />
-            <Link to="/new-vault" className="text-cyan-600 hover:underline" onClick={() => setOpen(false)}>
-              + 새 vault 등록
-            </Link>
+            (등록 후 페이지를 새로고침하면 여기에 표시됩니다)
           </div>
         </div>
       )}
