@@ -1,34 +1,75 @@
+---
+title: Wiki Index
+created: 2026-06-25
+updated: 2026-06-25
+type: rule
+tags: [system, meta, index]
+sources: []
+confidence: high
+---
+
 # Wiki Index
 
-> 콘텐츠 카탈로그. 각 페이지는 한 줄 요약과 함께 타입별로 정렬.
-> 마지막 업데이트: 2026-06-25 | 전체 페이지: 15 (content/) + 9 (_meta/)
+> 코드베이스 자기 자신의 카탈로그. vault = `~/vaults/default/` (분리됨, M2).
+> 마지막 업데이트: 2026-06-25 (M2 multi-vault 출시)
 
-## Concepts (content/)
-- [[content/beyond-karpathy-llm-wiki]] — LLM Wiki 패턴의 한계 + Cognitive Governance 필요성
-- [[content/llm-wiki]] — Karpathy의 LLM Wiki 원본 패턴 정리 (3-layer, ingest/query/lint)
+---
 
-## Comparisons (content/)
-- [[content/rag-vs-llm-wiki]] — RAG와 LLM Wiki의 7가지 차원 비교
+## 시스템 문서 (운영자가 읽는 것)
 
-## Meta (vault 운영 문서)
-- [[SCHEMA]] — vault 규약 v2.4 (frontmatter, type, tag core+custom, governance, MCP 권한, slug rename)
-- [[RULES]] — cross-cutting 운영 정책 (commit/ingest/lint/금지/프로젝트/백업/slug rename)
-- [[_meta/mvp-prd]] — 자체구축 위키 시스템 MVP PRD
-- [[_meta/requirements]] — 사용자 요구사항 (니즈 6 / 제약 5) — system-design 분할
-- [[_meta/architecture-5layer]] — 5-Layer 아키텍처 (Data/MCP/Dashboard/Hosting/Backup) — system-design 분할
-- [[_meta/decisions-d1-d6]] — 결정사항 D1-D6 + 마일스톤 M0-M6 — system-design 분할
-- [[_meta/dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m, 4 시나리오)
-- [[_meta/deployment]] — VPS + Tailscale 배포 절차 (docker-compose + Caddy + webhook)
-- [[_meta/ai-roadmap]] — AI 활용 로드맵 (M3 vector search → M6 작성 도우미)
-- [[_meta/wiki-persona]] — 사용자 페르소나 (Primary: Jake, Secondary: Riya)
-- [[_meta/wiki-scenario]] — MVP 5개 시나리오
-- [architecture.html](_meta/architecture.html) — 통합 아키텍처 다이어그램 (브라우저로 열기)
+### 현재 (v0.2 multi-vault)
+- [[wikisys-guide]] — vault 사용자 가이드 (사람 + 에이전트 공통)
+- [[wikisys-faq]] — 자주 묻는 질문
+- [[wikisys-architecture]] — 4-Layer 아키텍처 (M2, 최신)
+- [[SCHEMA-v0.2-multivault]] — vault 외부 스키마 (.registry.json, AgentScope, env)
+- [[decisions-d7-d9-multivault]] — M2 결정 (vault 분리 / multi-vault / Python adapter)
 
-## Raw Sources (불변)
-- [raw/articles/karpathy-llm-wiki-2026.md](raw/articles/karpathy-llm-wiki-2026.md) — Karpathy "LLM Wiki" gist (2026-04-04, 80 lines, sha256: 916af9d6...)
+### M1 결정/스키마 (보존)
+- [[SCHEMA]] — vault 내부 규약 v2.4 (frontmatter, type, tag, governance)
+- [[RULES]] — cross-cutting 운영 정책
+- [[architecture-5layer]] — v0.1 5-Layer 아키텍처 (보존, v0.2는 wikisys-architecture 참조)
+- [[decisions-d1-d6]] — M1 결정 매트릭스 (D1-D6)
+
+### 운영/배포
+- [[deployment]] — VPS + Tailscale 배포 절차
+- [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
+- [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
+
+### 설계 입력
+- [[requirements]] — 사용자 요구사항 (니즈 6 / 제약 5)
+- [[wiki-persona]] — 사용자 페르소나
+- [[wiki-scenario]] — MVP 시나리오
+- [[mvp-prd]] — 자체구축 위키 MVP PRD
+- [[m1-completion-report]] — M1 완료 보고
+
+### 원본 자료 (불변)
+- [karpathy-llm-wiki-2026.md](_meta/raw/articles/karpathy-llm-wiki-2026.md) — Karpathy "LLM Wiki" gist (2026-04-04)
+
+### 다이어그램
+- [architecture.html](_meta/architecture.html) — 통합 아키텍처 (브라우저로 열기)
+
+---
+
+## 코드베이스 위치
+
+> **중요**: vault 데이터는 `~/vaults/default/`에 있음. 코드베이스는 wikisys/dashboard/mcp/scripts 자산만.
+
+- 코드베이스: `~/Desktop/Dev/Project/Wiki/`
+- vault: `~/vaults/default/`
+- vault registry: `~/vaults/.registry.json`
+
+자세한 위치는 `wikisys-guide §vault 구조` 참조.
+
+---
 
 ## 마이그레이션 메모
 
-v1 → v2.4 변경:
+### v0.1 (5-layer) → v0.2 (4-layer, multi-vault)
+- 단일 vault → **multi-vault** (`~/.registry.json` 중앙 인덱스)
+- vault = 코드베이스 내부 → **`~/vaults/<name>/` 외부 분리**
+- 인터페이스: CLI + GUI + MCP → **CLI + GUI + Python + HTTP (4-way)**
+- 결정: `decisions-d7-d9-multivault`
+- 아키텍처: `wikisys-architecture`
+
+### v1 → v2.4 (M1)
 - `concepts/`, `entities/`, `comparisons/` → **`content/` 단일** + `type:` frontmatter
-- 빈 디렉토리는 `.gitkeep`으로 유지 (예: `concepts/`, `projects/`)
