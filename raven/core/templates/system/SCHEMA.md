@@ -130,7 +130,7 @@ aliases: [old-slug-1]     # 선택
 
 → `raven log list --tail 5` / `raven log append` / `raven log rotate`.
 
-## Lint 운영 규칙 (12개 풀세트)
+## Lint 운영 규칙 (13개 풀세트)
 
 `raven build` 또는 `raven lint run` 실행 시 자동 검증:
 
@@ -148,12 +148,23 @@ aliases: [old-slug-1]     # 선택
 | 10 | frontmatter 완전성 (title/type/created/updated) | 🔵 info |
 | 11 | index 완전성 (filesystem vs DB) | 🟡 warning |
 | 12 | log size > 500 entries | 🔵 info |
+| 13 | cognitive governance (Why / Fights against / wikilink≥1 / confidence) | 🔵 info |
 
 ### 면제 규칙
 
 - **200줄 초과 면제**: `_meta/` 안 페이지 (rule/reference, 운영 문서)
 - **stale (90일+) 면제**: `type: rule` + `_meta/` 안
 - **orphan 면제**: `_meta/` 안 (운영 문서는 inbound 0이 정상)
+- **#13 cognitive governance 면제**: `type: rule`, `type: journal`, `type: query`, `_meta/` 안
+
+### Cognitive Governance (#13, 카파시 LLM Wiki 차용)
+
+> **모든 페이지 작성 시 다음 4가지 신호를 권장** (없으면 sterile wiki):
+>
+> 1. **Why it matters** — 페이지 첫 문단에 "왜 중요한가" 1-2줄
+> 2. **Fights against** — 단일 진영 주장 ❌. 반대/대안 입장 1개 이상 (`## 반대 입장` / `## Fights against` 헤딩)
+> 3. **Cross-disciplinary links** — 본문에 wikilink ≥ 1
+> 4. **confidence 등급** — frontmatter `confidence: high|medium|low`. single-source = low/medium
 
 ## 다음 단계
 
@@ -172,7 +183,10 @@ raven log append "manual note" --action chore
 raven link check
 
 # raven 내부 문서 읽기 (Tier 1, vault에 복사 안 됨)
-raven docs operations
-raven docs agent
-raven docs policy
+raven docs show operations
+raven docs show agent-readme
+raven docs show agent-safety
+raven docs show policy
 ```
+
+> 💡 `raven docs list`로 전체 topic 목록 확인.

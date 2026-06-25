@@ -181,11 +181,35 @@ def vault_clone(
     path: str = typer.Argument(..., help="absolute path for new vault"),
     mode: str = typer.Option(None, "--mode", help="override mode (default: copy from src)"),
     owner: str = typer.Option(None, "--owner", help="override owner (default: copy from src)"),
-    no_meta: bool = typer.Option(False, "--no-meta", help="don't copy _meta/ from src"),
+    copy_meta: bool = typer.Option(
+        False,
+        "--copy-meta",
+        help=(
+            "Also copy _meta/ from src (Lite policy default: False). "
+            "WARNING: --copy-meta can leak Tier 1 raven-internal docs "
+            "(OPERATIONS, agent/*, raven-policy) from src. "
+            "Use only for explicit dev/debug workflows."
+        ),
+    ),
+    data_only: bool = typer.Option(
+        False,
+        "--data-only",
+        help="Copy ONLY content/. Skip _meta/ entirely (no policy inheritance).",
+    ),
 ) -> None:
-    """Clone an existing vault (content + _meta) to a new vault.
+    """Clone an existing vault to a new vault.
+
+    Lite policy default (v2026-06-26, 2-tier boundary):
+        content/ copied, _meta/ NOT copied. This prevents Tier 1
+        raven-internal docs from leaking into the new vault via
+        source vault contamination.
 
     Skips _archive/ and wiki.db. Useful for templates, sandboxes, branches.
+
+    Examples:
+        raven vault clone wiki new-vault /path/to/new     # content only
+        raven vault clone wiki new-vault /path --copy-meta  # content + _meta (주의)
+        raven vault clone wiki new-vault /path --data-only  # content only (명시)
     """
     src_meta = registry().get(src)
     if src_meta is None:
@@ -202,14 +226,25 @@ def vault_clone(
             path=Path(path).expanduser(),
             mode=mode,
             owner=owner,
-            copy_meta=not no_meta,
+            copy_meta=copy_meta,
+            data_only=data_only,
         )
     except (FileExistsError, ValueError) as e:
         typer.echo(f"❌ clone failed: {e}", err=True)
         raise typer.Exit(1)
     typer.echo(f"✅ cloned: {src!r} → {name!r} at {new_v.root}")
-    if no_meta:
-        typer.echo("   (skipped _meta/ — run `raven meta sync` later to populate)")
+    if copy_meta and not data_only:
+        typer.echo(
+            "   ⚠️  _meta/ copied — verify Tier 1 docs are not leaking "
+            "(run `raven docs list` to see what's in src)"
+        )
+    elif data_only:
+        typer.echo("   (data_only mode: _meta/ not copied)")
+    else:
+        typer.echo(
+            "   (Lite default: _meta/ not copied — "
+            "run `raven meta sync` to populate fresh templates)"
+        )
 
 
 # alias for `vault import` (same as clone)
@@ -220,10 +255,14 @@ def vault_import_alias(
     path: str = typer.Argument(...),
     mode: str = typer.Option(None, "--mode"),
     owner: str = typer.Option(None, "--owner"),
-    no_meta: bool = typer.Option(False, "--no-meta"),
+    copy_meta: bool = typer.Option(False, "--copy-meta"),
+    data_only: bool = typer.Option(False, "--data-only"),
 ) -> None:
     """Alias for `vault clone` (same behavior)."""
-    vault_clone(src=src, name=name, path=path, mode=mode, owner=owner, no_meta=no_meta)
+    vault_clone(
+        src=src, name=name, path=path,
+        mode=mode, owner=owner, copy_meta=copy_meta, data_only=data_only,
+    )
 
 
 @vault_app.command("remove")
@@ -1414,7 +1453,7 @@ def docs_list() -> None:
         exists = resources.files("raven.core").joinpath(path).is_file()
         marker = "✓" if exists else "✗"
         typer.echo(f"  {marker} {name:20s} {desc}")
-    typer.echo(f"\n💡 사용법: raven docs operations")
+    typer.echo(f"\n💡 사용법: raven docs show operations  (또는: raven docs show policy)")
 
 
 @docs_app.command("show")

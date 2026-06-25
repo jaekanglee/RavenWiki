@@ -279,14 +279,15 @@ def test_cli_meta_sync_full_with_force(fresh_env):
 # ─── vault clone ────────────────────────────────────────────
 
 
-def test_cli_vault_clone_copies_content_and_meta(fresh_env):
+def test_cli_vault_clone_copies_content_only_by_default(fresh_env):
+    """Lite default (v2026-06-26): content/ copied, _meta/ NOT copied."""
     src = fresh_env["target_root"] / "src"
     runner.invoke(app, ["vault", "create", "src", str(src), "--bootstrap"])
     # Add some content
     (src / "content" / "hello.md").write_text("# Hello\n")
     (src / "content" / "sub").mkdir(exist_ok=True)
     (src / "content" / "sub" / "nested.md").write_text("# Nested\n")
-    # Clone
+    # Clone (no flag = Lite default)
     dst = fresh_env["target_root"] / "dst"
     result = runner.invoke(app, ["vault", "clone", "src", "dst", str(dst)])
     assert result.exit_code == 0, result.stdout + result.stderr
@@ -294,22 +295,51 @@ def test_cli_vault_clone_copies_content_and_meta(fresh_env):
     # content copied
     assert (dst / "content" / "hello.md").is_file()
     assert (dst / "content" / "sub" / "nested.md").is_file()
-    # meta copied (bootstrap=True by default)
-    assert (dst / "_meta" / "system" / "SCHEMA.md").is_file()
+    # _meta/ NOT copied (Lite policy)
+    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
     # registered
     reg_list = runner.invoke(app, ["vault", "list", "--json"])
     names = [v["name"] for v in json.loads(reg_list.stdout)]
     assert "dst" in names
 
 
-def test_cli_vault_clone_no_meta(fresh_env):
+def test_cli_vault_clone_default_is_lite(fresh_env):
+    """Lite default (v2026-06-26): _meta/ NOT copied unless --copy-meta."""
     src = fresh_env["target_root"] / "src2"
     runner.invoke(app, ["vault", "create", "src2", str(src), "--bootstrap"])
     dst = fresh_env["target_root"] / "dst2"
-    result = runner.invoke(app, ["vault", "clone", "src2", "dst2", str(dst), "--no-meta"])
+    # No flag — Lite default (no _meta copy)
+    result = runner.invoke(app, ["vault", "clone", "src2", "dst2", str(dst)])
     assert result.exit_code == 0
     assert (dst / "content").is_dir()
-    # _meta exists but is empty (we created it but didn't copy)
+    # _meta/ exists but empty (Lite: no copy)
+    assert (dst / "_meta").is_dir()
+    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
+
+
+def test_cli_vault_clone_explicit_copy_meta(fresh_env):
+    """--copy-meta explicit flag copies _meta/ (with Tier 1 leak warning)."""
+    src = fresh_env["target_root"] / "src2b"
+    runner.invoke(app, ["vault", "create", "src2b", str(src), "--bootstrap"])
+    dst = fresh_env["target_root"] / "dst2b"
+    result = runner.invoke(
+        app, ["vault", "clone", "src2b", "dst2b", str(dst), "--copy-meta"]
+    )
+    assert result.exit_code == 0
+    # _meta/system/SCHEMA.md copied
+    assert (dst / "_meta" / "system" / "SCHEMA.md").is_file()
+
+
+def test_cli_vault_clone_data_only(fresh_env):
+    """--data-only: content only, _meta/ empty (no copy)."""
+    src = fresh_env["target_root"] / "src2c"
+    runner.invoke(app, ["vault", "create", "src2c", str(src), "--bootstrap"])
+    dst = fresh_env["target_root"] / "dst2c"
+    result = runner.invoke(
+        app, ["vault", "clone", "src2c", "dst2c", str(dst), "--data-only"]
+    )
+    assert result.exit_code == 0
+    assert (dst / "content").is_dir()
     assert (dst / "_meta").is_dir()
     assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
 

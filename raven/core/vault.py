@@ -229,7 +229,7 @@ class Vault:
         mode: Optional[str] = None,
         owner: Optional[str] = None,
         description: str = "",
-        copy_meta: bool = True,
+        copy_meta: bool = False,
         data_only: bool = False,
     ) -> "Vault":
         """Create a new vault by copying `src`'s content to `path`.
@@ -239,8 +239,11 @@ class Vault:
             name: new vault name (must not already be registered).
             path: absolute path for new vault directory.
             mode, owner, description: optional overrides (default: copy from src).
-            copy_meta: if True (default), copy _meta/ from src too. If False,
-                       leave _meta/ empty (caller can run `raven meta sync`).
+            copy_meta: if False (default, v2026-06-26 Lite policy), do NOT copy
+                       src's _meta/. If True, copy _meta/ from src.
+                       NOTE: copy_meta=True can leak Tier 1 raven-internal docs
+                       from source vault (OPERATIONS, agent/*, raven-policy).
+                       Use only for explicit dev/debug workflows.
             data_only: if True, copy ONLY content/ (no _meta/, no .vault.json
                        policy inheritance). Use for data migration / backup
                        where you don't want source vault's policy semantics
@@ -252,7 +255,7 @@ class Vault:
 
         Copies:
             content/  — all user markdown (1:1) [always]
-            _meta/    — system docs (only if copy_meta=True and not data_only)
+            _meta/    — system docs (only if copy_meta=True AND not data_only)
 
         Skips:
             _archive/ — not transferred (it's transient)
