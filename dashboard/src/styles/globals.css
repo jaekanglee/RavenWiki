@@ -477,22 +477,76 @@ h3 {
   }
 }
 
-/* Sidebar collapses to icon-rail on small screens via class toggled in JS. */
+/* Mobile off-canvas drawer (≤744px).
+   On desktop the sidebar stays in-flow at 288px (set via inline style); the
+   off-canvas transform/fixed positioning below is inert above the breakpoint
+   because the rules are scoped to @media (max-width: 744px). */
+
+.header-hamburger {
+  display: none; /* hidden by default; mobile media query below enables it */
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.header-hamburger:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-hairline);
+}
+.header-hamburger:focus-visible {
+  outline: none;
+  border-color: var(--color-ink);
+}
+
 @media (max-width: 744px) {
-  .sidebar-collapsed-mobile {
-    width: 64px !important;
-    padding: 16px 8px !important;
+  .header-hamburger {
+    display: inline-flex;
   }
-  .sidebar-collapsed-mobile .sidebar-label,
-  .sidebar-collapsed-mobile .sidebar-text {
-    display: none;
+
+  /* Off-canvas sidebar — fixed to the left edge, full viewport height.
+     `open` adds the modifier class which slides it back in. */
+  .sidebar-offcanvas {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px !important;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease-out;
+    /* The sidebar's own borderRight still paints on the open edge for
+       separation, plus we add a soft shadow when the drawer is open. */
+    border-right: 1px solid var(--color-hairline);
   }
-  .sidebar-mobile-toggle {
-    display: inline-flex !important;
+  .sidebar-offcanvas-open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Backdrop covers the rest of the screen while the drawer is open.
+     Tap (or Escape, handled in Layout) closes it. */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 40;
+    animation: sidebar-backdrop-fade-in 0.15s ease-out forwards;
   }
 }
-.sidebar-mobile-toggle {
-  display: none;
+
+@keyframes sidebar-backdrop-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Search bar collapses to a single tappable pill on phones (per airbnb rule). */
