@@ -37,6 +37,8 @@ log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki
 lint_app = typer.Typer(help="lint 12개 (카파시 가이드) — broken/orphan/contradictions/stale 등.")
 migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
 note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
+collection_app = typer.Typer(help="collection sync — vault FS ↔ yaml diff (Stateless Curator 합의안 v3).")
+curator_app = typer.Typer(help="curator run — Stateless Curator execute() (git diff 기반 change set 큐레이션).")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
@@ -46,6 +48,8 @@ app.add_typer(log_app, name="log")
 app.add_typer(lint_app, name="lint")
 app.add_typer(migrate_app, name="migrate")
 app.add_typer(note_app, name="note")
+app.add_typer(collection_app, name="collection")
+app.add_typer(curator_app, name="curator")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -530,6 +534,194 @@ def note_gate(
         cmd.extend(["--vault", vault])
     result = subprocess.run(cmd, capture_output=False)
     raise typer.Exit(result.returncode)
+
+
+# ────────────────────────── collection (Stateless Curator v3) ──────────────────────────
+
+
+@collection_app.command("sync")
+def collection_sync(
+    vault: Optional[str] = typer.Option(None, "--vault", "-v"),
+    policy: str = typer.Option("warn", "--policy", help="warn|conflict"),
+    grace_days: int = typer.Option(7, "--grace-days"),
+    apply: bool = typer.Option(False, "--apply", help="grace ≥ N → soft-archive 실제 적용"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_log: bool = typer.Option(False, "--no-log"),
+) -> None:
+    """vault FS ↔ collections.yaml diff (Stateless Curator 합의안 v3).
+
+    기본 정책 (v3):
+    - warn (default): MISSING < grace → 경고 + continue, MISSING ≥ grace → soft-archive 후보
+    - conflict: MISSING ≥ grace 시 hard stop (CI/audit용)
+
+    sync_reports는 ~/.local/share/raven/curator.db에 자동 기록.
+    """
+    from raven.curator import sync as curator_sync
+
+    v = _resolve_vault_or_die(vault)
+    yaml_path = v.root / "_meta" / "collections.yaml"
+
+    report = curator_sync.sync(
+        vault_root=v.root,
+        collections_yaml_path=yaml_path,
+        grace_days=grace_days,
+        policy=policy,
+        apply_archive=apply,
+    )
+
+    # log.md append (best-effort)
+    try:
+        curator_sync.append_log(v.root, report, no_log=no_log)
+    except Exception:
+        pass
+
+    if json_output:
+        typer.echo(json.dumps(report.to_json(), ensure_ascii=False, indent=2))
+    else:
+        typer.echo(report.to_human())
+
+    # exit: errors 있으면 1, 그 외 0
+    if report.errors:
+        raise typer.Exit(1)
+
+
+@collection_app.command("validate")
+def collection_validate(
+    vault: Optional[str] = typer.Option(None, "--vault", "-v"),
+) -> None:
+    """collections.yaml 검증만 (DRY — yaml 작성 + execute 시점 양쪽 호출)."""
+    from raven.curator import schema
+
+    v = _resolve_vault_or_die(vault)
+    yaml_path = v.root / "_meta" / "collections.yaml"
+
+    if not yaml_path.exists():
+        typer.echo(f"❌ not found: {yaml_path}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        y = schema.load_and_validate(yaml_path)
+    except schema.CollectionsYamlError as e:
+        typer.echo(f"❌ invalid: {e}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"✅ collections.yaml OK")
+    typer.echo(f"   schema_version: {y.schema_version}")
+    typer.echo(f"   defaults: {y.defaults}")
+    typer.echo(f"   collections: {len(y.collections)}")
+    for c in y.collections:
+        active = "active" if c.is_active else f"inactive ({'archived' if c.archived else 'retired'})"
+        typer.echo(f"     - {c.id} [{active}] paths={c.paths} strategy={c.first_run_strategy}")
+
+
+@collection_app.command("add")
+def collection_add(
+    path: str = typer.Option(..., "--path", help="예: content/finance"),
+    cid: str = typer.Option(..., "--id", help="collection id (예: finance)"),
+    description: str = typer.Option("", "--description", "-d"),
+    vault: Optional[str] = typer.Option(None, "--vault", "-v"),
+) -> None:
+    """collections.yaml에 새 collection 1건 추가 (사람 결정 후 호출)."""
+    from raven.curator import schema
+
+    v = _resolve_vault_or_die(vault)
+    yaml_path = v.root / "_meta" / "collections.yaml"
+
+    if not yaml_path.exists():
+        typer.echo(f"❌ not found: {yaml_path}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        y = schema.load_and_validate(yaml_path)
+    except schema.CollectionsYamlError as e:
+        typer.echo(f"❌ invalid yaml: {e}", err=True)
+        raise typer.Exit(1)
+
+    # 중복 체크
+    for c in y.collections:
+        if c.id == cid:
+            typer.echo(f"❌ duplicate id: {cid}", err=True)
+            raise typer.Exit(1)
+        if path in c.paths:
+            typer.echo(f"❌ path already used by collection {c.id!r}: {path}", err=True)
+            raise typer.Exit(1)
+
+    new_coll = schema.Collection(
+        id=cid,
+        paths=[path],
+        description=description,
+        auto_detect=True,
+        first_run_strategy=y.defaults.get("first_run_strategy", "skip_silent"),
+    )
+
+    # path 검증 (yaml 작성 시점 정책 그대로)
+    try:
+        schema.validate_paths(new_coll.paths)
+    except schema.CollectionsYamlError as e:
+        typer.echo(f"❌ invalid path: {e}", err=True)
+        raise typer.Exit(1)
+
+    y.collections.append(new_coll)
+    schema.save(y, yaml_path)
+    typer.echo(f"✅ added: {cid} → {path}")
+
+
+# ────────────────────────── curator run ──────────────────────────
+
+
+@curator_app.command("run")
+def curator_run(
+    collection_id: str = typer.Argument(..., help="collection id"),
+    vault: Optional[str] = typer.Option(None, "--vault", "-v"),
+    apply: bool = typer.Option(False, "--apply", help="기본 dry-run. --apply 시 DB write"),
+    trigger: str = typer.Option("manual", "--trigger", help="manual|cron|sync"),
+) -> None:
+    """Stateless Curator.execute() — git diff 기반 change set 큐레이션.
+
+    기본은 dry-run (변경 set만 보여줌). --apply 시 curation_history.db에 event 기록.
+    """
+    from raven.curator import curator as curator_mod
+
+    v = _resolve_vault_or_die(vault)
+    yaml_path = v.root / "_meta" / "collections.yaml"
+
+    result = curator_mod.execute(
+        collection_id=collection_id,
+        vault_root=v.root,
+        collections_yaml_path=yaml_path,
+        dry_run=not apply,
+        trigger=trigger,
+    )
+
+    # human-readable 출력
+    from raven.curator.reports import render_curation_report
+    typer.echo(render_curation_report(result, collection_id))
+
+    # status별 exit
+    if result.status in ("ok", "skipped"):
+        raise typer.Exit(0)
+    elif result.status == "partial":
+        raise typer.Exit(1)
+    else:
+        # error / pending_sync
+        raise typer.Exit(2)
+
+
+@curator_app.command("stats")
+def curator_stats(
+    collection_id: str = typer.Argument(..., help="collection id"),
+) -> None:
+    """collection 큐레이션 통계 (events/changes/reviews 집계)."""
+    from raven.curator import db, reports
+
+    conn = db.connect()
+    db.init_schema(conn)
+    stats = reports.curation_summary(conn, collection_id)
+    conn.close()
+
+    typer.echo(f"🐦‍⬛ raven curator stats — {collection_id}")
+    for k, v in stats.items():
+        typer.echo(f"   {k}: {v}")
 
 
 @page_app.command("delete")
