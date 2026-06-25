@@ -54,10 +54,30 @@ confidence: high
 - `tests/test_api.py`: 15 신규 케이스 (vault 3 + page CRUD 10 + read 회귀 2)
 - 합계 **81 passed** (slug 20 + frontmatter 22 + vault_create 8 + cli 16 + api 15)
 
-## v0.3.2 (예정)
+## v0.3.2 (이번 릴리스)
 
-- `wikisys.agents.Agent._render` / `_split_frontmatter` 제거 → `frontmatter_module` 사용
-- LOC ~50
+### 변경
+- `wikisys.agents.AgentVault.write` — 자체 `_render`/`_split_frontmatter` 제거 → `frontmatter_module` 사용
+  - `created` 보존 (이제 CLI/API와 동일 정책)
+  - `tags` 강제 list (tuple 입력도 정확히 변환)
+  - agents provenance는 render 단계에서 항상 append
+- `write`/`delete`에 `slug_module.validate()` 적용 (CLI/API와 동일 가드)
+- `_safe_path()` helper 추가 — invalid slug → `Result(ok=False, error="invalid slug: ...")`
+- `delete` archive 경로 mirror (CLI/API와 동일 — nested 구조 보존)
+
+### 호환성
+- `AgentScope` 시그니처 무변경
+- `Result` shape 무변경 (`ok/slug/path/bytes_written/message/error`)
+- 기존 `_render`/`_split_frontmatter` 메서드는 thin wrapper로 유지 (back-compat)
+
+### 버그 수정
+- `frontmatter._coerce_tags`: tuple 입력 시 str로 변환되던 결함 → list로 정확히 변환
+- `Agent.write`의 `if "/" not in slug` 검사 → slug safety로 대체 (잘못된 slug 메시지 명확화)
+
+### 테스트
+- `tests/test_agent.py`: 11 신규 케이스 (write 6 + delete 3 + list/search 2)
+- `tests/test_frontmatter.py` +2 (tuple/list 케이스)
+- 합계 **94 passed** (slug 20 + frontmatter 24 + vault_create 8 + cli 16 + api 15 + agent 11)
 
 ## v0.4 (예정)
 

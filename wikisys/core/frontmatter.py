@@ -167,10 +167,10 @@ def merge(
 
 
 def _coerce_tags(v) -> list[str]:
-    """Normalize a tags value to list[str]."""
+    """Normalize a tags value to list[str]. Accepts None/str/list/tuple."""
     if v is None:
         return []
-    if isinstance(v, list):
+    if isinstance(v, (list, tuple)):
         return [str(x) for x in v if x]
     if isinstance(v, str):
         # comma-separated? otherwise single

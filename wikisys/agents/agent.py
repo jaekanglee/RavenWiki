@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from wikisys.core import resolve_active_vault, registry, link_module
+from wikisys.core import slug_module, frontmatter_module
 from wikisys.core.vault import Vault
 
 
@@ -163,46 +164,33 @@ class AgentVault:
     def _path(self, slug: str) -> Path:
         return self.vault.root / f"{slug}.md"
 
+    def _safe_path(self, slug: str) -> Path:
+        """Validate slug against vault root; return absolute .md path.
+
+        v0.3+: shared slug safety with CLI/API. Raises slug_module.SlugError
+        on bad input (caller decides whether to swallow as Result or raise).
+        """
+        return slug_module.validate(slug, vault_root=self.vault.root).with_suffix(".md")
+
     # ─── frontmatter helpers ─────────────────
 
     @staticmethod
     def _split_frontmatter(text: str) -> tuple[dict, str]:
-        """Parse simple `key: value` frontmatter; ignore nested/lists for now."""
-        if not text.startswith("---"):
-            return {}, text
-        try:
-            _, fm, body = text.split("---", 2)
-        except ValueError:
-            return {}, text
-        meta = {}
-        for line in fm.splitlines():
-            line = line.strip()
-            if not line or ":" not in line:
-                continue
-            k, _, v = line.partition(":")
-            meta[k.strip()] = v.strip()
-        return meta, body.strip("\n")
+        """v0.3.2: thin wrapper kept for back-compat. Delegates to fm_module."""
+        return frontmatter_module.parse(text)
 
     def _render(self, meta: dict, body: str) -> str:
-        """Render frontmatter + body. Includes agents provenance block."""
-        agents_block = [
-            "agents:",
-            f"  - name: {self.agent.provenance.agent_name}",
-            f"    timestamp: {self.agent.provenance.timestamp}",
-        ]
-        if self.agent.provenance.run_id:
-            agents_block.append(f"    run_id: {self.agent.provenance.run_id}")
-        if self.agent.provenance.intent:
-            agents_block.append(f"    intent: {self.agent.provenance.intent}")
-        lines = ["---"]
-        for k, v in meta.items():
-            lines.append(f"{k}: {v}")
-        lines.extend(agents_block)
-        lines.append("---")
-        lines.append("")
-        lines.append(body.rstrip())
-        lines.append("")
-        return "\n".join(lines)
+        """v0.3.2: delegates to frontmatter.render() with agents provenance."""
+        return frontmatter_module.render(
+            meta,
+            body,
+            agents=[{
+                "name": self.agent.provenance.agent_name,
+                "timestamp": self.agent.provenance.timestamp,
+                "run_id": self.agent.provenance.run_id,
+                "intent": self.agent.provenance.intent,
+            }],
+        )
 
     # ─── write ──────────────────────
 
@@ -215,27 +203,36 @@ class AgentVault:
         type: Optional[str] = None,
         tags: Optional[Iterable[str]] = None,
     ) -> Result:
-        """Create or overwrite a page. Adds/updates `agents:` provenance."""
-        if "/" not in slug:
-            return Result(ok=False, error=f"slug must be vault-relative path (e.g. 'content/{slug}')")
+        """Create or overwrite a page. Adds/updates `agents:` provenance.
 
-        fp = self._path(slug)
-        if fp.exists() and not self.agent.scope.allow_create:
-            # overwrite is allowed when allow_create=True (since we always overwrite)
-            pass
+        v0.3+:
+            - slug is validated (same rules as CLI/API)
+            - 'created' preserved on overwrite (via frontmatter.merge)
+        """
+        # v0.3+: validate slug (raises SlugError on bad path)
+        try:
+            fp = self._safe_path(slug)
+        except slug_module.SlugError as e:
+            return Result(ok=False, slug=slug, error=f"invalid slug: {e}")
+
         fp.parent.mkdir(parents=True, exist_ok=True)
 
         today = _dt.date.today().isoformat()
-        existing_meta, _ = self._split_frontmatter(fp.read_text() if fp.exists() else "")
-        meta = {
-            "title": title or existing_meta.get("title", slug.split("/")[-1]),
-            "type": type or existing_meta.get("type", self.agent.scope.default_type),
-            "tags": str(list(tags) if tags is not None else self.agent.scope.default_tags),
-            "created": existing_meta.get("created", today),
-            "updated": today,
+        # Use fm_module.parse for existing meta (handles nested agents block gracefully)
+        existing_text = fp.read_text(encoding="utf-8") if fp.exists() else ""
+        existing_meta, _ = frontmatter_module.parse(existing_text)
+
+        updates: dict = {
+            "title": title if title is not None else existing_meta.get("title") or slug.split("/")[-1],
+            "type": type if type is not None else existing_meta.get("type") or self.agent.scope.default_type,
+            "tags": list(tags) if tags is not None else (
+                existing_meta.get("tags") if isinstance(existing_meta.get("tags"), list)
+                else self.agent.scope.default_tags
+            ),
         }
+        meta = frontmatter_module.merge(existing_meta, updates, today=today)
         rendered = self._render(meta, content)
-        fp.write_text(rendered)
+        fp.write_text(rendered, encoding="utf-8")
         return Result(
             ok=True,
             slug=slug,
@@ -256,14 +253,19 @@ class AgentVault:
     def delete(self, slug: str) -> Result:
         if not self.agent.scope.allow_delete:
             return Result(ok=False, error=f"agent {self.agent.name!r} not allowed to delete (scope.allow_delete=False)")
-        fp = self._path(slug)
+        try:
+            fp = self._safe_path(slug)
+        except slug_module.SlugError as e:
+            return Result(ok=False, slug=slug, error=f"invalid slug: {e}")
         if not fp.exists():
             return Result(ok=False, slug=slug, error="not found")
-        # archive instead of hard delete
+        # archive instead of hard delete — mirror original path under _archive (v0.3+)
         archive = self.vault.root / "_archive"
         archive.mkdir(exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-        dest = archive / f"{slug.replace('/', '_')}-{ts}.md"
+        rel = fp.relative_to(self.vault.root)
+        dest = archive / rel.parent / f"{rel.stem}-{ts}.md"
+        dest.parent.mkdir(parents=True, exist_ok=True)
         fp.rename(dest)
         return Result(ok=True, slug=slug, path=str(dest), message=f"archived to {dest.name}")
 

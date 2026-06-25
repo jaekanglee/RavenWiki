@@ -158,6 +158,17 @@ def test_merge_agents_key_skipped():
     assert out["title"] == "X"
 
 
+def test_merge_tags_tuple_becomes_list():
+    """AgentScope.default_tags is a tuple — must not stringify it."""
+    out = merge({}, {"tags": ("agent-output",)})
+    assert out["tags"] == ["agent-output"]
+
+
+def test_merge_tags_list_of_tuples_flattened():
+    out = merge({}, {"tags": [("a", "b"), "c"]})
+    assert out["tags"] == ["('a', 'b')", "c"]
+
+
 def test_merge_does_not_mutate_existing():
     existing = {"title": "Old", "tags": ["a"]}
     updates = {"title": "New", "tags": ["b"]}
