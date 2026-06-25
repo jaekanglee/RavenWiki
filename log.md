@@ -350,3 +350,27 @@ A  _meta/ai-roadmap.md
 - `tools/write.py:94` `wiki_ingest`가 str vault로 TypeError
 - admin tools (delete/rename)은 stub만 (`{ok:false, "M3 stub"}`)
 - `wiki_lint` 이중 subprocess 호출
+
+## [2026-06-25] M3 | Dashboard (React 19 SPA) + M2 admin tools
+- **M2 write.py 3건 fix** 완료 (top-level slug, str vault, admin tools stub → 실제 구현)
+  - `wiki_delete(slug)`: `_archive/<stem>-YYYYMMDD-HHMMSS.md`로 이동 + DB 재빌드
+  - `wiki_rename(old, new)`: frontmatter slug+aliases 갱신 + 모든 wikilink 자동 리라이트 + DB 재빌드
+- MCP tests: 32p/3f → **39 passed** (UUID suffix로 idempotent)
+- **dashboard/ 디렉토리 신규** (17 파일)
+  - React 19 + Vite + TypeScript + Tailwind 4 + PWA
+  - 5 라우트 (Home / PageView / Search / Graph / Settings)
+  - 6 컴포넌트 (Layout / Sidebar / SearchBar / MarkdownView / GraphCanvas / BacklinksPanel)
+  - 3 lib (search / wikilink / types)
+  - wikilink `[[link]]` → `/page/<slug>` 자동 변환 (remark plugin, intent !/? 보존)
+  - React Flow 그래프 (MiniMap + Controls + fitView)
+  - PWA (service worker + manifest + offline cache)
+- **scripts/export_static.py** 신규: vault → `dashboard/public/api/*.json`
+  - 35 pages + index.json + graph.json + page-<slug>.json 일괄 export
+- `npm run build`: ✅ 성공 (695 modules, PWA SW 생성)
+- commit `285d64d`
+- 누적 12 commits, lint 0 critical 유지
+
+### 발견 (M4 작업 대상)
+- vitest `npm run test` 기본이 watch 모드 → hang. `vitest --run` 명시 필요
+- `MiniSearchás.loadJSON` 같은 오타 가능성 (코드는 동작하지만 의미 없는 유니코드) — lint로 잡을 수 없음
+- `wiki_lint` 이중 subprocess 호출 (M2에서 발견, M4까지 미해결)
