@@ -43,13 +43,30 @@ dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 	cd dashboard && npm run dev
 
 .PHONY: dev
-dev: venv-check ## Run API + dashboard together (Ctrl+C stops both)
+dev: venv-check ## Run API + dashboard (reuses running API; Ctrl+C stops only dashboard)
 	@echo "🚀 wikisys API → http://127.0.0.1:8765"
 	@echo "🌐 dashboard  → http://localhost:5173/"
-	@echo "   (Ctrl+C stops both)"
-	@trap 'kill 0' INT TERM; \
-	 PYTHONPATH=. $(PY) -m wikisys.api --host 127.0.0.1 --port 8765 & \
-	 sleep 2 && cd dashboard && npm run dev
+	@echo "   (Ctrl+C stops dashboard. API is shared — \`make stop\` to kill it.)"
+	@echo ""
+	@if lsof -ti :8765 >/dev/null 2>&1; then \
+	    echo "✅ API already running on 8765 — reusing"; \
+	else \
+	    echo "🔌 starting API in background (detached from this shell)..."; \
+	    setsid nohup env PYTHONPATH=. $(PY) -m wikisys.api --host 127.0.0.1 --port 8765 >/tmp/wikisys-api.log 2>&1 </dev/null & \
+	    disown 2>/dev/null || true; \
+	    for i in 1 2 3 4 5; do \
+	        sleep 1; \
+	        if lsof -ti :8765 >/dev/null 2>&1; then \
+	            echo "✅ API ready (pid $$(lsof -ti :8765 | head -1))"; \
+	            break; \
+	        fi; \
+	        if [ $$i -eq 5 ]; then \
+	            echo "❌ API failed to start — see /tmp/wikisys-api.log"; exit 1; \
+	        fi; \
+	    done; \
+	fi
+	@echo ""
+	cd dashboard && npm run dev
 
 .PHONY: status
 status: ## Show whether API (8765) and dashboard (5173) are running
