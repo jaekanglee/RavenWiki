@@ -110,6 +110,49 @@ def select_vault(name: str):
     return {"ok": True, "active": name}
 
 
+class VaultCreate(BaseModel):
+    name: str = Field(..., description="vault name (lowercase kebab-case 권장)")
+    path: str = Field(..., description="absolute path to vault directory")
+    mode: str = Field("personal", description="personal | shared | agent")
+    owner: str = Field("user", description="user or agent name")
+    description: str = Field("", description="free text")
+
+
+@app.post("/api/vaults/create")
+def create_vault(payload: VaultCreate):
+    """Create a new vault on disk + register it.
+
+    Mirrors `wikisys vault create <name> <path> --mode <mode>`.
+    """
+    from wikisys.core.vault import Vault as _Vault
+
+    # Validate: name not already taken
+    if registry().get(payload.name):
+        raise HTTPException(status_code=409, detail=f"vault {payload.name!r} already exists")
+
+    try:
+        v = _Vault.create(
+            name=payload.name,
+            path=Path(payload.path).expanduser(),
+            mode=payload.mode,
+            owner=payload.owner,
+            description=payload.description,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"create failed: {e}")
+
+    return {
+        "ok": True,
+        "vault": {
+            "name": v.meta.name,
+            "path": str(v.root),
+            "mode": v.meta.mode,
+            "owner": v.meta.owner,
+            "default": v.meta.name == registry()._data.get("default", ""),
+        },
+    }
+
+
 # ────────────────────────── page endpoints ──────────────────────────
 
 
