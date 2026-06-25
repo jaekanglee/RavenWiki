@@ -242,13 +242,20 @@ class AgentVault:
         )
 
     def read(self, slug: str) -> Optional[str]:
-        fp = self._path(slug)
+        try:
+            fp = self._safe_path(slug)
+        except slug_module.SlugError:
+            return None
         if not fp.exists():
             return None
         return fp.read_text()
 
     def exists(self, slug: str) -> bool:
-        return self._path(slug).exists()
+        try:
+            fp = self._safe_path(slug)
+        except slug_module.SlugError:
+            return False
+        return fp.exists()
 
     def delete(self, slug: str) -> Result:
         if not self.agent.scope.allow_delete:

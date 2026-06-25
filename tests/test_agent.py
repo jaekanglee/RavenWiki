@@ -170,3 +170,47 @@ def test_agent_search_finds_term(isolated_env, bot):
     av.write("content/findme", "The quick brown fox", title="Findme")
     results = av.search("quick fox")
     assert any(r["slug"] == "content/findme" for r in results)
+
+
+# ─── read / exists slug 가드 (P0 보안 패치) ───────────────────
+
+
+def test_agent_read_rejects_parent_traversal(isolated_env, bot):
+    """read('../escape')는 SlugError를 삼키고 None을 반환해야 한다."""
+    av = bot.vault("test")
+    assert av.read("../escape") is None
+
+
+def test_agent_read_rejects_tilde_slug(isolated_env, bot):
+    """read('~/.ssh-target')는 None을 반환해야 한다."""
+    av = bot.vault("test")
+    assert av.read("~/.ssh-target") is None
+
+
+def test_agent_read_happy_path(isolated_env, bot):
+    """정상 slug에 대해 read()가 내용을 반환해야 한다."""
+    av = bot.vault("test")
+    av.write("content/readable", "hello world", title="R")
+    result = av.read("content/readable")
+    assert result is not None
+    assert "hello world" in result
+
+
+def test_agent_exists_rejects_parent_traversal(isolated_env, bot):
+    """exists('../escape')는 SlugError를 삼키고 False를 반환해야 한다."""
+    av = bot.vault("test")
+    assert av.exists("../escape") is False
+
+
+def test_agent_exists_rejects_tilde_slug(isolated_env, bot):
+    """exists('~/.ssh-target')는 False를 반환해야 한다."""
+    av = bot.vault("test")
+    assert av.exists("~/.ssh-target") is False
+
+
+def test_agent_exists_happy_path(isolated_env, bot):
+    """정상 slug에 대해 exists()가 올바른 값을 반환해야 한다."""
+    av = bot.vault("test")
+    assert av.exists("content/notyet") is False
+    av.write("content/notyet", "x", title="N")
+    assert av.exists("content/notyet") is True

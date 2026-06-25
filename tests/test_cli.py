@@ -47,8 +47,8 @@ def test_cli_vault_create_bootstrap(fresh_env):
     assert "created" in result.stdout
     assert "bootstrapped" in result.stdout
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "RULES.md").is_file()
+    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
+    assert (target / "_meta" / "system" / "RULES.md").is_file()
 
 
 def test_cli_vault_create_no_bootstrap(fresh_env):
@@ -64,7 +64,7 @@ def test_cli_vault_create_no_bootstrap(fresh_env):
     # v0.4: empty dirs are created (so users have a writable starting point)
     assert (target / "content").is_dir()
     assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "SCHEMA.md").exists()
+    assert not (target / "_meta" / "system" / "SCHEMA.md").exists()
     # but existing files are not touched
     assert (target / "old-doc.md").read_text() == "# old\n"
 
@@ -229,19 +229,21 @@ def test_cli_meta_sync_copies_when_missing(fresh_env):
     # _meta/ does not exist — sync_meta creates it
     result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
     assert result.exit_code == 0, result.stderr
-    assert (target / "_meta" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "RULES.md").is_file()
+    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
+    assert (target / "_meta" / "system" / "RULES.md").is_file()
+    assert (target / "_meta" / "agent" / "README.md").is_file()
 
 
 def test_cli_meta_sync_overwrites_existing(fresh_env):
     target = fresh_env["target_root"] / "v13"
     runner.invoke(app, ["vault", "create", "v13", str(target)])
-    # customize RULES.md
-    (target / "_meta" / "RULES.md").write_text("# CUSTOM OLD\n")
+    # customize RULES.md in new location
+    rules_path = target / "_meta" / "system" / "RULES.md"
+    rules_path.write_text("# CUSTOM OLD\n")
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13"])
     assert result.exit_code == 0, result.stderr
     # overwritten
-    assert "Vault Editing Rules" in (target / "_meta" / "RULES.md").read_text()
+    assert "Vault Editing Rules" in rules_path.read_text()
 
 
 def test_cli_meta_sync_json_out(fresh_env):
@@ -250,9 +252,10 @@ def test_cli_meta_sync_json_out(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    # v0.5.0+: copied는 vault-relative path (예: _meta/SCHEMA.md)
-    assert "_meta/SCHEMA.md" in data["copied"]
-    assert "_meta/RULES.md" in data["copied"]
+    # v0.8+: copied는 vault-relative path, system/ + agent/ 분리 구조
+    assert "_meta/system/SCHEMA.md" in data["copied"]
+    assert "_meta/system/RULES.md" in data["copied"]
+    assert "_meta/agent/README.md" in data["copied"]
 
 
 # ─── vault clone ────────────────────────────────────────────
@@ -274,7 +277,7 @@ def test_cli_vault_clone_copies_content_and_meta(fresh_env):
     assert (dst / "content" / "hello.md").is_file()
     assert (dst / "content" / "sub" / "nested.md").is_file()
     # meta copied (bootstrap=True by default)
-    assert (dst / "_meta" / "SCHEMA.md").is_file()
+    assert (dst / "_meta" / "system" / "SCHEMA.md").is_file()
     # registered
     reg_list = runner.invoke(app, ["vault", "list", "--json"])
     names = [v["name"] for v in json.loads(reg_list.stdout)]
@@ -290,7 +293,7 @@ def test_cli_vault_clone_no_meta(fresh_env):
     assert (dst / "content").is_dir()
     # _meta exists but is empty (we created it but didn't copy)
     assert (dst / "_meta").is_dir()
-    assert not (dst / "_meta" / "SCHEMA.md").exists()
+    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
 
 
 def test_cli_vault_clone_duplicate_name_rejected(fresh_env):

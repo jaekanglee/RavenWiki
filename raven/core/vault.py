@@ -82,30 +82,48 @@ class Vault:
 
     @classmethod
     def _bootstrap(cls, path: Path) -> None:
-        """Create content/, _meta/, and copy template SCHEMA/RULES/log/policy.
+        """Create content/, _meta/system/, _meta/agent/, and copy templates.
 
         Idempotent: existing files are NOT overwritten. To refresh templates,
         use `raven meta sync`.
+
+        Structure created:
+            _meta/system/{SCHEMA,RULES,OPERATIONS}.md
+            _meta/agent/{README,TOOLS,WORKFLOW,SAFETY}.md
+            log.md, raven-policy.md  (vault root)
         """
         from importlib import resources
 
         content_dir = path / "content"
         meta_dir = path / "_meta"
+        system_dir = meta_dir / "system"
+        agent_dir = meta_dir / "agent"
+
         content_dir.mkdir(parents=True, exist_ok=True)
         meta_dir.mkdir(parents=True, exist_ok=True)
+        system_dir.mkdir(parents=True, exist_ok=True)
+        agent_dir.mkdir(parents=True, exist_ok=True)
 
-        # _meta/ 안: SCHEMA, RULES
-        for filename in ("SCHEMA.md", "RULES.md"):
-            target = meta_dir / filename
+        # _meta/system/: SCHEMA, RULES, OPERATIONS
+        for filename in ("SCHEMA.md", "RULES.md", "OPERATIONS.md"):
+            target = system_dir / filename
             if target.exists():
-                continue  # never overwrite user-edited rules
+                continue  # never overwrite user-edited files
             try:
-                # Python 3.9+: importlib.resources.files
-                src = resources.files("raven.core").joinpath(f"templates/{filename}")
+                src = resources.files("raven.core").joinpath(f"templates/system/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
             except Exception:
-                # template missing or package broken — skip silently
-                # (vault still works, just no SCHEMA.md / RULES.md)
+                pass
+
+        # _meta/agent/: README, TOOLS, WORKFLOW, SAFETY
+        for filename in ("README.md", "TOOLS.md", "WORKFLOW.md", "SAFETY.md"):
+            target = agent_dir / filename
+            if target.exists():
+                continue  # never overwrite user-edited files
+            try:
+                src = resources.files("raven.core").joinpath(f"templates/agent/{filename}")
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
                 pass
 
         # vault 루트: log.md (카파시 가이드), raven-policy.md
@@ -120,7 +138,7 @@ class Vault:
                 pass
 
     def sync_meta(self, with_log: bool = False) -> dict:
-        """Re-copy SCHEMA.md / RULES.md from templates (overwrites).
+        """Re-copy system/* and agent/* templates (overwrites).
 
         Args:
             with_log: if True, also copy log.md (template) and raven-policy.md
@@ -129,21 +147,37 @@ class Vault:
 
         Returns dict with counts of copied/skipped files.
         Use this after raven upgrade to refresh meta docs.
-        Creates _meta/ if missing (idempotent).
+        Creates _meta/system/ and _meta/agent/ if missing (idempotent).
         """
         from importlib import resources
 
-        self.meta_root.mkdir(parents=True, exist_ok=True)
+        system_dir = self.meta_root / "system"
+        agent_dir = self.meta_root / "agent"
+        system_dir.mkdir(parents=True, exist_ok=True)
+        agent_dir.mkdir(parents=True, exist_ok=True)
+
         out = {"copied": [], "errors": []}
-        # _meta/ 안: SCHEMA, RULES (항상)
-        for filename in ("SCHEMA.md", "RULES.md"):
-            target = self.meta_root / filename
+
+        # _meta/system/: SCHEMA, RULES, OPERATIONS (항상 overwrite)
+        for filename in ("SCHEMA.md", "RULES.md", "OPERATIONS.md"):
+            target = system_dir / filename
             try:
-                src = resources.files("raven.core").joinpath(f"templates/{filename}")
+                src = resources.files("raven.core").joinpath(f"templates/system/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
                 out["copied"].append(str(target.relative_to(self.root)))
             except Exception as e:
-                out["errors"].append({"file": filename, "error": str(e)})
+                out["errors"].append({"file": f"system/{filename}", "error": str(e)})
+
+        # _meta/agent/: README, TOOLS, WORKFLOW, SAFETY (항상 overwrite)
+        for filename in ("README.md", "TOOLS.md", "WORKFLOW.md", "SAFETY.md"):
+            target = agent_dir / filename
+            try:
+                src = resources.files("raven.core").joinpath(f"templates/agent/{filename}")
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                out["copied"].append(str(target.relative_to(self.root)))
+            except Exception as e:
+                out["errors"].append({"file": f"agent/{filename}", "error": str(e)})
+
         # vault 루트: log.md + raven-policy.md (with_log=True 일 때만)
         if with_log:
             for filename in ("log.md", "raven-policy.md"):

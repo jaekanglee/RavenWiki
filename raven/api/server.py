@@ -207,7 +207,7 @@ def list_pages(
 @app.get("/api/vaults/{name}/pages/{slug:path}")
 def get_page(name: str, slug: str):
     v = _vault_or_404(name)
-    fp = v.root / f"{slug}.md"
+    fp = _safe_slug_or_400(slug, v).with_suffix(".md")
     if not fp.exists():
         raise HTTPException(status_code=404, detail=f"page {slug!r} not found in vault {name!r}")
     text = fp.read_text()

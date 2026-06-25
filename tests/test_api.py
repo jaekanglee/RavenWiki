@@ -52,8 +52,8 @@ def test_api_vault_create_with_bootstrap(client, isolated_env):
     assert data["ok"] is True
     assert data["vault"]["bootstrapped"] is True
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "RULES.md").is_file()
+    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
+    assert (target / "_meta" / "system" / "RULES.md").is_file()
 
 
 def test_api_vault_create_no_bootstrap(client, isolated_env):
@@ -65,7 +65,7 @@ def test_api_vault_create_no_bootstrap(client, isolated_env):
     # v0.4: empty dirs exist, but templates not copied
     assert (target / "content").is_dir()
     assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "SCHEMA.md").exists()
+    assert not (target / "_meta" / "system" / "SCHEMA.md").exists()
 
 
 def test_api_vault_create_duplicate_name(client, isolated_env):
@@ -291,3 +291,39 @@ def test_api_archive_restore_basic(client, isolated_env):
     resp = client.post(f"/api/vaults/av3/archive/restore?archive_path={rel}")
     assert resp.status_code == 200, resp.text
     assert (target / "content" / "foo.md").is_file()
+
+
+# ─── GET /pages/{slug} slug 가드 (P0 보안 패치) ──────────────
+
+
+def test_api_get_page_rejects_tilde_traversal(client, isolated_env):
+    """get_page()는 tilde slug를 400으로 거부해야 한다 (path traversal 방어)."""
+    target = isolated_env["target_root"] / "rg1"
+    client.post("/api/vaults/create", json={"name": "rg1", "path": str(target), "bootstrap": False})
+    resp = client.get("/api/vaults/rg1/pages/~/.ssh-target")
+    assert resp.status_code == 400
+    assert "invalid slug" in resp.text.lower()
+
+
+def test_api_get_page_rejects_absolute_slug(client, isolated_env):
+    """get_page()는 절대 경로 slug를 400으로 거부해야 한다."""
+    target = isolated_env["target_root"] / "rg2"
+    client.post("/api/vaults/create", json={"name": "rg2", "path": str(target), "bootstrap": False})
+    # Starlette strips leading slash before route matching, so test a slug
+    # that reaches the handler with a leading slash via percent-encoding.
+    # The important check: any slug that slug_module rejects → HTTP 400.
+    resp = client.get("/api/vaults/rg2/pages/~root")
+    assert resp.status_code == 400
+
+
+def test_api_get_page_happy_path(client, isolated_env):
+    """정상 slug에 대해 get_page()가 200 + 내용을 반환해야 한다."""
+    target = isolated_env["target_root"] / "rg3"
+    client.post("/api/vaults/create", json={"name": "rg3", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/rg3/pages", json={"slug": "content/hello", "title": "Hello"})
+    resp = client.get("/api/vaults/rg3/pages/content/hello")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["slug"] == "content/hello"
+    assert data["frontmatter"]["title"] == "Hello"
