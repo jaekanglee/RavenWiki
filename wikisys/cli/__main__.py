@@ -15,6 +15,7 @@ from typing import Optional
 import typer
 
 from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
+from wikisys.core import db_module, lint_module, export_module, link_module
 from wikisys.core.vault import Vault
 
 app = typer.Typer(
@@ -286,11 +287,30 @@ def page_delete(
 def link_check(
     slug: Optional[str] = typer.Option(None, help="limit to one page (else whole vault)"),
     vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Find broken / missing wikilinks. (Stub — full impl in next phase.)"""
+    """Find broken / missing wikilinks in the active vault."""
     v = _resolve_vault_or_die(vault)
-    typer.echo(f"🔗 scanning: {v.meta.name}")
-    typer.echo("   (full wikilink audit available after core/link.py is wired)")
+    broken = link_module.find_broken(v, slug=slug)
+    missing = link_module.find_missing(v, slug=slug)
+    if json_out:
+        typer.echo(json.dumps({"broken": broken, "missing": missing}, indent=2, ensure_ascii=False))
+        return
+    typer.echo(f"🔗 {v.meta.name} — {len(broken)} broken, {len(missing)} missing")
+    if broken:
+        typer.echo("\n❌ broken (auto link with no target):")
+        for b in broken[:20]:
+            typer.echo(f"   {b['source_slug']} → [[{b['target']}]]")
+        if len(broken) > 20:
+            typer.echo(f"   ... +{len(broken) - 20} more")
+    if missing:
+        typer.echo("\n🔍 missing (intentional placeholders, no target yet):")
+        for m in missing[:20]:
+            typer.echo(f"   {m['source_slug']} → [[{m['target']}]]?")
+        if len(missing) > 20:
+            typer.echo(f"   ... +{len(missing) - 20} more")
+    if not broken and not missing:
+        typer.echo("✅ all wikilinks resolve or are intentional")
 
 
 # ────────────────────────── build / export ──────────────────────────
@@ -299,11 +319,24 @@ def link_check(
 @app.command()
 def build(
     vault: Optional[str] = typer.Option(None, "--vault"),
+    db: Optional[Path] = typer.Option(None, "--db", help="output db path (default: <vault>/wiki.db)"),
+    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="run lint after build"),
 ) -> None:
-    """Rebuild wiki.db for active vault (full impl next phase)."""
+    """Rebuild wiki.db for the active vault."""
     v = _resolve_vault_or_die(vault)
-    typer.echo(f"🔨 rebuilding wiki.db: {v.meta.name}")
-    typer.echo(f"   (delegates to scripts/build_db.py in next phase)")
+    result = db_module.build_db(v, db_path=db)
+    if result["ok"]:
+        typer.echo(f"✅ built: {result.get('db_path') or v.db_path}")
+        if "pages" in result:
+            typer.echo(f"   pages: {result['pages']}")
+        if lint_after:
+            lr = lint_module.run_lint(v)
+            c = lr.get("counts", {})
+            typer.echo(f"   lint: {c.get('critical', '?')}C / {c.get('warning', '?')}W / {c.get('info', '?')}I")
+    else:
+        typer.echo(f"❌ build failed (rc={result.get('returncode')})", err=True)
+        typer.echo(result.get("stderr_tail", ""), err=True)
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -311,11 +344,15 @@ def export(
     vault: Optional[str] = typer.Option(None, "--vault"),
     out_dir: Optional[Path] = typer.Option(None, "--out", help="output dir (default: <codebase>/dashboard/public/api)"),
 ) -> None:
-    """Export static JSON for GUI (full impl next phase)."""
+    """Export static JSON for the GUI (index/tree/graph/page-*/search)."""
     v = _resolve_vault_or_die(vault)
-    typer.echo(f"📤 exporting static JSON: {v.meta.name}")
-    typer.echo(f"   out: {out_dir or '(default)'}")
-    typer.echo(f"   (delegates to scripts/export_static.py in next phase)")
+    result = export_module.export_static(v, out_dir=out_dir)
+    if result.get("ok"):
+        typer.echo(f"✅ exported: {result.get('out_dir')} (vault={v.meta.name})")
+    else:
+        typer.echo(f"❌ export failed: {result.get('reason', '?')}", err=True)
+        typer.echo(result.get("stderr_tail", ""), err=True)
+        raise typer.Exit(1)
 
 
 def main() -> int:
