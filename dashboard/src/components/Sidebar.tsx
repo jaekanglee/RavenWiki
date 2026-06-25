@@ -1,12 +1,14 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import type { TreeNode as TNode } from "../types";
+import { NewPageButton } from "./NewPageButton";
 
 export function Sidebar({ tree }: { tree: TNode | null }) {
   if (!tree) {
     return (
       <aside className="w-64 border-r overflow-y-auto p-4 text-sm text-gray-500">
         Loading…
+        <NewPageButton />
       </aside>
     );
   }
@@ -16,6 +18,7 @@ export function Sidebar({ tree }: { tree: TNode | null }) {
       <Link to="/" className="font-bold text-lg block mb-2">
         📚 Wiki
       </Link>
+      <NewPageButton />
       <TreeNodeView node={tree} depth={0} />
     </aside>
   );
