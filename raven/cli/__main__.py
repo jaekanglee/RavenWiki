@@ -36,6 +36,7 @@ archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).
 log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki 패턴.")
 lint_app = typer.Typer(help="lint 12개 (카파시 가이드) — broken/orphan/contradictions/stale 등.")
 migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
+note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
@@ -44,6 +45,7 @@ app.add_typer(archive_app, name="archive")
 app.add_typer(log_app, name="log")
 app.add_typer(lint_app, name="lint")
 app.add_typer(migrate_app, name="migrate")
+app.add_typer(note_app, name="note")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -350,6 +352,184 @@ def page_new(
     except Exception:
         pass
     typer.echo(f"✅ created: {normalized}")
+
+
+# ────────────────────────── note (트리거 헬퍼) ──────────────────────────
+
+NOTE_TEMPLATES = {
+    "decision": (
+        "# {title}\n\n"
+        "## 컨텍스트\n"
+        "| 후보 | 장점 | 단점 |\n"
+        "|---|---|---|\n"
+        "| | | |\n"
+        "| | | |\n\n"
+        "## 결정\n"
+        "**{title}**\n\n"
+        "## 이유 (왜 A안이지 B안이 아닌지)\n"
+        "1.\n"
+        "2.\n"
+        "3.\n\n"
+        "## 트레이드오프 (받아들인 비용)\n"
+        "-\n\n"
+        "## 대안 검토 시 다시 보기\n"
+        "-\n\n"
+        "## 관련\n"
+        "-\n"
+    ),
+    "concept": (
+        "# {title}\n\n"
+        "## 정의\n\n\n"
+        "## 왜 중요한가\n\n\n"
+        "## 사용 예시\n\n\n"
+        "## 주의점\n\n\n"
+        "## 관련\n"
+        "-\n"
+    ),
+    "lesson": (
+        "# {title}\n\n"
+        "## 실수 / 함정\n\n\n"
+        "## 어떻게 발견했나\n\n\n"
+        "## 어떻게 피하나\n\n\n"
+        "## 관련\n"
+        "-\n"
+    ),
+    "journal": (
+        "# {title}\n\n"
+        "## 오늘 한 것\n"
+        "-\n\n"
+        "## 배운 것\n"
+        "-\n\n"
+        "## 내일 할 것\n"
+        "-\n"
+    ),
+}
+
+NOTE_TYPE_MAP = {
+    "decision": ("decisions", "decision"),
+    "concept": ("concepts", "concept"),
+    "lesson": ("lessons", "lesson"),
+    "journal": ("journal", "journal"),
+}
+
+
+@note_app.command("decision")
+def note_decision(
+    project: str = typer.Option(..., "--project", "-p", help="harumoa|homeauto|resume|design-spec"),
+    slug: str = typer.Option(..., "--slug", help="예: why-spring-boot"),
+    title: str = typer.Option(..., "--title", "-t"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """결정 트리거 — decisions/{slug}.md 즉시 생성 (playbook §10.1)."""
+    _note_create("decision", project, slug, title, vault)
+
+
+@note_app.command("concept")
+def note_concept(
+    project: str = typer.Option(..., "--project", "-p"),
+    slug: str = typer.Option(..., "--slug"),
+    title: str = typer.Option(..., "--title", "-t"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """막힘해결 트리거 — concepts/{slug}.md 즉시 생성 (playbook §10.1)."""
+    _note_create("concept", project, slug, title, vault)
+
+
+@note_app.command("lesson")
+def note_lesson(
+    project: str = typer.Option(..., "--project", "-p"),
+    slug: str = typer.Option(..., "--slug"),
+    title: str = typer.Option(..., "--title", "-t"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """막힘(실수) 트리거 — lessons/{slug}.md 즉시 생성 (playbook §10.1)."""
+    _note_create("lesson", project, slug, title, vault)
+
+
+@note_app.command("journal")
+def note_journal(
+    project: str = typer.Option(..., "--project", "-p"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """하루끝 트리거 — journal/{YYYY-MM-DD}.md 즉시 생성 (playbook §10.1).
+
+    slug/title 자동 = 오늘 날짜.
+    """
+    from datetime import date
+    today = date.today().isoformat()
+    _note_create("journal", project, today, today, vault)
+
+
+def _note_create(kind: str, project: str, slug: str, title: str, vault: Optional[str]) -> None:
+    """트리거 헬퍼 공통 구현."""
+    valid_projects = ("harumoa", "homeauto", "resume", "design-spec")
+    if project not in valid_projects:
+        typer.echo(f"❌ invalid project: {project} (must be one of {valid_projects})", err=True)
+        raise typer.Exit(1)
+
+    cat, type_ = NOTE_TYPE_MAP[kind]
+    full_slug = f"content/{project}/{cat}/{slug}"
+
+    v = _resolve_vault_or_die(vault)
+    normalized = slug_module.normalize_prefix(full_slug)
+    try:
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+    except slug_module.SlugError as e:
+        typer.echo(f"❌ invalid slug: {e}", err=True)
+        raise typer.Exit(1)
+
+    fp = safe_path.with_suffix(".md")
+    if fp.exists():
+        typer.echo(f"❌ exists: {normalized}", err=True)
+        raise typer.Exit(1)
+
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    today = __import__("datetime").date.today().isoformat()
+    tags = f"{kind},{project}"
+    meta = frontmatter_module.merge(
+        {},
+        {
+            "title": title,
+            "type": type_,
+            "tags": tags,
+            "created": today,
+            "updated": today,
+        },
+    )
+    body = NOTE_TEMPLATES[kind].format(title=title)
+    rendered = frontmatter_module.render(meta, body)
+    fp.write_text(rendered, encoding="utf-8")
+
+    try:
+        log_module.append(
+            v,
+            action="create",
+            subject=normalized,
+            files=[normalized],
+            note=f"trigger={kind}",
+        )
+    except Exception:
+        pass
+
+    typer.echo(f"✅ {kind} created: {normalized}")
+    typer.echo(f"   → 다음 단계: vim {fp} (빈 섹션 채우기)")
+
+
+@note_app.command("gate")
+def note_gate(
+    project: str = typer.Option(..., "--project", "-p"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """트리거 헬퍼로 작성한 페이지가 Phase 게이트를 충족하는지 확인.
+
+    이 명령은 scripts/gate.py 의 thin wrapper.
+    """
+    import subprocess
+    cmd = ["python3", str(Path(__file__).resolve().parent.parent.parent / "scripts" / "gate.py"), project]
+    if vault:
+        cmd.extend(["--vault", vault])
+    result = subprocess.run(cmd, capture_output=False)
+    raise typer.Exit(result.returncode)
 
 
 @page_app.command("delete")
