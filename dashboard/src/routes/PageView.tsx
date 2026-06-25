@@ -13,7 +13,8 @@ interface Ctx {
 }
 
 export function PageView() {
-  const { slug } = useParams();
+  const params = useParams();
+  const slug = params["*"];
   const ctx = useOutletContext<Ctx>();
   const vault = ctx?.vault || getActiveVault() || "default";
   const [page, setPage] = useState<Page | null | undefined>(undefined);
@@ -45,39 +46,87 @@ export function PageView() {
       });
   }, [slug, vault]);
 
-  if (page === undefined) return <div>Loading…</div>;
-  if (page === null)
+  if (page === undefined) {
+    return <div className="text-muted">Loading…</div>;
+  }
+  if (page === null) {
     return (
       <div>
-        <div className="text-red-600 mb-3">Not found: {slug}</div>
-        <div className="text-sm text-gray-500">{err}</div>
+        <div style={{ color: "var(--color-error-text)", marginBottom: 12 }}>
+          Not found: {slug}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--color-muted)" }}>{err}</div>
       </div>
     );
+  }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-      <article>
-        <div className="flex items-start justify-between mb-2 gap-3">
-          <h1 className="text-3xl font-bold">{page.title}</h1>
-          <div className="flex gap-2 shrink-0">
-            <EditButton vault={vault} slug={page.slug} content={page.content} onSaved={ctx?.refresh} />
-            <DeleteButton vault={vault} slug={page.slug} onDeleted={() => location.assign("/")} />
+    <div
+      className="page-grid"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) 240px",
+        gap: 32,
+      }}
+    >
+      <article style={{ minWidth: 0 }}>
+        {/* Header — title + actions */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: 16,
+            gap: 16,
+          }}
+        >
+          <h1>{page.title}</h1>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <EditButton
+              vault={vault}
+              slug={page.slug}
+              content={page.content}
+              onSaved={ctx?.refresh}
+            />
+            <DeleteButton
+              vault={vault}
+              slug={page.slug}
+              onDeleted={() => location.assign("/")}
+            />
           </div>
         </div>
-        <div className="flex gap-2 mb-4 text-sm flex-wrap">
-          <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900 rounded">{page.type}</span>
+
+        {/* Meta row — type badge + tags as ink pills */}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginBottom: 32,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <span className="chip-strong">{page.type}</span>
+          {page.updated && (
+            <span style={{ fontSize: 13, color: "var(--color-muted)" }}>
+              updated {String(page.updated).slice(0, 10)}
+            </span>
+          )}
           {(page.tags || "")
             .split(",")
             .map((t) => t.trim())
             .filter(Boolean)
             .map((t) => (
-              <span key={t} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+              <span key={t} className="chip">
                 #{t}
               </span>
             ))}
         </div>
+
+        {/* Body */}
         <MarkdownView content={page.content} />
       </article>
+
       <BacklinksPanel backlinks={page.backlinks ?? []} />
     </div>
   );

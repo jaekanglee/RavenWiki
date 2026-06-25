@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.archive — archive list/clean/restore."""
+"""Tests for raven.core.archive — archive list/clean/restore."""
 from __future__ import annotations
 
 import datetime as _dt
@@ -13,20 +13,20 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core.archive import (
+from raven.core.archive import (
     ARCHIVE_TS_RE,
     CleanResult,
     clean_archived,
     list_archived,
     restore_archived,
 )
-from wikisys.core.vault import Vault
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def isolated_env(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-archive-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-archive-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-archive-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-archive-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     v = Vault.create("test", target_root / "test", bootstrap=False)
     yield {"reg_root": reg_root, "target_root": target_root, "vault": v}

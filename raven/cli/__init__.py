@@ -1,4 +1,4 @@
-"""wikisys.cli — Typer-based command-line interface.
+"""raven.cli — Typer-based command-line interface.
 
 Commands:
     vault list                          List all vaults in the registry

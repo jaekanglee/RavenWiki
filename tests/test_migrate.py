@@ -1,4 +1,4 @@
-"""Tests for wikisys.migrate — v0.5.2+ 마이그레이션 dry-run/apply."""
+"""Tests for raven.migrate — v0.5.2+ 마이그레이션 dry-run/apply."""
 from __future__ import annotations
 
 import sys
@@ -11,8 +11,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys import migrate as migrate_module
-from wikisys.migrate import (
+from raven import migrate as migrate_module
+from raven.migrate import (
     CATEGORIES,
     MigrationPlan,
     apply_broken_to_missing,
@@ -21,13 +21,13 @@ from wikisys.migrate import (
     make_plan,
     apply_plan,
 )
-from wikisys.core.vault import Vault
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def vault(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-mig-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-mig-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-mig-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-mig-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     v = Vault.create("mig-test", target_root / "mig-test", bootstrap=False)
     yield v
@@ -36,7 +36,7 @@ def vault(monkeypatch):
 
 
 def _write_page(v: Vault, slug: str, fm: dict, body: str = "# x\n") -> Path:
-    from wikisys.core.frontmatter import render
+    from raven.core.frontmatter import render
     fp = v.root / f"{slug}.md"
     fp.parent.mkdir(parents=True, exist_ok=True)
     fp.write_text(render(fm, body), encoding="utf-8")
@@ -100,7 +100,7 @@ def test_apply_broken_to_missing_skips_with_intent(vault):
 
 def test_apply_frontmatter_fill(vault):
     """created/updated missing → today로 채움."""
-    from wikisys.core.frontmatter import parse
+    from raven.core.frontmatter import parse
     # frontmatter 자체는 있지만 created/updated 없음
     fp = vault.root / "content" / "no-dates.md"
     fp.parent.mkdir(parents=True, exist_ok=True)

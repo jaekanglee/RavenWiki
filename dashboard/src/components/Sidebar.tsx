@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import clsx from "clsx";
+import { useEffect, useState } from "react";
 import type { TreeNode as TNode } from "../types";
 import { NewPageButton } from "./NewPageButton";
 
@@ -12,16 +13,77 @@ export function Sidebar({
   tree: TNode | null;
   onTreeChange?: () => void;
 }) {
+  // Auto-collapse sidebar on narrow screens.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 744px)");
+    const onChange = () => setCollapsed(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
   return (
-    <aside className="w-64 border-r overflow-y-auto p-4">
-      <Link to="/" className="font-bold text-lg block mb-2">
-        📚 Wiki
-      </Link>
-      <NewPageButton />
-      {tree ? (
-        <TreeNodeView node={tree} depth={0} />
-      ) : (
-        <div className="text-sm text-gray-500 mt-2">Loading {vault}…</div>
+    <aside
+      className={clsx(collapsed && "sidebar-collapsed-mobile")}
+      style={{
+        width: 288,
+        borderRight: "1px solid var(--color-hairline)",
+        overflowY: "auto",
+        padding: "24px 20px",
+        background: "var(--color-canvas)",
+        flexShrink: 0,
+        transition: "width 0.16s ease, padding 0.16s ease",
+      }}
+    >
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Mobile-only toggle to expand the collapsed rail */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label="사이드바 토글"
+          className="sidebar-mobile-toggle"
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--color-muted)",
+            fontSize: 18,
+            padding: 4,
+          }}
+        >
+          ☰
+        </button>
+        {!collapsed && (
+          <div style={{ flex: 1 }}>
+            <NewPageButton />
+          </div>
+        )}
+      </div>
+
+      {!collapsed && (
+        <>
+          <div
+            className="sidebar-label"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.32px",
+              textTransform: "uppercase",
+              color: "var(--color-muted)",
+              padding: "0 8px 8px",
+            }}
+          >
+            Pages
+          </div>
+
+          {tree ? (
+            <TreeNodeView node={tree} depth={0} />
+          ) : (
+            <div className="text-muted sidebar-text" style={{ padding: "8px", fontSize: 13 }}>
+              Loading {vault}…
+            </div>
+          )}
+        </>
       )}
     </aside>
   );
@@ -35,8 +97,14 @@ function TreeNodeView({ node, depth }: { node: TNode; depth: number }) {
     return (
       <Link
         to={`/page/${node.slug}`}
-        className="block py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
-        style={{ marginLeft: depth * 12 }}
+        className="link-ink"
+        style={{
+          display: "block",
+          padding: "6px 8px",
+          fontSize: 14,
+          marginLeft: depth * 12,
+          borderRadius: 6,
+        }}
       >
         {node.title}
       </Link>
@@ -48,9 +116,21 @@ function TreeNodeView({ node, depth }: { node: TNode; depth: number }) {
       {node.slug !== "root" && (
         <button
           onClick={() => setOpen(!open)}
-          className="block py-1 px-2 w-full text-left text-sm font-medium"
+          className={clsx("link-ink")}
+          style={{
+            display: "block",
+            padding: "6px 8px",
+            fontSize: 14,
+            fontWeight: 600,
+            width: "100%",
+            textAlign: "left",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            borderRadius: 6,
+          }}
         >
-          {open ? "📂" : "📁"} {node.title}
+          {open ? "▾" : "▸"} {node.title}
         </button>
       )}
       {open &&

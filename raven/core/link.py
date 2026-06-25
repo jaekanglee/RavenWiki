@@ -1,4 +1,4 @@
-"""wikisys.core.link — wikilink parser + audit.
+"""raven.core.link — wikilink parser + audit.
 
 Public surface:
     find_broken(vault)    → list of {source_slug, target, intent}

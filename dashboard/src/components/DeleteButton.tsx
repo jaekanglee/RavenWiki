@@ -39,49 +39,106 @@ export function DeleteButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-sm px-3 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+        className="btn-secondary"
+        style={{
+          height: 36,
+          padding: "8px 16px",
+          fontSize: 13,
+          borderColor: "var(--color-error-text)",
+          color: "var(--color-error-text)",
+        }}
       >
         🗑 삭제
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={() => !busy && setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 16,
+          }}
         >
           <div
-            className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{ maxWidth: 480, width: "100%", padding: 32 }}
           >
-            <h2 className="text-xl font-bold mb-2 text-red-700">페이지 삭제</h2>
-            <p className="text-sm mb-3">
-              <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{slug}</code>
-              을(를) vault <strong>{vault}</strong>에서 삭제합니다. <code>_archive/</code>로 백업됨.
+            <h2 style={{ marginBottom: 12, color: "var(--color-error-text)" }}>
+              페이지 삭제
+            </h2>
+            <p style={{ fontSize: 14, marginBottom: 16, color: "var(--color-body)" }}>
+              <code
+                style={{
+                  background: "var(--color-surface-soft)",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: 13,
+                }}
+              >
+                {slug}
+              </code>{" "}
+              을(를) vault <strong>{vault}</strong>에서 삭제합니다. _archive/ 로 백업됨.
             </p>
-            <label className="block mb-3">
-              <span className="text-sm font-medium">확인 — slug 입력</span>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "var(--color-ink)",
+                }}
+              >
+                확인 — slug 입력
+              </span>
               <input
+                className="input-base"
+                style={{ height: 48, fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder={slug}
-                className="w-full border rounded px-2 py-1 mt-1 text-sm font-mono"
               />
             </label>
             {msg && (
-              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">{msg}</div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  background: "var(--color-surface-soft)",
+                  fontSize: 13,
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--color-ink)",
+                }}
+              >
+                {msg}
+              </div>
             )}
-            <div className="flex gap-2 justify-end">
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setOpen(false)}
                 disabled={busy}
-                className="px-4 py-2 text-sm rounded border hover:bg-gray-100"
+                className="btn-secondary"
+                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
               >
                 취소
               </button>
               <button
                 onClick={del}
                 disabled={busy}
-                className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                className="btn-primary"
+                style={{
+                  height: 40,
+                  padding: "10px 20px",
+                  fontSize: 14,
+                  background: "var(--color-error-text)",
+                }}
               >
                 {busy ? "삭제 중…" : "삭제"}
               </button>

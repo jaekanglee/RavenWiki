@@ -21,8 +21,8 @@ confidence: high
 | **Query Index** | **`wiki.db`** (SQLite) | **gitignore** |
 | **Working Log** | **`log.md`** (vault 루트) | **git** |
 
-→ `wikisys build` 로 wiki.db 재빌드 가능. 손상되어도 마크다운에서 복구됨.
-→ `wikisys log` 로 작업 이력 조회/추가.
+→ `raven build` 로 wiki.db 재빌드 가능. 손상되어도 마크다운에서 복구됨.
+→ `raven log` 로 작업 이력 조회/추가.
 
 ## Directory Structure
 
@@ -32,7 +32,7 @@ confidence: high
 ├── SCHEMA.md           # 이 문서 (규약 매니페스트)
 ├── RULES.md            # 편집 규칙 (5가지)
 ├── log.md              # 작업 이력 (chronological, append-only)
-├── wikisys-policy.md   # vault 운영정책 (카파시 가이드 통합)
+├── raven-policy.md   # vault 운영정책 (카파시 가이드 통합)
 ├── content/            # ⭐ 모든 컨텐츠 (slug = vault-relative path)
 │   └── *.md
 ├── _meta/              # vault 운영 문서 (type: rule)
@@ -78,7 +78,7 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 [[content/foo]]?          # placeholder (INFO if target missing)
 ```
 
-→ `wikisys link check` 로 검증.
+→ `raven link check` 로 검증.
 
 ## Tag Taxonomy (core + custom, v0.5.3+)
 
@@ -90,7 +90,7 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
 - **v0.5.3 승격** (Q3, 3+ 페이지 사용):
   - `meta`
-  - `wikisys`
+  - `raven`
   - `governance`
 
 **lint 동작**: core에 없으면 🟡 warning ("not in core taxonomy")
@@ -128,11 +128,11 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 - **자동 append 시점**: 페이지 CRUD / build / lint / archive (CLI가 자동)
 - **grep parseable**: `grep "^## \[" log.md | tail -5` → 최근 5개
 
-→ `wikisys log list --tail 5` / `wikisys log append` / `wikisys log rotate`.
+→ `raven log list --tail 5` / `raven log append` / `raven log rotate`.
 
 ## Lint 운영 규칙 (12개 풀세트, v0.5.1+ 자동화)
 
-`wikisys build` 또는 `wikisys lint` 실행 시 자동 검증:
+`raven build` 또는 `raven lint` 실행 시 자동 검증:
 
 | # | 항목 | 심각도 | 비고 |
 |---|---|---|---|
@@ -159,18 +159,47 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 
 ```bash
 # 첫 페이지 만들기
-wikisys page new hello-world --title "Hello, Vault"
+raven page new hello-world --title "Hello, Vault"
 
 # 작업 (자동으로 log.md append)
-wikisys build                              # DB 재빌드 + lint
+raven build                              # DB 재빌드 + lint
 
 # 작업 이력 조회
-wikisys log list --tail 10
-wikisys log append "manual note" --action chore
+raven log list --tail 10
+raven log append "manual note" --action chore
 
 # wikilink 검사
-wikisys link check
+raven link check
 ```
 
-→ 자세한 사용법은 `wikisys-guide.md` (vault에 자동 생성) 또는
-  `~/Desktop/Dev/Project/Wiki/_meta/wikisys-guide.md` 참조.
+→ 자세한 사용법은 `raven-guide.md` (vault에 자동 생성) 또는
+  `~/Desktop/Dev/Project/Wiki/_meta/raven-guide.md` 참조.
+
+## §X. Cognitive Governance (카파시 LLM Wiki 차용)
+
+> 모든 페이지 작성 시 다음 4가지 신호를 권장 (lint #13 🔵 info):
+> 없으면 sterile wiki (백과사전 풍 중립) 됨.
+
+1. **Why it matters** — 페이지 첫 문단에 "왜 중요한가" 1-2줄. 단순 정의 ❌.
+2. **반대 입장 (Fights against)** — 단일 진영 주장 ❌. 반대/대안 입장 1개 이상 명시.
+   - 헤딩: `## 반대 입장` / `## Fights against` / `## Alternatives` 중 1.
+3. **Cross-disciplinary links** — 본문에 wikilink ≥ 1 (기술 외 분야: 인문/예술/생물/역사/철학).
+4. **confidence 등급** — frontmatter `confidence: high|medium|low`. single-source = low/medium 강제.
+
+→ v0.5.x: lint #13은 **info**. 페이지 lint 통과 = 무관. 부재 시 §X 명시.
+→ v0.6.x 후보: warning 격상 (사용자 결정 시).
+
+### raw/ 출처 frontmatter (ingest 파이프라인, Phase 4.5+)
+
+`raw/articles/*.md` 등 1차 소스 파일 frontmatter:
+
+```yaml
+source_url: https://example.com/article
+ingested: 2026-06-25
+sha256: a1b2c3d4e5f6...
+```
+
+### 면제
+
+- `type: rule`, `type: journal`, `type: query` 페이지.
+- `_meta/` 안 페이지.

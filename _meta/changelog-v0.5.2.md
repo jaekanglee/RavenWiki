@@ -1,4 +1,4 @@
-# wikisys v0.5.2 — Dashboard panel + 마이그레이션 도구
+# raven v0.5.2 — Dashboard panel + 마이그레이션 도구
 
 > **핵심**: lint 12개 + log.md 자동화가 **UI로 가시화**. + 5 카테고리 dry-run 마이그레이션.
 
@@ -9,7 +9,7 @@
 
 ## 한 줄 요약
 
-**Dashboard에 `📜 Log` / `🔧 Lint` 2개 페이지** 추가 + **`wikisys migrate` 명령** (lint 결과 5 카테고리 dry-run/apply, 기본 dry-run).
+**Dashboard에 `📜 Log` / `🔧 Lint` 2개 페이지** 추가 + **`raven migrate` 명령** (lint 결과 5 카테고리 dry-run/apply, 기본 dry-run).
 
 → 사용자가 **매번 CLI 안 띄워도** vault 건강 상태 확인. 140 issues 같은 노이즈도 UI에서 한눈에.
 
@@ -35,15 +35,15 @@
 
 ---
 
-## 2. wikisys migrate (신규 CLI)
+## 2. raven migrate (신규 CLI)
 
 ```bash
-wikisys migrate categories                  # 5 카테고리 설명
-wikisys migrate plan --vault <name>         # dry-run
-wikisys migrate plan --vault <name> --apply # 실제 적용 (confirm)
-wikisys migrate plan --vault <name> --apply --risk safe
-wikisys migrate plan --vault <name> --category broken_to_missing
-wikisys migrate apply --vault <name> --yes  # 한 번에 (safe만 기본)
+raven migrate categories                  # 5 카테고리 설명
+raven migrate plan --vault <name>         # dry-run
+raven migrate plan --vault <name> --apply # 실제 적용 (confirm)
+raven migrate plan --vault <name> --apply --risk safe
+raven migrate plan --vault <name> --category broken_to_missing
+raven migrate apply --vault <name> --yes  # 한 번에 (safe만 기본)
 ```
 
 ### 5개 카테고리 + 위험도
@@ -63,7 +63,7 @@ wikisys migrate apply --vault <name> --yes  # 한 번에 (safe만 기본)
 ## 3. default vault 실측
 
 ```bash
-$ wikisys migrate plan --vault default
+$ raven migrate plan --vault default
 📋 default migration plan (DRY-RUN):
    total fixes:    95
    safe (auto):    70 ✅
@@ -75,7 +75,7 @@ $ wikisys migrate plan --vault default
    page_size_split        4  200줄+ 페이지 분할 (수동)
    tag_promotion         19  custom tag → core 승격 (수동)
 
-💡 적용:  wikisys migrate plan --vault default --apply
+💡 적용:  raven migrate plan --vault default --apply
 ```
 
 → **70개 safe**는 한 방에 적용 가능 (critical 72 → 6).
@@ -92,8 +92,8 @@ $ wikisys migrate plan --vault default
 | `dashboard/src/routes/LintPage.tsx` | **신규** | 280 |
 | `dashboard/src/App.tsx` | 수정 | +3 (route 2개) |
 | `dashboard/src/components/Layout.tsx` | 수정 | +6 (nav link 2개) |
-| `wikisys/migrate.py` | **신규** | 380 (5 category builders + 3 apply fns + plan/apply) |
-| `wikisys/cli/__main__.py` | 수정 | +140 (migrate_app + 3 commands) |
+| `raven/migrate.py` | **신규** | 380 (5 category builders + 3 apply fns + plan/apply) |
+| `raven/cli/__main__.py` | 수정 | +140 (migrate_app + 3 commands) |
 | `tests/test_migrate.py` | **신규** | 180 (8 tests) |
 | `_meta/migration-v0.5.2.md` | **신규** | 230 (결정 가이드) |
 | `_meta/changelog-v0.5.2.md` | **신규** | (이 문서) |
@@ -118,7 +118,7 @@ $ wikisys migrate plan --vault default
 
 ```bash
 # 1. API 서버 실행
-python -m wikisys.api &
+python -m raven.api &
 
 # 2. dashboard dev
 cd dashboard && npm run dev
@@ -143,8 +143,8 @@ cd dashboard && npm run dev
 
 각 결정 후:
 ```bash
-wikisys build
-wikisys lint summary
+raven build
+raven lint summary
 ```
 
 ---

@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from typer.testing import CliRunner
 
-from wikisys.cli.__main__ import app
-from wikisys.core.registry import registry
+from raven.cli.__main__ import app
+from raven.core.registry import registry
 
 
 runner = CliRunner()
@@ -27,8 +27,8 @@ runner = CliRunner()
 @pytest.fixture
 def fresh_env(monkeypatch):
     """Isolated WIKI_VAULTS_DIR + clean target dir."""
-    vaults_root = Path(tempfile.mkdtemp(prefix="wikisys-cli-vaults-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-cli-target-"))
+    vaults_root = Path(tempfile.mkdtemp(prefix="raven-cli-vaults-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-cli-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(vaults_root))
     yield {"vaults_root": vaults_root, "target_root": target_root}
     shutil.rmtree(vaults_root, ignore_errors=True)
@@ -73,7 +73,7 @@ def test_cli_vault_create_no_bootstrap(fresh_env):
 
 
 def test_cli_page_new_auto_prefix(fresh_env):
-    """wikisys page new foo → content/foo.md (auto prefix)."""
+    """raven page new foo → content/foo.md (auto prefix)."""
     # bootstrap a vault first
     target = fresh_env["target_root"] / "v1"
     runner.invoke(app, ["vault", "create", "v1", str(target)])
@@ -87,7 +87,7 @@ def test_cli_page_new_auto_prefix(fresh_env):
 
 
 def test_cli_page_new_explicit_meta_prefix(fresh_env):
-    """wikisys page new _meta/welcome → _meta/welcome.md (explicit prefix preserved)."""
+    """raven page new _meta/welcome → _meta/welcome.md (explicit prefix preserved)."""
     target = fresh_env["target_root"] / "v2"
     runner.invoke(app, ["vault", "create", "v2", str(target)])
     result = runner.invoke(app, [
@@ -98,7 +98,7 @@ def test_cli_page_new_explicit_meta_prefix(fresh_env):
 
 
 def test_cli_page_new_explicit_content_prefix(fresh_env):
-    """wikisys page new content/foo → content/foo.md (explicit prefix preserved)."""
+    """raven page new content/foo → content/foo.md (explicit prefix preserved)."""
     target = fresh_env["target_root"] / "v3"
     runner.invoke(app, ["vault", "create", "v3", str(target)])
     result = runner.invoke(app, [

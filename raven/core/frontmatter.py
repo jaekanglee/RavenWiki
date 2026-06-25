@@ -4,7 +4,7 @@ Public surface:
     parse(text) -> tuple[dict, str]
         Split `text` into (meta_dict, body). Handles simple `key: value` and
         `key: [a, b, c]` list forms. No nested YAML for now (kept simple on
-        purpose — see wikisys-guide.md "frontmatter rules").
+        purpose — see raven-guide.md "frontmatter rules").
 
     render(meta, body, *, agents=None) -> str
         Render frontmatter + body. Preserves key insertion order. Appends

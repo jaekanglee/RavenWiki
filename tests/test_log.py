@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.log — log.md (작업 이력) 관리.
+"""Tests for raven.core.log — log.md (작업 이력) 관리.
 
 카파시 LLM Wiki 패턴 검증:
 - log.md 위치 = vault 루트
@@ -18,8 +18,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core import log as log_module
-from wikisys.core.log import (
+from raven.core import log as log_module
+from raven.core.log import (
     LogEntry,
     _ALLOWED_ACTIONS,
     _HEADER_RE,
@@ -31,13 +31,13 @@ from wikisys.core.log import (
     log_path,
     rotate,
 )
-from wikisys.core.vault import Vault
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def vault(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-log-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-log-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-log-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-log-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     v = Vault.create("log-test", target_root / "log-test", bootstrap=False)
     yield v

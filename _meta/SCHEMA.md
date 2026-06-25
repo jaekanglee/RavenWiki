@@ -95,7 +95,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
 - **v0.5.3 승격** (Q3, 3+ 페이지 사용):
   - `meta`
-  - `wikisys`
+  - `raven`
   - `governance`
 
 **lint 동작**: core에 없으면 🔵 info ("not in core taxonomy")
@@ -158,6 +158,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 7. 🔵 tag not in core taxonomy
 8. 🔵 `contested: true` 페이지 목록
 9. 🔵 90일+ 미갱신 + 새 출처 — **type: rule 면제** (v0.5.2+)
+10. 🔵 cognitive_governance_missing (v0.5.3+) — 4신호 미달 페이지 (info)
 
 ## 빌드 원칙
 
@@ -224,3 +225,24 @@ python3 -m wiki_mcp.server --admin
 - [[content/beyond-karpathy-llm-wiki]] — governance 동기
 - [[content/rag-vs-llm-wiki]] — RAG와 비교
 - (W5에서 `_meta/ai-roadmap.md` 생성 예정 — M3-M6 상세 로드맵)
+
+### raw/ 출처 frontmatter (ingest 파이프라인, Phase 4.5+)
+
+`raw/articles/*.md`, `raw/papers/*.md`, `raw/transcripts/*.md` 가지는 페이지 frontmatter에:
+
+```yaml
+---
+source_url: https://example.com/article          # 1차 출처 URL
+ingested: 2026-06-25                              # ingest 일자 (YYYY-MM-DD)
+sha256: a1b2c3d4e5f6...                           # 원본 payload sha256 (16+ hex chars)
+---
+```
+
+→ `raven ingest <url>` 가 자동 기록. `raven page new --source-url <url> --sha <hash>` 도 수동 입력 가능.
+→ lint: raw/ 의 sha256 vs 재계산 비교로 source drift 감지 (다음 마일스톤).
+
+### 면제 (Cognitive Governance 4신호)
+
+- `type: rule`, `type: journal`, `type: query` 페이지 — 4 신호 미충족 OK.
+- `_meta/` 안 페이지 (운영 문서) — 4 신호 미충족 OK.
+- (lint #13은 **info**. 페이지 lint 통과 = 무관.)

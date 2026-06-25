@@ -1,4 +1,4 @@
-"""wikisys.core — engine internals (vault registry + per-vault ops).
+"""raven.core — engine internals (vault registry + per-vault ops).
 
 Split:
     registry     — vault discovery (.registry.json + WIKI_VAULTS_DIR env override)

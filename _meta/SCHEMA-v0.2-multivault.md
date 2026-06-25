@@ -3,7 +3,7 @@ title: SCHEMA v0.2 — Multi-Vault 추가 사항
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, schema, wikisys]
+tags: [system, meta, schema, raven]
 sources: [_meta/SCHEMA.md]
 confidence: high
 ---
@@ -62,7 +62,7 @@ confidence: high
 ```
 
 → 레지스트리 항목의 subset (per-vault 자체 메타).
-레지스트리와 동기화 책임은 `wikisys.core.registry`가 짐.
+레지스트리와 동기화 책임은 `raven.core.registry`가 짐.
 
 ---
 
@@ -116,7 +116,7 @@ agents:
 | `intent` | (선택) 왜 이 페이지를 만들었나 |
 
 **규칙**:
-- 사람이 `wikisys page new`로 만든 페이지: `agents` 필드 없음
+- 사람이 `raven page new`로 만든 페이지: `agents` 필드 없음
 - 에이전트가 `av.write()`로 만든 페이지: `agents` 자동 삽입
 - 사람이 편집 (overwrite): `agents` 보존 (누가 만들었는지 추적 유지)
 
@@ -156,7 +156,7 @@ class AgentScope:
 | `WIKI_VAULTS_DIR` | vaults root 위치 | `~/vaults` |
 | `WIKI_VAULT` | 일시 active vault | (registry default) |
 
-→ 두 변수 모두 **순수 override** (영구 변경 아님). 영구 변경은 `wikisys vault use <name>`.
+→ 두 변수 모두 **순수 override** (영구 변경 아님). 영구 변경은 `raven vault use <name>`.
 
 ---
 

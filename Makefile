@@ -1,10 +1,10 @@
-# wikisys — top-level Makefile
+# raven — top-level Makefile
 # Self-documenting: `make` or `make help` lists targets.
 #
 # Conventions:
 #   - All commands run from project root.
 #   - Venv is scripts/.venv (auto-created by `make install`).
-#   - PYTHONPATH=. so `python -m wikisys.*` works without install.
+#   - PYTHONPATH=. so `python -m raven.*` works without install.
 
 SHELL := /bin/bash
 VENV := scripts/.venv
@@ -21,7 +21,7 @@ help: ## Show this help message
 # ────────────────────────── setup ──────────────────────────
 
 .PHONY: install
-install: ## Create venv + install wikisys + dev deps
+install: ## Create venv + install raven + dev deps
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e .
@@ -35,8 +35,8 @@ venv-check: ## Fail loudly if venv missing (so other targets work)
 # ────────────────────────── dev (api + dashboard) ──────────────────────────
 
 .PHONY: api
-api: venv-check ## Run wikisys API on 127.0.0.1:8765 (foreground, Ctrl+C to stop)
-	PYTHONPATH=. $(PY) -m wikisys.api --host 127.0.0.1 --port 8765
+api: venv-check ## Run raven API on 127.0.0.1:8765 (foreground, Ctrl+C to stop)
+	PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765
 
 .PHONY: dashboard
 dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
@@ -44,7 +44,7 @@ dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 
 .PHONY: dev
 dev: venv-check ## Run API + dashboard (reuses running API; Ctrl+C stops only dashboard)
-	@echo "🚀 wikisys API → http://127.0.0.1:8765"
+	@echo "🚀 raven API → http://127.0.0.1:8765"
 	@echo "🌐 dashboard  → http://localhost:5173/"
 	@echo "   (Ctrl+C stops dashboard. API is shared — \`make stop\` to kill it.)"
 	@echo ""
@@ -52,7 +52,7 @@ dev: venv-check ## Run API + dashboard (reuses running API; Ctrl+C stops only da
 	    echo "✅ API already running on 8765 — reusing"; \
 	else \
 	    echo "🔌 starting API in background (detached from this shell)..."; \
-	    setsid nohup env PYTHONPATH=. $(PY) -m wikisys.api --host 127.0.0.1 --port 8765 >/tmp/wikisys-api.log 2>&1 </dev/null & \
+	    nohup env PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765 >/tmp/raven-api.log 2>&1 </dev/null & \
 	    disown 2>/dev/null || true; \
 	    for i in 1 2 3 4 5; do \
 	        sleep 1; \
@@ -61,7 +61,7 @@ dev: venv-check ## Run API + dashboard (reuses running API; Ctrl+C stops only da
 	            break; \
 	        fi; \
 	        if [ $$i -eq 5 ]; then \
-	            echo "❌ API failed to start — see /tmp/wikisys-api.log"; exit 1; \
+	            echo "❌ API failed to start — see /tmp/raven-api.log"; exit 1; \
 	        fi; \
 	    done; \
 	fi
@@ -95,12 +95,12 @@ test-quick: venv-check ## Run tests with minimal output
 test-one: venv-check ## Run a single test file (usage: make test-one F=tests/test_slug.py)
 	$(PY) -m pytest $(F) -v
 
-# ────────────────────────── wikisys cli shortcuts ──────────────────────────
+# ────────────────────────── raven cli shortcuts ──────────────────────────
 
-WIKI := PYTHONPATH=. $(PY) -m wikisys.cli
+WIKI := PYTHONPATH=. $(PY) -m raven.cli
 
-.PHONY: wikisys
-wikisys: venv-check ## Run wikisys CLI (usage: make wikisys ARGS="vault list")
+.PHONY: raven
+raven: venv-check ## Run raven CLI (usage: make raven ARGS="vault list")
 	$(WIKI) $(ARGS)
 
 .PHONY: vault-list
@@ -108,7 +108,7 @@ vault-list: venv-check ## Show registered vaults
 	$(WIKI) vault list
 
 .PHONY: where
-where: venv-check ## Show wikisys config (vaults root, active vault)
+where: venv-check ## Show raven config (vaults root, active vault)
 	$(WIKI) where
 
 .PHONY: link-check

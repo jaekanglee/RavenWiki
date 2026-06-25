@@ -1,4 +1,4 @@
-# wikisys v0.5.1 — lint 12개 풀세트 + 페이지 CRUD 자동 log
+# raven v0.5.1 — lint 12개 풀세트 + 페이지 CRUD 자동 log
 
 > **핵심**: 카파시 gist의 12개 lint 항목 **100% 자동화**. 페이지 CRUD/Build 시 log.md 자동 갱신.
 
@@ -9,9 +9,9 @@
 
 ## 한 줄 요약
 
-**`wikisys/core/lint.py`에 9개 check 함수 추가** (orphan/contradictions/confidence/stale/page size/tag audit/frontmatter/index/log_size 정리) + **페이지 CRUD/build 자동 log hook** + **CLI `wikisys lint` 명령 3개** + **API 2개 endpoint**.
+**`raven/core/lint.py`에 9개 check 함수 추가** (orphan/contradictions/confidence/stale/page size/tag audit/frontmatter/index/log_size 정리) + **페이지 CRUD/build 자동 log hook** + **CLI `raven lint` 명령 3개** + **API 2개 endpoint**.
 
-→ 카파시 가이드 12/12 자동화. 운영자가 `wikisys lint` 한 번이면 vault 건강 상태 100% 파악.
+→ 카파시 가이드 12/12 자동화. 운영자가 `raven lint` 한 번이면 vault 건강 상태 100% 파악.
 
 ---
 
@@ -46,17 +46,17 @@
 
 ---
 
-## 2. CLI: `wikisys lint ...` (3개 명령)
+## 2. CLI: `raven lint ...` (3개 명령)
 
 ```bash
-wikisys lint run [--vault] [--check #N] [--severity X] [--verbose] [--json] [--log]
-wikisys lint summary [--vault] [--json]
-wikisys lint check #N [--vault] [--json]
+raven lint run [--vault] [--check #N] [--severity X] [--verbose] [--json] [--log]
+raven lint summary [--vault] [--json]
+raven lint check #N [--vault] [--json]
 ```
 
 예시:
 ```bash
-$ wikisys lint run --vault default
+$ raven lint run --vault default
 ❌ default — 72C / 57W / 11I (total 140)
 
 📊 by check:
@@ -66,7 +66,7 @@ $ wikisys lint run --vault default
    #8: 4
    #9: 19
 
-$ wikisys lint summary --vault default
+$ raven lint summary --vault default
 📊 default lint summary:
    total:     140
    critical:  72 🔴
@@ -79,16 +79,16 @@ $ wikisys lint summary --vault default
      #9    19  ███████████████████
      ...
 
-$ wikisys lint check #4 --vault default
+$ raven lint check #4 --vault default
 🔍 #4 (orphans): 7 issues
   [warning] content/old-orphan  orphan (no inbound, age 30d ≥ grace 7d)
   ...
 
-$ wikisys lint run --check #4 --log
+$ raven lint run --check #4 --log
 # → log.md에 lint entry 자동 append
 ```
 
-→ `wikisys build` 안에 lint 통합 (기본 ON, `--no-lint`로 끄기).
+→ `raven build` 안에 lint 통합 (기본 ON, `--no-lint`로 끄기).
 
 ---
 
@@ -112,14 +112,14 @@ curl http://localhost:8765/api/vaults/default/lint/summary | jq
 
 | 액션 | 트리거 | log action |
 |---|---|---|
-| `wikisys page new` | CLI | `create` |
-| `wikisys page delete` (archive) | CLI | `archive` |
-| `wikisys build` | CLI | `build` (v0.5.0) |
+| `raven page new` | CLI | `create` |
+| `raven page delete` (archive) | CLI | `archive` |
+| `raven build` | CLI | `build` (v0.5.0) |
 | `POST /api/vaults/{name}/pages` | API | `create` |
 | `PUT /api/vaults/{name}/pages/{slug}` | API | `update` |
 | `DELETE /api/vaults/{name}/pages/{slug}` | API | `archive` |
 | `POST /api/vaults/{name}/build` | API | `build` (v0.5.0) |
-| `wikisys lint run --log` | CLI | `lint` |
+| `raven lint run --log` | CLI | `lint` |
 | `GET /api/vaults/{name}/lint?write_log=true` | API | `lint` |
 
 → 모든 hook은 `try/except`로 보호 — log append 실패가 본 작업에 영향 ❌.
@@ -130,11 +130,11 @@ curl http://localhost:8765/api/vaults/default/lint/summary | jq
 
 | 파일 | 종류 | LOC |
 |---|---|---|
-| `wikisys/core/lint.py` | 수정 (확장) | +400 (12 check 함수 + run_all) |
-| `wikisys/core/link.py` | 수정 | +28 (find_broken_intent) |
-| `wikisys/core/db.py` | 수정 | +15 (build에 lint 통합) |
-| `wikisys/cli/__main__.py` | 수정 | +135 (lint_app + 3 commands) |
-| `wikisys/api/server.py` | 수정 | +55 (2 endpoints) |
+| `raven/core/lint.py` | 수정 (확장) | +400 (12 check 함수 + run_all) |
+| `raven/core/link.py` | 수정 | +28 (find_broken_intent) |
+| `raven/core/db.py` | 수정 | +15 (build에 lint 통합) |
+| `raven/cli/__main__.py` | 수정 | +135 (lint_app + 3 commands) |
+| `raven/api/server.py` | 수정 | +55 (2 endpoints) |
 | `tests/test_lint_v2.py` | **신규** | 320 (19 tests, 9 check) |
 | `tests/test_lint_log_size.py` | 수정 | 시그니처 변경 (info dict → issue list) |
 | `_meta/changelog-v0.5.1.md` | **신규** | (이 문서) |
@@ -177,7 +177,7 @@ curl http://localhost:8765/api/vaults/default/lint/summary | jq
 ## 8. default vault 실측 결과
 
 ```
-$ wikisys lint summary --vault default
+$ raven lint summary --vault default
 📊 default lint summary:
    total:     140
    critical:  72 🔴
@@ -204,7 +204,7 @@ $ wikisys lint summary --vault default
 - 7 orphan = 사용 안 되는 페이지, archive 후보
 - 4 page size = SCHEMA.md, log.md, m1-completion-report, how-to-start-vault (사용자 분할 보류)
 - 19 tag = custom tag → SCHEMA.md에 core 승격 가능
-- 38 index = wiki.db 빌드 안 됨 → `wikisys build` 필요
+- 38 index = wiki.db 빌드 안 됨 → `raven build` 필요
 
 → 이 5개 카테고리만 정리하면 default vault lint 통과.
 

@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.frontmatter — parse, render, merge."""
+"""Tests for raven.core.frontmatter — parse, render, merge."""
 from __future__ import annotations
 
 import sys
@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core.frontmatter import merge, parse, render
+from raven.core.frontmatter import merge, parse, render
 
 
 # ─── parse ───────────────────────────────────────────────────

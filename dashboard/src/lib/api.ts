@@ -4,7 +4,7 @@
  * Vault identity is stored in localStorage so refresh keeps the choice.
  * Components read this through `useActiveVault()` and refresh when needed.
  */
-export const ACTIVE_VAULT_KEY = "wikisys:active_vault";
+export const ACTIVE_VAULT_KEY = "raven:active_vault";
 
 export function getActiveVault(): string {
   return localStorage.getItem(ACTIVE_VAULT_KEY) || "";

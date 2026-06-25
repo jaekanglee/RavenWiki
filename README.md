@@ -1,4 +1,4 @@
-# wikisys — Multi-Vault Wiki Engine
+# raven — Multi-Vault Wiki Engine
 
 > **Obsidian-free, agent-aware, multi-vault.** markdown + git + 자체 뷰어 + Python 어댑터.
 > vault는 어디든 지정 가능, 사람과 에이전트가 동시에 사용.
@@ -7,17 +7,17 @@
 
 ## 무엇인가
 
-wikisys는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 시스템.
+raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 시스템.
 
 | 계층 | 구현 | 위치 |
 |---|---|---|
 | **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/vaults/<name>/` |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
-| **Engine** (Python) | wikisys.core (db/lint/export/link) | `wikisys/core/` |
-| **CLI** (사람) | Typer 9 commands | `wikisys/cli/` |
-| **API** (HTTP) | FastAPI 12 endpoints | `wikisys/api/` |
+| **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
+| **CLI** (사람) | Typer 9 commands | `raven/cli/` |
+| **API** (HTTP) | FastAPI 12 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
-| **Adapter** (에이전트) | Python scope-based API | `wikisys/agents/` |
+| **Adapter** (에이전트) | Python scope-based API | `raven/agents/` |
 
 **SoT = 마크다운**. DB/API/GUI는 **모두 재생성 가능**한 파생 산출물.
 
@@ -25,7 +25,7 @@ wikisys는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현�
 
 ## 왜 만들었나 (vs Obsidian)
 
-| Obsidian | wikisys |
+| Obsidian | raven |
 |---|---|
 | vault = 사용자가 폴더 지정 ✅ | 동일 ✅ |
 | GUI만 있음 | **GUI + CLI + Python + HTTP 4개 인터페이스** |
@@ -49,25 +49,25 @@ cd ~/Desktop/Dev/Project/Wiki
 source scripts/.venv/bin/activate   # venv
 
 # 1. vault 확인
-wikisys where                       # 현재 설정 + vault 목록
+raven where                       # 현재 설정 + vault 목록
 
 # 2. (선택) 새 vault 만들기
-wikisys vault create personal ~/vaults/personal
-wikisys vault use personal
+raven vault create personal ~/vaults/personal
+raven vault use personal
 
 # 3. 빌드 (DB + lint)
-wikisys build
+raven build
 
 # 4. GUI 띄우기 (다른 터미널)
-python -m wikisys.api               # → http://127.0.0.1:8765
+python -m raven.api               # → http://127.0.0.1:8765
 cd dashboard && npm run dev         # → http://localhost:5173
 
 # 5. CLI로 페이지 작업
-wikisys page new content/hello --title "Hello" --type concept --tags "demo"
-wikisys page ls
-wikisys page get content/hello
-wikisys link check
-wikisys export                      # GUI 정적 JSON 재생성
+raven page new content/hello --title "Hello" --type concept --tags "demo"
+raven page ls
+raven page get content/hello
+raven link check
+raven export                      # GUI 정적 JSON 재생성
 ```
 
 ---
@@ -81,8 +81,8 @@ wikisys export                      # GUI 정적 JSON 재생성
 
 ```bash
 # 예: 다른 위치 vault 사용
-WIKI_VAULTS_DIR=~/Documents/vaults wikisys vault list
-WIKI_VAULT=agent-output wikisys page ls
+WIKI_VAULTS_DIR=~/Documents/vaults raven vault list
+WIKI_VAULT=agent-output raven page ls
 ```
 
 ---
@@ -90,22 +90,22 @@ WIKI_VAULT=agent-output wikisys page ls
 ## 핵심 명령 (CLI 9)
 
 ```bash
-wikisys where                                 # 환경 표시
-wikisys vault list                            # 등록된 vault 목록
-wikisys vault use <name>                      # 기본 vault 전환
-wikisys vault info [name]                     # 메타 + 통계
-wikisys vault create <name> <path>            # 새 vault 생성 + 등록
-wikisys vault register <name> <path>          # 기존 폴더를 vault로 등록
-wikisys vault remove <name> --force           # 등록 해제 (파일은 유지)
+raven where                                 # 환경 표시
+raven vault list                            # 등록된 vault 목록
+raven vault use <name>                      # 기본 vault 전환
+raven vault info [name]                     # 메타 + 통계
+raven vault create <name> <path>            # 새 vault 생성 + 등록
+raven vault register <name> <path>          # 기존 폴더를 vault로 등록
+raven vault remove <name> --force           # 등록 해제 (파일은 유지)
 
-wikisys page ls [--type T] [--tag T] [--vault N] [--json]
-wikisys page get <slug> [--vault N]
-wikisys page new <slug> --title T --type T --tags "a,b" [--vault N]
-wikisys page delete <slug> [--vault N] [--force]
+raven page ls [--type T] [--tag T] [--vault N] [--json]
+raven page get <slug> [--vault N]
+raven page new <slug> --title T --type T --tags "a,b" [--vault N]
+raven page delete <slug> [--vault N] [--force]
 
-wikisys link check [--vault N] [--json]       # broken/missing wikilink
-wikisys build [--vault N] [--db PATH] [--lint]   # wiki.db 빌드
-wikisys export [--vault N] [--out DIR]          # GUI 정적 JSON
+raven link check [--vault N] [--json]       # broken/missing wikilink
+raven build [--vault N] [--db PATH] [--lint]   # wiki.db 빌드
+raven export [--vault N] [--out DIR]          # GUI 정적 JSON
 ```
 
 ---
@@ -141,7 +141,7 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 ## Python 어댑터 (에이전트)
 
 ```python
-from wikisys.agents import Agent, AgentScope
+from raven.agents import Agent, AgentScope
 
 # 1. scope 정의 (단일 vault, delete 권한 없음)
 hermes = Agent.named(
@@ -252,11 +252,11 @@ http://localhost:5173                     # vite dev server
   트리             ← vault 페이지 계층
 
 페이지 헤더:
-  ✏️ 편집          ← textarea 편집 → wikisys API PUT
+  ✏️ 편집          ← textarea 편집 → raven API PUT
   🗑 삭제          ← slug 재입력 확인 → _archive로 백업
 ```
 
-vault 전환 시 페이지 자동 새로고침. localStorage `wikisys:active_vault`에 저장.
+vault 전환 시 페이지 자동 새로고침. localStorage `raven:active_vault`에 저장.
 
 ---
 
@@ -264,15 +264,15 @@ vault 전환 시 페이지 자동 새로고침. localStorage `wikisys:active_vau
 
 ```bash
 # Python 타입/린트
-python -m py_compile wikisys/**/*.py
-scripts/.venv/bin/python -c "from wikisys.cli import app; print('OK')"
+python -m py_compile raven/**/*.py
+scripts/.venv/bin/python -c "from raven.cli import app; print('OK')"
 
 # TypeScript
 cd dashboard && npx tsc -b --noEmit
 cd dashboard && npm run build     # PWA 자동 생성 (dist/sw.js)
 
 # E2E
-wikisys build && wikisys link check
+raven build && raven link check
 ```
 
 ---
@@ -281,7 +281,7 @@ wikisys build && wikisys link check
 
 ```
 ~/Desktop/Dev/Project/Wiki/           ← 이 저장소 (개발 코드)
-├── wikisys/                          ← 핵심 패키지
+├── raven/                          ← 핵심 패키지
 │   ├── core/
 │   │   ├── registry.py              ← vault 발견 (.registry.json + env)
 │   │   ├── vault.py                 ← vault 핸들 (load/create/resolve_active)
@@ -365,8 +365,8 @@ cd dashboard && npm install
 
 ## 관련 문서
 
-- `~/vaults/default/_meta/wikisys-guide.md` — vault 사용자 가이드 (사람/에이전트 공통)
-- `~/vaults/default/_meta/wikisys-faq.md` — 자주 묻는 질문
+- `~/vaults/default/_meta/raven-guide.md` — vault 사용자 가이드 (사람/에이전트 공통)
+- `~/vaults/default/_meta/raven-faq.md` — 자주 묻는 질문
 - `_meta/architecture-5layer.md` — 시스템 아키텍처 (4 layer)
 - `_meta/SCHEMA.md` — vault frontmatter 스키마
 - `_meta/RULES.md` — 운영 규칙

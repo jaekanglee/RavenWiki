@@ -12,14 +12,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core.registry import VAULTS_ROOT, registry
-from wikisys.core.vault import Vault
+from raven.core.registry import VAULTS_ROOT, registry
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def isolated_vaults_root(monkeypatch):
     """Redirect WIKI_VAULTS_DIR to a temp dir so registry doesn't touch real vaults."""
-    tmp = Path(tempfile.mkdtemp(prefix="wikisys-test-"))
+    tmp = Path(tempfile.mkdtemp(prefix="raven-test-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp))
     yield tmp
     shutil.rmtree(tmp, ignore_errors=True)
@@ -28,7 +28,7 @@ def isolated_vaults_root(monkeypatch):
 @pytest.fixture
 def isolated_target(monkeypatch):
     """Separate temp dir for the actual vault path (not the registry root)."""
-    tmp = Path(tempfile.mkdtemp(prefix="wikisys-target-"))
+    tmp = Path(tempfile.mkdtemp(prefix="raven-target-"))
     yield tmp
     shutil.rmtree(tmp, ignore_errors=True)
 
@@ -70,7 +70,7 @@ def test_no_bootstrap_creates_empty_dirs_but_no_template_files(isolated_vaults_r
     """v0.4: --no-bootstrap now creates empty content/ + _meta/ (was: only .vault.json).
 
     Rationale: users need a writable starting point. Templates are not copied,
-    but the directories exist so `wikisys page new content/foo` works immediately.
+    but the directories exist so `raven page new content/foo` works immediately.
     """
     v = Vault.create("existing1", isolated_target / "existing1", bootstrap=False)
     assert (v.root / ".vault.json").is_file()

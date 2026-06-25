@@ -1,6 +1,6 @@
-"""wikisys.api — FastAPI HTTP server.
+"""raven.api — FastAPI HTTP server.
 
-Exposes the wikisys engine to the React dashboard (and any HTTP client).
+Exposes the raven engine to the React dashboard (and any HTTP client).
 Designed for local-first: binds to 127.0.0.1, no auth (single-user).
 
 Endpoints (all under /api):
@@ -18,8 +18,8 @@ Endpoints (all under /api):
     POST   /vaults/{name}/export        static JSON export for GUI
 
 Run:
-    python -m wikisys.api                    # default 127.0.0.1:8765
-    python -m wikisys.api --host 0.0.0.0     # bind all (e.g. Tailscale)
+    python -m raven.api                    # default 127.0.0.1:8765
+    python -m raven.api --host 0.0.0.0     # bind all (e.g. Tailscale)
 """
 from .server import app
 

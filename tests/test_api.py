@@ -1,4 +1,4 @@
-"""Tests for wikisys.api — REST endpoints after v0.3.1 migration.
+"""Tests for raven.api — REST endpoints after v0.3.1 migration.
 
 Covers the 5 write endpoints (vaults/create, pages POST/PUT/DELETE) plus
 slug validation, frontmatter unification, and archive mirror.
@@ -18,16 +18,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # Use TestClient from FastAPI (stdlib starlette)
 from fastapi.testclient import TestClient
 
-from wikisys.api.server import app
-from wikisys.core.registry import VAULTS_ROOT, registry
-from wikisys.core.vault import Vault
+from raven.api.server import app
+from raven.core.registry import VAULTS_ROOT, registry
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def isolated_env(monkeypatch):
     """Redirect WIKI_VAULTS_DIR + provide a clean target dir."""
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-api-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-api-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-api-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-api-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     yield {"reg_root": reg_root, "target_root": target_root}
     shutil.rmtree(reg_root, ignore_errors=True)

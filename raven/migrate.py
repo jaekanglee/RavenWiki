@@ -1,4 +1,4 @@
-"""wikisys.migrate — vault 마이그레이션 도구 (v0.5.2+).
+"""raven.migrate — vault 마이그레이션 도구 (v0.5.2+).
 
 lint 결과를 5 카테고리로 분류하고, 적용 가능한 fix를 dry-run으로 미리 보여줌.
 **기본 = dry-run, 절대 데이터 변경 ❌** (사용자 --apply 명시 시에만 실행).
@@ -11,9 +11,9 @@ lint 결과를 5 카테고리로 분류하고, 적용 가능한 fix를 dry-run�
     5. frontmatter_fill: missing created/updated → 자동 채움 (안전)
 
 CLI:
-    wikisys migrate plan --vault <name>           # dry-run
-    wikisys migrate plan --vault <name> --apply   # 적용 (위험!)
-    wikisys migrate category broken --vault <name> # 특정 카테고리만
+    raven migrate plan --vault <name>           # dry-run
+    raven migrate plan --vault <name> --apply   # 적용 (위험!)
+    raven migrate category broken --vault <name> # 특정 카테고리만
 """
 from __future__ import annotations
 

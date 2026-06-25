@@ -1,4 +1,4 @@
-# wikisys v0.5.4 — 카파시 스킬 사용 메커니즘 차용 (B + D)
+# raven v0.5.4 — 카파시 스킬 사용 메커니즘 차용 (B + D)
 
 > **핵심**: 카파시 LLM Wiki gist의 5가지 "스킬 사용 메커니즘" 중 **B (Session Start Orientation)** + **D (액션별 check/avoid)** 차용. 위키 작업의 "기본 안전망" 완성.
 
@@ -9,7 +9,7 @@
 
 ## 한 줄 요약
 
-**orchestrator에 Session Start Orientation 3-step** (카파시 SCHEMA+index+log 차용) + **wikisys/SKILL.md에 §"Common Mistakes by Action"** (8개 액션 × 4-8개 mistake). **코드 변경 0, 문서 2개 +1**.
+**orchestrator에 Session Start Orientation 3-step** (카파시 SCHEMA+index+log 차용) + **raven/SKILL.md에 §"Common Mistakes by Action"** (8개 액션 × 4-8개 mistake). **코드 변경 0, 문서 2개 +1**.
 
 ---
 
@@ -35,7 +35,7 @@
 - 3-step read 자동:
   1. `~/vaults/<active>/_meta/SCHEMA.md`
   2. `~/vaults/<active>/_meta/RULES.md`
-  3. `wikisys log list --tail 30`
+  3. `raven log list --tail 30`
 - 단순 명령 (예: "log status")은 skip
 - vault 식별 불가 시 사용자에게 질문
 
@@ -61,18 +61,18 @@
 ## 3. D. Common Mistakes by Action
 
 ### 추가 위치
-`~/.hermes/profiles/wiki-orchestrator/skills/wikisys/SKILL.md` §"Common Mistakes by Action" (P1-P8 다음, "다음 단계 후보" 직전).
+`~/.hermes/profiles/wiki-orchestrator/skills/raven/SKILL.md` §"Common Mistakes by Action" (P1-P8 다음, "다음 단계 후보" 직전).
 
 ### 8개 액션 × 4-8개 mistake
 
 | 액션 | mistake 수 | 핵심 |
 |---|---|---|
-| 페이지 생성 (`wikisys page new`) | 7 | FM 누락, intent 미사용, slug 안전 |
+| 페이지 생성 (`raven page new`) | 7 | FM 누락, intent 미사용, slug 안전 |
 | wikilink 검사 | 5 | broken 누락, false positive |
-| `wikisys build` | 5 | `--no-lint` 오용, wiki.db commit |
-| `wikisys lint` | 6 | grace 만료, 면제 규칙 무시 |
-| `wikisys log` | 5 | 수동 편집, rotate 누락 |
-| `wikisys migrate` | 5 | **dry-run 없이 apply** (가장 위험) |
+| `raven build` | 5 | `--no-lint` 오용, wiki.db commit |
+| `raven lint` | 6 | grace 만료, 면제 규칙 무시 |
+| `raven log` | 5 | 수동 편집, rotate 누락 |
+| `raven migrate` | 5 | **dry-run 없이 apply** (가장 위험) |
 | vault create / multi-vault | 5 | name 충돌, mode 혼동 |
 | Dashboard | 4 | PWA 캐시, API down |
 | 운영 일반 | 5 | raw 손, 외부 수정, git 누락 |
@@ -95,7 +95,7 @@
 | 파일 | 변경 | +LOC |
 |---|---|---|
 | `~/.hermes/profiles/wiki-orchestrator/SOUL.md` | §3.5 Session Start Orientation | +40 |
-| `~/.hermes/profiles/wiki-orchestrator/skills/wikisys/SKILL.md` | §"Common Mistakes by Action" | +90 |
+| `~/.hermes/profiles/wiki-orchestrator/skills/raven/SKILL.md` | §"Common Mistakes by Action" | +90 |
 | `_meta/changelog-v0.5.4.md` | (이 문서) | 신규 |
 
 **총 +200 LOC** (코드 0, 문서 200)
@@ -110,7 +110,7 @@
 - 프로필 SOUL.md는 **사용자 영역** — 내가 임의로 패치하면 사용자 config 변경
 - v0.5.4+ 에서 사용자가 명시적으로 "프로필에 추가해줘" 요청 시 진행
 
-**대안**: RULES.md 또는 wikisys/SKILL.md에 **프로토콜 요약** (architect=6단계 / curator=6단계 / writer=10단계) — 이미 RULES.md §2-§7에 부분 있음.
+**대안**: RULES.md 또는 raven/SKILL.md에 **프로토콜 요약** (architect=6단계 / curator=6단계 / writer=10단계) — 이미 RULES.md §2-§7에 부분 있음.
 
 ---
 
@@ -156,7 +156,7 @@
 | **C**: 프로필별 Operating Protocol | 사용자 명시 시 (memory 안전) |
 | **E**: vault 크기별 시나리오 pitfall | 다음 사이클 |
 | v0.6: MCP tool 4개 추가 (search/ingest/lint/log) | M3 vector search 결정 시 |
-| v0.6: Dataview 대용 (wikisys query CLI) | 50+ 페이지 시 |
+| v0.6: Dataview 대용 (raven query CLI) | 50+ 페이지 시 |
 
 → **v0.5.x 시리즈 마무리**. 다음 사이클 = vault 사용 + 자연스러운 gap 발견.
 

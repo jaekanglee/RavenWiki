@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+/**
+ * SearchBar — pill-shaped (search-bar-pill token).
+ * 9999px radius, 64px height, hairline + shadow border.
+ * Single Rausch "search orb" button on the right.
+ */
 export function SearchBar({
   vault,
   onSelect,
@@ -10,6 +15,7 @@ export function SearchBar({
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
+  const [focused, setFocused] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,27 +34,105 @@ export function SearchBar({
   }, [q, vault]);
 
   return (
-    <div className="relative flex-1">
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={`🔍 ${vault} 검색…`}
-        className="w-full px-3 py-2 border rounded dark:bg-gray-900"
-      />
+    <div className="relative w-full">
+      <div
+        className="search-bar-pill"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          height: 64,
+          background: "var(--color-canvas)",
+          border: focused
+            ? "2px solid var(--color-ink)"
+            : "1px solid var(--color-hairline-strong)",
+          borderRadius: "var(--radius-full)",
+          boxShadow: focused
+            ? "var(--shadow-card)"
+            : "0 1px 2px rgba(0,0,0,0.04)",
+          padding: "0 6px 0 24px",
+          transition: "border-color 0.12s ease, box-shadow 0.12s ease",
+        }}
+      >
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={`${vault}에서 검색…`}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            fontSize: 15,
+            color: "var(--color-ink)",
+            fontFamily: "inherit",
+          }}
+        />
+        <button
+          aria-label="검색"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: "var(--radius-full)",
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
+            border: "none",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            flexShrink: 0,
+          }}
+        >
+          🔎
+        </button>
+      </div>
+
       {results.length > 0 && (
-        <ul className="absolute w-full mt-1 bg-white dark:bg-gray-900 border rounded shadow-lg z-10 max-h-96 overflow-y-auto">
+        <ul
+          style={{
+            position: "absolute",
+            width: "100%",
+            marginTop: 8,
+            background: "var(--color-canvas)",
+            border: "1px solid var(--color-hairline)",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "var(--shadow-card)",
+            zIndex: 10,
+            maxHeight: 384,
+            overflowY: "auto",
+            padding: 8,
+            listStyle: "none",
+          }}
+        >
           {results.map((r) => (
             <li
               key={r.slug}
-              onClick={() => {
+              onMouseDown={(e) => {
+                e.preventDefault();
                 if (onSelect) onSelect(r.slug);
                 else navigate(`/page/${r.slug}`);
                 setQ("");
               }}
-              className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer text-sm"
+              style={{
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontSize: 14,
+                borderRadius: 8,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--color-surface-soft)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "transparent";
+              }}
             >
-              <div className="font-medium">{r.title}</div>
-              <div className="text-xs text-gray-500">
+              <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{r.title}</div>
+              <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
                 {r.type} · score {r.score}
               </div>
             </li>

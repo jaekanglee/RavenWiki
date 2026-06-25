@@ -3,7 +3,7 @@ title: plan-v0.3 — Vault/Page CRUD 강화 (v2, progressive delivery)
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, plan, wikisys, v0.3]
+tags: [system, meta, plan, raven, v0.3]
 sources: [_meta/decisions-d1-d6.md, _meta/decisions-d7-d9-multivault.md, _meta/requirements-v0.2-addendum.md]
 confidence: high
 ---
@@ -73,7 +73,7 @@ CLI 9 commands / API 12 endpoints / Agent 어댑터 / GUI. CRUD 자체는 다 �
 
 ## 4. v0.3.0 MUST (5건, 이번 plan)
 
-### R1. Slug 검증 모듈 (`wikisys/core/slug.py`)
+### R1. Slug 검증 모듈 (`raven/core/slug.py`)
 ```python
 def validate(slug: str, *, vault_root: Path) -> Path:
     """Return absolute path if safe; raise ValueError otherwise.
@@ -83,10 +83,10 @@ def validate(slug: str, *, vault_root: Path) -> Path:
     """
 ```
 - **사용**: CLI `page new/delete` + `vault create`(bootstrap path) 만
-- **위치**: `wikisys/core/slug.py` (신규 ~50 LOC)
+- **위치**: `raven/core/slug.py` (신규 ~50 LOC)
 - **테스트**: 6 케이스 (정상/`..`/절대/`~`/NUL/outside)
 
-### R2. Frontmatter 단일화 (`wikisys/core/frontmatter.py`)
+### R2. Frontmatter 단일화 (`raven/core/frontmatter.py`)
 ```python
 def parse(text: str) -> tuple[dict, str]: ...
 def render(meta: dict, body: str, *, agents: Optional[Provenance]=None) -> str: ...
@@ -95,7 +95,7 @@ def merge(existing: dict, updates: dict) -> dict:
 ```
 - **사용**: CLI `page new` + `page delete` (없음, fm만 다룸) + 향후 API/Agent
 - **Agent의 `_render`/`_split_frontmatter`는 v0.3.2에서 흡수** (이번엔 안 함)
-- **위치**: `wikisys/core/frontmatter.py` (신규 ~80 LOC)
+- **위치**: `raven/core/frontmatter.py` (신규 ~80 LOC)
 - **테스트**: 8 케이스
 
 ### R3. `page new` 자동 prefix
@@ -103,8 +103,8 @@ def merge(existing: dict, updates: dict) -> dict:
 def _normalize_slug(slug: str) -> str:
     """If no '/' and 'content/' path doesn't exist, prepend 'content/'."""
 ```
-- **단순 정책**: `wikisys page new foo` → `content/foo`
-- `wikisys page new meta/welcome` → 그대로 (`meta/`는 사용자가 명시)
+- **단순 정책**: `raven page new foo` → `content/foo`
+- `raven page new meta/welcome` → 그대로 (`meta/`는 사용자가 명시)
 - **위치**: `cli/__main__.py` 안 inline (R1과 같은 파일, ~10 LOC)
 - **테스트**: 2 케이스 (with/without prefix)
 
@@ -119,18 +119,18 @@ class Vault:
             (path / "content").mkdir(parents=True, exist_ok=True)
             _copy_templates(path / "_meta")
 ```
-- **템플릿**: `wikisys/core/templates/{SCHEMA,RULES}.md` (코드베이스 추적)
+- **템플릿**: `raven/core/templates/{SCHEMA,RULES}.md` (코드베이스 추적)
 - **옵션 `--no-bootstrap`**: 기존 폴더 등록 시
-- **위치**: `wikisys/core/vault.py` (~20 LOC 변경) + 신규 templates 2 파일
+- **위치**: `raven/core/vault.py` (~20 LOC 변경) + 신규 templates 2 파일
 - **테스트**: 3 케이스 (bootstrap on/off/실패)
 
 ### S2. CLI `created` 보존 (page update는 CLI에 없음 — R2 fm 단일화의 `merge()`가 처리)
-- `wikisys page new`만 있는 CLI는 항상 신규. 단, **vim으로 직접 수정한 후 frontmatter 다시 쓸 때 `created` 안 바뀌도록 보장**은 R2의 `merge()`가 담당.
+- `raven page new`만 있는 CLI는 항상 신규. 단, **vim으로 직접 수정한 후 frontmatter 다시 쓸 때 `created` 안 바뀌도록 보장**은 R2의 `merge()`가 담당.
 - **테스트**: 1 케이스 (R2에 흡수)
 
 ### B12 흡수: 메타 write CLI (최소)
 ```bash
-wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (덮어쓰기)
+raven meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (덮어쓰기)
 ```
 - **위치**: `cli/__main__.py` 신규 sub-app `meta` (~30 LOC)
 - **용도**: vault 생성 후 SCHEMA가 outdated일 때 수동 동기화
@@ -143,10 +143,10 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 ### 5.1 신규 파일
 | 경로 | LOC |
 |---|---|
-| `wikisys/core/slug.py` | ~50 |
-| `wikisys/core/frontmatter.py` | ~80 |
-| `wikisys/core/templates/SCHEMA.md` | ~30 |
-| `wikisys/core/templates/RULES.md` | ~20 |
+| `raven/core/slug.py` | ~50 |
+| `raven/core/frontmatter.py` | ~80 |
+| `raven/core/templates/SCHEMA.md` | ~30 |
+| `raven/core/templates/RULES.md` | ~20 |
 | `tests/test_slug.py` | ~80 |
 | `tests/test_frontmatter.py` | ~100 |
 | `tests/test_cli.py` | ~60 |
@@ -155,20 +155,20 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 ### 5.2 수정 파일
 | 경로 | 변경 | LOC diff |
 |---|---|---|
-| `wikisys/core/__init__.py` | `slug_module`, `fm_module` export | +5 |
-| `wikisys/core/vault.py` | `create()` 에 bootstrap 인자 | +20 |
-| `wikisys/cli/__main__.py` | `page new`/delete + `vault create` 가 slug validate + fm 단일화 사용 + `meta sync` sub-app | +60 |
+| `raven/core/__init__.py` | `slug_module`, `fm_module` export | +5 |
+| `raven/core/vault.py` | `create()` 에 bootstrap 인자 | +20 |
+| `raven/cli/__main__.py` | `page new`/delete + `vault create` 가 slug validate + fm 단일화 사용 + `meta sync` sub-app | +60 |
 
 **총 ~565 LOC** (코드 ~250 + 테스트 ~300 + 템플릿 ~50).
 
 ### 5.3 하위호환
 | 항목 | 호환성 |
 |---|---|
-| 기존 `wikisys vault list/use/info/create/register/remove` | ✅ 시그니처 동일 |
-| 기존 `wikisys page new content/foo` | ✅ 동작 그대로 |
-| `wikisys page new foo` | ⚠️ **신규: 자동 `content/foo`로 변환** — `wikisys page new _meta/welcome` 같은 명시 prefix는 그대로 |
+| 기존 `raven vault list/use/info/create/register/remove` | ✅ 시그니처 동일 |
+| 기존 `raven page new content/foo` | ✅ 동작 그대로 |
+| `raven page new foo` | ⚠️ **신규: 자동 `content/foo`로 변환** — `raven page new _meta/welcome` 같은 명시 prefix는 그대로 |
 | 기존 vault (`~/vaults/{default,second-vault}`) | ✅ **부트스트랩 영향 없음** (신규 vault만 bootstrap) |
-| Agent `wikisys.agents.Agent` | ✅ v0.3.0은 CLI만 변경, API/Agent 시그니처 그대로 |
+| Agent `raven.agents.Agent` | ✅ v0.3.0은 CLI만 변경, API/Agent 시그니처 그대로 |
 | API 12 endpoints | ✅ v0.3.0은 CLI만 변경 |
 
 ---
@@ -183,9 +183,9 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 | **E4** | `Vault.create` bootstrap + 3 테스트 | E3 | `pytest tests/test_vault_create.py` pass |
 | **E5** | CLI `page new`/delete + `vault create` 마이그레이션 | E1, E2, E4 | `pytest tests/test_cli.py` pass |
 | **E6** | CLI `meta sync` sub-app + 2 테스트 | E3 | 신규 |
-| **E7** | `wikisys.core.__init__` export 추가 | E1, E2 | import 가능 |
+| **E7** | `raven.core.__init__` export 추가 | E1, E2 | import 가능 |
 | **E8** | 기존 vault dry-run (default/second-vault) | E5 | 0 broken, 0 missing 유지 |
-| **E9** | 문서 업데이트 (wikisys-guide.md, skill) | E5-E6 | 2 파일 패치 |
+| **E9** | 문서 업데이트 (raven-guide.md, skill) | E5-E6 | 2 파일 패치 |
 | **E10** | 수동 검증 5개 시나리오 | E8, E9 | DoD 체크리스트 |
 
 **예상 총 LOC: ~565 (코드 ~250 + 테스트 ~300 + 템플릿 ~50 + 문서 ~50).**
@@ -195,13 +195,13 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 ## 7. 완료 기준 (v0.3.0 DoD)
 
 - [ ] `pytest tests/test_slug.py tests/test_frontmatter.py tests/test_cli.py tests/test_vault_create.py` — 전체 pass (~19 신규 케이스)
-- [ ] `wikisys vault create smoke /tmp/test-smoke` → `content/` + `_meta/{SCHEMA,RULES}.md` 존재
-- [ ] `wikisys vault create existing /tmp/x --no-bootstrap` → 빈 폴더만 등록
-- [ ] `wikisys page new foo --title X` → `content/foo.md` 생성 (자동 prefix)
-- [ ] `wikisys page new meta/welcome --title W` → `_meta/welcome.md` 생성 (명시 prefix 보존)
-- [ ] `wikisys page new ../../../tmp/pwn` → "❌ invalid slug" 에러
-- [ ] `wikisys page new content/foo` (재실행) → "❌ exists" 에러 (정상)
-- [ ] `wikisys meta sync --vault default` → `_meta/{SCHEMA,RULES}.md` 가 템플릿 내용으로 갱신
+- [ ] `raven vault create smoke /tmp/test-smoke` → `content/` + `_meta/{SCHEMA,RULES}.md` 존재
+- [ ] `raven vault create existing /tmp/x --no-bootstrap` → 빈 폴더만 등록
+- [ ] `raven page new foo --title X` → `content/foo.md` 생성 (자동 prefix)
+- [ ] `raven page new meta/welcome --title W` → `_meta/welcome.md` 생성 (명시 prefix 보존)
+- [ ] `raven page new ../../../tmp/pwn` → "❌ invalid slug" 에러
+- [ ] `raven page new content/foo` (재실행) → "❌ exists" 에러 (정상)
+- [ ] `raven meta sync --vault default` → `_meta/{SCHEMA,RULES}.md` 가 템플릿 내용으로 갱신
 - [ ] 기존 `~/vaults/default` 동작 (page CRUD, link check, build) — 회귀 없음
 - [ ] 커밋 메시지: `feat(crud): v0.3.0 — CLI safety + vault bootstrap (progressive)` + `feat(slug): validation module` + `feat(fm): frontmatter unification`
 
@@ -210,12 +210,12 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 ## 8. v0.3.1 (다음 릴리스, 이번 plan 범위 외)
 
 - API 12 endpoints 모두 R1/R2/R3 흡수
-- `wikisys.api.server` import 변경만 (slug.py/fm.py 호출)
+- `raven.api.server` import 변경만 (slug.py/fm.py 호출)
 - LOC: ~150 (대부분 import + 함수 호출 교체)
 
 ## 9. v0.3.2 (그 다음)
 
-- `wikisys.agents.Agent` 의 자체 `_render`/`_split_frontmatter` 제거 → fm_module 사용
+- `raven.agents.Agent` 의 자체 `_render`/`_split_frontmatter` 제거 → fm_module 사용
 - scope 검증 강화 (B4 가드와 결합)
 - LOC: ~50
 
@@ -243,7 +243,7 @@ wikisys meta sync    # _meta/SCHEMA.md, RULES.md를 템플릿에서 재카피 (�
 
 | 결정 | 내용 | 일자 |
 |---|---|---|
-| **D10** | 4 인터페이스 CRUD 로직은 `wikisys.core` 단일 함수로 통일 | 2026-06-25 |
+| **D10** | 4 인터페이스 CRUD 로직은 `raven.core` 단일 함수로 통일 | 2026-06-25 |
 | **D11** | slug 검증: `..`/`~`/절대/NUL 거부 + vault root 내 확인 | 2026-06-25 |
 | **D12** | 신규 vault 부트스트랩 기본 on | 보류 (Q1) |
 | **D13** | `page new foo` → 자동 `content/foo` | 2026-06-25 |

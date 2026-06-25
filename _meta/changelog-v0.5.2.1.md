@@ -1,4 +1,4 @@
-# wikisys v0.5.2.1 — default vault 마이그레이션 실행 + 면제 규칙
+# raven v0.5.2.1 — default vault 마이그레이션 실행 + 면제 규칙
 
 > **핵심**: v0.5.2 dry-run 결과를 default vault에 실제 적용. lint 면제 규칙 추가로 운영 문서 noise 0.
 
@@ -19,7 +19,7 @@
 
 | 파일 | 변경 |
 |---|---|
-| `wikisys/core/lint.py` | `check_orphans` / `check_stale` / `check_page_size`에 `_meta/` 면제 추가 |
+| `raven/core/lint.py` | `check_orphans` / `check_stale` / `check_page_size`에 `_meta/` 면제 추가 |
 | `_meta/SCHEMA.md` | 면제 정책 명시 ("type: rule 또는 _meta/ → 200줄/stale/orphan 면제") |
 
 ### 면제 규칙 (SCHEMA.md §"분리/아카이브")
@@ -69,7 +69,7 @@
 ### 백업
 - **위치**: `~/vaults/default/_backups/pre-migration-20260625-163110/`
 - **크기**: 176K
-- **내용**: content/, _meta/, _archive/, log.md, wikisys-policy.md, SCHEMA.md, RULES.md
+- **내용**: content/, _meta/, _archive/, log.md, raven-policy.md, SCHEMA.md, RULES.md
 
 ### log.md (작업 이력)
 
@@ -107,7 +107,7 @@ mv ~/vaults/default/_meta/how-to-start-vault.md \
 | tag | 사용 횟수 | 추천 |
 |---|---|---|
 | `meta` | 5 | ✅ **core 승격** (빈도 높음) |
-| `wikisys` | 3 | ✅ **core 승격** (시스템 정체성) |
+| `raven` | 3 | ✅ **core 승격** (시스템 정체성) |
 | `governance` | 2 | ✅ **core 승격** (cognitive governance 컨셉) |
 | `rules` | 1 | ❌ 중복 (`rule`이 type과 중복) |
 | `onboarding` | 1 | ❌ custom |

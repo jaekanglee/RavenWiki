@@ -3,7 +3,7 @@ title: plan-v0.4 — archive cleanup + vault clone + GUI v0.3 반영
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, plan, wikisys, v0.4]
+tags: [system, meta, plan, raven, v0.4]
 sources: [_meta/plan-v0.3-crud.md, _meta/changelog-v0.3.md]
 confidence: high
 ---
@@ -32,7 +32,7 @@ v0.3 작업 중 발견한 GUI/코드 갭:
 
 | # | 작업 | 영향도 | 작업량 | 우선순위 |
 |---|---|---|---|---|
-| **B9** | `_archive` cleanup 정책 (CLI `wikisys archive clean`) | 디스크 누적, 이미 발생 중 | S | 1 |
+| **B9** | `_archive` cleanup 정책 (CLI `raven archive clean`) | 디스크 누적, 이미 발생 중 | S | 1 |
 | **B8** | vault `clone` (CLI/API) | multi-vault 운영 편의 | M | 2 |
 | **N1** | GUI dashboard v0.3 반영 (bootstrap 옵션 + meta sync 버튼) | 사용자 UX 갭 | M | 3 |
 
@@ -55,29 +55,29 @@ v0.3 작업 중 발견한 GUI/코드 갭:
 - 사용자 (또는 자동 백업) 시점에 정리 필요
 
 ### 결정 (D16)
-- **CLI sub-app** `wikisys archive` 추가
+- **CLI sub-app** `raven archive` 추가
 - **3개 명령**: `list` / `clean` / `restore`
 - **기본 보존 정책**: 30일 (사용자 옵션 `--older-than`)
-- **dry-run 기본**: `wikisys archive clean`은 `--apply` 없으면 dry-run
+- **dry-run 기본**: `raven archive clean`은 `--apply` 없으면 dry-run
 
 ### 명령 시그니처
 
 ```bash
 # 목록 (전체 또는 N일 이상)
-wikisys archive list [--vault NAME]
-wikisys archive list --older-than 30 --vault NAME
+raven archive list [--vault NAME]
+raven archive list --older-than 30 --vault NAME
 
 # 정리 (dry-run 기본)
-wikisys archive clean --older-than 30 --vault NAME      # dry-run
-wikisys archive clean --older-than 30 --vault NAME --apply  # 실제 삭제
+raven archive clean --older-than 30 --vault NAME      # dry-run
+raven archive clean --older-than 30 --vault NAME --apply  # 실제 삭제
 
 # 복원 (mirror 구조 다시 풀기)
-wikisys archive restore _archive/content/foo-20260625-1234.md --vault NAME
+raven archive restore _archive/content/foo-20260625-1234.md --vault NAME
 ```
 
 ### 구현
-- `wikisys.core.archive` 신규 모듈 (`list_archived`, `clean_archived`, `restore_archived`)
-- `wikisys.cli.__main__`에 `archive_app` sub-app 추가
+- `raven.core.archive` 신규 모듈 (`list_archived`, `clean_archived`, `restore_archived`)
+- `raven.cli.__main__`에 `archive_app` sub-app 추가
 - mirror 경로 (`_archive/content/sub/foo-ts.md`)를 다시 `content/sub/foo.md`로 복원
 
 ### 테스트 (~6 케이스)
@@ -98,7 +98,7 @@ wikisys archive restore _archive/content/foo-20260625-1234.md --vault NAME
 - 현재: `vault create` → 수동으로 파일 복사 → 옵션 많음 → 실수 잦음
 
 ### 결정 (D17)
-- **CLI**: `wikisys vault clone <src> <new-name> <new-path>`
+- **CLI**: `raven vault clone <src> <new-name> <new-path>`
 - **API**: `POST /api/vaults/clone` body `{src, name, path, mode?, owner?, bootstrap?}`
 - **clone = vault meta + content/ + _meta/ 전체 복사** (wiki.db / _archive/ 제외)
 - **same-host 전용** (네트워크 clone은 v0.5+)
@@ -116,8 +116,8 @@ new vault (/tmp/new-vault)
 ### 시그니처
 
 ```bash
-wikisys vault clone default fresh ~/vaults/fresh --mode personal
-wikisys vault clone default sandbox ~/vaults/sandbox --mode agent --owner codex
+raven vault clone default fresh ~/vaults/fresh --mode personal
+raven vault clone default sandbox ~/vaults/sandbox --mode agent --owner codex
 ```
 
 ### API
@@ -138,13 +138,13 @@ POST /api/vaults/clone
 
 ```bash
 # 둘 다 같은 동작
-wikisys vault clone default fresh ~/vaults/fresh
-wikisys vault import default fresh ~/vaults/fresh
+raven vault clone default fresh ~/vaults/fresh
+raven vault import default fresh ~/vaults/fresh
 ```
 
 ### 구현
-- `wikisys.core.vault.Vault.clone(src, name, path, ...)` classmethod
-- `wikisys.cli.vault_clone` + `wikisys.api.create_clone`
+- `raven.core.vault.Vault.clone(src, name, path, ...)` classmethod
+- `raven.cli.vault_clone` + `raven.api.create_clone`
 - `shutil.copytree` + 메타 덮어쓰기 + registry 등록
 
 ### 테스트 (~5 케이스)
@@ -168,7 +168,7 @@ wikisys vault import default fresh ~/vaults/fresh
 ### 결정 (D18)
 - **VaultPicker 폼**: `bootstrap` 체크박스 추가 (기본 on)
 - **VaultDetail 페이지**: "Meta 동기화" 버튼 + confirm
-- **Archive 페이지**: `wikisys archive list/clean/restore` 결과 표시 (clean은 dry-run 표시 + Apply 버튼)
+- **Archive 페이지**: `raven archive list/clean/restore` 결과 표시 (clean은 dry-run 표시 + Apply 버튼)
 
 ### 변경 파일
 - `dashboard/src/components/VaultCreateForm.tsx` (또는 동등) — bootstrap 옵션
@@ -195,16 +195,16 @@ wikisys vault import default fresh ~/vaults/fresh
 ### 신규
 | 경로 | 역할 | LOC |
 |---|---|---|
-| `wikisys/core/archive.py` | archive list/clean/restore | ~40 |
+| `raven/core/archive.py` | archive list/clean/restore | ~40 |
 | `tests/test_archive.py` | archive 정책 검증 | ~60 |
 
 ### 수정
 | 경로 | 변경 |
 |---|---|
-| `wikisys/core/__init__.py` | `archive_module` export |
-| `wikisys/core/vault.py` | `Vault.clone()` classmethod |
-| `wikisys/cli/__main__.py` | `archive_app` sub-app + `vault clone` 명령 |
-| `wikisys/api/server.py` | `POST /api/vaults/clone` endpoint |
+| `raven/core/__init__.py` | `archive_module` export |
+| `raven/core/vault.py` | `Vault.clone()` classmethod |
+| `raven/cli/__main__.py` | `archive_app` sub-app + `vault clone` 명령 |
+| `raven/api/server.py` | `POST /api/vaults/clone` endpoint |
 | `tests/test_cli.py` | `vault clone` + `archive` 명령 (~5 cases) |
 | `tests/test_api.py` | `clone` endpoint (~2 cases) |
 | `_meta/changelog-v0.4.md` | 릴리스 노트 |
@@ -232,9 +232,9 @@ wikisys vault import default fresh ~/vaults/fresh
 
 - [ ] `pytest tests/test_archive.py` 6 케이스 pass
 - [ ] `pytest tests/` 누적 100+ pass (94 + 6 + 5 + 2)
-- [ ] `wikisys archive list --vault default` — 현재 archive 2개 표시
-- [ ] `wikisys archive clean --older-than 0 --vault default --apply` — archive 삭제 (수동 dry-run 후 사용자 OK 시)
-- [ ] `wikisys vault clone default /tmp/test-clone` — 디렉토리 복사 + 등록
+- [ ] `raven archive list --vault default` — 현재 archive 2개 표시
+- [ ] `raven archive clean --older-than 0 --vault default --apply` — archive 삭제 (수동 dry-run 후 사용자 OK 시)
+- [ ] `raven vault clone default /tmp/test-clone` — 디렉토리 복사 + 등록
 - [ ] `curl POST /api/vaults/clone {src:default, name:test, path:/tmp/x}` — 200 + vault 등록
 - [ ] 기존 vault 회귀 0
 - [ ] changelog-v0.4.md 작성

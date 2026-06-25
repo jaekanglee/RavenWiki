@@ -14,31 +14,104 @@ export function HomePage() {
 
   const recent = [...index]
     .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
-    .slice(0, 10);
+    .slice(0, 12);
+
+  // Stats — small upper band, ink-only
+  const types = Array.from(new Set(index.map((p) => p.type))).filter(Boolean);
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-4">🏠 Wiki 홈</h1>
-      <p className="text-gray-600 mb-6">총 {index.length}개 페이지</p>
+    <div style={{ maxWidth: 1120 }}>
+      {/* Hero band — modest, h1 ≤ 28px */}
+      <section style={{ paddingTop: 16, paddingBottom: 48 }}>
+        <h1 style={{ marginBottom: 12 }}>Wiki Home</h1>
+        <p className="text-body" style={{ fontSize: 16, maxWidth: 640 }}>
+          전체 {index.length}개 페이지 · {types.length}개 타입. 최근 수정된 페이지를
+          모았습니다.
+        </p>
+      </section>
 
-      <h2 className="text-xl font-semibold mb-2">📅 최근 수정</h2>
-      {recent.length === 0 ? (
-        <p className="text-gray-500">아직 페이지가 없음</p>
-      ) : (
-        <ul className="space-y-1">
-          {recent.map((p) => (
-            <li key={p.slug}>
+      {/* Recent section — 64px top padding */}
+      <section style={{ paddingBottom: 64 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            marginBottom: 24,
+          }}
+        >
+          <h2>최근 수정</h2>
+          <Link to="/search" className="link-muted">
+            전체 검색 →
+          </Link>
+        </div>
+
+        {recent.length === 0 ? (
+          <p className="text-muted">아직 페이지가 없음</p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {recent.map((p) => (
               <Link
+                key={p.slug}
                 to={`/page/${p.slug}`}
-                className="text-cyan-600 hover:underline"
+                className="card-flat"
+                style={{
+                  display: "block",
+                  textDecoration: "none",
+                  transition: "box-shadow 0.12s ease, transform 0.12s ease",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow =
+                    "var(--shadow-card)";
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                  (e.currentTarget as HTMLElement).style.transform = "none";
+                }}
               >
-                {p.title}
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                  <span className="chip">{p.type}</span>
+                  {p.updated && (
+                    <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                      {String(p.updated).slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: "var(--color-ink)",
+                    marginBottom: 8,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {p.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "var(--color-muted)",
+                    fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {p.path}
+                </div>
               </Link>
-              <span className="text-xs text-gray-500 ml-2">{p.path}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

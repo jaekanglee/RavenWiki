@@ -3,7 +3,7 @@ title: changelog-v0.4
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, changelog, wikisys, v0.4]
+tags: [system, meta, changelog, raven, v0.4]
 sources: [_meta/plan-v0.4.md, _meta/changelog-v0.3.md]
 confidence: high
 ---
@@ -14,10 +14,10 @@ confidence: high
 
 ## 추가
 
-- `wikisys.core.archive` — archive list/clean/restore 모듈
+- `raven.core.archive` — archive list/clean/restore 모듈
 - `Vault.clone()` — src vault를 새 vault로 복사 (content/ + _meta/, _archive/ 제외)
-- CLI sub-app `wikisys archive {list,clean,restore}`
-- CLI 명령 `wikisys vault clone` + alias `vault import`
+- CLI sub-app `raven archive {list,clean,restore}`
+- CLI 명령 `raven vault clone` + alias `vault import`
 - API endpoints:
   - `POST /api/vaults/clone`
   - `GET  /api/vaults/{n}/archive`
@@ -27,11 +27,11 @@ confidence: high
 ## 변경
 
 - `Vault.create(bootstrap=False)` — 이제 빈 `content/` + `_meta/` 디렉토리 생성 (v0.3에서는 안 만듦).
-  Templates는 복사 안 함. rationale: 사용자가 즉시 `wikisys page new` 가능.
+  Templates는 복사 안 함. rationale: 사용자가 즉시 `raven page new` 가능.
 - 기존 archive 2개 (`~/vaults/default/_archive/content/v032-*`) 정리 대상 — 권장:
   ```bash
-  wikisys archive list --vault default          # 확인
-  wikisys archive clean --older-than 0 --vault default --apply  # 정리
+  raven archive list --vault default          # 확인
+  raven archive clean --older-than 0 --vault default --apply  # 정리
   ```
 
 ## GUI 갭 (사용자 작업분)
@@ -65,7 +65,7 @@ curl -X POST http://localhost:8765/api/vaults/clone \
 ## 호환성
 
 - 기존 vault, archive 동작 무변경 (마이그레이션 불필요)
-- `wikisys vault create --no-bootstrap` 동작 변경 (빈 dir 추가) — 사용자 OK 후 적용
+- `raven vault create --no-bootstrap` 동작 변경 (빈 dir 추가) — 사용자 OK 후 적용
 
 ## 테스트
 

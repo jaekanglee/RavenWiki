@@ -1,4 +1,4 @@
-"""wikisys.core.log — vault 작업 이력 (log.md) 관리.
+"""raven.core.log — vault 작업 이력 (log.md) 관리.
 
 카파시 LLM Wiki gist의 "log.md is chronological, append-only, grep-parseable"
 패턴을 차용. 위치는 **vault 루트 고정** (`<vault>/log.md`).
@@ -166,7 +166,7 @@ def ensure_log(vault: Vault) -> Path:
     if path.exists():
         return path
     try:
-        src = resources.files("wikisys.core").joinpath("templates/log.md")
+        src = resources.files("raven.core").joinpath("templates/log.md")
         path.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     except Exception:
         # 템플릿이 없거나 패키지 깨짐 — 최소 헤더만 생성
@@ -175,7 +175,7 @@ def ensure_log(vault: Vault) -> Path:
             "> Chronological record of all vault actions. Append-only.\n"
             "> Format: `## [YYYY-MM-DD] action | subject`\n\n"
             f"## [{date.today().isoformat()}] create | log.md initialized\n"
-            f"- reason: wikisys v0.5.0 (자동 생성)\n",
+            f"- reason: raven v0.5.0 (자동 생성)\n",
             encoding="utf-8",
         )
     return path
@@ -217,7 +217,7 @@ def append(
     entry_date = date_str or date.today().isoformat()
     details: list[str] = []
     if files:
-        # wikisys page slug 형식 유지 (앞에 `content/` 등)
+        # raven page slug 형식 유지 (앞에 `content/` 등)
         formatted = ", ".join(files)
         details.append(f"files: [{formatted}]")
     if note:
@@ -274,7 +274,7 @@ def rotate(vault: Vault, year: Optional[int] = None) -> Path:
     shutil.move(str(path), str(target))
     # 새 log.md 생성
     try:
-        src = resources.files("wikisys.core").joinpath("templates/log.md")
+        src = resources.files("raven.core").joinpath("templates/log.md")
         path.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     except Exception:
         path.write_text(

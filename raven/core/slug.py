@@ -7,7 +7,7 @@ Public surface:
 
     normalize_prefix(slug) -> str
         If slug has no '/', prepend 'content/'. Otherwise return unchanged.
-        Used by `wikisys page new <slug>`.
+        Used by `raven page new <slug>`.
 
 Rejection rules:
     - empty / whitespace-only
@@ -78,7 +78,7 @@ def validate(slug: str, *, vault_root: Path) -> Path:
 def normalize_prefix(slug: str) -> str:
     """If `slug` has no '/', prepend 'content/'.
 
-    Used by `wikisys page new <slug>` so users can type short names.
+    Used by `raven page new <slug>` so users can type short names.
     Explicit paths like '_meta/welcome' or 'content/foo' pass through.
 
     Note: this does NOT validate; call validate() afterwards for safety.

@@ -8,9 +8,15 @@ interface VaultMeta {
   default: boolean;
 }
 
-const ACTIVE_KEY = "wikisys:active_vault";
+const ACTIVE_KEY = "raven:active_vault";
 
-export function VaultPicker({ active, onChange }: { active: string; onChange: (name: string) => void }) {
+export function VaultPicker({
+  active,
+  onChange,
+}: {
+  active: string;
+  onChange: (name: string) => void;
+}) {
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,7 +63,6 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
         setShowCreate(false);
       }
     }
-    // capture: true — xyflow/react가 bubbling에서 stopPropagation해도 받음
     document.addEventListener("pointerdown", onDoc, { capture: true });
     document.addEventListener("mousedown", onDoc, { capture: true });
     return () => {
@@ -92,7 +97,6 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
       });
       const d = await r.json();
       if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
-      // success — refresh list, close form
       setShowCreate(false);
       setNewName("");
       setNewPath("");
@@ -110,33 +114,79 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
     <div className="relative" ref={wrapperRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="text-sm px-2 py-1 rounded border hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap"
         disabled={loading}
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          padding: "8px 14px",
+          borderRadius: "var(--radius-full)",
+          border: "1px solid var(--color-hairline-strong)",
+          background: "var(--color-canvas)",
+          color: "var(--color-ink)",
+          cursor: loading ? "not-allowed" : "pointer",
+          whiteSpace: "nowrap",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+        }}
       >
         {loading ? "…" : `📁 ${current?.name || active || "vault"}`}
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white dark:bg-gray-900 border rounded shadow-lg z-50 min-w-[280px]">
-          <div className="p-2 border-b text-xs uppercase text-gray-500">vaults ({vaults.length})</div>
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            left: 0,
+            background: "var(--color-canvas)",
+            border: "1px solid var(--color-hairline)",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "var(--shadow-card)",
+            zIndex: 50,
+            minWidth: 320,
+          }}
+        >
+          <div
+            style={{
+              padding: "12px 16px 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.32px",
+              textTransform: "uppercase",
+              color: "var(--color-muted)",
+            }}
+          >
+            Vaults ({vaults.length})
+          </div>
 
           {vaults.length === 0 ? (
-            <div className="p-3 text-sm text-gray-500">no vaults registered.</div>
+            <div style={{ padding: 16, fontSize: 13, color: "var(--color-muted)" }}>
+              no vaults registered.
+            </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto">
+            <div style={{ maxHeight: 256, overflowY: "auto" }}>
               {vaults.map((v) => (
                 <button
                   key={v.name}
                   onClick={() => select(v.name)}
-                  className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                    v.name === active ? "bg-cyan-50 dark:bg-cyan-950" : ""
-                  }`}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 16px",
+                    fontSize: 14,
+                    background:
+                      v.name === active ? "var(--color-surface-soft)" : "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
                 >
-                  <div className="font-medium">
-                    {v.default ? "★ " : "  "}
+                  <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                    {v.default ? "★ " : ""}
                     {v.name}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
                     {v.mode} · {v.owner} · {v.path}
                   </div>
                 </button>
@@ -145,63 +195,106 @@ export function VaultPicker({ active, onChange }: { active: string; onChange: (n
           )}
 
           {/* ─── create form ──────────────────────────────── */}
-          {!showCreate ? (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="block w-full text-left px-3 py-2 text-sm border-t hover:bg-cyan-50 dark:hover:bg-cyan-950 text-cyan-700 dark:text-cyan-300"
-            >
-              ➕ 새 vault 등록
-            </button>
-          ) : (
-            <div className="border-t p-3 space-y-2 bg-gray-50 dark:bg-gray-950">
-              <div className="text-xs uppercase text-gray-500">새 vault</div>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="name (예: work)"
-                className="w-full border rounded px-2 py-1 text-sm"
-              />
-              <input
-                value={newPath}
-                onChange={(e) => setNewPath(e.target.value)}
-                placeholder="/absolute/path (예: ~/vaults/work)"
-                className="w-full border rounded px-2 py-1 text-sm"
-              />
-              <select
-                value={newMode}
-                onChange={(e) => setNewMode(e.target.value)}
-                className="w-full border rounded px-2 py-1 text-sm"
+          <div style={{ borderTop: "1px solid var(--color-hairline)" }}>
+            {!showCreate ? (
+              <button
+                onClick={() => setShowCreate(true)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 16px",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "var(--color-primary)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
               >
-                <option value="personal">personal</option>
-                <option value="shared">shared</option>
-                <option value="agent">agent</option>
-              </select>
-              {newErr && (
-                <div className="text-xs text-red-600 dark:text-red-400">{newErr}</div>
-              )}
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => {
-                    setShowCreate(false);
-                    setNewErr(null);
-                    setNewName("");
-                    setNewPath("");
+                ➕ 새 vault 등록
+              </button>
+            ) : (
+              <div style={{ padding: 16, background: "var(--color-surface-soft)" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.32px",
+                    textTransform: "uppercase",
+                    color: "var(--color-muted)",
+                    marginBottom: 8,
                   }}
-                  disabled={newBusy}
-                  className="px-3 py-1 text-xs rounded border hover:bg-gray-100"
                 >
-                  취소
-                </button>
-                <button
-                  onClick={createVault}
-                  disabled={newBusy}
-                  className="px-3 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50"
+                  새 vault
+                </div>
+                <input
+                  className="input-pill"
+                  style={{
+                    background: "var(--color-canvas)",
+                    marginBottom: 8,
+                    height: 40,
+                  }}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="name (예: work)"
+                />
+                <input
+                  className="input-pill"
+                  style={{
+                    background: "var(--color-canvas)",
+                    marginBottom: 8,
+                    height: 40,
+                  }}
+                  value={newPath}
+                  onChange={(e) => setNewPath(e.target.value)}
+                  placeholder="/absolute/path"
+                />
+                <select
+                  className="input-pill"
+                  style={{
+                    background: "var(--color-canvas)",
+                    marginBottom: 8,
+                    height: 40,
+                  }}
+                  value={newMode}
+                  onChange={(e) => setNewMode(e.target.value)}
                 >
-                  {newBusy ? "생성 중…" : "생성"}
-                </button>
+                  <option value="personal">personal</option>
+                  <option value="shared">shared</option>
+                  <option value="agent">agent</option>
+                </select>
+                {newErr && (
+                  <div style={{ fontSize: 12, color: "var(--color-error-text)", marginBottom: 8 }}>
+                    {newErr}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => {
+                      setShowCreate(false);
+                      setNewErr(null);
+                      setNewName("");
+                      setNewPath("");
+                    }}
+                    disabled={newBusy}
+                    className="btn-secondary"
+                    style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={createVault}
+                    disabled={newBusy}
+                    className="btn-primary"
+                    style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
+                  >
+                    {newBusy ? "생성 중…" : "생성"}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

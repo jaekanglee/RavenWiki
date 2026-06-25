@@ -3,7 +3,7 @@ title: changelog-v0.3 (progressive delivery)
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, changelog, wikisys, v0.3]
+tags: [system, meta, changelog, raven, v0.3]
 sources: [_meta/plan-v0.3-crud.md, _meta/decisions-d7-d9-multivault.md]
 confidence: high
 ---
@@ -15,25 +15,25 @@ confidence: high
 ## v0.3.0 (이번 릴리스)
 
 ### 추가
-- `wikisys.core.slug` — slug 검증 (`..`, `~`, 절대경로, NUL, `:` 거부) + vault root 내 확인
-- `wikisys.core.frontmatter` — FM parse/render/merge 단일화 (`created` 보존, `updated` 강제 today)
-- `wikisys.core.templates.{SCHEMA,RULES}.md` — 신규 vault 부트스트랩용 슬림 템플릿
+- `raven.core.slug` — slug 검증 (`..`, `~`, 절대경로, NUL, `:` 거부) + vault root 내 확인
+- `raven.core.frontmatter` — FM parse/render/merge 단일화 (`created` 보존, `updated` 강제 today)
+- `raven.core.templates.{SCHEMA,RULES}.md` — 신규 vault 부트스트랩용 슬림 템플릿
 - `Vault.create(..., bootstrap=True)` — 신규 vault에 content/ + _meta/{SCHEMA,RULES} 자동 복사
 - `Vault.sync_meta()` — _meta/SCHEMA.md, RULES.md 재동기화 (덮어쓰기)
-- CLI sub-app `wikisys meta sync` — vault 메타 문서 갱신
+- CLI sub-app `raven meta sync` — vault 메타 문서 갱신
 - 4 신규 테스트 파일 (66 케이스 pass)
 
 ### 변경
-- `wikisys page new <slug>` — slug에 `/` 없으면 자동 `content/` prefix (R3)
-- `wikisys page new` — frontmatter 생성이 `frontmatter.render()` 단일화 사용 (R2)
-- `wikisys page delete` — archive 경로 mirror (nested 구조 보존, S1 흡수)
-- `wikisys page new/delete` — slug 검증 (B4 MED 가드)
-- `wikisys vault create` — `--no-bootstrap` 옵션 추가 (기본은 on)
+- `raven page new <slug>` — slug에 `/` 없으면 자동 `content/` prefix (R3)
+- `raven page new` — frontmatter 생성이 `frontmatter.render()` 단일화 사용 (R2)
+- `raven page delete` — archive 경로 mirror (nested 구조 보존, S1 흡수)
+- `raven page new/delete` — slug 검증 (B4 MED 가드)
+- `raven vault create` — `--no-bootstrap` 옵션 추가 (기본은 on)
 
 ### 호환성
 - 기존 vault (`~/vaults/{default,second-vault}`) — 영향 없음 (부트스트랩은 신규만)
-- 기존 `wikisys page new content/foo` — 동작 그대로
-- 기존 `wikisys vault list/use/info/register/remove` — 변경 없음
+- 기존 `raven page new content/foo` — 동작 그대로
+- 기존 `raven vault list/use/info/register/remove` — 변경 없음
 - API 12 endpoints, Agent 어댑터 — **이번 릴리스 범위 외** (v0.3.1/3.2)
 
 ## v0.3.1 (이번 릴리스)
@@ -57,7 +57,7 @@ confidence: high
 ## v0.3.2 (이번 릴리스)
 
 ### 변경
-- `wikisys.agents.AgentVault.write` — 자체 `_render`/`_split_frontmatter` 제거 → `frontmatter_module` 사용
+- `raven.agents.AgentVault.write` — 자체 `_render`/`_split_frontmatter` 제거 → `frontmatter_module` 사용
   - `created` 보존 (이제 CLI/API와 동일 정책)
   - `tags` 강제 list (tuple 입력도 정확히 변환)
   - agents provenance는 render 단계에서 항상 append

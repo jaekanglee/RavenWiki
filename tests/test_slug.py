@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.slug — slug validation + prefix normalization."""
+"""Tests for raven.core.slug — slug validation + prefix normalization."""
 from __future__ import annotations
 
 import sys
@@ -9,7 +9,7 @@ import pytest
 # ensure repo root on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core.slug import SlugError, normalize_prefix, validate
+from raven.core.slug import SlugError, normalize_prefix, validate
 
 
 VAULT = Path("/tmp/test-vault-slug").resolve()

@@ -1,4 +1,4 @@
-from wikisys.api.main import main
+from raven.api.main import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

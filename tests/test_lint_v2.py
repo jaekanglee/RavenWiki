@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.lint — v0.5.1+ 9 check 함수 (#4-#11).
+"""Tests for raven.core.lint — v0.5.1+ 9 check 함수 (#4-#11).
 
 카파시 LLM Wiki 12개 lint 풀세트.
 """
@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core import lint as lint_module
-from wikisys.core.lint import (
+from raven.core import lint as lint_module
+from raven.core.lint import (
     check_confidence_low,
     check_contradictions,
     check_frontmatter_completeness,
@@ -28,13 +28,13 @@ from wikisys.core.lint import (
     check_tag_audit,
     run_all,
 )
-from wikisys.core.vault import Vault
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def vault(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-lint2-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-lint2-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-lint2-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-lint2-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     v = Vault.create("lint2-test", target_root / "lint2-test", bootstrap=False)
     yield v
@@ -44,7 +44,7 @@ def vault(monkeypatch):
 
 def _write_page(v: Vault, slug: str, fm: dict, body: str = "# x\n") -> Path:
     """helper: frontmatter + body 쓰기."""
-    from wikisys.core.frontmatter import render
+    from raven.core.frontmatter import render
     fp = v.root / f"{slug}.md"
     fp.parent.mkdir(parents=True, exist_ok=True)
     fp.write_text(render(fm, body), encoding="utf-8")
@@ -280,7 +280,7 @@ def test_index_no_db_is_info(vault):
 
 
 def test_log_size_under_threshold(vault):
-    from wikisys.core.log import append
+    from raven.core.log import append
     for i in range(10):
         append(vault, "chore", f"x {i}")
     issues = check_log_size(vault)

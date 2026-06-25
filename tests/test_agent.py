@@ -1,4 +1,4 @@
-"""Tests for wikisys.agents — Agent adapter after v0.3.2 migration."""
+"""Tests for raven.agents — Agent adapter after v0.3.2 migration."""
 from __future__ import annotations
 
 import shutil
@@ -10,16 +10,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.agents import Agent, AgentScope
+from raven.agents import Agent, AgentScope
 
 
 @pytest.fixture
 def isolated_env(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-agent-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-agent-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-agent-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-agent-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     # create + register a vault named 'test'
-    from wikisys.core.vault import Vault
+    from raven.core.vault import Vault
     v = Vault.create("test", target_root / "test", bootstrap=False)
     yield {"reg_root": reg_root, "target_root": target_root, "vault": v}
     shutil.rmtree(reg_root, ignore_errors=True)

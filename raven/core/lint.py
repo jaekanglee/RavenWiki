@@ -1,8 +1,8 @@
-"""wikisys.core.lint — vault-aware lint runner (v0.5.1+ 12 checks).
+"""raven.core.lint — vault-aware lint runner (v0.5.1+ 13 checks).
 
-카파시 LLM Wiki gist의 12개 lint 항목 전체 자동화.
+카파시 LLM Wiki gist의 lint 항목 전체 자동화.
 
-12 checks (severity: critical / warning / info):
+13 checks (severity: critical / warning / info):
     #1  broken wikilinks              (link_module.find_broken)
     #2  broken-intent false positive  (link_module: [[x]]! 인데 target 존재)
     #3  missing wikilinks              (link_module.find_missing)
@@ -15,9 +15,11 @@
     #10 frontmatter 완전성             (check_frontmatter_completeness)
     #11 index 완전성 (FS vs DB)        (check_index_completeness)
     #12 log size > 500 entries         (check_log_size)
+    #13 cognitive governance           (check_cognitive_governance, 🔵 info, v0.5.3+)
 
 v0.5.0: #12 (log_size) + #1-3 (link_module) 선반영.
 v0.5.1: #4-#11 추가. 12/12 완성.
+v0.5.3: #13 cognitive governance 추가 (카파시 LLM Wiki 차용).
 
 grace period (orphan): vault 메타의 .vault.json에 `lint_orphan_grace_days` 키로
 override 가능 (없으면 기본 7일).
@@ -43,6 +45,35 @@ ORPHAN_GRACE_DAYS_DEFAULT = 7
 STALE_DAYS = 90
 PAGE_SIZE_LINES = 200
 INDEX_COMPLETE_BUILD_REQUIRED = True  # build 후에만 검증
+
+# #13 cognitive governance (카파시 LLM Wiki 차용, v0.5.3+)
+# 면제: type ∈ {rule, journal, query} 또는 _meta/ 안 페이지 (운영 문서).
+COG_GOV_EXEMPT_TYPES: frozenset[str] = frozenset({"rule", "journal", "query"})
+# 본문 wikilink가 cross-discipline 후보로 인정받으려면 다음 단어가 slug에 포함.
+# (heuristic — 사람/예술/생물/역사/철학 카테고리 위주)
+COG_GOV_DISCIPLINE_KEYWORDS: tuple[str, ...] = (
+    "human", "person", "art", "music", "paint", "literature", "poetry",
+    "biology", "evolution", "ecology", "anatomy",
+    "history", "ancient", "medieval", "renaissance",
+    "philosophy", "ethics", "metaphysic", "epistemolog", "logic",
+    "society", "culture", "religion", "mythology",
+    "psychology", "cognitive", "linguistic",
+)
+# 명시적 cross-discipline 마커 (frontmatter.tags 또는 본문)
+COG_GOV_CROSS_MARKERS: tuple[str, ...] = (
+    "humanities", "art", "biology", "history", "philosophy",
+)
+# 반대 입장 헤딩 패턴
+COG_GOV_OPPOSE_HEADINGS: tuple[str, ...] = (
+    "반대 입장", "fights against", "alternatives", "alternative view",
+    "counterargument", "criticism", "limitations",
+)
+# Why it matters 시그널 (본문 첫 문단/헤딩)
+COG_GOV_WHY_PATTERNS: tuple[str, ...] = (
+    "why it matters", "왜 중요", "why this matters",
+)
+# confidence 필드 화이트리스트
+COG_GOV_CONFIDENCE_LEVELS: frozenset[str] = frozenset({"high", "medium", "low"})
 
 # core tag fallback (SCHEMA.md에 명시 안 됐을 때 사용)
 CORE_TAGS_FALLBACK = {
@@ -337,14 +368,14 @@ def check_frontmatter_completeness(vault: Vault) -> list[dict]:
 def check_index_completeness(vault: Vault) -> list[dict]:
     """#11 index 완전성: filesystem 페이지 vs wiki.db. DB 없으면 info (build 필요).
 
-    `wikisys build` 후 실행 가정. DB 없으면 build 요청.
+    `raven build` 후 실행 가정. DB 없으면 build 요청.
     """
     out: list[dict] = []
     db_path = vault.db_path
     if not db_path.exists():
         out.append(_mk_issue(
             "#11", "info", "(vault)",
-            f"wiki.db 없음: `wikisys build` 필요 ({db_path})",
+            f"wiki.db 없음: `raven build` 필요 ({db_path})",
         ))
         return out
     # DB의 pages 테이블 slug 조회
@@ -390,6 +421,171 @@ def check_log_size(vault: Vault) -> list[dict]:
     return []
 
 
+def check_cognitive_governance(vault: Vault) -> list[dict]:
+    """#13 cognitive governance (🔵 info, v0.5.3+, 카파시 LLM Wiki 차용).
+
+    concept/comparison/page 타입에 다음 4 신호 중 누락 시 1 issue당 1 line 출력:
+      1. **Why it matters** — 본문 첫 문단 또는 헤딩에 명시
+      2. **반대 입장 (Fights against)** — `## 반대 입장` / `## Fights against` /
+         `## Alternatives` (및 영어 변형) 헤딩 존재
+      3. **Cross-disciplinary links** — 본문에 wikilink ≥ 1 (slug에 discipline
+         키워드 또는 명시적 cross-discipline 마커)
+      4. **confidence 등급** — frontmatter.confidence ∈ {high, medium, low}
+
+    면제:
+      - type ∈ {rule, journal, query} (SCHEMA §X)
+      - _meta/ 안 페이지 (운영 문서)
+
+    v0.5.3: info 등급 — 페이지 lint 통과에 영향 ❌. v0.6.x에서 warning 격상 후보.
+    """
+    out: list[dict] = []
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        # 면제: _meta/ 안 페이지 (운영 문서)
+        if slug.startswith("_meta/"):
+            continue
+        try:
+            text = fp.read_text(errors="replace")
+        except Exception:
+            continue
+        meta, body = _split_fm_body(text)
+        # 면제: type 면제
+        ptype = (meta.get("type") or "").strip().lower()
+        if ptype in COG_GOV_EXEMPT_TYPES:
+            continue
+        missing: list[str] = []
+
+        # 1) Why it matters — 헤딩 또는 본문 첫 문단
+        if not _has_why_it_matters(body):
+            missing.append("Why it matters")
+
+        # 2) 반대 입장 헤딩
+        if not _has_oppose_heading(body):
+            missing.append("반대 입장")
+
+        # 3) Cross-disciplinary wikilink (heuristic)
+        if not _has_cross_discipline_link(body, slug, meta):
+            missing.append("Cross-disciplinary link")
+
+        # 4) confidence 등급
+        conf = meta.get("confidence")
+        if not isinstance(conf, str) or conf.strip().lower() not in COG_GOV_CONFIDENCE_LEVELS:
+            missing.append("confidence")
+
+        if missing:
+            out.append(_mk_issue(
+                "#13", "info", slug,
+                f"cognitive governance 누락 ({len(missing)}/4): {', '.join(missing)}",
+            ))
+    return out
+
+
+# ────────────────────────── helpers for #13 ──────────────────────────
+
+
+def _split_fm_body(text: str) -> tuple[dict, str]:
+    """frontmatter와 body 분리. (frontmatter dict, body str) 반환."""
+    from . import frontmatter as fm_mod
+    meta, body = fm_mod.parse(text)
+    return meta, body
+
+
+def _first_paragraph(body: str, max_chars: int = 400) -> str:
+    """본문 첫 문단 (frontmatter 제외, 첫 '#' 헤딩 다음)."""
+    if not body:
+        return ""
+    # 첫 h1/h2 헤딩 다음 빈 줄까지 또는 max_chars 까지
+    lines = body.splitlines()
+    started = False
+    para: list[str] = []
+    for line in lines:
+        s = line.strip()
+        if not started:
+            if s.startswith("#"):
+                started = True
+                continue
+            continue
+        if not s:
+            if para:
+                break
+            continue
+        para.append(s)
+        if sum(len(p) for p in para) >= max_chars:
+            break
+    return " ".join(para)[:max_chars].lower()
+
+
+def _has_why_it_matters(body: str) -> bool:
+    """헤딩 또는 본문 첫 문단에 'why it matters' 시그널."""
+    body_lower = body.lower() if body else ""
+    if any(p in body_lower for p in COG_GOV_WHY_PATTERNS):
+        return True
+    first_para = _first_paragraph(body or "")
+    return any(p in first_para for p in COG_GOV_WHY_PATTERNS)
+
+
+def _has_oppose_heading(body: str) -> bool:
+    """'## 반대 입장' / '## Fights against' / '## Alternatives' 헤딩 존재."""
+    if not body:
+        return False
+    body_lower = body.lower()
+    for line in body.splitlines():
+        s = line.strip().lower()
+        if not s.startswith("## "):
+            continue
+        heading = s[3:].strip()
+        for pat in COG_GOV_OPPOSE_HEADINGS:
+            if pat in heading or heading.startswith(pat):
+                return True
+    # 본문 어딘가에 헤딩 텍스트가 직접 등장해도 OK (마크다운 형식이 약간 달라도 허용)
+    return any(pat in body_lower for pat in COG_GOV_OPPOSE_HEADINGS)
+
+
+def _has_cross_discipline_link(body: str, slug: str, meta: dict) -> bool:
+    """본문 wikilink 중 cross-discipline 후보가 ≥ 1.
+
+    heuristic:
+      - wikilink target slug에 discipline 키워드 (사람/예술/생물/역사/철학) 매치
+      - 또는 frontmatter.tags에 cross-discipline 마커
+    """
+    if not body:
+        return False
+    # 1) tags에 cross-discipline 마커
+    tags = meta.get("tags") or []
+    if isinstance(tags, list):
+        for t in tags:
+            if not isinstance(t, str):
+                continue
+            t_low = t.strip().lower()
+            if any(m in t_low for m in COG_GOV_CROSS_MARKERS):
+                return True
+    # 2) wikilink target slug 추출
+    targets = _extract_wikilink_targets(body)
+    if not targets:
+        return False
+    for tgt in targets:
+        tgt_low = tgt.lower()
+        if any(kw in tgt_low for kw in COG_GOV_DISCIPLINE_KEYWORDS):
+            return True
+    return False
+
+
+def _extract_wikilink_targets(body: str) -> list[str]:
+    """[[target]] / [[target|alias]] / [[target?]] / [[target!]] 에서 target 추출."""
+    out: list[str] = []
+    if not body:
+        return out
+    for m in re.finditer(r"\[\[([^\[\]]+?)\]\]", body):
+        raw = m.group(1).strip()
+        # alias 제거
+        target = raw.split("|", 1)[0].strip()
+        # intent marker 제거
+        target = target.rstrip("?!.").strip()
+        if target:
+            out.append(target)
+    return out
+
+
 # ────────────────────────── 합쳐서 run ──────────────────────────
 
 
@@ -427,7 +623,7 @@ def _legacy_link_issues(vault: Vault) -> list[dict]:
 
 
 def run_all(vault: Vault) -> dict:
-    """12 check 모두 실행. counts + issues list 반환.
+    """13 check 모두 실행. counts + issues list 반환.
 
     Returns:
         {
@@ -441,7 +637,7 @@ def run_all(vault: Vault) -> dict:
     issues: list[dict] = []
     # #1-3 link
     issues.extend(_legacy_link_issues(vault))
-    # #4-12
+    # #4-13
     issues.extend(check_orphans(vault))
     issues.extend(check_contradictions(vault))
     issues.extend(check_confidence_low(vault))
@@ -451,6 +647,7 @@ def run_all(vault: Vault) -> dict:
     issues.extend(check_frontmatter_completeness(vault))
     issues.extend(check_index_completeness(vault))
     issues.extend(check_log_size(vault))
+    issues.extend(check_cognitive_governance(vault))
 
     counts = {"critical": 0, "warning": 0, "info": 0, "total": 0}
     by_check: dict[str, int] = {}

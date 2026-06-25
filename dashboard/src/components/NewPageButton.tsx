@@ -44,54 +44,116 @@ export function NewPageButton() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="block w-full text-left py-1 px-2 mb-2 rounded bg-cyan-100 dark:bg-cyan-900 hover:bg-cyan-200 text-sm font-medium"
-      >
-        ➕ 새 페이지 ({vault})
+      {/* Trigger — pill Rausch button in sidebar */}
+      <button onClick={() => setOpen(true)} className="btn-pill-primary" style={{ width: "100%" }}>
+        ➕ 새 페이지
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={() => !busy && setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 16,
+          }}
         >
           <div
-            className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{
+              maxWidth: 720,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: 32,
+            }}
           >
-            <h2 className="text-xl font-bold mb-4">
-              새 페이지 <span className="text-sm font-normal text-gray-500">in {vault}</span>
+            <h2 style={{ marginBottom: 8 }}>
+              새 페이지{" "}
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
+                in {vault}
+              </span>
             </h2>
+            <p className="text-muted" style={{ fontSize: 13, marginBottom: 24 }}>
+              slug와 title은 필수 항목입니다.
+            </p>
 
-            <label className="block mb-3">
-              <span className="text-sm font-medium">slug *</span>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "var(--color-ink)",
+                }}
+              >
+                slug *
+              </span>
               <input
+                className="input-base"
+                style={{ height: 48 }}
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="content/my-concept"
-                className="w-full border rounded px-2 py-1 mt-1 text-sm"
               />
-              <span className="text-xs text-gray-500">vault-relative path</span>
+              <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                vault-relative path
+              </span>
             </label>
 
-            <label className="block mb-3">
-              <span className="text-sm font-medium">title *</span>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "var(--color-ink)",
+                }}
+              >
+                title *
+              </span>
               <input
+                className="input-base"
+                style={{ height: 48 }}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="내 컨셉"
-                className="w-full border rounded px-2 py-1 mt-1 text-sm"
               />
             </label>
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <label className="block">
-                <span className="text-sm font-medium">type</span>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 16,
+                marginBottom: 16,
+              }}
+            >
+              <label style={{ display: "block" }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    marginBottom: 6,
+                    color: "var(--color-ink)",
+                  }}
+                >
+                  type
+                </span>
                 <select
+                  className="input-base"
+                  style={{ height: 48 }}
                   value={type}
                   onChange={(e) => setType(e.target.value)}
-                  className="w-full border rounded px-2 py-1 mt-1 text-sm"
                 >
                   <option value="concept">concept</option>
                   <option value="person">person</option>
@@ -103,43 +165,88 @@ export function NewPageButton() {
                   <option value="journal">journal</option>
                 </select>
               </label>
-              <label className="block">
-                <span className="text-sm font-medium">tags (쉼표 구분)</span>
+              <label style={{ display: "block" }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    marginBottom: 6,
+                    color: "var(--color-ink)",
+                  }}
+                >
+                  tags (쉼표 구분)
+                </span>
                 <input
+                  className="input-base"
+                  style={{ height: 48 }}
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="ai, llm"
-                  className="w-full border rounded px-2 py-1 mt-1 text-sm"
                 />
               </label>
             </div>
 
-            <label className="block mb-3">
-              <span className="text-sm font-medium">본문 (markdown)</span>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "var(--color-ink)",
+                }}
+              >
+                본문 (markdown)
+              </span>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 rows={10}
-                className="w-full border rounded px-2 py-1 mt-1 text-sm font-mono"
+                style={{
+                  width: "100%",
+                  border: "1px solid var(--color-hairline-strong)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: 12,
+                  fontSize: 13,
+                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                  outline: "none",
+                  resize: "vertical",
+                  background: "var(--color-canvas)",
+                  color: "var(--color-ink)",
+                }}
               />
             </label>
 
             {err && (
-              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">{err}</div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  background: "var(--color-surface-soft)",
+                  fontSize: 13,
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--color-error-text)",
+                }}
+              >
+                {err}
+              </div>
             )}
 
-            <div className="flex gap-2 justify-end">
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setOpen(false)}
                 disabled={busy}
-                className="px-4 py-2 text-sm rounded border hover:bg-gray-100"
+                className="btn-secondary"
+                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
               >
                 취소
               </button>
               <button
                 onClick={submit}
                 disabled={busy}
-                className="px-4 py-2 text-sm rounded bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50"
+                className="btn-primary"
+                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
               >
                 {busy ? "저장 중…" : "저장"}
               </button>

@@ -21,12 +21,12 @@ type: concept   # 8개 중 하나
 ---
 ```
 
-→ `wikisys page new <slug> --title X --type Y` 사용 (자동 추가).
+→ `raven page new <slug> --title X --type Y` 사용 (자동 추가).
 
 ## R2. slug = vault-relative path
 
-- `wikisys page new foo` → `content/foo` (자동 prefix)
-- `wikisys page new meta/welcome` → `_meta/welcome` (명시)
+- `raven page new foo` → `content/foo` (자동 prefix)
+- `raven page new meta/welcome` → `_meta/welcome` (명시)
 - 절대 ❌: `~`, `/`, `..`
 
 ## R3. type taxonomy (8개)
@@ -56,6 +56,6 @@ type: concept   # 8개 중 하나
 ## 검증
 
 ```bash
-wikisys link check       # wikilink 깨진 거
-wikisys build            # DB 재빌드 + lint
+raven link check       # wikilink 깨진 거
+raven build            # DB 재빌드 + lint
 ```

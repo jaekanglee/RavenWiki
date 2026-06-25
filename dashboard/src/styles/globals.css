@@ -1,25 +1,512 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+ * Design tokens — travel-marketplace-warm (Airbnb archetype)
+ * Adapted for raven dashboard (text-card, not photo-card).
+ * See ~/.hermes/external-skills/design-specs/airbnb/templates/DESIGN.md
+ * ───────────────────────────────────────────────────────────── */
 :root {
-  --bg: #ffffff;
-  --fg: #0f172a;
+  /* colors */
+  --color-primary: #ff385c;          /* Rausch */
+  --color-primary-active: #e00b41;
+  --color-primary-disabled: #ffd1da;
+  --color-error-text: #c13515;
+
+  --color-ink: #222222;
+  --color-body: #3f3f3f;
+  --color-muted: #6a6a6a;
+  --color-muted-soft: #929292;
+
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f7f7f7;
+  --color-surface-strong: #f2f2f2;
+  --color-hairline: #ebebeb;
+  --color-hairline-strong: #dddddd;
+  --color-on-primary: #ffffff;
+
+  /* shadow tier — single elevation */
+  --shadow-card: rgba(0, 0, 0, 0.02) 0 0 0 1px,
+    rgba(0, 0, 0, 0.04) 0 2px 6px 0,
+    rgba(0, 0, 0, 0.1) 0 4px 8px 0;
+
+  /* rounded */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  /* typography stack — Airbnb Cereal VF unavailable, use Inter (closest OS substitute) */
+  --font-display: "Airbnb Cereal VF", Circular, "Inter", -apple-system,
+    system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
-.dark {
-  --bg: #0f172a;
-  --fg: #f1f5f9;
-}
+
+html,
 body {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--color-canvas);
+  color: var(--color-ink);
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-.prose { line-height: 1.7; }
+
+/* Dark mode — handled by body[data-theme="dark"] for explicit opt-in.
+   The warm archetype keeps the canvas light by default. */
+body[data-theme="dark"] {
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f7f7f7;
+  --color-surface-strong: #f2f2f2;
+  --color-ink: #222222;
+  --color-body: #3f3f3f;
+  --color-muted: #6a6a6a;
+  --color-hairline: #ebebeb;
+  --color-hairline-strong: #dddddd;
+}
+
+/* ── Headings — modest display sizes ───────────────────────── */
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.43;
+  color: var(--color-ink);
+  margin: 0;
+}
+h2 {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.18;
+  letter-spacing: -0.44px;
+  color: var(--color-ink);
+  margin: 0;
+}
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+/* ── Wiki prose body ─────────────────────────────────────── */
+.prose {
+  line-height: 1.6;
+  color: var(--color-ink);
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  color: var(--color-ink);
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.prose h1 { font-size: 24px; }
+.prose h2 { font-size: 20px; }
+.prose h3 { font-size: 18px; }
+.prose p { margin: 0.75em 0; color: var(--color-body); }
+.prose ul,
+.prose ol { margin: 0.75em 0; padding-left: 1.5em; color: var(--color-body); }
+.prose li { margin: 0.25em 0; }
+.prose code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--color-surface-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--color-ink);
+}
+.prose pre {
+  background: var(--color-surface-soft);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.prose pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose blockquote {
+  border-left: 2px solid var(--color-hairline-strong);
+  padding-left: 16px;
+  color: var(--color-muted);
+  margin: 1em 0;
+}
+.prose a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.prose a:hover {
+  color: var(--color-ink);
+  text-decoration-thickness: 2px;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 14px;
+}
+.prose th,
+.prose td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.prose th {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--color-hairline);
+  margin: 2em 0;
+}
+
+/* ── Wikilink — ink with subtle underline (not Rausch — Rausch is reserved
+ *    for CTAs / search orb / destructive actions only). The dotted style
+ *    distinguishes wikilinks from regular markdown links. */
 .wikilink {
-  color: #22d3ee;
+  color: var(--color-ink);
   text-decoration: underline;
   text-decoration-style: dotted;
+  text-decoration-color: var(--color-hairline-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.12s ease;
 }
 .wikilink:hover {
-  color: #0891b2;
+  text-decoration-color: var(--color-ink);
+}
+
+/* ── Reusable atom classes (token-driven) ─────────────────── */
+
+/* Rausch accent — primary CTA. Max 2–3 per viewport. */
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-sm);
+  padding: 14px 24px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-primary:hover { background: var(--color-primary-active); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-primary:disabled {
+  background: var(--color-primary-disabled);
+  cursor: not-allowed;
+}
+
+/* Pill Rausch — for compact CTAs (NEW badge, become-a-host style) */
+.btn-pill-primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-pill-primary:hover { background: var(--color-primary-active); }
+
+/* Secondary — white with ink border */
+.btn-secondary {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 13px 23px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-secondary:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-ink);
+}
+
+/* Tertiary text — no surface */
+.btn-tertiary {
+  background: transparent;
+  color: var(--color-ink);
+  border: none;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 4px;
+  transition: color 0.12s ease;
+}
+.btn-tertiary:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Form input — 2px ink border on focus, no glow */
+.input-base {
+  width: 100%;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 14px 12px;
+  height: 56px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.12s ease, border-width 0.12s ease;
+}
+.input-base:focus {
+  border-color: var(--color-ink);
+  border-width: 2px;
+  padding: 13px 11px; /* compensate for 2px border to avoid layout shift */
+}
+.input-base::placeholder {
+  color: var(--color-muted);
+}
+
+/* Pill text input (for compact form rows) */
+.input-pill {
+  width: 100%;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-full);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+.input-pill:focus {
+  border-color: var(--color-ink);
+  border-width: 2px;
+  padding: 9px 15px;
+}
+
+/* Card — 14px radius, single shadow tier */
+.card {
+  background: var(--color-canvas);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-hairline);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+}
+
+.card-flat {
+  background: var(--color-canvas);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-hairline);
+  padding: 24px;
+}
+
+/* Tag chip — pill */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.chip-strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-ink);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Text link — ink with hover underline */
+.link-ink {
+  color: var(--color-ink);
+  text-decoration: none;
+  transition: color 0.12s ease;
+}
+.link-ink:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-muted {
+  color: var(--color-muted);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.12s ease;
+}
+.link-muted:hover {
+  color: var(--color-ink);
+}
+
+/* Top nav link — 16px / 600 */
+.nav-link {
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  transition: color 0.12s ease;
+}
+.nav-link:hover { color: var(--color-ink); }
+.nav-link-active {
+  color: var(--color-ink);
+}
+
+/* Page section band — 64px vertical */
+.section {
+  padding-top: 64px;
+  padding-bottom: 64px;
+}
+.section-tight {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+
+/* Hairline divider */
+.hairline {
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+/* Text helpers */
+.text-ink { color: var(--color-ink); }
+.text-body { color: var(--color-body); }
+.text-muted { color: var(--color-muted); }
+.text-soft { color: var(--color-muted-soft); }
+.text-primary { color: var(--color-primary); }
+
+/* Scrollbar (subtle) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline-strong);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-soft);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Responsive helpers ──────────────────────────────────────
+ * Used by Layout/Sidebar to keep the chrome stable on narrow screens.
+ * Breakpoint ladder mirrors the airbnb archetype:
+ *   744px  — large phone / small tablet (sidebar collapses)
+ *   1024px — narrow laptop (search wraps below nav, tabs scroll horizontally)
+ *   1280px — comfortable desktop (single-line layout)
+ */
+
+/* Top nav — wrap onto a second row when there isn't room for everything. */
+@media (max-width: 1279px) {
+  .top-nav-row {
+    flex-wrap: wrap;
+    height: auto !important;
+    min-height: 80px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 12px;
+  }
+  .top-nav-search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none !important;
+  }
+  .top-nav-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .top-nav-tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+}
+
+/* Page content padding collapses on narrow screens so cards have room. */
+@media (max-width: 1024px) {
+  .page-content {
+    padding: 24px 24px !important;
+  }
+}
+@media (max-width: 744px) {
+  .page-content {
+    padding: 16px 16px !important;
+  }
+}
+
+/* Page grid collapses to single column on narrow screens so Backlinks
+   doesn't eat horizontal space from the body content. */
+@media (max-width: 1024px) {
+  .page-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 24px !important;
+  }
+}
+
+/* Sidebar collapses to icon-rail on small screens via class toggled in JS. */
+@media (max-width: 744px) {
+  .sidebar-collapsed-mobile {
+    width: 64px !important;
+    padding: 16px 8px !important;
+  }
+  .sidebar-collapsed-mobile .sidebar-label,
+  .sidebar-collapsed-mobile .sidebar-text {
+    display: none;
+  }
+  .sidebar-mobile-toggle {
+    display: inline-flex !important;
+  }
+}
+.sidebar-mobile-toggle {
+  display: none;
+}
+
+/* Search bar collapses to a single tappable pill on phones (per airbnb rule). */
+@media (max-width: 744px) {
+  .search-bar-pill {
+    height: 48px !important;
+    padding: 0 4px 0 16px !important;
+  }
+  .search-bar-pill input {
+    font-size: 14px !important;
+  }
+  .search-bar-pill button[aria-label="검색"] {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 16px !important;
+  }
 }

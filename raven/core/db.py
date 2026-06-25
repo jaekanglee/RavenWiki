@@ -1,4 +1,4 @@
-"""wikisys.core.db — vault-aware SQLite index builder.
+"""raven.core.db — vault-aware SQLite index builder.
 
 Wraps `scripts/build_db.py` so any vault can rebuild its own wiki.db.
 
@@ -6,7 +6,7 @@ Strategy:
     - The original `scripts/build_db.py` is a stable 293-line script that takes
       a vault path and an optional --db output. We don't rewrite it; we just
       invoke it as a subprocess with the right argv.
-    - This file is the public face used by `wikisys.cli.build` and the API.
+    - This file is the public face used by `raven.cli.build` and the API.
     - Falls back to a minimal inline build if the script is missing (e.g. when
       installed as a package without the `scripts/` dir).
 """
@@ -81,8 +81,8 @@ def connect(vault: Vault) -> sqlite3.Connection:
 
 
 def _repo_root() -> Optional[Path]:
-    """Locate the wikisys code repo (parent of `wikisys/`)."""
-    # wikisys/core/db.py → parents[2] = repo root
+    """Locate the raven code repo (parent of `raven/`)."""
+    # raven/core/db.py → parents[2] = repo root
     return Path(__file__).resolve().parents[2]
 
 

@@ -10,7 +10,7 @@
 ## 0. dry-run 결과 (default vault)
 
 ```bash
-$ wikisys migrate plan --vault default
+$ raven migrate plan --vault default
 
 📋 default migration plan (DRY-RUN):
    total fixes:    95
@@ -43,7 +43,7 @@ $ wikisys migrate plan --vault default
 **72개 분류** (실측):
 | sub-pattern | 개수 | 권장 | 비고 |
 |---|---|---|---|
-| `[[scripts/build_db]]`, `[[scripts/lint]]` (옛 위치) | 24+ | **(a) `[[x]]?` 변환** | v0.3 이전 문법, 현재는 `wikisys build` / `wikisys lint` |
+| `[[scripts/build_db]]`, `[[scripts/lint]]` (옛 위치) | 24+ | **(a) `[[x]]?` 변환** | v0.3 이전 문법, 현재는 `raven build` / `raven lint` |
 | `[[_meta/system-design]]`, `[[_meta/mvp-prd]]` | 12+ | **(a) `[[x]]?` 변환** | 옛 vault 구조, _meta/ 하단 페이지 |
 | `[[<project>/_overview]]` (template placeholder) | 6 | **(c) 페이지 만들기** (또는 ignore) | `<project>` 자체가 placeholder |
 | 기타 (예: `[[harumoa/2026-06-26]]`) | 30 | **(a) 또는 (b)** | 사용자 판단 |
@@ -51,10 +51,10 @@ $ wikisys migrate plan --vault default
 **권장 액션**:
 ```bash
 # 1. dry-run으로 정확히 무엇이 바뀌는지 확인
-wikisys migrate plan --vault default --category broken_to_missing
+raven migrate plan --vault default --category broken_to_missing
 
 # 2. 70개 safe만 적용 (template placeholder는 자동 skip)
-wikisys migrate plan --vault default --category broken_to_missing --apply --risk safe
+raven migrate plan --vault default --category broken_to_missing --apply --risk safe
 # → log.md에 migrate entry 자동 기록
 ```
 
@@ -92,7 +92,7 @@ git mv content/SCHEMA.md _meta/SCHEMA-content.md   # 예시
 
 **19개 리스트** (실측 필요, dry-run으로 확인):
 ```bash
-wikisys migrate plan --vault default --category tag_promotion --json | jq
+raven migrate plan --vault default --category tag_promotion --json | jq
 ```
 
 **권장 액션**:
@@ -118,7 +118,7 @@ wikisys migrate plan --vault default --category tag_promotion --json | jq
 **현재 상태**:
 - 7개 orphan 모두 warning (lint #4)
 - 자동 archive는 미구현 (안전 우선)
-- 수동 archive: `wikisys page delete <slug>` 한 번씩
+- 수동 archive: `raven page delete <slug>` 한 번씩
 
 **권장**: 사용자가 직접 결정 — archive vs keep.
 
@@ -146,12 +146,12 @@ wikisys migrate plan --vault default --category tag_promotion --json | jq
 ### A안: 보수적 (안전만)
 ```bash
 # Step 1: broken → missing 자동 (70개 safe)
-wikisys migrate plan --vault default --category broken_to_missing --apply --risk safe
+raven migrate plan --vault default --category broken_to_missing --apply --risk safe
 # → critical 72 → 6
 
 # Step 2: orphan 7개 수동 결정
 # 각 페이지 검토 후:
-wikisys page delete content/orphan-1   # archive
+raven page delete content/orphan-1   # archive
 # 또는 keep (둘 다 OK)
 
 # Step 3: tag 19개 SCHEMA.md에 추가
@@ -162,14 +162,14 @@ git mv content/SCHEMA.md _meta/...
 # SCHEMA.md에 "type: rule → 200줄 면제" 추가
 
 # Step 5: build (DB 재구축)
-wikisys build
+raven build
 # → critical 0 / warning 0 / info ≤ stale
 ```
 
 ### B안: 자동화 (모든 safe + review)
 ```bash
 # Step 1+2 한 번에
-wikisys migrate plan --vault default --apply --risk safe
+raven migrate plan --vault default --apply --risk safe
 # → 70개 broken_to_missing + 0개 frontmatter_fill
 # → 4 page_size + 19 tag은 review/manual이라 skip
 
@@ -193,8 +193,8 @@ wikisys migrate plan --vault default --apply --risk safe
 
 각 결정 후:
 ```bash
-wikisys build          # DB 재구축
-wikisys lint summary   # 결과 확인
+raven build          # DB 재구축
+raven lint summary   # 결과 확인
 ```
 
 ---
@@ -202,7 +202,7 @@ wikisys lint summary   # 결과 확인
 ## 4. 다음 단계 (마이그레이션 완료 후)
 
 - [ ] Dashboard의 `🔧 Lint` 페이지에서 실시간 확인
-- [ ] `wikisys lint run --vault default --log` 자동 log 기록 (cron)
+- [ ] `raven lint run --vault default --log` 자동 log 기록 (cron)
 - [ ] GitHub PR로 v0.5.2 머지
 
 ---

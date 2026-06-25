@@ -3,7 +3,7 @@ title: 요구사항 v0.2 추가 (Multi-Vault)
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, requirements, wikisys]
+tags: [system, meta, requirements, raven]
 sources: [_meta/requirements.md]
 confidence: high
 ---
@@ -35,7 +35,7 @@ confidence: high
 - vault 전환 (CLI `vault use`, GUI picker)
 
 ### N9 세부
-- Python 어댑터 (`wikisys.agents`)
+- Python 어댑터 (`raven.agents`)
 - shell escape 없이 직접 호출
 - scope 기반 권한 (어떤 vault 쓸 수 있는지)
 - provenance 자동 (누가/언제/왜)
@@ -104,9 +104,9 @@ confidence: high
 
 | 니즈 | 충족 방법 |
 |---|---|
-| N7 (vault 어디든) | `WIKI_VAULTS_DIR` env + `wikisys vault create <name> <path>` |
-| N8 (멀티 vault) | `.registry.json` + `wikisys vault {list,use,...}` |
-| N9 (에이전트) | `wikisys.agents.Agent` + `AgentScope` |
+| N7 (vault 어디든) | `WIKI_VAULTS_DIR` env + `raven vault create <name> <path>` |
+| N8 (멀티 vault) | `.registry.json` + `raven vault {list,use,...}` |
+| N9 (에이전트) | `raven.agents.Agent` + `AgentScope` |
 | N10 (4 인터페이스) | CLI + GUI + Python + HTTP 모두 작동 |
 | C6 (분리) | `~/vaults/` 외부 + env override |
 | C7 (격리) | `AgentScope.vault_names` + `allow_delete=False` 기본 |

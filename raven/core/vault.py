@@ -85,7 +85,7 @@ class Vault:
         """Create content/, _meta/, and copy template SCHEMA/RULES/log/policy.
 
         Idempotent: existing files are NOT overwritten. To refresh templates,
-        use `wikisys meta sync`.
+        use `raven meta sync`.
         """
         from importlib import resources
 
@@ -101,20 +101,20 @@ class Vault:
                 continue  # never overwrite user-edited rules
             try:
                 # Python 3.9+: importlib.resources.files
-                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                src = resources.files("raven.core").joinpath(f"templates/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
             except Exception:
                 # template missing or package broken — skip silently
                 # (vault still works, just no SCHEMA.md / RULES.md)
                 pass
 
-        # vault 루트: log.md (카파시 가이드), wikisys-policy.md
-        for filename in ("log.md", "wikisys-policy.md"):
+        # vault 루트: log.md (카파시 가이드), raven-policy.md
+        for filename in ("log.md", "raven-policy.md"):
             target = path / filename
             if target.exists():
                 continue
             try:
-                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                src = resources.files("raven.core").joinpath(f"templates/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
             except Exception:
                 pass
@@ -123,12 +123,12 @@ class Vault:
         """Re-copy SCHEMA.md / RULES.md from templates (overwrites).
 
         Args:
-            with_log: if True, also copy log.md (template) and wikisys-policy.md
+            with_log: if True, also copy log.md (template) and raven-policy.md
                       to the vault root. Default False to honor 카파시 가이드
                       ("don't modify existing data without explicit user action").
 
         Returns dict with counts of copied/skipped files.
-        Use this after wikisys upgrade to refresh meta docs.
+        Use this after raven upgrade to refresh meta docs.
         Creates _meta/ if missing (idempotent).
         """
         from importlib import resources
@@ -139,14 +139,14 @@ class Vault:
         for filename in ("SCHEMA.md", "RULES.md"):
             target = self.meta_root / filename
             try:
-                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                src = resources.files("raven.core").joinpath(f"templates/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
                 out["copied"].append(str(target.relative_to(self.root)))
             except Exception as e:
                 out["errors"].append({"file": filename, "error": str(e)})
-        # vault 루트: log.md + wikisys-policy.md (with_log=True 일 때만)
+        # vault 루트: log.md + raven-policy.md (with_log=True 일 때만)
         if with_log:
-            for filename in ("log.md", "wikisys-policy.md"):
+            for filename in ("log.md", "raven-policy.md"):
                 target = self.root / filename
                 if target.exists():
                     # 이미 있으면 덮어쓰지 않음 (사용자 데이터 보호)
@@ -156,7 +156,7 @@ class Vault:
                     })
                     continue
                 try:
-                    src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                    src = resources.files("raven.core").joinpath(f"templates/{filename}")
                     target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
                     out["copied"].append(str(target.relative_to(self.root)))
                 except Exception as e:
@@ -183,7 +183,7 @@ class Vault:
             path: absolute path for new vault directory.
             mode, owner, description: optional overrides (default: copy from src).
             copy_meta: if True, copy _meta/ from src too. If False, leave _meta/ empty
-                       (caller can run `wikisys meta sync` afterwards).
+                       (caller can run `raven meta sync` afterwards).
 
         Returns:
             New Vault instance (already registered in the registry).
@@ -292,6 +292,6 @@ def resolve_active_vault(name: Optional[str] = None) -> Vault:
     if default is None:
         raise ValueError(
             "no vaults registered. Create one first:\n"
-            "  wikisys vault create <name> <path>"
+            "  raven vault create <name> <path>"
         )
     return Vault.load(default)

@@ -1,4 +1,4 @@
-"""server.py — FastAPI surface over wikisys.core + wikisys.agents.
+"""server.py — FastAPI surface over raven.core + raven.agents.
 
 Single source of truth for the GUI's HTTP calls. The dashboard used to read
 static JSON (page-<slug>.json etc.); it now calls this server, which keeps
@@ -20,14 +20,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from wikisys.core import registry, resolve_active_vault, link_module
-from wikisys.core import db_module, lint_module, export_module
-from wikisys.core import slug_module, frontmatter_module, archive_module
-from wikisys.core import log_module
-from wikisys.core.vault import Vault
+from raven.core import registry, resolve_active_vault, link_module
+from raven.core import db_module, lint_module, export_module
+from raven.core import slug_module, frontmatter_module, archive_module
+from raven.core import log_module
+from raven.core.vault import Vault
 
 
-app = FastAPI(title="wikisys API", version="0.2.0")
+app = FastAPI(title="raven API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -143,9 +143,9 @@ class VaultCreate(BaseModel):
 def create_vault(payload: VaultCreate):
     """Create a new vault on disk + register it.
 
-    Mirrors `wikisys vault create <name> <path> --mode <mode>`.
+    Mirrors `raven vault create <name> <path> --mode <mode>`.
     """
-    from wikisys.core.vault import Vault as _Vault
+    from raven.core.vault import Vault as _Vault
 
     # Validate: name not already taken
     if registry().get(payload.name):

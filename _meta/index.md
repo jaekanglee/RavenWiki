@@ -18,16 +18,16 @@ confidence: high
 ## 시스템 문서 (운영자가 읽는 것)
 
 ### 현재 (v0.2 multi-vault)
-- [[wikisys-guide]] — vault 사용자 가이드 (사람 + 에이전트 공통)
-- [[wikisys-faq]] — 자주 묻는 질문
-- [[wikisys-architecture]] — 4-Layer 아키텍처 (M2, 최신)
+- [[raven-guide]] — vault 사용자 가이드 (사람 + 에이전트 공통)
+- [[raven-faq]] — 자주 묻는 질문
+- [[raven-architecture]] — 4-Layer 아키텍처 (M2, 최신)
 - [[SCHEMA-v0.2-multivault]] — vault 외부 스키마 (.registry.json, AgentScope, env)
 - [[decisions-d7-d9-multivault]] — M2 결정 (vault 분리 / multi-vault / Python adapter)
 
 ### M1 결정/스키마 (보존)
 - [[SCHEMA]] — vault 내부 규약 v2.4 (frontmatter, type, tag, governance)
 - [[RULES]] — cross-cutting 운영 정책
-- [[architecture-5layer]] — v0.1 5-Layer 아키텍처 (보존, v0.2는 wikisys-architecture 참조)
+- [[architecture-5layer]] — v0.1 5-Layer 아키텍처 (보존, v0.2는 raven-architecture 참조)
 - [[decisions-d1-d6]] — M1 결정 매트릭스 (D1-D6)
 
 ### 운영/배포
@@ -52,13 +52,13 @@ confidence: high
 
 ## 코드베이스 위치
 
-> **중요**: vault 데이터는 `~/vaults/default/`에 있음. 코드베이스는 wikisys/dashboard/mcp/scripts 자산만.
+> **중요**: vault 데이터는 `~/vaults/default/`에 있음. 코드베이스는 raven/dashboard/mcp/scripts 자산만.
 
 - 코드베이스: `~/Desktop/Dev/Project/Wiki/`
 - vault: `~/vaults/default/`
 - vault registry: `~/vaults/.registry.json`
 
-자세한 위치는 `wikisys-guide §vault 구조` 참조.
+자세한 위치는 `raven-guide §vault 구조` 참조.
 
 ---
 
@@ -69,7 +69,7 @@ confidence: high
 - vault = 코드베이스 내부 → **`~/vaults/<name>/` 외부 분리**
 - 인터페이스: CLI + GUI + MCP → **CLI + GUI + Python + HTTP (4-way)**
 - 결정: `decisions-d7-d9-multivault`
-- 아키텍처: `wikisys-architecture`
+- 아키텍처: `raven-architecture`
 
 ### v1 → v2.4 (M1)
 - `concepts/`, `entities/`, `comparisons/` → **`content/` 단일** + `type:` frontmatter

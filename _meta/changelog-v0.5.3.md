@@ -1,6 +1,6 @@
-# wikisys v0.5.3 — orphan_cleanup CLI wiring + Q3 tag 승격
+# raven v0.5.3 — orphan_cleanup CLI wiring + Q3 tag 승격
 
-> **핵심**: orphan_cleanup migrate 검증 + Q3 tag 3개 (meta/wikisys/governance) core 승격 + lint.py SCHEMA 파싱 강화.
+> **핵심**: orphan_cleanup migrate 검증 + Q3 tag 3개 (meta/raven/governance) core 승격 + lint.py SCHEMA 파싱 강화.
 
 릴리스 일자: 2026-06-26
 이전: v0.5.2.1 (면제 규칙 + 마이그레이션 실행)
@@ -9,18 +9,18 @@
 
 ## 한 줄 요약
 
-**A. orphan_cleanup CLI wiring** 검증 (이미 wired, 추가 작업 0) + **B. Q3 tag 3개 승격** (meta/wikisys/governance) + **lint.py SCHEMA 파싱 강화** (한 줄에 여러 tag 매치). **lint total 100 → 91 (-9%)**.
+**A. orphan_cleanup CLI wiring** 검증 (이미 wired, 추가 작업 0) + **B. Q3 tag 3개 승격** (meta/raven/governance) + **lint.py SCHEMA 파싱 강화** (한 줄에 여러 tag 매치). **lint total 100 → 91 (-9%)**.
 
 ---
 
 ## 1. A. orphan_cleanup CLI wiring (검증)
 
-`wikisys/migrate.py`에 이미 wiring됨:
+`raven/migrate.py`에 이미 wiring됨:
 - `_plan_orphan_cleanup` builder
 - `apply_orphan_cleanup` 함수
 - `apply_plan`이 `apply_fn` 자동 디스패치
 
-검증: `wikisys migrate plan --vault default --category orphan_cleanup` 정상 실행 (fix 0개 — v0.5.2.1에서 7개 archive 완료).
+검증: `raven migrate plan --vault default --category orphan_cleanup` 정상 실행 (fix 0개 — v0.5.2.1에서 7개 archive 완료).
 
 → **추가 코드 작업 0**, 검증만.
 
@@ -35,7 +35,7 @@ default vault의 custom tag 19개 (12 unique) 중 빈도 3+ 페이지 사용 3�
 | tag | 사용 횟수 | 분류 |
 |---|---|---|
 | `meta` | 5 | ✅ core 승격 |
-| `wikisys` | 3 | ✅ core 승격 |
+| `raven` | 3 | ✅ core 승격 |
 | `governance` | 2 | ✅ core 승격 (3+ 기준 미달이지만 cognitive governance 컨셉 핵심) |
 
 → **메모리 "core 태그 9건 승격 미결"** 항목은 별도 결정으로 유지 (사용자 명시).
@@ -45,8 +45,8 @@ default vault의 custom tag 19개 (12 unique) 중 빈도 3+ 페이지 사용 3�
 | 파일 | 변경 |
 |---|---|
 | `_meta/SCHEMA.md` (글로벌) | §"Tag Taxonomy"에 3개 추가 + §"승격 절차" 별도 ## 섹션 분리 |
-| `wikisys/core/templates/SCHEMA.md` (bootstrap) | 동일 |
-| `wikisys/core/lint.py` (`_core_tags`) | SCHEMA 파싱 regex 확장 |
+| `raven/core/templates/SCHEMA.md` (bootstrap) | 동일 |
+| `raven/core/lint.py` (`_core_tags`) | SCHEMA 파싱 regex 확장 |
 
 ### lint.py 변경 (`_core_tags`)
 
@@ -91,8 +91,8 @@ default vault의 custom tag 19개 (12 unique) 중 빈도 3+ 페이지 사용 3�
 
 | 파일 | 변경 | LOC |
 |---|---|---|
-| `wikisys/core/lint.py` | `_core_tags` regex 확장 (2 format) | +10 |
-| `wikisys/core/templates/SCHEMA.md` | tag taxonomy 섹션 + 승격 절차 ## 분리 | +30 |
+| `raven/core/lint.py` | `_core_tags` regex 확장 (2 format) | +10 |
+| `raven/core/templates/SCHEMA.md` | tag taxonomy 섹션 + 승격 절차 ## 분리 | +30 |
 | `_meta/SCHEMA.md` (글로벌) | tag taxonomy 섹션 + 승격 절차 ## 분리 | +5 |
 | `_meta/changelog-v0.5.3.md` | (이 문서) | 신규 |
 

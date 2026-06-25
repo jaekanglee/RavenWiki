@@ -1,4 +1,4 @@
-"""wikisys.core.export — vault-aware static JSON export for the GUI.
+"""raven.core.export — vault-aware static JSON export for the GUI.
 
 Wraps `scripts/export_static.py` so any vault can produce its dashboard JSON
 bundle (index.json, tree.json, graph.json, search.idx.json, page-<slug>.json).

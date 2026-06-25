@@ -3,7 +3,7 @@ title: 결정사항 후속 (D7-D9 — Multi-Vault 재설계)
 created: 2026-06-25
 updated: 2026-06-25
 type: rule
-tags: [system, meta, decisions, wikisys]
+tags: [system, meta, decisions, raven]
 sources: [_meta/decisions-d1-d6.md]
 confidence: high
 ---
@@ -35,7 +35,7 @@ confidence: high
 **결정**: vault를 코드베이스 외부로 분리.
 
 ```
-~/Desktop/Dev/Project/Wiki/      ← 개발 코드 (wikisys/, dashboard/, scripts/)
+~/Desktop/Dev/Project/Wiki/      ← 개발 코드 (raven/, dashboard/, scripts/)
 ~/vaults/                        ← vault 데이터 (런타임)
 ├── .registry.json
 └── default/
@@ -47,7 +47,7 @@ confidence: high
 
 **환경변수 오버라이드** (사용자가 위치 자유롭게 변경 가능):
 ```bash
-WIKI_VAULTS_DIR=~/Documents/vaults wikisys vault list
+WIKI_VAULTS_DIR=~/Documents/vaults raven vault list
 ```
 
 **근거**:
@@ -101,10 +101,10 @@ WIKI_VAULTS_DIR=~/Documents/vaults wikisys vault list
 **사용자 제약** (2026-06-25):
 > "헤르메스의 각 에이전트들이 작업하고, 작업한 결과물을 Vault에 쓰고"
 
-**결정**: `wikisys.agents` — Python 어댑터 + scope 강제 + provenance 자동.
+**결정**: `raven.agents` — Python 어댑터 + scope 강제 + provenance 자동.
 
 ```python
-from wikisys.agents import Agent, AgentScope
+from raven.agents import Agent, AgentScope
 
 hermes = Agent.named(
     "hermes-writer",
@@ -120,7 +120,7 @@ hermes.vault("agent-output").write("content/x", body)
 **핵심 차별점** (vs 단순 CLI):
 - **scope 강제**: 에이전트가 허용 안 된 vault 쓰면 `PermissionError`
 - **provenance 자동**: 누가/언제/왜 frontmatter에 기록
-- **provenance 검색 가능**: `wikisys agent-list` (향후) → "어떤 에이전트가 뭘 썼나"
+- **provenance 검색 가능**: `raven agent-list` (향후) → "어떤 에이전트가 뭘 썼나"
 - **safety defaults**: `allow_delete=False` (명시적으로만 허용)
 
 **기각한 대안**:
@@ -134,13 +134,13 @@ hermes.vault("agent-output").write("content/x", body)
 
 | 컴포넌트 | 변경 |
 |---|---|
-| 코드베이스 구조 | `wikisys/{core,cli,api,agents}/` 신규 패키지 |
+| 코드베이스 구조 | `raven/{core,cli,api,agents}/` 신규 패키지 |
 | 데이터 위치 | `~/vaults/<name>/` (외부) |
-| CLI | `wikisys` 명령 9개 (vault/page/link/build/export) |
+| CLI | `raven` 명령 9개 (vault/page/link/build/export) |
 | GUI | vault picker + 동적 API fetch |
 | HTTP API | 12 endpoints (FastAPI) |
 | Python API | `Agent` + `AgentVault` (scope-based) |
-| 문서 | wikisys-guide, wikisys-faq, wikisys-architecture |
+| 문서 | raven-guide, raven-faq, raven-architecture |
 
 ---
 

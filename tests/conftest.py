@@ -1,4 +1,4 @@
-"""Pytest config — ensure repo root on sys.path for `import wikisys`."""
+"""Pytest config — ensure repo root on sys.path for `import raven`."""
 import sys
 from pathlib import Path
 

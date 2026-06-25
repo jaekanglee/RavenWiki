@@ -34,11 +34,11 @@ confidence: high
 
 | # | 규칙 | 검증 |
 |---|---|---|
-| 1 | 모든 페이지는 frontmatter 필수 | `wikisys build` |
-| 2 | slug = vault-relative path | `wikisys page new <slug>` |
+| 1 | 모든 페이지는 frontmatter 필수 | `raven build` |
+| 2 | slug = vault-relative path | `raven page new <slug>` |
 | 3 | type 8종 + tags core/custom | lint |
-| 4 | wikilink 의도 명시 (`[[x]]!` / `[[x]]?`) | `wikisys link check` |
-| 5 | 작업마다 log.md 자동 append | `wikisys log list` |
+| 4 | wikilink 의도 명시 (`[[x]]!` / `[[x]]?`) | `raven link check` |
+| 5 | 작업마다 log.md 자동 append | `raven log list` |
 
 ## 카파시 운영정책 (v0.5.0 도입)
 
@@ -75,7 +75,7 @@ contradictions: [slug-a, slug-b]    # 모순인 다른 페이지
 
 ```bash
 # 1. 페이지 만들기
-wikisys page new foo --title "Foo" --type concept --tags "ai, concept"
+raven page new foo --title "Foo" --type concept --tags "ai, concept"
 # → content/foo.md (frontmatter 자동)
 # → log.md 자동 append (create | foo)
 
@@ -83,7 +83,7 @@ wikisys page new foo --title "Foo" --type concept --tags "ai, concept"
 # → outbound [[wikilinks]] ≥ 2 (concept/person/tool 한정)
 
 # 3. 빌드 + lint
-wikisys build
+raven build
 # → wiki.db 재빌드
 # → log.md 자동 append (build | N pages)
 # → lint 결과 출력
@@ -96,26 +96,26 @@ git add content/foo.md log.md && git commit -m "feat(content): add foo"
 
 ```bash
 # 최근 10개
-wikisys log list --tail 10
+raven log list --tail 10
 
 # 특정 액션만
-wikisys log list --action lint
+raven log list --action lint
 
 # grep-style
-wikisys log search "wikisys"
+raven log search "raven"
 ```
 
 ### Lint 강제 실행
 
 ```bash
 # link check (v0.5.0)
-wikisys link check
+raven link check
 
 # build + lint (v0.5.1+)
-wikisys build
+raven build
 
 # dry-run (실제 변경 ❌)
-wikisys build --dry-run
+raven build --dry-run
 ```
 
 ## 금지 사항 (Hard Rules)

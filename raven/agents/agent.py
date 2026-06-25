@@ -10,7 +10,7 @@ Three layers:
     Result      — typed return values (so agents don't have to parse strings)
 
 This module is intentionally dependency-free at the top level: only
-wikisys.core (vault/db/lint/link) is used. No HTTP, no shell, no CLI.
+raven.core (vault/db/lint/link) is used. No HTTP, no shell, no CLI.
 """
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
-from wikisys.core import resolve_active_vault, registry, link_module
-from wikisys.core import slug_module, frontmatter_module
-from wikisys.core.vault import Vault
+from raven.core import resolve_active_vault, registry, link_module
+from raven.core import slug_module, frontmatter_module
+from raven.core.vault import Vault
 
 
 # ────────────────────────── data types ──────────────────────────

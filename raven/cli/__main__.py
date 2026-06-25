@@ -1,4 +1,4 @@
-"""wikisys CLI entrypoint — `python -m wikisys.cli ...` or installed `wikisys ...`.
+"""raven CLI entrypoint — `python -m raven.cli ...` or installed `raven ...`.
 
 Design:
     - Typer sub-apps: `vault`, `page`, `link`, `build`, `export`
@@ -14,15 +14,15 @@ from typing import Optional
 
 import typer
 
-from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
-from wikisys.core import db_module, lint_module, export_module, link_module
-from wikisys.core import slug_module, frontmatter_module, archive_module
-from wikisys.core import log_module
-from wikisys import migrate as migrate_module
-from wikisys.core.vault import Vault
+from raven.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
+from raven.core import db_module, lint_module, export_module, link_module
+from raven.core import slug_module, frontmatter_module, archive_module
+from raven.core import log_module
+from raven import migrate as migrate_module
+from raven.core.vault import Vault
 
 app = typer.Typer(
-    name="wikisys",
+    name="raven",
     help="Multi-vault wiki engine — CLI for vault mgmt + page CRUD + linking.",
     no_args_is_help=True,
     add_completion=False,
@@ -51,15 +51,15 @@ app.add_typer(migrate_app, name="migrate")
 
 @app.command()
 def where() -> None:
-    """Show current wikisys config (vaults root, registry, active vault)."""
+    """Show current raven config (vaults root, registry, active vault)."""
     typer.echo(f"📁 vaults root: {VAULTS_ROOT()}")
     typer.echo(f"📋 registry:    {REGISTRY_PATH()}")
     reg = registry()
     vaults = reg.list()
     if not vaults:
-        typer.echo("⚠️  no vaults registered. Create one with `wikisys vault create <name> <path>`.")
+        typer.echo("⚠️  no vaults registered. Create one with `raven vault create <name> <path>`.")
         return
-    typer.echo(f"\n🔐 active:      {reg._data.get('default', '(unset)')} (set with `wikisys vault use <name>`)")
+    typer.echo(f"\n🔐 active:      {reg._data.get('default', '(unset)')} (set with `raven vault use <name>`)")
     typer.echo(f"\n📚 vaults ({len(vaults)}):")
     for v in vaults:
         marker = "★" if v.default else " "
@@ -86,7 +86,7 @@ def vault_list(
         } for v in vaults], indent=2, ensure_ascii=False))
         return
     if not vaults:
-        typer.echo("(empty — create with `wikisys vault create <name> <path>`)")
+        typer.echo("(empty — create with `raven vault create <name> <path>`)")
         return
     for v in vaults:
         marker = "★" if v.default else " "
@@ -154,7 +154,7 @@ def vault_register(
     if not p.exists() or not p.is_dir():
         typer.echo(f"❌ not a directory: {p}", err=True)
         raise typer.Exit(1)
-    from wikisys.core.registry import VaultMeta
+    from raven.core.registry import VaultMeta
     meta = VaultMeta(name=name, path=p, mode=mode, owner=owner)
     registry().add(meta)
     typer.echo(f"✅ registered: {name} → {p}")
@@ -195,7 +195,7 @@ def vault_clone(
         raise typer.Exit(1)
     typer.echo(f"✅ cloned: {src!r} → {name!r} at {new_v.root}")
     if no_meta:
-        typer.echo("   (skipped _meta/ — run `wikisys meta sync` later to populate)")
+        typer.echo("   (skipped _meta/ — run `raven meta sync` later to populate)")
 
 
 # alias for `vault import` (same as clone)
@@ -404,11 +404,11 @@ def page_delete(
 def meta_sync(
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
-    with_log: bool = typer.Option(False, "--with-log", help="vault 루트에 log.md + wikisys-policy.md도 복사 (기존 파일 있으면 skip)"),
+    with_log: bool = typer.Option(False, "--with-log", help="vault 루트에 log.md + raven-policy.md도 복사 (기존 파일 있으면 skip)"),
 ) -> None:
-    """Re-copy SCHEMA.md / RULES.md from wikisys templates into _meta/.
+    """Re-copy SCHEMA.md / RULES.md from raven templates into _meta/.
 
-    --with-log: vault 루트에 log.md + wikisys-policy.md도 복사 (없을 때만).
+    --with-log: vault 루트에 log.md + raven-policy.md도 복사 (없을 때만).
                 기존 vault 보강용 (v0.5.0+, 카파시 가이드 도입 시).
     """
     v = _resolve_vault_or_die(vault)
@@ -425,7 +425,7 @@ def meta_sync(
     if not result["copied"] and not result["errors"]:
         typer.echo("⚠️  no templates found (package install broken?)")
     if with_log:
-        typer.echo("💡 log.md + wikisys-policy.md 보강 완료 (없던 vault에 한해)")
+        typer.echo("💡 log.md + raven-policy.md 보강 완료 (없던 vault에 한해)")
 
 
 # ────────────────────────── archive (vault _archive/ mgmt) ──────────────────────────
@@ -627,7 +627,7 @@ def log_show(
     path = log_module.log_path(v)
     if not path.exists():
         typer.echo(f"❌ log.md 없음: {path}", err=True)
-        typer.echo(f"   자동 생성: `wikisys log append` 또는 `wikisys build`", err=True)
+        typer.echo(f"   자동 생성: `raven log append` 또는 `raven build`", err=True)
         raise typer.Exit(1)
     typer.echo(f"📄 {path} (last {limit} lines):\n")
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -707,7 +707,7 @@ def log_status(
     if last:
         typer.echo(f"   last:     [{last['date']}] {last['action']} | {last['subject']}")
     if needs_rotate:
-        typer.echo(f"   ⚠️  rotation 권장: `wikisys log rotate`")
+        typer.echo(f"   ⚠️  rotation 권장: `raven log rotate`")
 
 
 # ────────────────────────── lint (12 checks) ──────────────────────────
@@ -793,7 +793,7 @@ def lint_summary(
     typer.echo(f"   warning:   {c['warning']}  🟡")
     typer.echo(f"   info:      {c['info']}     🔵")
     typer.echo(f"\n   by check:")
-    for cid in [f"#{i}" for i in range(1, 13)]:
+    for cid in [f"#{i}" for i in range(1, 14)]:
         n = result["by_check"].get(cid, 0)
         bar = "█" * min(n, 20)
         typer.echo(f"     {cid}  {n:3d}  {bar}")
@@ -801,7 +801,7 @@ def lint_summary(
 
 @lint_app.command("check")
 def lint_check(
-    check_id: str = typer.Argument(..., help="실행할 check id (#1-#12)"),
+    check_id: str = typer.Argument(..., help="실행할 check id (#1-#13)"),
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -810,7 +810,7 @@ def lint_check(
     fn_name = f"check_{_CHECK_ID_TO_NAME.get(check_id, '')}"
     fn = getattr(lint_module, fn_name, None)
     if not fn:
-        typer.echo(f"❌ unknown check: {check_id}. 1-12 중 하나.", err=True)
+        typer.echo(f"❌ unknown check: {check_id}. 1-13 중 하나.", err=True)
         raise typer.Exit(1)
     issues = fn(v)
     if json_out:
@@ -837,6 +837,7 @@ _CHECK_ID_TO_NAME = {
     "#10": "frontmatter_completeness",
     "#11": "index_completeness",
     "#12": "log_size",
+    "#13": "cognitive_governance",
 }
 
 
@@ -928,8 +929,8 @@ def migrate_plan(
             typer.echo(f"   {risk_icon} [{f.category:18s}] {f.slug:35s} {f.description[:60]}")
         if len(plan.fixes) > 20:
             typer.echo(f"   ... +{len(plan.fixes) - 20} more")
-    typer.echo(f"\n💡 적용:  wikisys migrate plan --vault {v.meta.name} --apply")
-    typer.echo(f"   안전만: wikisys migrate plan --vault {v.meta.name} --apply --risk safe")
+    typer.echo(f"\n💡 적용:  raven migrate plan --vault {v.meta.name} --apply")
+    typer.echo(f"   안전만: raven migrate plan --vault {v.meta.name} --apply --risk safe")
 
 
 @migrate_app.command("apply")
@@ -971,8 +972,8 @@ def migrate_categories(json_out: bool = typer.Option(False, "--json")) -> None:
     typer.echo("📋 migration categories (5):")
     for cat in migrate_module.CATEGORIES:
         typer.echo(f"   {cat:20s} — {_CATEGORY_LABELS[cat]}")
-    typer.echo(f"\n💡 dry-run:  wikisys migrate plan --vault <name>")
-    typer.echo(f"   apply:    wikisys migrate plan --vault <name> --apply")
+    typer.echo(f"\n💡 dry-run:  raven migrate plan --vault <name>")
+    typer.echo(f"   apply:    raven migrate plan --vault <name> --apply")
 
 
 # ────────────────────────── entrypoint ──────────────────────────

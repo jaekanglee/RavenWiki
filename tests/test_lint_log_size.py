@@ -1,4 +1,4 @@
-"""Tests for wikisys.core.lint — v0.5.1+ log_size check (#12 of 12, 회귀).
+"""Tests for raven.core.lint — v0.5.1+ log_size check (#12 of 12, 회귀).
 
 카파시 가이드: log.md > 500 entries → info (rotation 권장).
 v0.5.1+: check_log_size는 list[dict] (issue 리스트) 반환.
@@ -14,15 +14,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wikisys.core.lint import LOG_ROTATE_THRESHOLD, check_log_size
-from wikisys.core.log import append
-from wikisys.core.vault import Vault
+from raven.core.lint import LOG_ROTATE_THRESHOLD, check_log_size
+from raven.core.log import append
+from raven.core.vault import Vault
 
 
 @pytest.fixture
 def vault(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="wikisys-lint-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="wikisys-lint-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-lint-reg-"))
+    target_root = Path(tempfile.mkdtemp(prefix="raven-lint-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     v = Vault.create("lint-test", target_root / "lint-test", bootstrap=False)
     yield v
