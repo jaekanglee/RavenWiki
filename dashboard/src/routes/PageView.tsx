@@ -1,52 +1,58 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import { MarkdownView } from "../components/MarkdownView";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { EditButton } from "../components/EditButton";
 import { DeleteButton } from "../components/DeleteButton";
+import { fetchPage, getActiveVault } from "../lib/api";
 import type { Page } from "../types";
+
+interface Ctx {
+  vault: string;
+  refresh: () => void;
+}
 
 export function PageView() {
   const { slug } = useParams();
+  const ctx = useOutletContext<Ctx>();
+  const vault = ctx?.vault || getActiveVault() || "default";
   const [page, setPage] = useState<Page | null | undefined>(undefined);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
     setPage(undefined);
-    const safe = slug.replace(/[^a-zA-Z0-9_\-/.@]/g, "_");
-    // 1) 정적 API 시도
-    fetch(`/api/page-${safe}.json`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((p) => {
-        // 2) 없으면 localStorage fallback (정적 데모용)
-        if (!p && typeof window !== "undefined") {
-          const local = localStorage.getItem(`wiki:local:${slug}`);
-          if (local) {
-            // 로컬 저장본은 frontmatter+body, 단순히 body만 노출
-            const body = local.includes("---")
-              ? local.split("---").slice(2).join("---").trim()
-              : local;
-            return {
-              slug,
-              title: slug.split("/").pop() || slug,
-              type: "concept",
-              path: slug,
-              created: new Date().toISOString().slice(0, 10),
-              updated: new Date().toISOString().slice(0, 10),
-              tags: "",
-              content: body,
-              backlinks: [],
-            };
-          }
-        }
-        return p;
+    setErr(null);
+    fetchPage(vault, slug)
+      .then((d) => {
+        const fm = d.frontmatter || {};
+        const tags = (fm.tags || "").replace(/[\[\]]/g, "").trim();
+        setPage({
+          slug: d.slug,
+          title: fm.title || d.slug,
+          type: fm.type || "?",
+          path: d.slug,
+          created: fm.created || "",
+          updated: fm.updated || "",
+          tags,
+          content: d.content,
+          backlinks: [],
+        });
       })
-      .then(setPage)
-      .catch(() => setPage(null));
-  }, [slug]);
+      .catch((e) => {
+        setErr(String(e.message || e));
+        setPage(null);
+      });
+  }, [slug, vault]);
 
   if (page === undefined) return <div>Loading…</div>;
-  if (page === null) return <div>Not found: {slug}</div>;
+  if (page === null)
+    return (
+      <div>
+        <div className="text-red-600 mb-3">Not found: {slug}</div>
+        <div className="text-sm text-gray-500">{err}</div>
+      </div>
+    );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
@@ -54,23 +60,18 @@ export function PageView() {
         <div className="flex items-start justify-between mb-2 gap-3">
           <h1 className="text-3xl font-bold">{page.title}</h1>
           <div className="flex gap-2 shrink-0">
-            <EditButton page={{ slug: page.slug, content: page.content }} />
-            <DeleteButton slug={page.slug} />
+            <EditButton vault={vault} slug={page.slug} content={page.content} onSaved={ctx?.refresh} />
+            <DeleteButton vault={vault} slug={page.slug} onDeleted={() => location.assign("/")} />
           </div>
         </div>
         <div className="flex gap-2 mb-4 text-sm flex-wrap">
-          <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900 rounded">
-            {page.type}
-          </span>
+          <span className="px-2 py-0.5 bg-cyan-100 dark:bg-cyan-900 rounded">{page.type}</span>
           {(page.tags || "")
             .split(",")
             .map((t) => t.trim())
             .filter(Boolean)
             .map((t) => (
-              <span
-                key={t}
-                className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded"
-              >
+              <span key={t} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
                 #{t}
               </span>
             ))}

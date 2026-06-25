@@ -1,18 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { deletePage } from "../lib/api";
 
-/**
- * "삭제" 버튼 → 확인 모달 → POST /api/wiki_delete
- *
- * MVP: API 미구현 시 localStorage 정리 + 이동 (정적 데모).
- *   실제 환경에서는 _archive/<slug>-<timestamp>.md로 백업됨.
- */
-export function DeleteButton({ slug }: { slug: string }) {
+export function DeleteButton({
+  vault,
+  slug,
+  onDeleted,
+}: {
+  vault: string;
+  slug: string;
+  onDeleted?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const nav = useNavigate();
 
   async function del() {
     if (confirm !== slug) {
@@ -22,22 +23,15 @@ export function DeleteButton({ slug }: { slug: string }) {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/wiki_delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug }),
-      });
-      if (!r.ok) throw new Error(`API ${r.status}`);
-      setMsg("✅ 삭제 완료");
-      setTimeout(() => nav("/"), 800);
-    } catch {
-      // MVP 폴백
-      localStorage.removeItem(`wiki:local:${slug}`);
-      setMsg(
-        "삭제 표시 완료 (localStorage 데모): API 미연결. 다음 단계에서 fetch 붙임.",
-      );
+      const r = await deletePage(vault, slug);
+      setMsg(`✅ 삭제 (archive: ${r.archived_to?.split("/").pop()})`);
+      setTimeout(() => {
+        setOpen(false);
+        onDeleted?.();
+      }, 600);
+    } catch (e: any) {
+      setMsg(`❌ ${e.message}`);
       setBusy(false);
-      setTimeout(() => nav("/"), 1500);
     }
   }
 
@@ -61,11 +55,8 @@ export function DeleteButton({ slug }: { slug: string }) {
           >
             <h2 className="text-xl font-bold mb-2 text-red-700">페이지 삭제</h2>
             <p className="text-sm mb-3">
-              <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">
-                {slug}
-              </code>
-              을(를) 삭제합니다. 백엔드 연결 시{" "}
-              <code>_archive/</code>로 백업 후 DB 재빌드.
+              <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{slug}</code>
+              을(를) vault <strong>{vault}</strong>에서 삭제합니다. <code>_archive/</code>로 백업됨.
             </p>
             <label className="block mb-3">
               <span className="text-sm font-medium">확인 — slug 입력</span>
@@ -77,9 +68,7 @@ export function DeleteButton({ slug }: { slug: string }) {
               />
             </label>
             {msg && (
-              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">
-                {msg}
-              </div>
+              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">{msg}</div>
             )}
             <div className="flex gap-2 justify-end">
               <button

@@ -1,19 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createPage, getActiveVault } from "../lib/api";
 
-/**
- * "새 페이지" 버튼 + 생성 모달.
- *
- * MVP (정적 데모):
- *   - slug + title + type + tags + 본문 입력 → localStorage에 저장
- *   - 페이지 이동 후 PageView가 fallback에서 localStorage 확인
- *   - 실제 파일/DB 쓰기는 POST /api/wiki_create (다음 단계 = 프록시 API)
- *
- * 이 컴포넌트는 그 API가 준비되면 fetch 부분만 교체.
- */
 export function NewPageButton() {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
+  const vault = getActiveVault() || "default";
 
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
@@ -31,45 +23,22 @@ export function NewPageButton() {
     }
     setBusy(true);
     try {
-      const r = await fetch("/api/wiki_create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          title,
-          type,
-          tags: tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean),
-          content,
-        }),
+      await createPage(vault, {
+        slug,
+        title,
+        type,
+        content,
+        tags: tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
       });
-      if (!r.ok) throw new Error(`API ${r.status} (아직 미구현 — 다음 단계)`);
-      const out = await r.json();
-      nav(`/page/${out.slug ?? slug}`);
-    } catch (e) {
-      // MVP 폴백: localStorage에 저장 (정적 데모용)
-      const key = `wiki:local:${slug}`;
-      const fm = [
-        "---",
-        `title: ${title}`,
-        `type: ${type}`,
-        `tags: [${tags.split(",").map((t) => t.trim()).filter(Boolean).join(", ")}]`,
-        `created: ${new Date().toISOString().slice(0, 10)}`,
-        `updated: ${new Date().toISOString().slice(0, 10)}`,
-        "---",
-        "",
-      ].join("\n");
-      localStorage.setItem(key, fm + content);
-      setErr(
-        `저장 완료 (localStorage 데모): API 미연결 상태. 키=${key}. 다음 단계에서 fetch 붙임.`,
-      );
+      setOpen(false);
+      nav(`/page/${slug}`);
+      window.location.reload();
+    } catch (e: any) {
+      setErr(`❌ ${e.message}`);
       setBusy(false);
-      setTimeout(() => {
-        setOpen(false);
-        nav(`/page/${slug}`);
-      }, 1500);
     }
   }
 
@@ -79,7 +48,7 @@ export function NewPageButton() {
         onClick={() => setOpen(true)}
         className="block w-full text-left py-1 px-2 mb-2 rounded bg-cyan-100 dark:bg-cyan-900 hover:bg-cyan-200 text-sm font-medium"
       >
-        ➕ 새 페이지
+        ➕ 새 페이지 ({vault})
       </button>
 
       {open && (
@@ -91,7 +60,9 @@ export function NewPageButton() {
             className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold mb-4">새 페이지</h2>
+            <h2 className="text-xl font-bold mb-4">
+              새 페이지 <span className="text-sm font-normal text-gray-500">in {vault}</span>
+            </h2>
 
             <label className="block mb-3">
               <span className="text-sm font-medium">slug *</span>
@@ -101,9 +72,7 @@ export function NewPageButton() {
                 placeholder="content/my-concept"
                 className="w-full border rounded px-2 py-1 mt-1 text-sm"
               />
-              <span className="text-xs text-gray-500">
-                vault-relative path (예: content/my-concept)
-              </span>
+              <span className="text-xs text-gray-500">vault-relative path</span>
             </label>
 
             <label className="block mb-3">
@@ -156,9 +125,7 @@ export function NewPageButton() {
             </label>
 
             {err && (
-              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">
-                {err}
-              </div>
+              <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded">{err}</div>
             )}
 
             <div className="flex gap-2 justify-end">
