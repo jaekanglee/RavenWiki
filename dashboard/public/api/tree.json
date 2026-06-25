@@ -1,0 +1,210 @@
+{
+  "slug": "",
+  "title": "root",
+  "type": "root",
+  "children": [
+    {
+      "slug": "RULES",
+      "title": "Cross-cutting Rules",
+      "type": "rule"
+    },
+    {
+      "slug": "SCHEMA",
+      "title": "Wiki Schema",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta",
+      "title": "_meta",
+      "type": "folder",
+      "children": [
+        {
+          "slug": "_meta/ai-roadmap",
+          "title": "AI 활용 로드맵 (M3-M6)",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/architecture-5layer",
+          "title": "5-Layer 아키텍처",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/decisions-d1-d6",
+          "title": "결정사항 (Decisions D1-D6)",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/deployment",
+          "title": "Deployment — VPS + Tailscale",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/dr-runbook",
+          "title": "재해 복구 Runbook (DR)",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/m1-completion-report",
+          "title": "M1 완료 보고서",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/mvp-prd",
+          "title": "위키 시스템 MVP — Product Requirements Document",
+          "type": "prd"
+        },
+        {
+          "slug": "_meta/requirements",
+          "title": "시스템 요구사항 (Requirements)",
+          "type": "rule"
+        },
+        {
+          "slug": "_meta/wiki-persona",
+          "title": "사용자 페르소나",
+          "type": "persona"
+        },
+        {
+          "slug": "_meta/wiki-scenario",
+          "title": "MVP 사용자 시나리오",
+          "type": "scenario"
+        }
+      ]
+    },
+    {
+      "slug": "content",
+      "title": "content",
+      "type": "folder",
+      "children": [
+        {
+          "slug": "_template",
+          "title": "새 프로젝트 시작 템플릿",
+          "type": "project"
+        },
+        {
+          "slug": "andrej-karpathy",
+          "title": "Andrej Karpathy",
+          "type": "person"
+        },
+        {
+          "slug": "beyond-karpathy-llm-wiki",
+          "title": "Beyond Karpathy's LLM-Wiki — Cognitive Governance",
+          "type": "concept"
+        },
+        {
+          "slug": "bm25-search",
+          "title": "BM25 검색 (Okapi BM25)",
+          "type": "concept"
+        },
+        {
+          "slug": "harumoa-overview",
+          "title": "Harumoa 프로젝트 — 첫 번째 샘플",
+          "type": "project"
+        },
+        {
+          "slug": "hermes-agent",
+          "title": "Hermes Agent",
+          "type": "tool"
+        },
+        {
+          "slug": "how-to-start-vault",
+          "title": "새 vault 시작하는 법 (사용자 가이드)",
+          "type": "journal"
+        },
+        {
+          "slug": "jonadas-techio",
+          "title": "Jônadas Techio",
+          "type": "person"
+        },
+        {
+          "slug": "llm-wiki",
+          "title": "LLM Wiki (Karpathy 패턴)",
+          "type": "concept"
+        },
+        {
+          "slug": "mcp-server",
+          "title": "MCP (Model Context Protocol) 서버",
+          "type": "concept"
+        },
+        {
+          "slug": "mcp-vs-rest-api",
+          "title": "MCP vs REST API",
+          "type": "comparison"
+        },
+        {
+          "slug": "minimax-m3",
+          "title": "MiniMax-M3 (우리가 쓰는 모델)",
+          "type": "tool"
+        },
+        {
+          "slug": "rag-vs-llm-wiki",
+          "title": "RAG vs LLM Wiki",
+          "type": "comparison"
+        },
+        {
+          "slug": "react-spa-architecture",
+          "title": "React SPA 아키텍처",
+          "type": "concept"
+        },
+        {
+          "slug": "search-result-2026-06-24",
+          "title": "검색 결과: \"LLM Wiki 패턴이란?\" (2026-06-24)",
+          "type": "query"
+        },
+        {
+          "slug": "sqlite-vs-postgres",
+          "title": "SQLite vs PostgreSQL (위키 백엔드)",
+          "type": "comparison"
+        },
+        {
+          "slug": "ssg-vs-spa",
+          "title": "SSG vs SPA (위키 프론트엔드)",
+          "type": "comparison"
+        },
+        {
+          "slug": "tailscale-mesh",
+          "title": "Tailscale Mesh VPN",
+          "type": "concept"
+        }
+      ]
+    },
+    {
+      "slug": "index",
+      "title": "index",
+      "type": "rule"
+    },
+    {
+      "slug": "log",
+      "title": "log",
+      "type": "rule"
+    },
+    {
+      "slug": "mcp",
+      "title": "mcp",
+      "type": "folder",
+      "children": [
+        {
+          "slug": "mcp/README",
+          "title": "README",
+          "type": "rule"
+        }
+      ]
+    },
+    {
+      "slug": "queries",
+      "title": "queries",
+      "type": "folder",
+      "children": [
+        {
+          "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0",
+          "title": "M3 delete test",
+          "type": "query"
+        },
+        {
+          "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02",
+          "title": "M3 delete test",
+          "type": "query"
+        }
+      ]
+    }
+  ]
+}

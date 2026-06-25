@@ -188,17 +188,17 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
     if mode == "admin":
         @mcp.tool(
             name="wiki_delete",
-            description="Delete a vault page (irreversible). Requires --admin.",
+            description="Archive a vault page to _archive/ and rebuild wiki.db. Requires --admin.",
         )
         def wiki_delete(slug: str) -> dict:
-            return {"ok": False, "message": "wiki_delete not yet implemented (M3)"}
+            return write_tools.wiki_delete(slug=slug, ctx=None)
 
         @mcp.tool(
             name="wiki_rename",
-            description="Rename a slug and rewrite all inbound wikilinks. Requires --admin.",
+            description="Rename a slug, rewrite every inbound wikilink, and rebuild wiki.db. Requires --admin.",
         )
         def wiki_rename(old_slug: str, new_slug: str) -> dict:
-            return {"ok": False, "message": "wiki_rename not yet implemented (M3)"}
+            return write_tools.wiki_rename(old_slug=old_slug, new_slug=new_slug, ctx=None)
 
 
 # ────────────────────────── main ───────────────────────────────────

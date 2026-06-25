@@ -1,0 +1,1246 @@
+{
+  "nodes": [
+    {
+      "slug": "RULES",
+      "title": "Cross-cutting Rules",
+      "type": "rule"
+    },
+    {
+      "slug": "SCHEMA",
+      "title": "Wiki Schema",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/ai-roadmap",
+      "title": "AI 활용 로드맵 (M3-M6)",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/architecture-5layer",
+      "title": "5-Layer 아키텍처",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/decisions-d1-d6",
+      "title": "결정사항 (Decisions D1-D6)",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/deployment",
+      "title": "Deployment — VPS + Tailscale",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/dr-runbook",
+      "title": "재해 복구 Runbook (DR)",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/m1-completion-report",
+      "title": "M1 완료 보고서",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/mvp-prd",
+      "title": "위키 시스템 MVP — Product Requirements Document",
+      "type": "prd"
+    },
+    {
+      "slug": "_meta/requirements",
+      "title": "시스템 요구사항 (Requirements)",
+      "type": "rule"
+    },
+    {
+      "slug": "_meta/wiki-persona",
+      "title": "사용자 페르소나",
+      "type": "persona"
+    },
+    {
+      "slug": "_meta/wiki-scenario",
+      "title": "MVP 사용자 시나리오",
+      "type": "scenario"
+    },
+    {
+      "slug": "_template",
+      "title": "새 프로젝트 시작 템플릿",
+      "type": "project"
+    },
+    {
+      "slug": "andrej-karpathy",
+      "title": "Andrej Karpathy",
+      "type": "person"
+    },
+    {
+      "slug": "beyond-karpathy-llm-wiki",
+      "title": "Beyond Karpathy's LLM-Wiki — Cognitive Governance",
+      "type": "concept"
+    },
+    {
+      "slug": "bm25-search",
+      "title": "BM25 검색 (Okapi BM25)",
+      "type": "concept"
+    },
+    {
+      "slug": "harumoa-overview",
+      "title": "Harumoa 프로젝트 — 첫 번째 샘플",
+      "type": "project"
+    },
+    {
+      "slug": "hermes-agent",
+      "title": "Hermes Agent",
+      "type": "tool"
+    },
+    {
+      "slug": "how-to-start-vault",
+      "title": "새 vault 시작하는 법 (사용자 가이드)",
+      "type": "journal"
+    },
+    {
+      "slug": "index",
+      "title": "index",
+      "type": "rule"
+    },
+    {
+      "slug": "jonadas-techio",
+      "title": "Jônadas Techio",
+      "type": "person"
+    },
+    {
+      "slug": "llm-wiki",
+      "title": "LLM Wiki (Karpathy 패턴)",
+      "type": "concept"
+    },
+    {
+      "slug": "log",
+      "title": "log",
+      "type": "rule"
+    },
+    {
+      "slug": "mcp-server",
+      "title": "MCP (Model Context Protocol) 서버",
+      "type": "concept"
+    },
+    {
+      "slug": "mcp-vs-rest-api",
+      "title": "MCP vs REST API",
+      "type": "comparison"
+    },
+    {
+      "slug": "mcp/README",
+      "title": "README",
+      "type": "rule"
+    },
+    {
+      "slug": "minimax-m3",
+      "title": "MiniMax-M3 (우리가 쓰는 모델)",
+      "type": "tool"
+    },
+    {
+      "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0",
+      "title": "M3 delete test",
+      "type": "query"
+    },
+    {
+      "slug": "queries/m3_delete_test_test_wiki_delete_archives_and_0_0f474a02",
+      "title": "M3 delete test",
+      "type": "query"
+    },
+    {
+      "slug": "rag-vs-llm-wiki",
+      "title": "RAG vs LLM Wiki",
+      "type": "comparison"
+    },
+    {
+      "slug": "react-spa-architecture",
+      "title": "React SPA 아키텍처",
+      "type": "concept"
+    },
+    {
+      "slug": "search-result-2026-06-24",
+      "title": "검색 결과: \"LLM Wiki 패턴이란?\" (2026-06-24)",
+      "type": "query"
+    },
+    {
+      "slug": "sqlite-vs-postgres",
+      "title": "SQLite vs PostgreSQL (위키 백엔드)",
+      "type": "comparison"
+    },
+    {
+      "slug": "ssg-vs-spa",
+      "title": "SSG vs SPA (위키 프론트엔드)",
+      "type": "comparison"
+    },
+    {
+      "slug": "tailscale-mesh",
+      "title": "Tailscale Mesh VPN",
+      "type": "concept"
+    }
+  ],
+  "edges": [
+    {
+      "source_slug": "RULES",
+      "target_slug": "link",
+      "intent": "missing"
+    },
+    {
+      "source_slug": "RULES",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "RULES",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "RULES",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "RULES",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "RULES",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "link",
+      "intent": "missing"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "target!",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "target?",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "docker-deploy",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "content/bm25-search",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "content/ssg-vs-spa",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "target_slug": "content/hermes-agent",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "content/ssg-vs-spa",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "_meta/requirements",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "_meta/decisions-d1-d6",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "_meta/deployment",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "_meta/dr-runbook",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "content/tailscale-mesh",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "target_slug": "content/react-spa-architecture",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "content/bm25-search",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/deployment",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/dr-runbook",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/requirements",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/ai-roadmap",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/deployment",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/deployment",
+      "target_slug": "_meta/dr-runbook",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/deployment",
+      "target_slug": "_meta/decisions-d1-d6",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/deployment",
+      "target_slug": "content/tailscale-mesh",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/deployment",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "target_slug": "_meta/deployment",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "target_slug": "_meta/decisions-d1-d6",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/m1-completion-report",
+      "target_slug": "link",
+      "intent": "missing"
+    },
+    {
+      "source_slug": "_meta/m1-completion-report",
+      "target_slug": "llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "_meta/wiki-persona",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "_meta/wiki-scenario",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "_meta/decisions-d1-d6",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "_meta/wiki-persona",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/wiki-scenario",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_meta/wiki-scenario",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "<project>/_overview",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "link",
+      "intent": "missing"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "content/react-spa-architecture",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "wikilink",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "projects/harumoa/_overview",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "projects/papers/quantum-2026/_overview",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "content/harumoa-overview",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "scripts/build_db",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "_template",
+      "target_slug": "scripts/lint",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "target_slug": "raw/articles/karpathy-llm-wiki-2026",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "scripts/build_db.py",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "_meta/ai-roadmap",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "content/sqlite-vs-postgres",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "bm25-search",
+      "target_slug": "scripts/build_db",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "harumoa/2026-06-26",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "scripts/build_db",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "scripts/lint",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "content/_template",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "scripts/build_db.py",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "scripts/lint.py",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "content/minimax-m3",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "hermes-agent",
+      "target_slug": "_meta/wiki-persona",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "wikilink",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "link",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/react-spa-architecture",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/tailscale-mesh",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/_template",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "content/harumoa-overview",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "scripts/build_db",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "target_slug": "scripts/lint",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "raw/articles/",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "content/andrej-karpathy",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "wikilinks",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "target_slug": "raw/articles/karpathy-llm-wiki-2026",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "content/tailscale-mesh",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "content/mcp-vs-rest-api",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-server",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-vs-rest-api",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-vs-rest-api",
+      "target_slug": "content/hermes-agent",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-vs-rest-api",
+      "target_slug": "content/ssg-vs-spa",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-vs-rest-api",
+      "target_slug": "content/tailscale-mesh",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp-vs-rest-api",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "scripts/build_db.py",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "scripts/lint.py",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "content/hermes-agent",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "target_slug": "_meta/wiki-persona",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "rag-vs-llm-wiki",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "rag-vs-llm-wiki",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "rag-vs-llm-wiki",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "rag-vs-llm-wiki",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "링크",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "content/ssg-vs-spa",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/hermes-agent",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/andrej-karpathy",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/jonadas-techio",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "raw/articles/karpathy-llm-wiki-2026",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "content/bm25-search",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "content/react-spa-architecture",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "target_slug": "scripts/build_db",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "ssg-vs-spa",
+      "target_slug": "content/react-spa-architecture",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "ssg-vs-spa",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "ssg-vs-spa",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "ssg-vs-spa",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "tailscale-mesh",
+      "target_slug": "content/mcp-server",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "tailscale-mesh",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "tailscale-mesh",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "content/beyond-karpathy-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "content/rag-vs-llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "RULES",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/mvp-prd",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/requirements",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/architecture-5layer",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/decisions-d1-d6",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/dr-runbook",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/deployment",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/ai-roadmap",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/wiki-persona",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "index",
+      "target_slug": "_meta/wiki-scenario",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "content/llm-wiki",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "SCHEMA",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "link",
+      "intent": "missing"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "!",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "?",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "log",
+      "target_slug": "_meta/system-design",
+      "intent": "auto"
+    },
+    {
+      "source_slug": "mcp/README",
+      "target_slug": "old_slug",
+      "intent": "auto"
+    }
+  ]
+}

@@ -21,7 +21,7 @@ from mcp.tools.read import (
     wiki_graph,
     wiki_log,
 )
-from mcp.tools.write import wiki_update, wiki_ingest
+from mcp.tools.write import wiki_update, wiki_ingest, wiki_delete, wiki_rename
 
 
 # ─────────────── permission model ───────────────
@@ -215,3 +215,134 @@ def test_admin_tools_blocked_in_write_mode(wiki_db: Path):
     # but allowed in admin
     check_permission("wiki_delete", ADMIN)
     check_permission("wiki_rename", ADMIN)
+
+
+# ─────────────── admin tools: real implementations (M3) ─────────────
+
+
+def test_wiki_update_accepts_top_level_slug(wiki_db: Path):
+    """M3 fix: top-level slugs (no '/') are now valid (e.g. SCHEMA, log)."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    # 'SCHEMA' is the README/index doc living at vault root
+    page = db.get_page("SCHEMA", vault=ctx.vault)
+    if page is None:
+        pytest.skip("SCHEMA page not present in this vault")
+    result = wiki_update(
+        slug="SCHEMA", content=page["content"], ctx=ctx
+    )
+    assert result["ok"] is True
+    assert "updated" in result["message"].lower()
+
+
+def test_wiki_update_accepts_dotmd_suffix(wiki_db: Path):
+    """M3: passing 'SCHEMA.md' (or any .md slug) should resolve to the same file."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    page = db.get_page("SCHEMA", vault=ctx.vault)
+    if page is None:
+        pytest.skip("SCHEMA page not present in this vault")
+    result = wiki_update(
+        slug="SCHEMA.md", content=page["content"], ctx=ctx
+    )
+    assert result["ok"] is True
+
+
+def test_wiki_delete_archives_and_rebuilds(wiki_db: Path, tmp_path: Path):
+    """wiki_delete moves the file to _archive/<slug>-<timestamp>.md."""
+    import frontmatter
+    import uuid
+    ctx = VaultContext(vault=wiki_db.parent, mode=ADMIN)
+
+    # Stage an isolated page under queries/ so we don't touch real content
+    target_dir = ctx.vault / "queries"
+    target_dir.mkdir(exist_ok=True)
+    unique = uuid.uuid4().hex[:8]
+    target = target_dir / f"m3_delete_test_{tmp_path.name}_{unique}.md"
+    # Defensive: remove any leftover from a prior crash.
+    if target.exists():
+        target.unlink()
+    target.write_text(
+        "---\ntitle: M3 delete test\ntype: query\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    slug = "queries/m3_delete_test_" + tmp_path.name + "_" + unique
+
+    result = wiki_delete(slug=slug, ctx=ctx)
+    assert result["ok"] is True
+    assert result["archived"] is not None
+    assert (ctx.vault / result["archived"]).exists()
+    assert not target.exists()
+
+    # wiki.db should no longer index it
+    page = db.get_page(slug, vault=ctx.vault)
+    assert page is None
+
+    # Restore from archive (best-effort) to keep tests idempotent
+    archive = ctx.vault / result["archived"]
+    archive.rename(target)
+    from mcp.tools import write as _write_mod
+    _write_mod._rebuild_db(ctx.vault)
+
+
+def test_wiki_rename_rewrites_wikilinks_and_aliases(wiki_db: Path, tmp_path: Path):
+    """wiki_rename moves the file, rewrites inbound [[link]]s, and aliases."""
+    import frontmatter
+    import uuid
+    ctx = VaultContext(vault=wiki_db.parent, mode=ADMIN)
+
+    queries_dir = ctx.vault / "queries"
+    queries_dir.mkdir(exist_ok=True)
+
+    # Use a UUID suffix so the test is fully idempotent — prior crashes or
+    # parallel runs can't cause "new_slug already exists" failures.
+    unique = uuid.uuid4().hex[:8]
+    old_slug = f"queries/m3_old_{tmp_path.name}_{unique}"
+    new_slug = f"queries/m3_new_{tmp_path.name}_{unique}"
+    old_path = ctx.vault / f"{old_slug}.md"
+    # Defensive cleanup: if a leftover from a prior crash exists, remove it.
+    for p in [
+        old_path,
+        ctx.vault / f"{new_slug}.md",
+        queries_dir / f"m3_ref_{tmp_path.name}_{unique}.md",
+    ]:
+        if p.exists():
+            p.unlink()
+
+    old_path.write_text(
+        "---\ntitle: M3 rename source\ntype: query\nslug: " + old_slug + "\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    referrer_path = queries_dir / f"m3_ref_{tmp_path.name}_{unique}.md"
+    referrer_path.write_text(
+        f"See [[{old_slug}]] and [[{old_slug}?]] for details.\n",
+        encoding="utf-8",
+    )
+    _write_mod_rebuild(ctx.vault)
+
+    # 2. Rename
+    result = wiki_rename(old_slug=old_slug, new_slug=new_slug, ctx=ctx)
+    assert result["ok"] is True
+    assert result["rewritten_files"] >= 1
+    assert not old_path.exists()
+    assert (ctx.vault / f"{new_slug}.md").exists()
+
+    # 3. Referrer's wikilinks were rewritten
+    ref_text = referrer_path.read_text(encoding="utf-8")
+    assert f"[[{old_slug}]]" not in ref_text
+    assert f"[[{new_slug}]]" in ref_text
+    assert f"[[{new_slug}?]]" in ref_text  # intent preserved
+
+    # 4. Aliases frontmatter added
+    new_post = frontmatter.loads((ctx.vault / f"{new_slug}.md").read_text(encoding="utf-8"))
+    assert old_slug in (new_post.metadata.get("aliases") or [])
+    assert new_post.metadata.get("slug") == new_slug
+
+    # Cleanup
+    referrer_path.unlink()
+    (ctx.vault / f"{new_slug}.md").unlink()
+    _write_mod_rebuild(ctx.vault)
+
+
+def _write_mod_rebuild(vault: Path) -> None:
+    """Helper: rebuild wiki.db so subsequent assertions see the new state."""
+    from mcp.tools import write as _write_mod
+    _write_mod._rebuild_db(vault)

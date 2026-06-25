@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #ffffff;
+  --fg: #0f172a;
+}
+.dark {
+  --bg: #0f172a;
+  --fg: #f1f5f9;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.prose { line-height: 1.7; }
+.wikilink {
+  color: #22d3ee;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.wikilink:hover {
+  color: #0891b2;
+}

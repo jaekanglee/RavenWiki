@@ -1,10 +1,13 @@
 ---
-title: Wiki Schema
 created: 2026-06-24
-updated: 2026-06-24
-type: rule
-tags: [system, schema, meta]
 sources: []
+tags:
+- system
+- schema
+- meta
+title: Wiki Schema
+type: rule
+updated: '2026-06-25'
 ---
 
 # Wiki Schema

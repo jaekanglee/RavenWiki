@@ -68,8 +68,8 @@ python -m mcp.server --transport http --host 127.0.0.1 --port 8765 --mode read
 
 ### Admin (requires `--mode admin`)
 
-- `wiki_delete(slug: str) -> dict` — *(M3 stub: returns `{ok: false, message: "not yet implemented"}`)*
-- `wiki_rename(old_slug: str, new_slug: str) -> dict` — *(M3 stub: returns `{ok: false, message: "not yet implemented"}`)*
+- `wiki_delete(slug: str) -> dict` — archives the page to `_archive/<slug>-<timestamp>.md` and rebuilds `wiki.db`. Reversible (revert via git, then rebuild).
+- `wiki_rename(old_slug: str, new_slug: str) -> dict` — moves the file, rewrites every inbound `[[old_slug]]` wikilink across the vault, and rebuilds `wiki.db`. Adds an `aliases:` entry to the renamed file's frontmatter so old links resolve.
 
 ## Resources (5, always read-only)
 

@@ -1,0 +1,112 @@
+{
+  "slug": "SCHEMA",
+  "title": "Wiki Schema",
+  "type": "rule",
+  "path": "SCHEMA.md",
+  "created": "2026-06-24",
+  "updated": "2026-06-25",
+  "content": "# Wiki Schema\n\n> 이 문서는 vault의 **규약 매니페스트**입니다.\n> LLM 에이전트(wiki-architect / wiki-curator / wiki-writer / wiki-dashboard)와 인간 사용자 모두 이 규약을 따릅니다.\n\n## Domain\n\n**자기구축 위키 시스템** — Obsidian 의존 없이 markdown + git + 자체 뷰어로 동작하는 개인/팀 지식 베이스. LLM Wiki(Karpathy) 패턴을 차용하되, Obsidian·Sync·유료 플러그인을 사용하지 않고 자체 도구로 대체.\n\n## Architecture: SoT 명확화\n\n| 역할 | 무엇 | 추적 | 비고 |\n|---|---|---|---|\n| **Source of Truth (SoT)** | **markdown 파일** | **git** | 인간이 작성, 진짜 진실 |\n| **Query Index** | **`wiki.db` (SQLite)** | **gitignore** | 빌드 산출물, 검색/조회용 |\n\n## Directory Structure (v2.4)\n\n```\nwiki/\n├── SCHEMA.md, RULES.md, log.md     # 운영 문서\n├── content/                        # ⭐ 모든 컨텐츠 (단일 디렉토리)\n│   └── *.md (type: frontmatter로 분류)\n├── raw/                            # 불변 1차 소스\n├── _meta/                          # vault 운영 문서 (frontmatter 면제 X, type: rule)\n├── _archive/                       # retired 페이지\n├── scripts/                        # W2에서 생성 (build_db.py, lint.py, backup_db.py)\n└── wiki.db                         # ⭐ SQLite Query Index (gitignore)\n```\n\n### `_meta/` 정책 (v2.4)\n\n- `_meta/*.md`는 vault 운영 문서 (PRD, DR runbook, deployment, ai-roadmap 등)\n- 일반적으로 **`type: rule`** 사용\n- **frontmatter는 권장이지만 면제 (없으면 default)**\n  - 검색/정렬/최근수정일에 활용하려면 frontmatter가 있는 게 편함\n  - lint는 면제 (운영 문서에서 missing frontmatter는 skip)\n- build_db가 frontmatter 없는 `_meta/` 페이지는 default 값으로 인덱싱\n\n### v1 → v2.4 변경\n\n- ❌ `concepts/`, `entities/`, `comparisons/`, `projects/` 분리\n- ✅ `content/` 1개 + `type:` frontmatter로 분류 (유연성)\n- ✅ `_meta/` 운영 문서 vs content 구분 (모두 type: rule 가능)\n\n## Frontmatter (필수 — content/ 안)\n\n```yaml\n---\ntitle: Page Title\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\ntype: concept | person | comparison | project | tool | rule | query | journal\ntags: [from taxonomy]\nsources: [raw/articles/source.md]\nconfidence: high | medium | low   # 선택\ncontested: true                     # 선택\nslug: explicit-slug                 # 선택 (v2.2: slug 전략)\naliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)\n---\n```\n\n## Type Taxonomy\n\n| type | 용도 | outbound ≥ 2 강제 | 예시 |\n|---|---|---|---|\n| `concept` | 개념/아이디어 | ✅ 강제 | llm-wiki, mcp-server |\n| `person` | 인물 | ✅ 강제 | andrej-karpathy |\n| `tool` | 도구/소프트웨어 | ✅ 강제 | hermes-agent |\n| `comparison` | 비교 분석 | ❌ 면제 | rag-vs-llm-wiki |\n| `project` | 프로젝트 | ❌ 면제 | harumoa-overview |\n| `rule` | 규칙/정책 | ❌ 면제 | (SCHEMA 자체) |\n| `query` | Q&A 결과 | ❌ 면제 | search-result |\n| `journal` | 일기/메모 | ❌ 면제 | daily-2026-06-24 |\n\n## Tag Taxonomy (v2.4: core + custom)\n\n### Core Tags (lint 대상 — SCHEMA에 명시)\n**새 태그 추가 시 SCHEMA에 먼저 등록**:\n- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`\n- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`\n- 도메인: `ai`, `wiki`, `karpathy`, `llm-wiki`, `tailscale`, `react`, `python`, `docker`\n- 상태: `draft`, `review`, `final`, `deprecated`, `orphan`\n\n**lint 동작**: core에 없으면 🔵 info (\"not in core taxonomy\")\n\n### Custom Tags (자유, lint 면제)\n`kotlin`, `android`, `jetpack-compose`, `kubernetes`, `react-19`, ...\n\n**lint 동작**: 자유 허용. tag cloud에 자동 등장.\n\n**승격 절차 (M5)**:\n- lint가 같은 tag가 10+ 페이지에서 사용 시 → \"core 승격 추천\" 알림\n- 사용자가 SCHEMA.md에 한 줄 추가 → 승격 완료\n\n## Conventions\n\n- **파일명**: lowercase, hyphens, no spaces (예: `wiki-architect.md`, `rag-vs-llm-wiki.md`)\n- **인코딩**: UTF-8\n- **줄바꿈**: LF\n- **위키링크**: `[[wikilinks]]` (slug = vault-relative path, 예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)\n- **wikilink intent (v2.3)**:\n  - `[[link]]` — auto (target 존재하면 ok, 없으면 info)\n  - `[[link]]!` — broken (CRITICAL)\n  - `[[link]]?` — missing placeholder (INFO)\n- **교차참조**: outbound ≥ 2 = concept/person/tool 만\n- **업데이트**: `updated` 갱신\n- **새 페이지**: `log.md`에 append\n- **근거 마커**: 3+ 소스 종합 시 `^[raw/articles/source.md]`\n\n## Governance (Cognitive Governance)\n\n> LLM의 자연스러운 중력은 합의/평균. governance는 저항.\n> 출처: [[content/beyond-karpathy-llm-wiki]]\n\n### 작성 규칙 (wiki-writer)\n\n- outbound `[[wikilinks]]` ≥ 2 (concept/person/tool 한정)\n- 모순 발견 시 `contested: true` + `contradictions: [slug]`\n- 단일 출처 = `confidence: medium` 또는 `low`\n- 개념 페이지는 \"왜 중요한가\" 섹션 강제\n- 책 뒷면 요약 ❌ (반박/한계/적대자 ≥ 1)\n\n### 분리/아카이브\n\n- 200줄 초과 → 분리 대상 (lint warning)\n- 90일 미갱신 + 새 출처 → stale\n- 365일 미갱신 → `_archive/` 후보\n\n### Lint 자동 탐지\n\n1. 🔴 frontmatter 누락/오류\n2. 🔴 broken_link (`[[target!]]` 명시 OR target 존재하면 안 됨)\n3. 🔵 missing_link (`[[target?]]` 명시 OR target 미존재)\n4. 🟡 orphan (>7일 + inbound 0) — **즉시 ❌, 7일 후 ✅**\n5. 🟡 200줄 초과\n6. 🔵 weak connection (concept/person/tool 중 outbound < 2)\n7. 🔵 tag not in core taxonomy\n8. 🔵 `contested: true` 페이지 목록\n9. 🔵 90일+ 미갱신 + 새 출처\n\n## 빌드 원칙\n\n- **markdown = git 추적 (SoT)**\n- **wiki.db = 빌드 산출물 (gitignore)**\n- **wiki.db.backup = 일 1회 cron (gitignore)**\n- **dashboard/MCP = wiki.db 직접 쿼리** (JSON export ❌)\n\n## Slug Rename 정책 (v2.3)\n\nslug 변경 시 (예: `docker-deploy` → `deployment/docker`) 기존 `[[docker-deploy]]` 링크가 모두 깨짐.\n\n**자동 리라이트 정책**:\n\n```yaml\n---\nslug: deployment/docker          # 새 slug\naliases: [docker-deploy, docker] # 옛 slug alias\n---\n```\n\n```sql\n-- DB lookup: slug 또는 alias로 페이지 찾기\nSELECT * FROM pages WHERE slug = ? OR ? IN (\n  SELECT value FROM json_each(aliases)\n);\n```\n\n## MCP 권한 모델 (v2.3)\n\n**기본 = read-only**, write는 명시적 opt-in.\n\n```bash\n# 기본 (read-only)\npython3 -m wiki_mcp.server\n# 사용 가능: search, get_page, lint, graph, log\n# 사용 불가: update, ingest\n\n# Write 활성화\npython3 -m wiki_mcp.server --write\n# 사용 가능: 모두\n\n# Admin (위험: delete, rename)\npython3 -m wiki_mcp.server --admin\n```\n\n## AI 활용 로드맵 (요약)\n\n| 단계 | 기능 | 시점 |\n|---|---|---|\n| M1 | 인덱싱 자동화 (curator) | M1 ✅ |\n| M2 | MCP server (외부 AI 접근, read-only 기본) | M2 |\n| M3 | Vector Search (`sqlite-vec` 1차) | M3 |\n| M3 | 관련 문서 추천 (co-citation) | M3 |\n| M4 | 문서 Q&A (RAG over vault) | M4 |\n| M5 | 자동 태깅 / 모순 강화 탐지 | M5 |\n| M6 | 작성 도우미 (초안) | M6 |\n| ❌ | AI 채팅 (실시간 대화) | OUT |\n\n## 관련\n\n- [[RULES]] — 운영 정책\n- [[content/llm-wiki]] — Karpathy 패턴\n- [[content/beyond-karpathy-llm-wiki]] — governance 동기\n- [[content/rag-vs-llm-wiki]] — RAG와 비교\n- (W5에서 `_meta/ai-roadmap.md` 생성 예정 — M3-M6 상세 로드맵)",
+  "tags": "meta,schema,system",
+  "backlinks": [
+    {
+      "source_slug": "RULES",
+      "source_title": "Cross-cutting Rules"
+    },
+    {
+      "source_slug": "SCHEMA",
+      "source_title": "Wiki Schema"
+    },
+    {
+      "source_slug": "_meta/ai-roadmap",
+      "source_title": "AI 활용 로드맵 (M3-M6)"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "source_title": "결정사항 (Decisions D1-D6)"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "source_title": "재해 복구 Runbook (DR)"
+    },
+    {
+      "source_slug": "_meta/mvp-prd",
+      "source_title": "위키 시스템 MVP — Product Requirements Document"
+    },
+    {
+      "source_slug": "_meta/requirements",
+      "source_title": "시스템 요구사항 (Requirements)"
+    },
+    {
+      "source_slug": "_meta/wiki-scenario",
+      "source_title": "MVP 사용자 시나리오"
+    },
+    {
+      "source_slug": "_template",
+      "source_title": "새 프로젝트 시작 템플릿"
+    },
+    {
+      "source_slug": "andrej-karpathy",
+      "source_title": "Andrej Karpathy"
+    },
+    {
+      "source_slug": "beyond-karpathy-llm-wiki",
+      "source_title": "Beyond Karpathy's LLM-Wiki — Cognitive Governance"
+    },
+    {
+      "source_slug": "bm25-search",
+      "source_title": "BM25 검색 (Okapi BM25)"
+    },
+    {
+      "source_slug": "harumoa-overview",
+      "source_title": "Harumoa 프로젝트 — 첫 번째 샘플"
+    },
+    {
+      "source_slug": "how-to-start-vault",
+      "source_title": "새 vault 시작하는 법 (사용자 가이드)"
+    },
+    {
+      "source_slug": "jonadas-techio",
+      "source_title": "Jônadas Techio"
+    },
+    {
+      "source_slug": "llm-wiki",
+      "source_title": "LLM Wiki (Karpathy 패턴)"
+    },
+    {
+      "source_slug": "mcp-server",
+      "source_title": "MCP (Model Context Protocol) 서버"
+    },
+    {
+      "source_slug": "minimax-m3",
+      "source_title": "MiniMax-M3 (우리가 쓰는 모델)"
+    },
+    {
+      "source_slug": "rag-vs-llm-wiki",
+      "source_title": "RAG vs LLM Wiki"
+    },
+    {
+      "source_slug": "react-spa-architecture",
+      "source_title": "React SPA 아키텍처"
+    },
+    {
+      "source_slug": "search-result-2026-06-24",
+      "source_title": "검색 결과: \"LLM Wiki 패턴이란?\" (2026-06-24)"
+    },
+    {
+      "source_slug": "sqlite-vs-postgres",
+      "source_title": "SQLite vs PostgreSQL (위키 백엔드)"
+    },
+    {
+      "source_slug": "tailscale-mesh",
+      "source_title": "Tailscale Mesh VPN"
+    },
+    {
+      "source_slug": "index",
+      "source_title": "index"
+    },
+    {
+      "source_slug": "log",
+      "source_title": "log"
+    }
+  ]
+}

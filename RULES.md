@@ -1,10 +1,13 @@
 ---
-title: Cross-cutting Rules
 created: 2026-06-24
-updated: 2026-06-24
-type: rule
-tags: [system, rule, meta]
 sources: []
+tags:
+- system
+- rule
+- meta
+title: Cross-cutting Rules
+type: rule
+updated: '2026-06-25'
 ---
 
 # RULES.md — Cross-cutting Rules

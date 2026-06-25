@@ -1,0 +1,28 @@
+{
+  "slug": "_meta/deployment",
+  "title": "Deployment — VPS + Tailscale",
+  "type": "rule",
+  "path": "_meta/deployment.md",
+  "created": "2026-06-25",
+  "updated": "2026-06-25",
+  "content": "# Deployment — VPS + Tailscale\n\n> **한 줄 요약**: Hetzner CAX11 + Ubuntu 24.04 + Docker Compose + Caddy + Tailscale — git push 한 번으로 배포 끝\n\n---\n\n## VPS 사양\n\n- **OS**: Ubuntu 24.04 LTS\n- **사양**: 2 vCPU / 4GB RAM / 40GB SSD (ARM)\n- **위치**: 일본 (Hetzner EU만 가능 → Vultr Tokyo 또는 Sakura Cloud 검토)\n- **월 비용**: ~$5 (Hetzner CAX11) ~ $10 (Vultr)\n\n> **D3 결정**: 일본 권장 (한국 사용자 ~50ms). 1차 Hetzner 검토했으나 일본 리전 없어 Vultr Tokyo 우선.\n\n---\n\n## 서비스 구성 (docker-compose.yml)\n\n```yaml\n# ~/wiki/docker-compose.yml\nversion: '3.8'\n\nservices:\n  dashboard:\n    build: ./dashboard\n    restart: always\n    ports:\n      - \"127.0.0.1:5173:5173\"  # Tailscale만 접근 가능\n\n  mcp:\n    build: ./mcp\n    restart: always\n    ports:\n      - \"127.0.0.1:8765:8765\"  # Tailscale만 접근 가능\n\n  caddy:\n    image: caddy:2\n    restart: always\n    volumes:\n      - ./Caddyfile:/etc/caddy/Caddyfile\n      - caddy_data:/data\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n    depends_on:\n      - dashboard\n      - mcp\n\nvolumes:\n  caddy_data:\n```\n\n> **핵심 보안**: `127.0.0.1` 바인딩 → VPS 외부에서는 접근 불가. Tailscale interface(100.x) 통해서만 접근.\n\n---\n\n## Caddyfile\n\n```\nwiki.jakelee.dev {           # 자체 도메인 사용 시\n    reverse_proxy dashboard:5173\n}\nmcp.jakelee.dev {            # MCP endpoint (Tailscale only)\n    reverse_proxy mcp:8765\n}\n```\n\n> **D6 결정**: 1차는 Tailscale MagicDNS (`wiki-vps.tailXXXX.ts.net`). 자체 도메인은 위 Caddyfile 그대로 사용 가능.\n\n---\n\n## Tailscale 설정\n\n```bash\n# VPS에 Tailscale 설치\ncurl -fsSL https://tailscale.com/install.sh | sh\nsudo tailscale up\n# MagicDNS 자동 활성화 → wiki-vps.tailXXXX.ts.net\n\n# ACL (Tailscale admin console):\n# group:self → 100.x.y.z:5173, 8765 허용\n```\n\n**클라이언트**: macOS/Windows/iOS/Android [Tailscale 앱](https://tailscale.com/download) 설치 → 동일 계정 로그인\n\n> **D5 결정**: Tailscale only (1차). Authentik 같은 추가 인증은 사용자 ≥ 3명일 때 도입.\n\n**자세한 mesh 구조**: [[content/tailscale-mesh]]\n\n---\n\n## GitHub Webhook 배포\n\n```bash\n# ~/wiki/scripts/deploy.sh\n#!/bin/bash\nset -e\ncd ~/wiki\n\necho \"[deploy] git pull\"\ngit pull origin main\n\necho \"[deploy] rebuild wiki.db\"\ncd scripts\nsource .venv/bin/activate\npython3 build_db.py\ncd ..\n\necho \"[deploy] restart services\"\ndocker compose restart\n\necho \"[deploy] healthcheck\"\nsleep 5\ncurl -sf http://localhost:5173/healthz || exit 1\necho \"[deploy] OK\"\n```\n\n```bash\n# webhook endpoint: ~/wiki-webhook.py\n# GitHub → POST /webhook → deploy.sh 실행\n# (M4에서 simple HTTP 서버 구현)\n```\n\n---\n\n## systemd 백업 (cron + timer)\n\n```ini\n# /etc/systemd/system/wiki-deploy.service\n[Service]\nType=oneshot\nExecStart=/home/jakelee/wiki/scripts/deploy.sh\nUser=jakelee\nWorkingDirectory=/home/jakelee/wiki\n```\n\n```ini\n# /etc/systemd/system/wiki-deploy.path\n[Path]\nPathExists=/tmp/wiki-deploy-trigger\n```\n\n> 단순 cron 대안: `0 * * * * /home/jakelee/wiki/scripts/deploy.sh` (시간당 1회 pull)\n\n---\n\n## 배포 순서 (M4 작업)\n\n1. **VPS 세팅** — Ubuntu 24.04 새로 설치 / ssh key 등록 / `sudo apt update && upgrade -y`\n2. **Tailscale 설치** — `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`\n3. **Docker 설치** — `curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker jakelee`\n4. **vault clone** — `git clone https://github.com/jakelee/wiki.git ~/wiki` → `cd scripts && python3 -m venv .venv && pip install -e .`\n5. **서비스 기동** — `cd ~/wiki && docker compose up -d` / Caddy 자동 TLS 발급 (자체 도메인 사용 시)\n6. **검증** — 폰에서 Tailscale 앱 켜고 `http://wiki-vps.tailXXXX.ts.net:5173` 접근 / `curl http://wiki-vps.tailXXXX.ts.net:8765/tools`\n\n---\n\n## 모니터링 (간단)\n\n```bash\n# health check endpoint (dashboard 또는 caddy에 추가)\nGET /healthz → 200 OK + wiki.db mtime\n\n# cron (5분마다 외부 watch)\n*/5 * * * * curl -sf http://wiki-vps/healthz || notify-telegram \"wiki down\"\n```\n\n**M6에서 Prometheus/Grafana 검토** (지금은 과함).\n\n---\n\n## 비용 (월)\n\n| 항목 | 비용 |\n|---|---|\n| VPS (Vultr Tokyo 2vCPU/4GB) | ~$10 |\n| Tailscale / GitHub / MagicDNS | $0 |\n| 자체 도메인 (선택) | $10/년 |\n| **합계** | **~$10/월** |\n\nvs Obsidian Sync ($8/월) + Sync Pro ($10/월) → 1년에 $60-120 절약.\n\n---\n\n## 관련\n\n- [[_meta/architecture-5layer]] (Layer 4) / [[_meta/dr-runbook]] (S1: VPS 손상) / [[_meta/decisions-d1-d6]] (D3/D5/D6)\n- [[content/tailscale-mesh]] / [[content/mcp-server]]",
+  "tags": "deployment,docker,meta,system,tailscale",
+  "backlinks": [
+    {
+      "source_slug": "_meta/architecture-5layer",
+      "source_title": "5-Layer 아키텍처"
+    },
+    {
+      "source_slug": "_meta/decisions-d1-d6",
+      "source_title": "결정사항 (Decisions D1-D6)"
+    },
+    {
+      "source_slug": "_meta/dr-runbook",
+      "source_title": "재해 복구 Runbook (DR)"
+    },
+    {
+      "source_slug": "index",
+      "source_title": "index"
+    }
+  ]
+}
