@@ -56,6 +56,12 @@ export function Layout() {
           <Link to="/search" className="text-sm whitespace-nowrap">
             🔍 Search
           </Link>
+          <Link to="/log" className="text-sm whitespace-nowrap">
+            📜 Log
+          </Link>
+          <Link to="/lint" className="text-sm whitespace-nowrap">
+            🔧 Lint
+          </Link>
         </header>
         <div className="flex-1 overflow-y-auto p-6">
           <Outlet context={{ vault, refresh: () => setRefreshKey((k) => k + 1) }} />

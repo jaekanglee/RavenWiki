@@ -18,6 +18,7 @@ from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_P
 from wikisys.core import db_module, lint_module, export_module, link_module
 from wikisys.core import slug_module, frontmatter_module, archive_module
 from wikisys.core import log_module
+from wikisys import migrate as migrate_module
 from wikisys.core.vault import Vault
 
 app = typer.Typer(
@@ -34,6 +35,7 @@ meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki 패턴.")
 lint_app = typer.Typer(help="lint 12개 (카파시 가이드) — broken/orphan/contradictions/stale 등.")
+migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
@@ -41,6 +43,7 @@ app.add_typer(meta_app, name="meta")
 app.add_typer(archive_app, name="archive")
 app.add_typer(log_app, name="log")
 app.add_typer(lint_app, name="lint")
+app.add_typer(migrate_app, name="migrate")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -835,6 +838,141 @@ _CHECK_ID_TO_NAME = {
     "#11": "index_completeness",
     "#12": "log_size",
 }
+
+
+# ────────────────────────── migrate (v0.5.2+) ──────────────────────────
+
+
+_CATEGORY_LABELS = {
+    "broken_to_missing": "broken wikilink → missing placeholder",
+    "orphan_cleanup": "orphan 페이지 archive",
+    "page_size_split": "200줄+ 페이지 분할 (수동)",
+    "tag_promotion": "custom tag → core 승격 (수동)",
+    "frontmatter_fill": "frontmatter created/updated 채움",
+}
+
+
+@migrate_app.command("plan")
+def migrate_plan(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="특정 카테고리만 (broken_to_missing, orphan_cleanup, ...)"),
+    apply: bool = typer.Option(False, "--apply", help="실제 적용 (기본 dry-run)"),
+    risk: Optional[str] = typer.Option(None, "--risk", help="적용 시 risk 단계만 (safe | review)"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """vault 마이그레이션 plan (lint 5 카테고리 분류).
+
+    기본 = dry-run (데이터 변경 ❌). --apply 명시 시에만 실제 적용.
+    """
+    v = _resolve_vault_or_die(vault)
+    cats = [category] if category else None
+    plan = migrate_module.make_plan(v, categories=cats)
+    if apply:
+        if not typer.confirm(f"정말 {len(plan.fixes)}개 fix를 적용할까요?", default=False):
+            typer.echo("❌ cancelled")
+            raise typer.Abort()
+        result = migrate_module.apply_plan(v, plan, risk_filter=risk)
+        # log에 기록
+        try:
+            log_module.append(
+                v, action="migrate",
+                subject=f"migration apply (applied={len(result['applied'])}, skipped={len(result['skipped'])})",
+                extra={"applied": str(len(result["applied"])), "skipped": str(len(result["skipped"]))},
+            )
+        except Exception:
+            pass
+        if json_out:
+            typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+            return
+        typer.echo(f"✅ applied: {len(result['applied'])}")
+        for a in result["applied"][:20]:
+            typer.echo(f"   [{a['category']:20s}] {a['slug']:40s} ({a['action']})")
+        if len(result["applied"]) > 20:
+            typer.echo(f"   ... +{len(result['applied']) - 20} more")
+        typer.echo(f"\n⚠️  skipped: {len(result['skipped'])}")
+        for s in result["skipped"][:10]:
+            typer.echo(f"   {s['slug']:40s} ({s['reason']})")
+        if result["errors"]:
+            typer.echo(f"\n❌ errors: {len(result['errors'])}", err=True)
+            for e in result["errors"]:
+                typer.echo(f"   {e['slug']}: {e['error']}", err=True)
+        return
+    # dry-run
+    summary = plan.summary()
+    if json_out:
+        typer.echo(json.dumps({
+            **summary,
+            "fixes": [
+                {"category": f.category, "slug": f.slug, "description": f.description, "risk": f.risk}
+                for f in plan.fixes
+            ],
+        }, indent=2, ensure_ascii=False))
+        return
+    typer.echo(f"📋 {summary['vault']} migration plan (DRY-RUN):")
+    typer.echo(f"   total fixes:    {summary['total_fixes']}")
+    typer.echo(f"   safe (auto):    {summary['by_risk']['safe']} ✅")
+    typer.echo(f"   review (확인):  {summary['by_risk']['review']} 🟡")
+    typer.echo(f"   manual (수동):  {summary['by_risk']['manual']} 🔵")
+    if summary["lint_summary"]:
+        typer.echo(f"\n   lint context: {summary['lint_summary']}")
+    typer.echo(f"\n📊 by category:")
+    for cat in migrate_module.CATEGORIES:
+        n = summary["by_category"].get(cat, 0)
+        if n == 0:
+            continue
+        typer.echo(f"   {cat:20s} {n:3d}  {_CATEGORY_LABELS.get(cat, '')}")
+    if plan.fixes:
+        typer.echo(f"\n🔍 fixes (first 20):")
+        for f in plan.fixes[:20]:
+            risk_icon = "✅" if f.risk == "safe" else "🟡" if f.risk == "review" else "🔵"
+            typer.echo(f"   {risk_icon} [{f.category:18s}] {f.slug:35s} {f.description[:60]}")
+        if len(plan.fixes) > 20:
+            typer.echo(f"   ... +{len(plan.fixes) - 20} more")
+    typer.echo(f"\n💡 적용:  wikisys migrate plan --vault {v.meta.name} --apply")
+    typer.echo(f"   안전만: wikisys migrate plan --vault {v.meta.name} --apply --risk safe")
+
+
+@migrate_app.command("apply")
+def migrate_apply(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    category: Optional[str] = typer.Option(None, "--category", "-c"),
+    risk: Optional[str] = typer.Option(None, "--risk", help="safe | review (default: safe만)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="확인 prompt skip"),
+) -> None:
+    """plan + apply 한 번에. --yes 없으면 confirm."""
+    v = _resolve_vault_or_die(vault)
+    cats = [category] if category else None
+    plan = migrate_module.make_plan(v, categories=cats)
+    risk_filter = risk or "safe"
+    if not yes:
+        if not typer.confirm(f"정말 {len(plan.fixes)}개 fix (risk={risk_filter}) 적용?", default=False):
+            typer.echo("❌ cancelled")
+            raise typer.Abort()
+    result = migrate_module.apply_plan(v, plan, risk_filter=risk_filter)
+    try:
+        log_module.append(
+            v, action="migrate",
+            subject=f"migration apply --risk {risk_filter} (applied={len(result['applied'])})",
+        )
+    except Exception:
+        pass
+    typer.echo(f"✅ applied: {len(result['applied'])}")
+    typer.echo(f"⚠️  skipped: {len(result['skipped'])}")
+    if result["errors"]:
+        typer.echo(f"❌ errors: {len(result['errors'])}", err=True)
+
+
+@migrate_app.command("categories")
+def migrate_categories(json_out: bool = typer.Option(False, "--json")) -> None:
+    """5개 카테고리 + 위험도 설명."""
+    if json_out:
+        typer.echo(json.dumps({c: _CATEGORY_LABELS[c] for c in migrate_module.CATEGORIES}, indent=2, ensure_ascii=False))
+        return
+    typer.echo("📋 migration categories (5):")
+    for cat in migrate_module.CATEGORIES:
+        typer.echo(f"   {cat:20s} — {_CATEGORY_LABELS[cat]}")
+    typer.echo(f"\n💡 dry-run:  wikisys migrate plan --vault <name>")
+    typer.echo(f"   apply:    wikisys migrate plan --vault <name> --apply")
 
 
 # ────────────────────────── entrypoint ──────────────────────────

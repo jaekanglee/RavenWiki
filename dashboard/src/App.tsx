@@ -4,6 +4,8 @@ import { HomePage } from "./routes/HomePage";
 import { PageView } from "./routes/PageView";
 import { SearchPage } from "./routes/SearchPage";
 import { GraphPage } from "./routes/GraphPage";
+import { LogPage } from "./routes/LogPage";
+import { LintPage } from "./routes/LintPage";
 
 export default function App() {
   return (
@@ -11,9 +13,11 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/page/:slug" element={<PageView />} />
+          <Route path="/page/*" element={<PageView />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/graph" element={<GraphPage />} />
+          <Route path="/log" element={<LogPage />} />
+          <Route path="/lint" element={<LintPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

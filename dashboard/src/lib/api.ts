@@ -81,3 +81,112 @@ export async function deletePage(vault: string, slug: string) {
   if (!r.ok) throw new Error(`delete failed: ${r.status}`);
   return r.json();
 }
+
+// ────────────────────────── log (v0.5.0+) ──────────────────────────
+
+export interface LogEntry {
+  date: string;
+  action: string;
+  subject: string;
+  details: string[];
+}
+
+export interface LogStatus {
+  vault: string;
+  log_path: string;
+  exists: boolean;
+  total_entries: number;
+  last_entry: LogEntry | null;
+  needs_rotate: boolean;
+  rotate_threshold: number;
+}
+
+export async function fetchLog(
+  vault: string,
+  opts: { tail?: number; action?: string } = {},
+): Promise<{ total: number; shown: number; entries: LogEntry[] }> {
+  const params = new URLSearchParams();
+  if (opts.tail !== undefined) params.set("tail", String(opts.tail));
+  if (opts.action) params.set("action", opts.action);
+  const qs = params.toString();
+  const r = await fetch(`/api/vaults/${vault}/log${qs ? "?" + qs : ""}`);
+  if (!r.ok) return { total: 0, shown: 0, entries: [] };
+  const d = await r.json();
+  return { total: d.total, shown: d.shown, entries: d.entries || [] };
+}
+
+export async function fetchLogStatus(vault: string): Promise<LogStatus | null> {
+  const r = await fetch(`/api/vaults/${vault}/log/status`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+export async function appendLog(
+  vault: string,
+  payload: { action: string; subject: string; files?: string[]; note?: string },
+) {
+  const r = await fetch(`/api/vaults/${vault}/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`log append failed: ${r.status}`);
+  return r.json();
+}
+
+export async function rotateLog(vault: string, opts: { year?: number; force?: boolean } = {}) {
+  const params = new URLSearchParams();
+  if (opts.year !== undefined) params.set("year", String(opts.year));
+  if (opts.force) params.set("force", "true");
+  const qs = params.toString();
+  const r = await fetch(`/api/vaults/${vault}/log/rotate${qs ? "?" + qs : ""}`, { method: "POST" });
+  if (!r.ok) throw new Error(`log rotate failed: ${r.status}`);
+  return r.json();
+}
+
+// ────────────────────────── lint (v0.5.1+) ──────────────────────────
+
+export type LintSeverity = "critical" | "warning" | "info";
+
+export interface LintIssue {
+  id: string; // "#1" - "#12"
+  severity: LintSeverity;
+  slug: string;
+  message: string;
+  target?: string;
+}
+
+export interface LintResult {
+  ok: boolean;
+  vault: string;
+  counts: Record<LintSeverity | "total", number>;
+  by_check: Record<string, number>;
+  issues: LintIssue[];
+}
+
+export interface LintSummary {
+  ok: boolean;
+  vault: string;
+  counts: Record<LintSeverity | "total", number>;
+  by_check: Record<string, number>;
+}
+
+export async function fetchLint(
+  vault: string,
+  opts: { check?: string; severity?: LintSeverity; write_log?: boolean } = {},
+): Promise<LintResult | null> {
+  const params = new URLSearchParams();
+  if (opts.check) params.set("check", opts.check);
+  if (opts.severity) params.set("severity", opts.severity);
+  if (opts.write_log) params.set("write_log", "true");
+  const qs = params.toString();
+  const r = await fetch(`/api/vaults/${vault}/lint${qs ? "?" + qs : ""}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+export async function fetchLintSummary(vault: string): Promise<LintSummary | null> {
+  const r = await fetch(`/api/vaults/${vault}/lint/summary`);
+  if (!r.ok) return null;
+  return r.json();
+}
