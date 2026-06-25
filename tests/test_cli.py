@@ -250,7 +250,9 @@ def test_cli_meta_sync_json_out(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert "SCHEMA.md" in data["copied"]
+    # v0.5.0+: copied는 vault-relative path (예: _meta/SCHEMA.md)
+    assert "_meta/SCHEMA.md" in data["copied"]
+    assert "_meta/RULES.md" in data["copied"]
 
 
 # ─── vault clone ────────────────────────────────────────────

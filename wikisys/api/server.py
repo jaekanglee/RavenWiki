@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from wikisys.core import registry, resolve_active_vault, link_module
 from wikisys.core import db_module, lint_module, export_module
 from wikisys.core import slug_module, frontmatter_module, archive_module
+from wikisys.core import log_module
 from wikisys.core.vault import Vault
 
 
@@ -76,6 +77,13 @@ class PageUpdate(BaseModel):
     title: Optional[str] = None
     type: Optional[str] = None
     tags: Optional[list[str]] = None
+
+
+class LogAppend(BaseModel):
+    action: str = Field(..., description="ingest|update|create|archive|delete|lint|build|migrate|chore")
+    subject: str
+    files: list[str] = []
+    note: Optional[str] = None
 
 
 # ────────────────────────── vault endpoints ──────────────────────────
@@ -445,6 +453,94 @@ def export(name: str, out_dir: Optional[str] = None):
     target = Path(out_dir) if out_dir else None
     result = export_module.export_static(v, out_dir=target)
     return {"ok": result.get("ok", False), "export": result}
+
+
+# ────────────────────────── log endpoints (v0.5.0+) ──────────────────────────
+
+
+@app.get("/api/vaults/{name}/log")
+def get_log(
+    name: str,
+    tail: Optional[int] = Query(None, description="최근 N개만"),
+    action: Optional[str] = Query(None, description="액션 필터"),
+):
+    """log.md 작업 이력 조회."""
+    v = _vault_or_404(name)
+    entries = log_module.list_entries(v, tail=tail, action=action)
+    total = log_module.count(v)
+    return {
+        "ok": True,
+        "vault": name,
+        "total": total,
+        "shown": len(entries),
+        "entries": entries,
+    }
+
+
+@app.get("/api/vaults/{name}/log/status")
+def get_log_status(name: str):
+    """log.md 상태 (entries 수, last entry, rotation 필요)."""
+    v = _vault_or_404(name)
+    path = log_module.log_path(v)
+    total = log_module.count(v)
+    entries = log_module.list_entries(v, tail=1)
+    last = entries[0] if entries else None
+    return {
+        "ok": True,
+        "vault": name,
+        "log_path": str(path),
+        "exists": path.exists(),
+        "total_entries": total,
+        "last_entry": last,
+        "needs_rotate": total >= 500,
+        "rotate_threshold": 500,
+    }
+
+
+@app.post("/api/vaults/{name}/log")
+def post_log(name: str, payload: LogAppend):
+    """log.md에 새 entry 추가 (수동)."""
+    v = _vault_or_404(name)
+    try:
+        entry = log_module.append(
+            v,
+            action=payload.action,
+            subject=payload.subject,
+            files=payload.files or None,
+            note=payload.note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "ok": True,
+        "vault": name,
+        "entry": {
+            "date": entry.date,
+            "action": entry.action,
+            "subject": entry.subject,
+            "details": entry.details,
+        },
+    }
+
+
+@app.post("/api/vaults/{name}/log/rotate")
+def post_log_rotate(name: str, year: Optional[int] = None, force: bool = False):
+    """log.md rotate (500 entries 초과 시)."""
+    v = _vault_or_404(name)
+    total = log_module.count(v)
+    if total < 500 and not force:
+        return {
+            "ok": False,
+            "error": f"{total} entries (500 미만) — 강제 rotate는 ?force=true",
+            "current": total,
+        }
+    target = log_module.rotate(v, year=year)
+    return {
+        "ok": True,
+        "vault": name,
+        "rotated_to": str(target),
+        "preserved_entries": total,
+    }
 
 
 # ────────────────────────── local helpers ──────────────────────────

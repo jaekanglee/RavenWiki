@@ -82,7 +82,7 @@ class Vault:
 
     @classmethod
     def _bootstrap(cls, path: Path) -> None:
-        """Create content/, _meta/, and copy template SCHEMA/RULES.
+        """Create content/, _meta/, and copy template SCHEMA/RULES/log/policy.
 
         Idempotent: existing files are NOT overwritten. To refresh templates,
         use `wikisys meta sync`.
@@ -94,6 +94,7 @@ class Vault:
         content_dir.mkdir(parents=True, exist_ok=True)
         meta_dir.mkdir(parents=True, exist_ok=True)
 
+        # _meta/ 안: SCHEMA, RULES
         for filename in ("SCHEMA.md", "RULES.md"):
             target = meta_dir / filename
             if target.exists():
@@ -107,8 +108,24 @@ class Vault:
                 # (vault still works, just no SCHEMA.md / RULES.md)
                 pass
 
-    def sync_meta(self) -> dict:
+        # vault 루트: log.md (카파시 가이드), wikisys-policy.md
+        for filename in ("log.md", "wikisys-policy.md"):
+            target = path / filename
+            if target.exists():
+                continue
+            try:
+                src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
+                pass
+
+    def sync_meta(self, with_log: bool = False) -> dict:
         """Re-copy SCHEMA.md / RULES.md from templates (overwrites).
+
+        Args:
+            with_log: if True, also copy log.md (template) and wikisys-policy.md
+                      to the vault root. Default False to honor 카파시 가이드
+                      ("don't modify existing data without explicit user action").
 
         Returns dict with counts of copied/skipped files.
         Use this after wikisys upgrade to refresh meta docs.
@@ -118,14 +135,32 @@ class Vault:
 
         self.meta_root.mkdir(parents=True, exist_ok=True)
         out = {"copied": [], "errors": []}
+        # _meta/ 안: SCHEMA, RULES (항상)
         for filename in ("SCHEMA.md", "RULES.md"):
             target = self.meta_root / filename
             try:
                 src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
                 target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                out["copied"].append(filename)
+                out["copied"].append(str(target.relative_to(self.root)))
             except Exception as e:
                 out["errors"].append({"file": filename, "error": str(e)})
+        # vault 루트: log.md + wikisys-policy.md (with_log=True 일 때만)
+        if with_log:
+            for filename in ("log.md", "wikisys-policy.md"):
+                target = self.root / filename
+                if target.exists():
+                    # 이미 있으면 덮어쓰지 않음 (사용자 데이터 보호)
+                    out["errors"].append({
+                        "file": filename,
+                        "error": f"exists at {target}, not overwritten (delete manually if you want refresh)",
+                    })
+                    continue
+                try:
+                    src = resources.files("wikisys.core").joinpath(f"templates/{filename}")
+                    target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                    out["copied"].append(str(target.relative_to(self.root)))
+                except Exception as e:
+                    out["errors"].append({"file": filename, "error": str(e)})
         return out
 
     @classmethod
@@ -225,6 +260,9 @@ class Vault:
     def ensure_dirs(self) -> None:
         self.content_root.mkdir(parents=True, exist_ok=True)
         self.meta_root.mkdir(parents=True, exist_ok=True)
+        # log.md 자동 보장 (없으면 템플릿에서)
+        from . import log as _log
+        _log.ensure_log(self)
 
 
 # Re-export datetime at module scope (used by clone)

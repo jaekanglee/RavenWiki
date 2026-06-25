@@ -17,6 +17,7 @@ import typer
 from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
 from wikisys.core import db_module, lint_module, export_module, link_module
 from wikisys.core import slug_module, frontmatter_module, archive_module
+from wikisys.core import log_module
 from wikisys.core.vault import Vault
 
 app = typer.Typer(
@@ -31,11 +32,13 @@ page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
+log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki 패턴.")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
 app.add_typer(meta_app, name="meta")
 app.add_typer(archive_app, name="archive")
+app.add_typer(log_app, name="log")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -374,25 +377,28 @@ def page_delete(
 def meta_sync(
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
+    with_log: bool = typer.Option(False, "--with-log", help="vault 루트에 log.md + wikisys-policy.md도 복사 (기존 파일 있으면 skip)"),
 ) -> None:
     """Re-copy SCHEMA.md / RULES.md from wikisys templates into _meta/.
 
-    Overwrites existing files. Use after wikisys upgrade to refresh meta docs.
+    --with-log: vault 루트에 log.md + wikisys-policy.md도 복사 (없을 때만).
+                기존 vault 보강용 (v0.5.0+, 카파시 가이드 도입 시).
     """
     v = _resolve_vault_or_die(vault)
-    result = v.sync_meta()
+    result = v.sync_meta(with_log=with_log)
     if json_out:
         typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if result["copied"]:
-        typer.echo(f"✅ synced: {', '.join(result['copied'])} → {v.root / '_meta'}")
+        typer.echo(f"✅ synced: {', '.join(result['copied'])}")
     if result["errors"]:
-        typer.echo(f"❌ errors:", err=True)
+        typer.echo(f"⚠️  errors / skipped:", err=True)
         for err in result["errors"]:
             typer.echo(f"   {err['file']}: {err['error']}", err=True)
-        raise typer.Exit(1)
-    if not result["copied"]:
+    if not result["copied"] and not result["errors"]:
         typer.echo("⚠️  no templates found (package install broken?)")
+    if with_log:
+        typer.echo("💡 log.md + wikisys-policy.md 보강 완료 (없던 vault에 한해)")
 
 
 # ────────────────────────── archive (vault _archive/ mgmt) ──────────────────────────
@@ -544,6 +550,141 @@ def export(
         typer.echo(f"❌ export failed: {result.get('reason', '?')}", err=True)
         typer.echo(result.get("stderr_tail", ""), err=True)
         raise typer.Exit(1)
+
+
+# ────────────────────────── log (log.md 작업 이력) ──────────────────────────
+
+
+def _format_log_entry(e: dict) -> str:
+    """Format one log entry for human display."""
+    header = f"  [{e['date']}] {e['action']:8s} | {e['subject']}"
+    if e.get("details"):
+        details_str = "; ".join(e["details"])
+        return f"{header}\n      {details_str}"
+    return header
+
+
+@log_app.command("list")
+def log_list(
+    tail: Optional[int] = typer.Option(None, "--tail", "-n", help="최근 N개만 표시"),
+    action: Optional[str] = typer.Option(None, "--action", "-a", help="액션 필터 (ingest/update/create/lint/build/...)"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """log.md의 작업 이력 조회."""
+    v = _resolve_vault_or_die(vault)
+    entries = log_module.list_entries(v, tail=tail, action=action)
+    total = log_module.count(v)
+    if json_out:
+        typer.echo(json.dumps({
+            "vault": v.meta.name,
+            "total": total,
+            "shown": len(entries),
+            "entries": entries,
+        }, indent=2, ensure_ascii=False))
+        return
+    typer.echo(f"📜 {v.meta.name} — {total} entries total, showing {len(entries)}")
+    if not entries:
+        typer.echo("   (empty — 첫 entry는 다음 작업 시 자동 생성)")
+        return
+    for e in entries:
+        typer.echo(_format_log_entry(e))
+
+
+@log_app.command("show")
+def log_show(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    limit: int = typer.Option(20, "--limit", "-n"),
+) -> None:
+    """log.md 원본 (raw) 표시 — grep-style 확인용."""
+    v = _resolve_vault_or_die(vault)
+    path = log_module.log_path(v)
+    if not path.exists():
+        typer.echo(f"❌ log.md 없음: {path}", err=True)
+        typer.echo(f"   자동 생성: `wikisys log append` 또는 `wikisys build`", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"📄 {path} (last {limit} lines):\n")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for line in lines[-limit:]:
+        typer.echo(line)
+
+
+@log_app.command("append")
+def log_append(
+    subject: str = typer.Argument(..., help="entry 제목"),
+    action: str = typer.Option("chore", "--action", "-a", help="ingest|update|create|archive|delete|lint|build|migrate|chore"),
+    files: str = typer.Option("", "--files", help="콤마로 구분된 변경 파일 리스트"),
+    note: str = typer.Option("", "--note", help="추가 메모"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """log.md에 수동 entry 추가 (자동 append 외 별도 기록용)."""
+    v = _resolve_vault_or_die(vault)
+    files_list = [f.strip() for f in files.split(",") if f.strip()] if files else None
+    try:
+        entry = log_module.append(
+            v,
+            action=action,
+            subject=subject,
+            files=files_list,
+            note=note or None,
+        )
+    except ValueError as e:
+        typer.echo(f"❌ {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✅ appended: {entry.header()}")
+
+
+@log_app.command("rotate")
+def log_rotate(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    year: Optional[int] = typer.Option(None, "--year", help="rotate 파일명 연도 (기본: 현재 연도)"),
+    force: bool = typer.Option(False, "--force", help="500 entries 미만이어도 강제 rotate"),
+) -> None:
+    """log.md를 log-YYYY.md로 rotate (500 entries 초과 시 자동)."""
+    v = _resolve_vault_or_die(vault)
+    total = log_module.count(v)
+    if total < 500 and not force:
+        typer.echo(f"⚠️  {total} entries (500 미만) — 강제 rotate는 --force")
+        raise typer.Exit(1)
+    target = log_module.rotate(v, year=year)
+    typer.echo(f"✅ rotated: log.md → {target.name} ({total} entries 보관)")
+
+
+@log_app.command("status")
+def log_status(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """log.md 상태 (entries 수, last entry, rotation 필요 여부)."""
+    v = _resolve_vault_or_die(vault)
+    path = log_module.log_path(v)
+    total = log_module.count(v)
+    entries = log_module.list_entries(v, tail=1)
+    last = entries[0] if entries else None
+    needs_rotate = total >= 500
+    info = {
+        "vault": v.meta.name,
+        "log_path": str(path),
+        "exists": path.exists(),
+        "total_entries": total,
+        "last_entry": last,
+        "needs_rotate": needs_rotate,
+        "rotate_threshold": 500,
+    }
+    if json_out:
+        typer.echo(json.dumps(info, indent=2, ensure_ascii=False))
+        return
+    typer.echo(f"📜 {v.meta.name} log status:")
+    typer.echo(f"   path:     {path}")
+    typer.echo(f"   exists:   {path.exists()}")
+    typer.echo(f"   entries:  {total} / 500")
+    if last:
+        typer.echo(f"   last:     [{last['date']}] {last['action']} | {last['subject']}")
+    if needs_rotate:
+        typer.echo(f"   ⚠️  rotation 권장: `wikisys log rotate`")
+
+
+# ────────────────────────── entrypoint ──────────────────────────
 
 
 def main() -> int:

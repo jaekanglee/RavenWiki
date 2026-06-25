@@ -31,13 +31,33 @@ def build_db(vault: Vault, db_path: Optional[Path] = None) -> dict:
     Args:
         vault: the active vault handle (root + meta).
         db_path: where to write the DB (default: <vault>/wiki.db).
+
+    Side effect: appends a `build` entry to log.md on success or failure.
     """
     db_path = Path(db_path) if db_path else vault.db_path
     repo_root = _repo_root()
     script = repo_root / "scripts" / "build_db.py" if repo_root else None
     if script and script.exists():
-        return _run_legacy_build(script, vault, db_path)
-    return _inline_build(vault, db_path)
+        result = _run_legacy_build(script, vault, db_path)
+    else:
+        result = _inline_build(vault, db_path)
+
+    # log.md에 build entry 자동 append (실패해도 계속)
+    try:
+        from . import log as _log
+        status = "ok" if result.get("ok") else "fail"
+        pages = result.get("pages") or "?"
+        _log.append(
+            vault,
+            action="build",
+            subject=f"wiki.db rebuild ({status}, {pages} pages)",
+            extra={"db": str(db_path), "returncode": str(result.get("returncode", "?"))},
+        )
+    except Exception:
+        # log append 실패는 무시 — build 자체엔 영향 ❌
+        pass
+
+    return result
 
 
 def connect(vault: Vault) -> sqlite3.Connection:

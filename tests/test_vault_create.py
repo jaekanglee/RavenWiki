@@ -98,7 +98,10 @@ def test_sync_meta_overwrites_existing(isolated_vaults_root, isolated_target):
     custom = (v.root / "_meta" / "RULES.md")
     custom.write_text("# Old content\n")
     result = v.sync_meta()
-    assert "RULES.md" in result["copied"]
+    # v0.5.0+: copied는 vault-relative path
+    assert "_meta/RULES.md" in result["copied"]
+    # SCHEMA도 같이 복사됨 (overwrite)
+    assert "_meta/SCHEMA.md" in result["copied"]
     assert "Old content" not in custom.read_text()
     assert "Vault Editing Rules" in custom.read_text()
 

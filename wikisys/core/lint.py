@@ -1,6 +1,13 @@
 """wikisys.core.lint — vault-aware lint runner.
 
 Wraps `scripts/lint.py`. Counts critical/warning/info issues per vault.
+
+v0.5.0 additions:
+    - log_size check (#12 of 12): log.md > 500 entries → info
+    - log existence check: log.md 없으면 info (카파시 가이드)
+
+v0.5.1+ planned: orphan, contradictions, confidence, stale, page size,
+                 tag audit, frontmatter completeness, index completeness.
 """
 from __future__ import annotations
 
@@ -12,6 +19,10 @@ from pathlib import Path
 from typing import Optional
 
 from .vault import Vault
+
+
+# Karpathy guide: rotate log when > 500 entries
+LOG_ROTATE_THRESHOLD = 500
 
 
 def run_lint(vault: Vault) -> dict:
@@ -39,17 +50,22 @@ def _run_legacy(script: Path, vault: Vault) -> dict:
     m = re.search(r"(\d+)\s*critical,\s*(\d+)\s*warning,\s*(\d+)\s*info,\s*(\d+)\s*total", text)
     if m:
         counts = {k: int(v) for k, v in zip(["critical", "warning", "info", "total"], m.groups())}
+    # Append our own log_size check (v0.5.0+ #12)
+    log_issues = check_log_size(vault)
+    counts["info"] += log_issues["info"]
+    counts["total"] += log_issues["info"]
     return {
         "ok": result.returncode == 0,
         "vault": vault.meta.name,
         "counts": counts,
         "returncode": result.returncode,
         "output_tail": text[-800:],
+        "log_issues": log_issues,
     }
 
 
 def _inline_scan(vault: Vault) -> dict:
-    """Tiny fallback: count broken wikilinks + missing frontmatter."""
+    """Tiny fallback: count broken wikilinks + missing frontmatter + log issues."""
     broken = 0
     no_front = 0
     pages = list(vault.content_root.rglob("*.md"))
@@ -62,14 +78,45 @@ def _inline_scan(vault: Vault) -> dict:
             if "/" in tgt:
                 if not (vault.root / f"{tgt}.md").exists():
                     broken += 1
+    log_issues = check_log_size(vault)
     return {
         "ok": True,
         "vault": vault.meta.name,
         "counts": {
             "critical": broken + no_front,
             "warning": 0,
-            "info": len(pages),
-            "total": broken + no_front + len(pages),
+            "info": len(pages) + log_issues["info"],
+            "total": broken + no_front + len(pages) + log_issues["info"],
         },
         "mode": "inline",
+        "log_issues": log_issues,
+    }
+
+
+# ────────────────────────── v0.5.0+ 추가 검사 ──────────────────────────
+
+
+def check_log_size(vault: Vault) -> dict:
+    """log.md size check (lint #12, 카파시 가이드).
+
+    Returns:
+        {"info": N, "exists": bool, "entries": M, "needs_rotate": bool}
+
+    Rules:
+        - log.md 없음 → info 0 (bootstrap이 알아서 만듦)
+        - entries >= 500 → info +1 (rotation 권장)
+        - entries < 500 → info 0
+    """
+    from . import log as _log
+    path = _log.log_path(vault)
+    if not path.exists():
+        return {"info": 0, "exists": False, "entries": 0, "needs_rotate": False}
+    entries = _log.count(vault)
+    needs_rotate = entries >= LOG_ROTATE_THRESHOLD
+    return {
+        "info": 1 if needs_rotate else 0,
+        "exists": True,
+        "entries": entries,
+        "needs_rotate": needs_rotate,
+        "threshold": LOG_ROTATE_THRESHOLD,
     }
