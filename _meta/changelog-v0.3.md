@@ -36,10 +36,23 @@ confidence: high
 - 기존 `wikisys vault list/use/info/register/remove` — 변경 없음
 - API 12 endpoints, Agent 어댑터 — **이번 릴리스 범위 외** (v0.3.1/3.2)
 
-## v0.3.1 (예정)
+## v0.3.1 (이번 릴리스)
 
-- API 12 endpoints 모두 R1 (slug) + R2 (FM) 흡수
-- import 변경 위주, LOC ~150
+### 변경
+- API 12 endpoints 중 write 5개에 R1 (slug 검증) + R2 (FM 단일화) 적용:
+  - `POST /api/vaults/create` — `bootstrap` 옵션 추가 (기본 true)
+  - `POST /api/vaults/{name}/pages` — slug validate + auto-prefix + fm 단일화
+  - `PUT /api/vaults/{name}/pages/{slug}` — slug validate + **`created` 보존** (이제 Agent/CLI와 동일 정책)
+  - `DELETE /api/vaults/{name}/pages/{slug}` — slug validate + archive mirror (nested 구조 보존)
+- `_safe_slug_or_400()` helper 추가 — invalid slug → HTTP 400 (이전엔 500 가능했음)
+
+### 호환성
+- 기존 API 클라이언트 (dashboard) — 시그니처 무변경, payload 그대로 호환
+- read endpoints (`GET /vaults`, `/pages`, `/search`, `/link-check`, `/build`, `/export`) — 무변경
+
+### 테스트
+- `tests/test_api.py`: 15 신규 케이스 (vault 3 + page CRUD 10 + read 회귀 2)
+- 합계 **81 passed** (slug 20 + frontmatter 22 + vault_create 8 + cli 16 + api 15)
 
 ## v0.3.2 (예정)
 

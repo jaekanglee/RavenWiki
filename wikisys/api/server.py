@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from wikisys.core import registry, resolve_active_vault, link_module
 from wikisys.core import db_module, lint_module, export_module
+from wikisys.core import slug_module, frontmatter_module
 from wikisys.core.vault import Vault
 
 
@@ -46,6 +47,17 @@ def _vault_or_404(name: str) -> Vault:
 
 def _err(e: Exception) -> dict:
     return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def _safe_slug_or_400(slug: str, v: Vault) -> Path:
+    """Validate slug and return absolute Path (without .md suffix).
+
+    Raises HTTPException(400) on bad slug.
+    """
+    try:
+        return slug_module.validate(slug, vault_root=v.root)
+    except slug_module.SlugError as e:
+        raise HTTPException(status_code=400, detail=f"invalid slug: {e}")
 
 
 # ────────────────────────── models ──────────────────────────
@@ -116,6 +128,7 @@ class VaultCreate(BaseModel):
     mode: str = Field("personal", description="personal | shared | agent")
     owner: str = Field("user", description="user or agent name")
     description: str = Field("", description="free text")
+    bootstrap: bool = Field(True, description="copy SCHEMA/RULES templates into _meta/")
 
 
 @app.post("/api/vaults/create")
@@ -137,6 +150,7 @@ def create_vault(payload: VaultCreate):
             mode=payload.mode,
             owner=payload.owner,
             description=payload.description,
+            bootstrap=payload.bootstrap,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"create failed: {e}")
@@ -149,6 +163,7 @@ def create_vault(payload: VaultCreate):
             "mode": v.meta.mode,
             "owner": v.meta.owner,
             "default": v.meta.name == registry()._data.get("default", ""),
+            "bootstrapped": payload.bootstrap,
         },
     }
 
@@ -200,62 +215,83 @@ def get_page(name: str, slug: str):
 
 @app.post("/api/vaults/{name}/pages")
 def create_page(name: str, payload: PageCreate):
+    """Create a new page.
+
+    Slug handling (v0.3+):
+        - Invalid slugs (.., ~, absolute, NUL, ':') rejected with HTTP 400.
+        - 'foo' (no '/') is auto-prefixed to 'content/foo' (matches CLI).
+    """
     v = _vault_or_404(name)
-    fp = v.root / f"{payload.slug}.md"
+    normalized = slug_module.normalize_prefix(payload.slug)
+    safe_path = _safe_slug_or_400(normalized, v)
+    fp = safe_path.with_suffix(".md")
     if fp.exists():
-        raise HTTPException(status_code=409, detail=f"page {payload.slug!r} already exists")
+        raise HTTPException(status_code=409, detail=f"page {normalized!r} already exists")
     fp.parent.mkdir(parents=True, exist_ok=True)
-    fm = [
-        "---",
-        f"title: {payload.title}",
-        f"type: {payload.type}",
-        f"tags: [{', '.join(payload.tags)}]",
-        f"created: {__import__('datetime').date.today().isoformat()}",
-        f"updated: {__import__('datetime').date.today().isoformat()}",
-        "---",
-        "",
-    ]
-    fp.write_text("\n".join(fm) + payload.content + "\n")
-    return {"ok": True, "vault": name, "slug": payload.slug}
+    today = __import__("datetime").date.today().isoformat()
+    meta = frontmatter_module.merge(
+        {},
+        {
+            "title": payload.title,
+            "type": payload.type,
+            "tags": payload.tags,
+            "created": today,
+            "updated": today,
+        },
+    )
+    body = f"# {payload.title}\n{payload.content}".rstrip() + "\n"
+    rendered = frontmatter_module.render(meta, body)
+    fp.write_text(rendered, encoding="utf-8")
+    return {"ok": True, "vault": name, "slug": normalized}
 
 
 @app.put("/api/vaults/{name}/pages/{slug:path}")
 def update_page(name: str, slug: str, payload: PageUpdate):
+    """Update an existing page.
+
+    Slug is validated (v0.3+). 'created' is preserved from existing frontmatter
+    (v0.3+ — matches Agent and CLI behavior).
+    """
     v = _vault_or_404(name)
-    fp = v.root / f"{slug}.md"
+    safe_path = _safe_slug_or_400(slug, v)
+    fp = safe_path.with_suffix(".md")
     if not fp.exists():
         raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
-    text = fp.read_text()
-    meta, _ = _split_fm(text)
+    existing_text = fp.read_text(encoding="utf-8")
+    existing_meta, _ = frontmatter_module.parse(existing_text)
+    today = __import__("datetime").date.today().isoformat()
+    updates = {"updated": today}
     if payload.title is not None:
-        meta["title"] = payload.title
+        updates["title"] = payload.title
     if payload.type is not None:
-        meta["type"] = payload.type
+        updates["type"] = payload.type
     if payload.tags is not None:
-        meta["tags"] = payload.tags
-    meta["updated"] = __import__("datetime").date.today().isoformat()
-    fm_block = ["---"]
-    for k, val in meta.items():
-        if isinstance(val, list):
-            fm_block.append(f"{k}: [{', '.join(val)}]")
-        else:
-            fm_block.append(f"{k}: {val}")
-    fm_block.append("---")
-    fp.write_text("\n".join(fm_block) + "\n\n" + payload.content + "\n")
-    return {"ok": True, "vault": name, "slug": slug}
+        updates["tags"] = payload.tags
+    meta = frontmatter_module.merge(existing_meta, updates, today=today)
+    body = payload.content.rstrip() + "\n"
+    rendered = frontmatter_module.render(meta, body)
+    fp.write_text(rendered, encoding="utf-8")
+    return {"ok": True, "vault": name, "slug": slug, "created": meta.get("created")}
 
 
 @app.delete("/api/vaults/{name}/pages/{slug:path}")
 def delete_page(name: str, slug: str):
+    """Archive page (moves to _archive/<original-path>-<timestamp>.md).
+
+    Slug validated (v0.3+). Archive path mirrors original (preserves nesting).
+    """
     v = _vault_or_404(name)
-    fp = v.root / f"{slug}.md"
+    safe_path = _safe_slug_or_400(slug, v)
+    fp = safe_path.with_suffix(".md")
     if not fp.exists():
         raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
-    archive = v.root / "_archive"
-    archive.mkdir(exist_ok=True)
     import datetime as _dt
     ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    dest = archive / f"{slug.replace('/', '_')}-{ts}.md"
+    archive_dir = v.root / "_archive"
+    archive_dir.mkdir(exist_ok=True)
+    rel = fp.relative_to(v.root)
+    dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
     fp.rename(dest)
     return {"ok": True, "vault": name, "slug": slug, "archived_to": str(dest)}
 
