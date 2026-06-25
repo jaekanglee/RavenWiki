@@ -19,6 +19,7 @@ export function Layout() {
   const [vault, setVault] = useState<string>(() => getActiveVault() || "default");
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -51,9 +52,56 @@ export function Layout() {
       .catch(() => setTree(null));
   }, [vault, refreshKey]);
 
+  // Track narrow viewport so the drawer state is only meaningful on mobile.
+  // Above 744px the drawer/backdrop/hamburger are inert and the sidebar
+  // returns to its in-flow 288px layout.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 744px)");
+    const onChange = () => {
+      const next = mql.matches;
+      setIsMobile(next);
+      if (!next) setMobileNavOpen(false);
+    };
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  // Close the drawer on route change so tapping a leaf link cleanly reveals
+  // the destination without leaving the drawer on top of the new view.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen]);
+
   return (
     <div className="flex h-screen" style={{ background: "var(--color-canvas)" }}>
-      <Sidebar vault={vault} tree={tree} onTreeChange={() => setRefreshKey((k) => k + 1)} />
+      <Sidebar
+        vault={vault}
+        tree={tree}
+        onTreeChange={() => setRefreshKey((k) => k + 1)}
+        open={isMobile && mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
+
+      {/* Drawer backdrop — only on mobile when the drawer is open. Tap to close. */}
+      {isMobile && mobileNavOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden
+        />
+      )}
 
       <main className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
         {/* Top nav — 80px white, 1px bottom hairline.
@@ -66,6 +114,20 @@ export function Layout() {
             background: "var(--color-canvas)",
           }}
         >
+          {/* Hamburger — mobile only (≤744px). 44×44 tap target, Apple HIG. */}
+          <button
+            type="button"
+            className="header-hamburger"
+            onClick={() => setMobileNavOpen((v) => !v)}
+            aria-label="메뉴 열기"
+            aria-expanded={isMobile && mobileNavOpen}
+            aria-controls="primary-sidebar"
+          >
+            <span aria-hidden style={{ fontSize: 22, lineHeight: 1 }}>
+              ☰
+            </span>
+          </button>
+
           {/* Wordmark */}
           <Link
             to="/"
