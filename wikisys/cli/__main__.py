@@ -16,7 +16,7 @@ import typer
 
 from wikisys.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PATH
 from wikisys.core import db_module, lint_module, export_module, link_module
-from wikisys.core import slug_module, frontmatter_module
+from wikisys.core import slug_module, frontmatter_module, archive_module
 from wikisys.core.vault import Vault
 
 app = typer.Typer(
@@ -30,10 +30,12 @@ vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
+archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
 app.add_typer(meta_app, name="meta")
+app.add_typer(archive_app, name="archive")
 
 
 # ────────────────────────── top-level ──────────────────────────
@@ -148,6 +150,58 @@ def vault_register(
     meta = VaultMeta(name=name, path=p, mode=mode, owner=owner)
     registry().add(meta)
     typer.echo(f"✅ registered: {name} → {p}")
+
+
+@vault_app.command("clone")
+def vault_clone(
+    src: str = typer.Argument(..., help="source vault name"),
+    name: str = typer.Argument(..., help="new vault name"),
+    path: str = typer.Argument(..., help="absolute path for new vault"),
+    mode: str = typer.Option(None, "--mode", help="override mode (default: copy from src)"),
+    owner: str = typer.Option(None, "--owner", help="override owner (default: copy from src)"),
+    no_meta: bool = typer.Option(False, "--no-meta", help="don't copy _meta/ from src"),
+) -> None:
+    """Clone an existing vault (content + _meta) to a new vault.
+
+    Skips _archive/ and wiki.db. Useful for templates, sandboxes, branches.
+    """
+    src_meta = registry().get(src)
+    if src_meta is None:
+        typer.echo(f"❌ source vault {src!r} not found", err=True)
+        raise typer.Exit(1)
+    if registry().get(name) is not None:
+        typer.echo(f"❌ name {name!r} already registered", err=True)
+        raise typer.Exit(1)
+    src_v = Vault.load(src_meta)
+    try:
+        new_v = Vault.clone(
+            src=src_v,
+            name=name,
+            path=Path(path).expanduser(),
+            mode=mode,
+            owner=owner,
+            copy_meta=not no_meta,
+        )
+    except (FileExistsError, ValueError) as e:
+        typer.echo(f"❌ clone failed: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✅ cloned: {src!r} → {name!r} at {new_v.root}")
+    if no_meta:
+        typer.echo("   (skipped _meta/ — run `wikisys meta sync` later to populate)")
+
+
+# alias for `vault import` (same as clone)
+@vault_app.command("import")
+def vault_import_alias(
+    src: str = typer.Argument(...),
+    name: str = typer.Argument(...),
+    path: str = typer.Argument(...),
+    mode: str = typer.Option(None, "--mode"),
+    owner: str = typer.Option(None, "--owner"),
+    no_meta: bool = typer.Option(False, "--no-meta"),
+) -> None:
+    """Alias for `vault clone` (same behavior)."""
+    vault_clone(src=src, name=name, path=path, mode=mode, owner=owner, no_meta=no_meta)
 
 
 @vault_app.command("remove")
@@ -339,6 +393,82 @@ def meta_sync(
         raise typer.Exit(1)
     if not result["copied"]:
         typer.echo("⚠️  no templates found (package install broken?)")
+
+
+# ────────────────────────── archive (vault _archive/ mgmt) ──────────────────────────
+
+
+def _format_archive_entry(e) -> str:
+    age = f"{e.age_days:.1f}d" if e.age_days is not None else "  ?  "
+    ts = e.timestamp.strftime("%Y-%m-%d %H:%M") if e.timestamp else "(no ts)     "
+    return f"  {age:>6s}  {ts}  {e.rel_path}  →  {e.original_slug}"
+
+
+@archive_app.command("list")
+def archive_list(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    older_than: int = typer.Option(0, "--older-than", help="only show entries older than N days (0 = all)"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """List all archived files in the active vault."""
+    v = _resolve_vault_or_die(vault)
+    entries = archive_module.list_archived(v)
+    if older_than > 0:
+        entries = [e for e in entries if e.age_days is not None and e.age_days > older_than]
+    if json_out:
+        typer.echo(json.dumps([e.to_dict() for e in entries], indent=2, ensure_ascii=False))
+        return
+    if not entries:
+        typer.echo(f"📭 {v.meta.name}: no archived files" + (f" older than {older_than}d" if older_than else ""))
+        return
+    typer.echo(f"📦 {v.meta.name} — {len(entries)} archived files:")
+    for e in entries:
+        typer.echo(_format_archive_entry(e))
+
+
+@archive_app.command("clean")
+def archive_clean(
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    older_than: int = typer.Option(30, "--older-than", help="delete entries older than N days (0 = all)"),
+    apply: bool = typer.Option(False, "--apply", help="actually delete (default: dry-run)"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """Delete old archived files. Dry-run by default — use --apply to actually delete."""
+    v = _resolve_vault_or_die(vault)
+    result = archive_module.clean_archived(v, older_than_days=older_than, apply=apply)
+    if json_out:
+        typer.echo(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+        return
+    target_label = "deleted" if apply else "would delete"
+    target_list = result.deleted if apply else result.would_delete
+    if not target_list:
+        typer.echo(f"📭 {v.meta.name}: nothing to clean (older-than={older_than}d)")
+        return
+    if not apply:
+        typer.echo(f"🔍 DRY-RUN: {len(target_list)} files would be deleted (use --apply to proceed):")
+    else:
+        typer.echo(f"✅ cleaned {len(target_list)} files:")
+    for e in target_list:
+        typer.echo(_format_archive_entry(e))
+    if result.errors:
+        typer.echo(f"❌ {len(result.errors)} errors:", err=True)
+        for err in result.errors:
+            typer.echo(f"   {err['path']}: {err['error']}", err=True)
+
+
+@archive_app.command("restore")
+def archive_restore(
+    archive_path: str = typer.Argument(..., help="vault-relative archive path, e.g. _archive/content/foo-20260625-123456.md"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """Restore an archived file back to its original slug location."""
+    v = _resolve_vault_or_die(vault)
+    result = archive_module.restore_archived(v, archive_path)
+    if result.ok:
+        typer.echo(f"✅ restored: {archive_path} → {result.restored_to}")
+    else:
+        typer.echo(f"❌ {result.error}", err=True)
+        raise typer.Exit(1)
 
 
 # ────────────────────────── link ──────────────────────────

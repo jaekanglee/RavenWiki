@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from wikisys.core import registry, resolve_active_vault, link_module
 from wikisys.core import db_module, lint_module, export_module
-from wikisys.core import slug_module, frontmatter_module
+from wikisys.core import slug_module, frontmatter_module, archive_module
 from wikisys.core.vault import Vault
 
 
@@ -294,6 +294,98 @@ def delete_page(name: str, slug: str):
     dest.parent.mkdir(parents=True, exist_ok=True)
     fp.rename(dest)
     return {"ok": True, "vault": name, "slug": slug, "archived_to": str(dest)}
+
+
+class VaultClone(BaseModel):
+    src: str = Field(..., description="source vault name")
+    name: str = Field(..., description="new vault name")
+    path: str = Field(..., description="absolute path for new vault directory")
+    mode: Optional[str] = Field(None, description="override mode (default: copy from src)")
+    owner: Optional[str] = Field(None, description="override owner (default: copy from src)")
+    copy_meta: bool = Field(True, description="copy _meta/ from src")
+
+
+@app.post("/api/vaults/clone")
+def clone_vault(payload: VaultClone):
+    """Clone an existing vault (content + _meta) to a new vault.
+
+    Skips _archive/ and wiki.db. The new vault is registered automatically.
+    """
+    src_meta = registry().get(payload.src)
+    if src_meta is None:
+        raise HTTPException(status_code=404, detail=f"source vault {payload.src!r} not found")
+    if registry().get(payload.name) is not None:
+        raise HTTPException(status_code=409, detail=f"name {payload.name!r} already registered")
+    src_v = Vault.load(src_meta)
+    try:
+        new_v = Vault.clone(
+            src=src_v,
+            name=payload.name,
+            path=Path(payload.path).expanduser(),
+            mode=payload.mode,
+            owner=payload.owner,
+            copy_meta=payload.copy_meta,
+        )
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "ok": True,
+        "vault": {
+            "name": new_v.meta.name,
+            "path": str(new_v.root),
+            "mode": new_v.meta.mode,
+            "owner": new_v.meta.owner,
+            "src": payload.src,
+            "copy_meta": payload.copy_meta,
+        },
+    }
+
+
+# ────────────────────────── archive endpoints ──────────────────────────
+
+
+@app.get("/api/vaults/{name}/archive")
+def list_archive(name: str, older_than: int = Query(0, description="only show entries older than N days (0=all)")):
+    """List all archived files in the vault."""
+    v = _vault_or_404(name)
+    entries = archive_module.list_archived(v)
+    if older_than > 0:
+        entries = [e for e in entries if e.age_days is not None and e.age_days > older_than]
+    return {
+        "ok": True,
+        "vault": name,
+        "count": len(entries),
+        "entries": [e.to_dict() for e in entries],
+    }
+
+
+@app.post("/api/vaults/{name}/archive/clean")
+def clean_archive(
+    name: str,
+    older_than: int = Query(30, description="delete entries older than N days (0=all)"),
+    apply: bool = Query(False, description="actually delete (default: dry-run)"),
+):
+    """Delete old archived files. Dry-run by default."""
+    v = _vault_or_404(name)
+    result = archive_module.clean_archived(v, older_than_days=older_than, apply=apply)
+    return result.to_dict() | {"vault": name}
+
+
+@app.post("/api/vaults/{name}/archive/restore")
+def restore_archive(name: str, archive_path: str = Query(..., description="vault-relative path, e.g. _archive/content/foo-20260625-123456.md")):
+    """Restore an archived file to its original slug location."""
+    v = _vault_or_404(name)
+    result = archive_module.restore_archived(v, archive_path)
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {
+        "ok": True,
+        "vault": name,
+        "original_slug": result.original_slug,
+        "restored_to": result.restored_to,
+    }
 
 
 # ────────────────────────── query endpoints ──────────────────────────

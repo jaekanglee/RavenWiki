@@ -62,7 +62,10 @@ def test_api_vault_create_no_bootstrap(client, isolated_env):
         "name": "v2", "path": str(target), "bootstrap": False,
     })
     assert resp.status_code == 200
-    assert not (target / "_meta").exists()
+    # v0.4: empty dirs exist, but templates not copied
+    assert (target / "content").is_dir()
+    assert (target / "_meta").is_dir()
+    assert not (target / "_meta" / "SCHEMA.md").exists()
 
 
 def test_api_vault_create_duplicate_name(client, isolated_env):
@@ -215,3 +218,76 @@ def test_api_vaults_list(client, isolated_env):
     assert resp.status_code == 200
     names = [v["name"] for v in resp.json()["vaults"]]
     assert "vl" in names
+
+
+# ─── vault clone endpoint ───────────────────────────────────
+
+
+def test_api_clone_vault_copies_content(client, isolated_env):
+    src = isolated_env["target_root"] / "csrc"
+    client.post("/api/vaults/create", json={"name": "csrc", "path": str(src), "bootstrap": False})
+    (src / "content").mkdir(parents=True, exist_ok=True)  # bootstrap=False didn't create it
+    (src / "content" / "hello.md").write_text("# Hi\n")
+    dst = isolated_env["target_root"] / "cdst"
+    resp = client.post("/api/vaults/clone", json={
+        "src": "csrc", "name": "cdst", "path": str(dst),
+    })
+    assert resp.status_code == 200, resp.text
+    assert (dst / "content" / "hello.md").is_file()
+
+
+def test_api_clone_vault_duplicate_name_rejected(client, isolated_env):
+    src = isolated_env["target_root"] / "csrc2"
+    dst = isolated_env["target_root"] / "cdst2"
+    client.post("/api/vaults/create", json={"name": "csrc2", "path": str(src), "bootstrap": False})
+    client.post("/api/vaults/create", json={"name": "cdst2", "path": str(dst), "bootstrap": False})
+    resp = client.post("/api/vaults/clone", json={"src": "csrc2", "name": "cdst2", "path": str(dst)})
+    assert resp.status_code == 409
+
+
+def test_api_clone_unknown_src_rejected(client, isolated_env):
+    dst = isolated_env["target_root"] / "cdst3"
+    resp = client.post("/api/vaults/clone", json={
+        "src": "nonexistent", "name": "cdst3", "path": str(dst),
+    })
+    assert resp.status_code == 404
+
+
+# ─── archive endpoints ──────────────────────────────────────
+
+
+def test_api_archive_list_empty(client, isolated_env):
+    target = isolated_env["target_root"] / "av1"
+    client.post("/api/vaults/create", json={"name": "av1", "path": str(target), "bootstrap": False})
+    resp = client.get("/api/vaults/av1/archive")
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 0
+
+
+def test_api_archive_clean_dry_run(client, isolated_env):
+    import datetime as _dt
+    target = isolated_env["target_root"] / "av2"
+    client.post("/api/vaults/create", json={"name": "av2", "path": str(target), "bootstrap": False})
+    ts = (_dt.datetime.now() - _dt.timedelta(days=100)).strftime("%Y%m%d-%H%M%S")
+    (target / "_archive" / "content").mkdir(parents=True)
+    (target / "_archive" / "content" / f"old-{ts}.md").write_text("# old\n")
+    resp = client.post("/api/vaults/av2/archive/clean?older_than=30&apply=false")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dry_run"] is True
+    assert data["would_delete_count"] == 1
+    # file still exists
+    assert (target / "_archive" / "content" / f"old-{ts}.md").exists()
+
+
+def test_api_archive_restore_basic(client, isolated_env):
+    import datetime as _dt
+    target = isolated_env["target_root"] / "av3"
+    client.post("/api/vaults/create", json={"name": "av3", "path": str(target), "bootstrap": False})
+    ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    (target / "_archive" / "content").mkdir(parents=True)
+    (target / "_archive" / "content" / f"foo-{ts}.md").write_text("# foo\n")
+    rel = f"_archive/content/foo-{ts}.md"
+    resp = client.post(f"/api/vaults/av3/archive/restore?archive_path={rel}")
+    assert resp.status_code == 200, resp.text
+    assert (target / "content" / "foo.md").is_file()

@@ -66,12 +66,19 @@ def test_bootstrap_does_not_overwrite_existing_user_rules(isolated_vaults_root, 
 # ─── bootstrap off (--no-bootstrap) ─────────────────────────
 
 
-def test_no_bootstrap_creates_only_vault_meta(isolated_vaults_root, isolated_target):
+def test_no_bootstrap_creates_empty_dirs_but_no_template_files(isolated_vaults_root, isolated_target):
+    """v0.4: --no-bootstrap now creates empty content/ + _meta/ (was: only .vault.json).
+
+    Rationale: users need a writable starting point. Templates are not copied,
+    but the directories exist so `wikisys page new content/foo` works immediately.
+    """
     v = Vault.create("existing1", isolated_target / "existing1", bootstrap=False)
     assert (v.root / ".vault.json").is_file()
-    # No content/ or _meta/ (user is registering existing folder)
-    assert not (v.root / "content").exists()
-    assert not (v.root / "_meta").exists()
+    assert (v.root / "content").is_dir()   # empty, exists
+    assert (v.root / "_meta").is_dir()     # empty, exists
+    # but templates NOT copied
+    assert not (v.root / "_meta" / "SCHEMA.md").exists()
+    assert not (v.root / "_meta" / "RULES.md").exists()
 
 
 def test_no_bootstrap_does_not_delete_existing(isolated_vaults_root, isolated_target):

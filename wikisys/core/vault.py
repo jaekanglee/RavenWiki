@@ -4,6 +4,7 @@ A vault is any folder on disk containing:
     .vault.json    — metadata (name, mode, owner, created, description)
     content/       — user markdown (Obsidian-style hierarchy)
     _meta/         — system markdown (SCHEMA, RULES, scripts)
+    _archive/      — archived pages (gitignored — see archive.py)
     wiki.db        — sqlite index (build artifact, gitignored)
 
 The CLI resolves the *active* vault via:
@@ -13,6 +14,7 @@ The CLI resolves the *active* vault via:
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 from dataclasses import dataclass
@@ -69,6 +71,11 @@ class Vault:
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
         if bootstrap:
             cls._bootstrap(path)
+        else:
+            # Even without bootstrap, content/ + _meta/ should exist as empty dirs
+            # so users have a writable starting point. (v0.4 fix — discovered via clone test)
+            (path / "content").mkdir(parents=True, exist_ok=True)
+            (path / "_meta").mkdir(parents=True, exist_ok=True)
         # register
         registry().add(meta)
         return cls(meta=meta, root=path)
@@ -121,6 +128,84 @@ class Vault:
                 out["errors"].append({"file": filename, "error": str(e)})
         return out
 
+    @classmethod
+    def clone(
+        cls,
+        src: "Vault",
+        name: str,
+        path: Path,
+        *,
+        mode: Optional[str] = None,
+        owner: Optional[str] = None,
+        description: str = "",
+        copy_meta: bool = True,
+    ) -> "Vault":
+        """Create a new vault by copying `src`'s content + meta to `path`.
+
+        Args:
+            src: source Vault instance.
+            name: new vault name (must not already be registered).
+            path: absolute path for new vault directory.
+            mode, owner, description: optional overrides (default: copy from src).
+            copy_meta: if True, copy _meta/ from src too. If False, leave _meta/ empty
+                       (caller can run `wikisys meta sync` afterwards).
+
+        Returns:
+            New Vault instance (already registered in the registry).
+
+        Copies:
+            content/  — all user markdown (1:1)
+            _meta/    — system docs (only if copy_meta=True)
+
+        Skips:
+            _archive/ — not transferred (it's transient)
+            wiki.db   — regenerated on first build
+
+        Raises:
+            FileExistsError: if name is already in registry, or path has files.
+            ValueError: if src.path equals path.
+        """
+        from .registry import registry as _registry
+
+        if name in [m.name for m in _registry().list()]:
+            raise FileExistsError(f"vault {name!r} already registered")
+        new_path = Path(path).expanduser().resolve()
+        if new_path == src.root.resolve():
+            raise ValueError(f"clone target cannot be same as src: {src.root}")
+        if new_path.exists() and any(new_path.iterdir()):
+            raise FileExistsError(f"target path not empty: {new_path}")
+        new_path.mkdir(parents=True, exist_ok=True)
+
+        import shutil
+        # content/ 1:1
+        src_content = src.root / "content"
+        if src_content.exists():
+            shutil.copytree(src_content, new_path / "content")
+        else:
+            (new_path / "content").mkdir(exist_ok=True)
+
+        # _meta/ optional copy
+        if copy_meta and (src.root / "_meta").exists():
+            shutil.copytree(src.root / "_meta", new_path / "_meta")
+        else:
+            (new_path / "_meta").mkdir(exist_ok=True)
+
+        # write .vault.json with overrides
+        meta = VaultMeta(
+            name=name,
+            path=new_path,
+            mode=mode if mode is not None else src.meta.mode,
+            owner=owner if owner is not None else src.meta.owner,
+            created=_dt.date.today().isoformat(),
+            description=description,
+        )
+        import json
+        (new_path / ".vault.json").write_text(
+            json.dumps(meta.to_json(), indent=2, ensure_ascii=False)
+        )
+        _registry().add(meta)
+        return cls(meta=meta, root=new_path)
+
     # ─── path helpers ──────────────────────────────
 
     @property
@@ -140,6 +225,10 @@ class Vault:
     def ensure_dirs(self) -> None:
         self.content_root.mkdir(parents=True, exist_ok=True)
         self.meta_root.mkdir(parents=True, exist_ok=True)
+
+
+# Re-export datetime at module scope (used by clone)
+_dt = __import__("datetime")
 
 
 def resolve_active_vault(name: Optional[str] = None) -> Vault:

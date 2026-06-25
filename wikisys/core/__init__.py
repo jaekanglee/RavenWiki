@@ -9,6 +9,7 @@ Split:
     link         — wikilink parse + audit
     slug         — vault-relative path validation (v0.3+)
     frontmatter  — unified FM parse/render/merge (v0.3+)
+    archive      — _archive/ cleanup + restore (v0.4+)
 """
 from .registry import VaultRegistry, registry, REGISTRY_PATH, VAULTS_ROOT
 from .vault import Vault, resolve_active_vault
@@ -18,6 +19,7 @@ from . import export as export_module
 from . import link as link_module
 from . import slug as slug_module
 from . import frontmatter as frontmatter_module
+from . import archive as archive_module
 
 __all__ = [
     "VaultRegistry",
@@ -32,4 +34,5 @@ __all__ = [
     "link_module",
     "slug_module",
     "frontmatter_module",
+    "archive_module",
 ]
