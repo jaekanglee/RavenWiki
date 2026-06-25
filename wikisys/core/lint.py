@@ -115,7 +115,16 @@ def _core_tags(vault: Vault) -> set[str]:
             if line.startswith("##") and not line.startswith("###"):
                 in_core = False
                 continue
-            m = re.match(r"^\s*[-*]\s*`?([a-z0-9-]+)`?", line)
+            # 형식 1: `- 시스템: \`tag1\`, \`tag2\`, ...` (한 줄에 여러 tag)
+            m = re.match(r"^\s*[-*]\s*[^*]+:\s*`?([a-z0-9-]+)`?", line)
+            if m:
+                tags.add(m.group(1).lower())
+                # 같은 줄에 더 있는 tag도 추출
+                for extra in re.findall(r"`([a-z0-9-]+)`", line):
+                    tags.add(extra.lower())
+                continue
+            # 형식 2: `- \`tag\`` (한 줄에 한 tag)
+            m = re.match(r"^\s*[-*]\s*`?([a-z0-9-]+)`?\s*$", line)
             if m:
                 tags.add(m.group(1).lower())
     return tags if tags else set(CORE_TAGS_FALLBACK)

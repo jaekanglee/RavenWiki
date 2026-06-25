@@ -93,6 +93,10 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 - 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`
 - 도메인: `ai`, `wiki`, `karpathy`, `llm-wiki`, `tailscale`, `react`, `python`, `docker`
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
+- **v0.5.3 승격** (Q3, 3+ 페이지 사용):
+  - `meta`
+  - `wikisys`
+  - `governance`
 
 **lint 동작**: core에 없으면 🔵 info ("not in core taxonomy")
 

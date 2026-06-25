@@ -74,11 +74,36 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 
 ```markdown
 [[content/foo]]           # 자동 (target 존재해야)
-[[content/foo]]!          # 의도적 broken (CRITICAL if target exists)
+[[content/foo]]!          # 의도적 broken (CRITICAL if target 존재)
 [[content/foo]]?          # placeholder (INFO if target missing)
 ```
 
 → `wikisys link check` 로 검증.
+
+## Tag Taxonomy (core + custom, v0.5.3+)
+
+### Core Tags (lint 대상 — SCHEMA에 명시)
+**새 태그 추가 시 SCHEMA에 먼저 등록**:
+- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`
+- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`
+- 도메인: `ai`, `wiki`, `karpathy`, `llm-wiki`, `tailscale`, `react`, `python`, `docker`
+- 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
+- **v0.5.3 승격** (Q3, 3+ 페이지 사용):
+  - `meta`
+  - `wikisys`
+  - `governance`
+
+**lint 동작**: core에 없으면 🟡 warning ("not in core taxonomy")
+
+### Custom Tags (자유, lint 면제)
+`kotlin`, `android`, `jetpack-compose`, `kubernetes`, `react-19`, ...
+
+**lint 동작**: 자유 허용. tag cloud에 자동 등장.
+
+## Tag 승격 절차 (M5)
+
+- lint가 같은 tag가 3+ 페이지에서 사용 시 → "core 승격 추천" 알림
+- 사용자가 SCHEMA.md에 한 줄 추가 → 승격 완료
 
 ## log.md 운영 규칙 (카파시 가이드)
 
@@ -124,7 +149,11 @@ aliases: [old-slug-1]     # 선택 (v2.3: rename 정책)
 | 11 | index 완전성 (filesystem vs DB) | 🟡 warning | build 후 |
 | 12 | log size > 500 entries | 🔵 info | rotate 권장 |
 
-→ v0.5.0: #1-3 + #12 자동화. 나머지 9개는 v0.5.1+.
+### 면제 규칙 (v0.5.2.1+)
+
+- **200줄 초과 면제**: `_meta/` 안 페이지 (rule/reference, 운영 문서)
+- **stale (90일+) 면제**: `type: rule` + `_meta/` 안
+- **orphan 면제**: `_meta/` 안 (운영 문서는 inbound 0이 정상)
 
 ## 다음 단계
 
