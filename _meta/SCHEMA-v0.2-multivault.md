@@ -1,7 +1,7 @@
 ---
 title: SCHEMA v0.2 — Multi-Vault 추가 사항
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-06-26
 type: rule
 tags: [system, meta, schema, raven]
 sources: [_meta/SCHEMA.md]
@@ -170,3 +170,24 @@ class AgentScope:
 | Vault 이름 규칙 | lowercase, kebab-case 권장 (영숫자 + `-`) |
 
 현재 버전: **v1**. v2 이상은 호환성 깨는 변경이 필요할 때만.
+
+---
+
+## Single-Vault vs Multi-Vault 분리 결정 (트리거 명시, 2026-06-26 합의)
+
+**현재 상태**: 단일 vault + 4 프로젝트 디렉토리 (`content/{harumoa,homeauto,resume,design-spec}/`). 7차원 비교 결과 A 유지.
+
+**vault 분리로 피벗하는 트리거** (다음 중 하나라도 해당 시 M3+ 검토):
+
+- vault 페이지 수 **1000+** 도달 (단일 vault FTS5 성능 저하 임계)
+- 사용자 2+ (팀/가족 단위 vault 운영 필요)
+- vault 외부 공유 빈번 (예: design-spec → 디자이너에게 vault 단위 zip/git export)
+- "이 노트는 어느 vault?" 결정 피로 누적 (사용자가 명시적으로 분리 요청)
+
+분리 시 D7-D9 인프라 (`mode/owner` + 중앙 `.registry.json`) 활용. 위 4개 프로젝트 디렉토리 = 4 vault의 1:1 매핑은 **아님** — 디렉토리는 vault의 후보이지 vault 자체가 아님.
+
+**명시적 비-트리거** (즉시 분할 안 함):
+
+- LLM 컨텍스트 노이즈 (FTS5 점수 정렬 + MCP vault 파라미터로 해결)
+- 백링크 단절 (단일 vault의 핵심 가치)
+- 운영 부담 4배 (현재 단일 사용자에선 과잉)
