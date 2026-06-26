@@ -87,9 +87,20 @@ export function SearchPage() {
                       {r.title}
                     </div>
                   </Link>
+                  {r.snippet && (
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "var(--color-muted)",
+                        marginBottom: 4,
+                        lineHeight: 1.4,
+                      }}
+                      dangerouslySetInnerHTML={{ __html: r.snippet }}
+                    />
+                  )}
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: 12,
                       color: "var(--color-muted)",
                       fontFamily: "ui-monospace, SFMono-Regular, monospace",
                     }}

@@ -246,10 +246,22 @@ export function SearchBar({
                 <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                   {r.title}
                 </div>
+                {r.snippet && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-muted)",
+                      marginTop: 4,
+                      lineHeight: 1.4,
+                    }}
+                    dangerouslySetInnerHTML={{ __html: r.snippet }}
+                  />
+                )}
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     color: "var(--color-muted)",
+                    fontFamily: "ui-monospace, SFMono-Regular, monospace",
                     marginTop: 2,
                   }}
                 >

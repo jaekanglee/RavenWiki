@@ -441,21 +441,53 @@ def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):
     v = _vault_or_404(name)
     # reuse agent's lightweight search via direct walk
     import re as _re
+    import html as _html
     terms = [t.lower() for t in _re.findall(r"\w+", q) if t]
     if not terms:
         return {"ok": True, "vault": name, "results": []}
+
+    def _make_snippet(body_text: str, terms: list[str], width: int = 200) -> str:
+        """First matching window of width chars centered on the first term hit,
+        with <mark> wrapping literal matches (XSS-safe: html-escaped first)."""
+        lower = body_text.lower()
+        for term in terms:
+            idx = lower.find(term)
+            if idx < 0:
+                continue
+            start = max(0, idx - width // 2)
+            end = min(len(body_text), idx + width // 2)
+            snippet = body_text[start:end].replace("\n", " ").strip()
+            # XSS escape first, then apply <mark> to literal term occurrences
+            snippet = _html.escape(snippet)
+            # Re-apply <mark> around case-insensitive matches (longest first
+            # so e.g. "machine" matches before "mach").
+            for t in sorted(set(terms), key=len, reverse=True):
+                pat = _re.compile(_re.escape(t), _re.IGNORECASE)
+                snippet = pat.sub(lambda m: f"<mark>{m.group(0)}</mark>", snippet)
+            if start > 0:
+                snippet = "…" + snippet
+            if end < len(body_text):
+                snippet = snippet + "…"
+            return snippet
+        # No match in body (only frontmatter maybe) → first 200 chars
+        snippet = _html.escape(body_text[:width].replace("\n", " ").strip())
+        return (snippet + "…") if len(body_text) > width else snippet
+
     scores = []
     for fp in v.content_root.rglob("*.md"):
-        text = fp.read_text(errors="replace").lower()
-        meta, body = _split_fm(fp.read_text(errors="replace"))
+        full_text = fp.read_text(errors="replace")
+        text = full_text.lower()
+        meta, body = _split_fm(full_text)
         slug = str(fp.relative_to(v.root))[:-3]
         score = sum(text.count(t) for t in terms)
         if score > 0:
+            snippet = _make_snippet(body, terms)
             scores.append((score, {
                 "slug": slug,
                 "title": meta.get("title", slug),
                 "type": meta.get("type", "?"),
                 "score": score,
+                "snippet": snippet,
             }))
     scores.sort(key=lambda x: x[0], reverse=True)
     return {"ok": True, "vault": name, "query": q, "results": [s for _, s in scores[:top_k]]}
