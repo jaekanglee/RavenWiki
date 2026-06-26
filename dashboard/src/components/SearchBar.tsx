@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 /**
  * SearchBar — pill-shaped (search-bar-pill token).
  * 9999px radius, 64px height, hairline + shadow border.
  * Single Rausch "search orb" button on the right.
+ *
+ * ARIA combobox with full keyboard navigation + touch selection.
  */
 export function SearchBar({
   vault,
@@ -16,8 +18,52 @@ export function SearchBar({
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [focused, setFocused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  const listboxId = `search-results-${vault}`;
+
+  // Reset activeIndex whenever query changes.
+  useEffect(() => {
+    setActiveIndex(null);
+  }, [q]);
+
+  // `open` = focused AND has results.
+  useEffect(() => {
+    setOpen(focused && results.length > 0);
+  }, [focused, results.length]);
+
+  // Outside pointerdown closes dropdown.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const root = rootRef.current;
+      if (root && !root.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  // Document-level Escape closes dropdown (in addition to the input handler).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setActiveIndex(null);
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Debounced fetch with AbortController.
   useEffect(() => {
     if (!q.trim()) {
       setResults([]);
@@ -33,8 +79,47 @@ export function SearchBar({
     return () => ctrl.abort();
   }, [q, vault]);
 
+  const selectResult = (slug: string) => {
+    if (onSelect) onSelect(slug);
+    else navigate(`/page/${slug}`);
+    setQ("");
+    setActiveIndex(null);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      if (results.length === 0) return;
+      e.preventDefault();
+      setActiveIndex((i) => (i === null ? 0 : (i + 1) % results.length));
+    } else if (e.key === "ArrowUp") {
+      if (results.length === 0) return;
+      e.preventDefault();
+      setActiveIndex((i) =>
+        i === null ? results.length - 1 : (i - 1 + results.length) % results.length
+      );
+    } else if (e.key === "Home") {
+      if (results.length === 0) return;
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      if (results.length === 0) return;
+      e.preventDefault();
+      setActiveIndex(results.length - 1);
+    } else if (e.key === "Enter") {
+      if (activeIndex !== null && results[activeIndex]) {
+        e.preventDefault();
+        selectResult(results[activeIndex].slug);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      setActiveIndex(null);
+    }
+  };
+
   return (
-    <div className="relative w-full">
+    <div ref={rootRef} className="relative w-full">
       <div
         className="search-bar-pill"
         style={{
@@ -54,11 +139,27 @@ export function SearchBar({
         }}
       >
         <input
+          ref={inputRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          onKeyDown={handleKeyDown}
           placeholder={`${vault}에서 검색…`}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={
+            activeIndex !== null
+              ? `search-opt-${vault}-${activeIndex}`
+              : undefined
+          }
+          inputMode="search"
+          enterKeyHint="search"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
           style={{
             flex: 1,
             minWidth: 0,
@@ -91,8 +192,10 @@ export function SearchBar({
         </button>
       </div>
 
-      {results.length > 0 && (
+      {open && (
         <ul
+          id={listboxId}
+          role="listbox"
           style={{
             position: "absolute",
             width: "100%",
@@ -108,35 +211,53 @@ export function SearchBar({
             listStyle: "none",
           }}
         >
-          {results.map((r) => (
-            <li
-              key={r.slug}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (onSelect) onSelect(r.slug);
-                else navigate(`/page/${r.slug}`);
-                setQ("");
-              }}
-              style={{
-                padding: "10px 12px",
-                cursor: "pointer",
-                fontSize: 14,
-                borderRadius: 8,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--color-surface-soft)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-              }}
-            >
-              <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{r.title}</div>
-              <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
-                {r.type} · score {r.score}
-              </div>
-            </li>
-          ))}
+          {results.map((r, i) => {
+            const isActive = activeIndex === i;
+            return (
+              <li
+                key={r.slug}
+                id={`search-opt-${vault}-${i}`}
+                role="option"
+                aria-selected={isActive}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  selectResult(r.slug);
+                }}
+                onClick={() => selectResult(r.slug)}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--color-surface-soft)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = isActive
+                    ? "var(--color-surface-soft)"
+                    : "transparent";
+                }}
+                style={{
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  borderRadius: 8,
+                  background: isActive
+                    ? "var(--color-surface-soft)"
+                    : "transparent",
+                }}
+              >
+                <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                  {r.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--color-muted)",
+                    marginTop: 2,
+                  }}
+                >
+                  {r.type} · score {r.score}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
