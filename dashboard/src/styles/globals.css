@@ -581,7 +581,7 @@ h3 {
   }
   .sidebar-offcanvas-open {
     transform: translateX(0);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-overlay);
   }
 
   /* Backdrop covers the rest of the screen while the drawer is open.
