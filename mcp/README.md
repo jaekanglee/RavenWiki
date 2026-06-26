@@ -120,6 +120,11 @@ from the `wiki_db` fixture.
 
 ## Notes on the `mcp` namespace
 
+> **Note**: There is no `mcp/server.py` — the CLI entry point is `mcp/cli.py`.
+> Earlier README drafts referenced a `server.py` module that was never written;
+> this section and the tree above are the canonical source of truth.
+> To run the server, use `python -m mcp.cli` (not `python -m mcp.server`).
+
 Our local package is named `mcp` (sibling of `wiki.db`). The real MCP SDK
 (`mcp[cli]` ≥ 1.x) also ships an `mcp` package and provides `mcp.server.fastmcp.FastMCP`.
 
