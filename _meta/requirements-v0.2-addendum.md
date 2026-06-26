@@ -57,7 +57,7 @@ confidence: high
 ### C6 세부
 - 사용자 명시: "개발소스를 들고있는 폴더 내부에 런타임데이터를 관리하겠다는게 아님"
 - vault는 `~/vaults/<name>/` 외부 위치
-- 코드베이스 = `~/Desktop/Dev/Project/Wiki/`
+- 코드베이스 = `~/Desktop/Dev/Project/Raven/`
 
 ### C7 세부
 - 에이전트 권한은 `AgentScope.vault_names` 화이트리스트

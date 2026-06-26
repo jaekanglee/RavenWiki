@@ -1,4 +1,4 @@
-# raven — Multi-Vault Wiki Engine
+# Raven — 옵시디언을 대체할 마크다운 기반 PKM 노트 프로덕트
 
 > **Obsidian-free, agent-aware, multi-vault.** markdown + git + 자체 뷰어 + Python 어댑터.
 > vault는 어디든 지정 가능, 사람과 에이전트가 동시에 사용.
@@ -7,7 +7,7 @@
 
 ## 무엇인가
 
-raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 시스템.
+raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 **마크다운 기반 PKM 노트 프로덕트**.
 
 | 계층 | 구현 | 위치 |
 |---|---|---|
@@ -45,7 +45,7 @@ raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한
 
 ```bash
 # 0. 환경
-cd ~/Desktop/Dev/Project/Wiki
+cd ~/Desktop/Dev/Project/Raven
 source scripts/.venv/bin/activate   # venv
 
 # 1. vault 확인
@@ -280,7 +280,7 @@ raven build && raven link check
 ## 파일 트리 (코드베이스)
 
 ```
-~/Desktop/Dev/Project/Wiki/           ← 이 저장소 (개발 코드)
+~/Desktop/Dev/Project/Raven/         ← 이 저장소 (개발 코드)
 ├── raven/                          ← 핵심 패키지
 │   ├── core/
 │   │   ├── registry.py              ← vault 발견 (.registry.json + env)

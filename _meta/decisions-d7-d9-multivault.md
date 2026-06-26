@@ -27,7 +27,7 @@ confidence: high
 
 ## D7 — vault 분리 (코드 ≠ 런타임)
 
-**문제**: M1까지 vault = `~/Desktop/Dev/Project/Wiki/{content,wiki.db,...}`. 코드베이스와 런타임 데이터 혼재.
+**문제**: M1까지 vault = `~/Desktop/Dev/Project/Raven/{content,wiki.db,...}`. 코드베이스와 런타임 데이터 혼재.
 
 **사용자 제약** (2026-06-25):
 > "개발소스를 들고있는 폴더 내부에 런타임 데이터를 관리하겠다는게 아님"
@@ -35,7 +35,7 @@ confidence: high
 **결정**: vault를 코드베이스 외부로 분리.
 
 ```
-~/Desktop/Dev/Project/Wiki/      ← 개발 코드 (raven/, dashboard/, scripts/)
+~/Desktop/Dev/Project/Raven/      ← 개발 코드 (raven/, dashboard/, scripts/)
 ~/vaults/                        ← vault 데이터 (런타임)
 ├── .registry.json
 └── default/
@@ -59,7 +59,7 @@ WIKI_VAULTS_DIR=~/Documents/vaults raven vault list
 - 단일 vault 유지: 사용자 비전 위배
 - 사용자 home 하위: 위치 자유성 ↓
 
-**부수 작업**: `~/Desktop/Dev/Project/Wiki/{content,wiki.db,...}` → `~/vaults/default/`로 데이터 이동 (1단계).
+**부수 작업**: `~/Desktop/Dev/Project/Raven/{content,wiki.db,...}` → `~/vaults/default/`로 데이터 이동 (1단계).
 
 ---
 

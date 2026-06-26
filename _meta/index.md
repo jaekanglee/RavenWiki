@@ -54,7 +54,7 @@ confidence: high
 
 > **중요**: vault 데이터는 `~/vaults/default/`에 있음. 코드베이스는 raven/dashboard/mcp/scripts 자산만.
 
-- 코드베이스: `~/Desktop/Dev/Project/Wiki/`
+- 코드베이스: `~/Desktop/Dev/Project/Raven/`
 - vault: `~/vaults/default/`
 - vault registry: `~/vaults/.registry.json`
 
