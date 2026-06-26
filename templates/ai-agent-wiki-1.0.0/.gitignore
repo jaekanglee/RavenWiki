@@ -1,0 +1,65 @@
+# OS metadata
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+ehthumbs_vista.db
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs / temp
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+config.local.*
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.db
+*.sqlite
+*.sqlite3
+wiki.db
+
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# OS-generated archives
+*.tar.gz.tmp
+
+# Raven local artifacts (not for distribution)
+.raven/
+raven.lock
