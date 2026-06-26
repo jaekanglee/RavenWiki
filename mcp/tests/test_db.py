@@ -25,7 +25,7 @@ def test_db_not_found(tmp_path: Path):
 
 
 def test_db_default_vault_is_wiki_root(wiki_db: Path):
-    """Default vault resolution should land on ~/Desktop/Dev/Project/Wiki."""
+    """Default vault resolution should land on ~/Desktop/Dev/Project/Raven."""
     conn = db.get_db()  # no arg → defaults to mcp/../
     row = conn.execute("SELECT COUNT(*) FROM pages").fetchone()
     assert row[0] > 0

@@ -99,9 +99,17 @@ from mcp.resources import register_resources
 
 
 def _resolve_vault(arg: Optional[Path]) -> Path:
-    """vault root: CLI flag → default (parent of mcp/)."""
+    """vault root: CLI flag → default (parent of mcp/).
+
+    The default resolves to the directory containing the `mcp/` package
+    (i.e. one `.parent` hop above `mcp/cli.py`). This is the vault root
+    and matches `db._default_vault()`. Note that helpers living one
+    level deeper (e.g. `tools/__init__.py`) need an extra `.parent` hop
+    to reach the same destination — see `tools.make_context`.
+    """
     if arg is not None:
         return Path(arg).resolve()
+    # parent.parent = .../mcp/cli.py → .../mcp/ → .../<vault-root>
     return Path(__file__).resolve().parent.parent
 
 
@@ -109,7 +117,7 @@ def _resolve_vault(arg: Optional[Path]) -> Path:
 
 
 def register_tools(mcp: Any, mode: str, vault: Path) -> None:
-    """Bind the 7 wiki tools onto a FastMCP instance, gated by `mode`.
+    """Bind the 9 wiki tools onto a FastMCP instance, gated by `mode`.
 
     Read tools are always registered; write/admin tools are conditional.
     Each closure delegates to `mcp.tools.{read,write}` so the actual

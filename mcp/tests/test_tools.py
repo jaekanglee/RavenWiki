@@ -1,4 +1,4 @@
-"""test_tools.py — exercise the 7 MCP tools + permission model."""
+"""test_tools.py — exercise the 9 MCP tools + permission model."""
 from __future__ import annotations
 
 from pathlib import Path

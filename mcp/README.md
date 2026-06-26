@@ -1,12 +1,12 @@
 # Wiki MCP Server
 
-Model Context Protocol server for the wiki vault. Exposes 7 tools + 5 resources
+Model Context Protocol server for the wiki vault. Exposes 9 tools + 5 resources
 backed by `wiki.db` (SQLite, SCHEMA v2.4).
 
 ## Install
 
 ```bash
-cd /Users/jaekanglee/Desktop/Dev/Project/Wiki
+cd /Users/jaekanglee/Desktop/Dev/Project/Raven
 source scripts/.venv/bin/activate
 pip install "mcp[cli]>=1.0"      # FastMCP SDK (transitively brings httpx, etc.)
 pip install python-frontmatter    # already in scripts/pyproject.toml
@@ -18,26 +18,26 @@ pip install python-frontmatter    # already in scripts/pyproject.toml
 
 ```bash
 # Default — read-only
-python -m mcp.server
+python -m mcp.cli
 
 # With write access (wiki_update / wiki_ingest)
-python -m mcp.server --mode write
+python -m mcp.cli --mode write
 
 # With admin access (+ wiki_delete / wiki_rename)
-python -m mcp.server --mode admin
+python -m mcp.cli --mode admin
 ```
 
 To run as a module from the vault root:
 
 ```bash
-cd /Users/jaekanglee/Desktop/Dev/Project/Wiki
-scripts/.venv/bin/python -m mcp.server --mode read
+cd /Users/jaekanglee/Desktop/Dev/Project/Raven
+scripts/.venv/bin/python -m mcp.cli --mode read
 ```
 
 ### HTTP (Tailscale remote)
 
 ```bash
-python -m mcp.server --transport http --host 127.0.0.1 --port 8765 --mode read
+python -m mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
 # Streamable-HTTP transport; bind to Tailscale IP for remote access.
 ```
 
@@ -51,7 +51,7 @@ python -m mcp.server --transport http --host 127.0.0.1 --port 8765 --mode read
 | `--vault` | parent of `mcp/` | vault root path |
 | `--mode` | `read` | `read` / `write` / `admin` |
 
-## Tools (7)
+## Tools (9)
 
 ### Read (always available)
 
@@ -95,13 +95,13 @@ also enforced inside each write tool via `VaultContext.require()`.
 ```
 mcp/
 ├── __init__.py
-├── server.py        # CLI entry, FastMCP bootstrap, transport, mode gating
+├── cli.py          # CLI entry, FastMCP bootstrap, transport, mode gating
 ├── resources.py     # 5 wiki:// resources
 ├── db.py            # read-only sqlite helpers (single connection per call)
 ├── tools/
 │   ├── __init__.py  # VaultContext, PermissionError_, check_permission
 │   ├── read.py      # 5 read tools (search / get_page / lint / graph / log)
-│   └── write.py     # 2 write tools (update / ingest)
+│   └── write.py     # 2 write tools (update / ingest) + 2 admin tools (delete / rename)
 └── tests/
     ├── conftest.py
     ├── test_db.py
@@ -111,7 +111,7 @@ mcp/
 ## Tests
 
 ```bash
-cd /Users/jaekanglee/Desktop/Dev/Project/Wiki
+cd /Users/jaekanglee/Desktop/Dev/Project/Raven
 scripts/.venv/bin/python -m pytest mcp/tests/ -v
 ```
 
@@ -123,7 +123,7 @@ from the `wiki_db` fixture.
 Our local package is named `mcp` (sibling of `wiki.db`). The real MCP SDK
 (`mcp[cli]` ≥ 1.x) also ships an `mcp` package and provides `mcp.server.fastmcp.FastMCP`.
 
-`mcp/server.py` handles the namespace collision by deferring the FastMCP
+`mcp/cli.py` handles the namespace collision by deferring the FastMCP
 import to runtime and temporarily un-registering our local `mcp.*` from
 `sys.modules` so the SDK can be loaded. The local package is restored
 afterwards so tool body imports (`from mcp.tools import …`) still resolve.

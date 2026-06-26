@@ -62,7 +62,16 @@ class VaultContext:
 def make_context(
     vault: Optional[Path | str] = None, mode: str = READ
 ) -> VaultContext:
-    """Build a VaultContext; default vault = mcp/..."""
+    """Build a VaultContext.
+
+    Default vault follows the same destination as `cli._resolve_vault`
+    and `db._default_vault` (one level above the `mcp/` package = vault
+    root). Note this file lives one level deeper than the other two
+    helpers (inside `mcp/tools/`), so the walk-up needs three `.parent`
+    calls instead of two — the destination is the same.
+    """
     if vault is None:
+        # parent.parent.parent = .../mcp/tools/__init__.py
+        #                     → .../mcp/tools/ → .../mcp/ → .../<vault-root>
         vault = Path(__file__).resolve().parent.parent.parent
     return VaultContext(vault=Path(vault), mode=mode)

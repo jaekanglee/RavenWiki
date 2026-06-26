@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent.parent  # .../Wiki
-MCP_DIR = Path(__file__).resolve().parent.parent      # .../Wiki/mcp
+ROOT = Path(__file__).resolve().parent.parent.parent  # .../Raven
+MCP_DIR = Path(__file__).resolve().parent.parent      # .../Raven/mcp
 SCRIPTS_DIR = ROOT / "scripts"
 
 for p in (str(ROOT), str(MCP_DIR), str(SCRIPTS_DIR)):
@@ -18,7 +18,7 @@ for p in (str(ROOT), str(MCP_DIR), str(SCRIPTS_DIR)):
 
 @pytest.fixture(scope="session")
 def vault_root() -> Path:
-    """Path to the live vault under test (= ~/Desktop/Dev/Project/Wiki)."""
+    """Path to the live vault under test (= ~/Desktop/Dev/Project/Raven)."""
     return ROOT
 
 
