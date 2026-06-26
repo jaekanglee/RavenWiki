@@ -1,3 +1,6 @@
+// DEPRECATED 2026-06-26 — SearchPage가 API로 이전. minisearch fallback용으로 보존.
+// 새 코드에서는 직접 /api/vaults/{vault}/search 를 호출할 것 (SearchBar.tsx 패턴).
+// @deprecated API search로 마이그레이션. 이 파일은 향후 삭제 예정.
 import MiniSearch from "minisearch";
 
 let _index: MiniSearch | null = null;

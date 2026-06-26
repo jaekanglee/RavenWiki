@@ -1,23 +1,27 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { initSearch, search } from "../lib/search";
+import { Link, useOutletContext } from "react-router-dom";
 
 export function SearchPage() {
+  const { vault } = useOutletContext<{ vault: string }>();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
 
+  // Debounced fetch with AbortController (SearchBar와 동일 패턴).
+  // snippet 필드에 <mark> highlight 포함 — commit 7c98738 이후.
   useEffect(() => {
-    initSearch().catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    if (!q) return setResults([]);
-    try {
-      setResults(search(q));
-    } catch {
+    if (!q.trim()) {
       setResults([]);
+      return;
     }
-  }, [q]);
+    const ctrl = new AbortController();
+    fetch(`/api/vaults/${vault}/search?q=${encodeURIComponent(q)}&top_k=20`, {
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then((d) => setResults(d.results || []))
+      .catch(() => setResults([]));
+    return () => ctrl.abort();
+  }, [q, vault]);
 
   return (
     <div style={{ maxWidth: 880 }}>
