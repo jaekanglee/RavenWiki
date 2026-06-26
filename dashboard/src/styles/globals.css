@@ -35,9 +35,11 @@
   --color-on-primary: #ffffff;
 
   /* shadow tier — single elevation */
-  --shadow-card: rgba(0, 0, 0, 0.02) 0 0 0 1px,
-    rgba(0, 0, 0, 0.04) 0 2px 6px 0,
-    rgba(0, 0, 0, 0.1) 0 4px 8px 0;
+  /* Elevation — Carbon uses 3 tiers; background layering carries most
+     of the depth, box-shadow only on floating / overlay surfaces. */
+  --shadow-flat: none;
+  --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.08);    /* floating elements */
+  --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.16);  /* modals, dropdowns */
 
   /* rounded */
   --radius-sm: 4px;
@@ -47,6 +49,45 @@
 
   /* typography stack — DM Sans (Google Fonts) replaces Airbnb Cereal VF / Inter */
   --font-display: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Carbon-style role tokens (alias BMW tone values) ──
+     Architecture only — values remain BMW-tone; only the naming follows
+     Carbon's role-based token system (background/layer/text/border/button). */
+  --cds-background: var(--color-canvas);
+  --cds-layer-01: var(--color-surface-soft);
+  --cds-layer-02: var(--color-surface-strong);
+  --cds-layer-accent: var(--color-primary);
+
+  --cds-text-primary: var(--color-ink);
+  --cds-text-secondary: var(--color-muted);
+  --cds-text-on-layer: var(--color-ink);
+  --cds-text-placeholder: var(--color-muted-soft);
+
+  --cds-border-subtle: var(--color-hairline);
+  --cds-border-strong: var(--color-hairline-strong);
+  --cds-border-interactive: var(--color-primary);
+
+  --cds-link-primary: var(--color-primary);
+  --cds-link-hover: var(--color-primary-active);
+
+  --cds-button-primary: var(--color-primary);
+  --cds-button-primary-hover: var(--color-primary-active);
+  --cds-button-primary-active: #002d9c;            /* deeper pressed */
+  --cds-button-secondary: var(--color-ink);        /* dark ghost */
+  --cds-button-secondary-hover: #404040;
+  --cds-button-tertiary: transparent;
+  --cds-button-danger: var(--color-error-text);
+  --cds-button-danger-hover: #a02a10;
+
+  --cds-focus: var(--color-primary);
+
+  --cds-field-01: var(--color-canvas);
+  --cds-field-02: var(--color-surface-soft);
+
+  --cds-tag-blue-bg: #edf5ff;                      /* Blue 10 tint */
+  --cds-tag-blue-text: var(--color-primary);
+  --cds-tag-neutral-bg: var(--color-surface-soft);
+  --cds-tag-neutral-text: var(--color-ink);
 }
 
 html,
@@ -195,7 +236,7 @@ h3 {
 
 /* Rausch accent — primary CTA. Max 2–3 per viewport. */
 .btn-primary {
-  background: var(--color-primary);
+  background: var(--cds-button-primary);
   color: var(--color-on-primary);
   border-radius: var(--radius-sm);
   padding: 14px 24px;
@@ -211,8 +252,8 @@ h3 {
   justify-content: center;
   gap: 8px;
 }
-.btn-primary:hover { background: var(--color-primary-active); }
-.btn-primary:active { background: var(--color-primary-active); }
+.btn-primary:hover { background: var(--cds-button-primary-hover); }
+.btn-primary:active { background: var(--cds-button-primary-active); }
 .btn-primary:disabled {
   background: var(--color-primary-disabled);
   cursor: not-allowed;
@@ -220,7 +261,7 @@ h3 {
 
 /* Pill Rausch — for compact CTAs (NEW badge, become-a-host style) */
 .btn-pill-primary {
-  background: var(--color-primary);
+  background: var(--cds-button-primary);
   color: var(--color-on-primary);
   border-radius: var(--radius-full);
   padding: 10px 20px;
@@ -233,13 +274,13 @@ h3 {
   align-items: center;
   justify-content: center;
 }
-.btn-pill-primary:hover { background: var(--color-primary-active); }
+.btn-pill-primary:hover { background: var(--cds-button-primary-hover); }
 
-/* Secondary — white with ink border */
+/* Secondary — Carbon ghost pattern: dark gray bg, white text */
 .btn-secondary {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  border: 1px solid var(--color-hairline-strong);
+  background: var(--cds-button-secondary);
+  color: var(--color-on-primary);
+  border: 1px solid var(--cds-button-secondary);
   border-radius: var(--radius-sm);
   padding: 13px 23px;
   height: 48px;
@@ -254,14 +295,14 @@ h3 {
   gap: 8px;
 }
 .btn-secondary:hover {
-  background: var(--color-surface-soft);
-  border-color: var(--color-ink);
+  background: var(--cds-button-secondary-hover);
+  border-color: var(--cds-button-secondary-hover);
 }
 
 /* Tertiary text — no surface */
 .btn-tertiary {
-  background: transparent;
-  color: var(--color-ink);
+  background: var(--cds-button-tertiary);
+  color: var(--cds-link-primary);
   border: none;
   font-size: 16px;
   font-weight: 700;
@@ -270,39 +311,40 @@ h3 {
   transition: color 0.12s ease;
 }
 .btn-tertiary:hover {
-  color: var(--color-primary);
+  color: var(--cds-link-hover);
   text-decoration: underline;
 }
 
-/* Form input — 2px ink border on focus, no glow */
+/* Form input — Carbon signature: bottom-border only */
 .input-base {
   width: 100%;
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-sm);
-  padding: 14px 12px;
+  background: var(--cds-field-01);
+  color: var(--cds-text-primary);
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: 2px solid var(--cds-border-subtle);
+  border-radius: 0;
+  padding: 14px 0;
   height: 56px;
   font-size: 16px;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.12s ease, border-width 0.12s ease;
+  transition: border-color 0.12s ease;
 }
 .input-base:focus {
-  border-color: var(--color-ink);
-  border-width: 2px;
-  padding: 13px 11px; /* compensate for 2px border to avoid layout shift */
+  border-bottom-color: var(--cds-focus);
 }
 .input-base::placeholder {
-  color: var(--color-muted);
+  color: var(--cds-text-placeholder);
 }
 
 /* Pill text input (for compact form rows) */
 .input-pill {
   width: 100%;
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  border: 1px solid var(--color-hairline-strong);
+  background: var(--cds-field-01);
+  color: var(--cds-text-primary);
+  border: 1px solid var(--cds-border-strong);
   border-radius: var(--radius-full);
   padding: 10px 16px;
   font-size: 14px;
@@ -310,34 +352,34 @@ h3 {
   outline: none;
 }
 .input-pill:focus {
-  border-color: var(--color-ink);
+  border-color: var(--cds-focus);
   border-width: 2px;
   padding: 9px 15px;
 }
 
-/* Card — 14px radius, single shadow tier */
+/* Card — Carbon pattern: depth via background layering, flat shadow by default */
 .card {
-  background: var(--color-canvas);
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle);
+  box-shadow: var(--shadow-flat);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-hairline);
-  box-shadow: var(--shadow-card);
-  padding: 24px;
+  padding: 16px;
 }
 
 .card-flat {
-  background: var(--color-canvas);
+  background: var(--cds-background);
+  border: 1px solid var(--cds-border-subtle);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-hairline);
-  padding: 24px;
+  padding: 16px;
 }
 
-/* Tag chip — pill */
+/* Tag chip — pill, neutral tone */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: var(--color-surface-soft);
-  color: var(--color-ink);
+  background: var(--cds-tag-neutral-bg);
+  color: var(--cds-tag-neutral-text);
   border-radius: var(--radius-full);
   padding: 4px 10px;
   font-size: 13px;
@@ -348,8 +390,8 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: var(--color-ink);
-  color: var(--color-on-primary);
+  background: var(--cds-layer-accent);
+  color: var(--cds-background);
   border-radius: var(--radius-full);
   padding: 4px 10px;
   font-size: 13px;
@@ -359,23 +401,23 @@ h3 {
 
 /* Text link — ink with hover underline */
 .link-ink {
-  color: var(--color-ink);
+  color: var(--cds-text-primary);
   text-decoration: none;
   transition: color 0.12s ease;
 }
 .link-ink:hover {
-  color: var(--color-primary);
+  color: var(--cds-link-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 .link-muted {
-  color: var(--color-muted);
+  color: var(--cds-text-secondary);
   text-decoration: none;
   font-size: 13px;
   transition: color 0.12s ease;
 }
 .link-muted:hover {
-  color: var(--color-ink);
+  color: var(--cds-text-primary);
 }
 
 /* Top nav link — 16px / 600 */
@@ -539,7 +581,7 @@ h3 {
   }
   .sidebar-offcanvas-open {
     transform: translateX(0);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-overlay);
   }
 
   /* Backdrop covers the rest of the screen while the drawer is open.
@@ -572,4 +614,13 @@ h3 {
     height: 40px !important;
     font-size: 16px !important;
   }
+}
+/* ── Carbon accessibility — global focus-visible ring ─────── */
+:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: 2px;
+}
+button:focus-visible,
+a:focus-visible {
+  outline-offset: 2px;
 }
