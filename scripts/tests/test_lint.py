@@ -447,3 +447,111 @@ def test_lint_cli_exit_code_critical(tmp_path):
     db = build_test_db(tmp_path, pages, links=links)
     rc = lint.main(["--db", str(db), "--vault", str(tmp_path)])
     assert rc == 1
+
+
+# ---------------------------------------------------------------------------
+# 15. Rule 10 — pkm_trace (INFO, v0.3.0 PKM 노트 프로덕트 정정)
+# ---------------------------------------------------------------------------
+
+def test_pkm_trace_no_pkm_tags(tmp_path):
+    """Vault에 pkm/note/notes/agent 태그 0개 → pkm_trace INFO 1건."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("only-concept", "Only", type_="concept", created=today, updated=today),
+    ]
+    tags = [("only-concept", "concept"), ("only-concept", "system")]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    pkm = [i for i in issues if i.rule == "pkm_trace"]
+    assert len(pkm) == 1
+    assert pkm[0].severity == "info"
+    assert pkm[0].path == "(vault)"
+    assert "pkm/note/agent" in pkm[0].message
+
+
+def test_pkm_trace_with_pkm_tag(tmp_path):
+    """Vault에 pkm 태그 1개 → pkm_trace 0건."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("hub", "Hub", type_="concept", created=today, updated=today),
+    ]
+    tags = [("hub", "pkm"), ("hub", "concept")]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    pkm = [i for i in issues if i.rule == "pkm_trace"]
+    assert pkm == []
+
+
+def test_pkm_trace_with_note_tag(tmp_path):
+    """Vault에 note 태그 1개 → pkm_trace 0건 (related taxonomy OK)."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("note-page", "NotePage", type_="journal", created=today, updated=today),
+    ]
+    tags = [("note-page", "note")]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    pkm = [i for i in issues if i.rule == "pkm_trace"]
+    assert pkm == []
+
+
+# ---------------------------------------------------------------------------
+# 16. Rule 11 — agent_relevance (INFO, v0.3.0 사용자 3종 정정)
+# ---------------------------------------------------------------------------
+
+def test_agent_relevance_no_person(tmp_path):
+    """person type 0개 + agent tag 0개 + multi-agent tag 0개 → INFO 1건 (전부 missing)."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("a", "A", type_="concept", created=today, updated=today),
+        FakePage("b", "B", type_="tool", created=today, updated=today),
+    ]
+    tags = [("a", "concept"), ("b", "tool")]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    rel = [i for i in issues if i.rule == "agent_relevance"]
+    assert len(rel) == 1
+    assert rel[0].severity == "info"
+    assert rel[0].path == "(vault)"
+    # All three categories missing
+    msg = rel[0].message
+    assert "person type" in msg
+    assert "agent/agent-single tag" in msg
+    assert "multi-agent/agents tag" in msg
+
+
+def test_agent_relevance_all_present(tmp_path):
+    """사람/단일/멀티 모두 → agent_relevance 0건."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("alice", "Alice", type_="person", created=today, updated=today),
+        FakePage("hermes", "Hermes", type_="tool", created=today, updated=today),
+        FakePage("crew", "Crew", type_="tool", created=today, updated=today),
+    ]
+    tags = [
+        ("alice", "person"),
+        ("hermes", "agent"),
+        ("crew", "multi-agent"),
+    ]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    rel = [i for i in issues if i.rule == "agent_relevance"]
+    assert rel == []
+
+
+def test_agent_relevance_partial_present(tmp_path):
+    """person만 있고 agent/멀티에이전트 태그 없으면 → INFO 1건 (멀티+단일 missing)."""
+    today = date.today().isoformat()
+    pages = [
+        FakePage("alice", "Alice", type_="person", created=today, updated=today),
+        FakePage("concept", "Concept", type_="concept", created=today, updated=today),
+    ]
+    tags = [("alice", "person"), ("concept", "concept")]
+    db = build_test_db(tmp_path, pages, tags=tags)
+    issues = lint.lint_db(str(db))
+    rel = [i for i in issues if i.rule == "agent_relevance"]
+    assert len(rel) == 1
+    msg = rel[0].message
+    assert "person type" not in msg  # person is present
+    assert "agent/agent-single tag" in msg
+    assert "multi-agent/agents tag" in msg

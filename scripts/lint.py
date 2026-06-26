@@ -1,4 +1,4 @@
-"""lint.py — 9 lint rules operating on wiki.db (read-only).
+"""lint.py — 11 lint rules operating on wiki.db (read-only).
 
 Spec: SCHEMA.md §"Lint 자동 탐지" (L140-150)
        - 🔴 frontmatter missing/empty
@@ -10,6 +10,8 @@ Spec: SCHEMA.md §"Lint 자동 탐지" (L140-150)
        - 🔵 custom_tag (tag not in core taxonomy)
        - 🔵 contested (pages.contested == 1)
        - 🔵 stale (updated > 90d ago AND no recent raw source)
+       - 🔵 pkm_trace (v0.3.0: no page tagged pkm/note/agent — PKM 노트 정정)
+       - 🔵 agent_relevance (v0.3.0: vault missing 사람/단일/멀티 중 1+ 카테고리)
 
 Usage:
     python3 lint.py --db ~/wiki/wiki.db --vault ~/wiki
@@ -119,7 +121,7 @@ def _raw_source_fresh(vault_root: Optional[Path], page_path: str) -> bool:
 
 
 def lint_db(db_path: str, vault_root: Optional[Path] = None) -> List[Issue]:
-    """Run all 9 rules against `db_path`. Returns a list of issues."""
+    """Run all 11 rules against `db_path`. Returns a list of issues."""
     if not os.path.isfile(db_path):
         raise SystemExit(f"DB not found: {db_path}")
 
@@ -280,6 +282,50 @@ def _lint_all(conn: sqlite3.Connection, vault_root: Optional[Path]) -> List[Issu
             message=f"stale ({age_days}d since updated, raw source not recent)",
         ))
 
+    # --- Rule 10: pkm_trace (v0.3.0 PKM 노트 프로덕트 정정) ---
+    PKM_RELATED_TAGS = frozenset({"pkm", "note", "notes", "agent"})
+    pkm_seen = 0
+    for slug, tags in tags_by_slug.items():
+        if any(t.lower() in PKM_RELATED_TAGS for t in tags):
+            pkm_seen += 1
+    if pkm_seen == 0:
+        # No page tagged as PKM — this is OK for pure operational vaults but flag for awareness
+        issues.append(Issue(
+            rule="pkm_trace",
+            severity="info",
+            path="(vault)",
+            message="No page tagged as pkm/note/agent. If this vault is intended as PKM, consider tagging at least the index page.",
+        ))
+
+    # --- Rule 11: agent_relevance (v0.3.0 사용자 3종 — 사람/단일/멀티 에이전트) ---
+    pages_rows = list(conn.execute("SELECT slug, type FROM pages"))
+    person_count = sum(1 for p in pages_rows if p["type"] == "person")
+    agent_single_count = sum(
+        1 for slug, tags in tags_by_slug.items()
+        if any(t.lower() in {"agent", "agent-single"} for t in tags)
+    )
+    agent_multi_count = sum(
+        1 for slug, tags in tags_by_slug.items()
+        if any(t.lower() in {"multi-agent", "agents"} for t in tags)
+    )
+    missing: List[str] = []
+    if person_count == 0:
+        missing.append("person type")
+    if agent_single_count == 0:
+        missing.append("agent/agent-single tag")
+    if agent_multi_count == 0:
+        missing.append("multi-agent/agents tag")
+    if missing:
+        issues.append(Issue(
+            rule="agent_relevance",
+            severity="info",
+            path="(vault)",
+            message=(
+                f"Vault doesn't cover all 3 user types (사람/단일/멀티 에이전트). "
+                f"Missing: {', '.join(missing)}. (v0.3.0 PKM 노트 프로덕트 정정)"
+            ),
+        ))
+
     return issues
 
 
@@ -310,7 +356,7 @@ def _print_report(issues: Sequence[Issue], stream=sys.stdout) -> None:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _default_vault = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(
-        description="Lint wiki.db against 9 SCHEMA-defined rules.",
+        description="Lint wiki.db against 11 SCHEMA-defined rules.",
     )
     parser.add_argument(
         "--db",
