@@ -88,6 +88,13 @@
   --cds-tag-blue-text: var(--color-primary);
   --cds-tag-neutral-bg: var(--color-surface-soft);
   --cds-tag-neutral-text: var(--color-ink);
+
+  /* ── <mark> — search-result highlight (commit 7c98738 이후 API 응답에 포함).
+   *    Soft BMW Blue background + dark ink text — readable, on-brand,
+   *    doesn't disrupt search snippet flow. */
+  --color-mark-bg: rgba(28, 105, 212, 0.18);       /* BMW Blue @ 18% alpha */
+  --color-mark-fg: var(--color-ink);
+  --color-mark-rounded: 2px;
 }
 
 html,
@@ -215,6 +222,17 @@ h3 {
   border: none;
   border-top: 1px solid var(--color-hairline);
   margin: 2em 0;
+}
+
+/* ── <mark> — search-result highlight.
+ *    Commit 7c98738 added API snippet + <mark>; this styles the tag so
+ *    matches are visually salient without breaking snippet flow.
+ *    Soft BMW Blue background + dark ink text + 2px radius. */
+mark {
+  background: var(--color-mark-bg);
+  color: var(--color-mark-fg);
+  border-radius: var(--color-mark-rounded);
+  padding: 0 2px;
 }
 
 /* ── Wikilink — ink with subtle underline (not Rausch — Rausch is reserved
