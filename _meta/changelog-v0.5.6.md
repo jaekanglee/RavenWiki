@@ -241,3 +241,57 @@ $ find /tmp/v055-real -type f | sort
 4. **SQLite WAL + aiosqlite** (P1-3): 멀티 에이전트 동시성 해결
 
 → v0.5.7 또는 v0.6 사이클에서 처리.
+
+---
+
+## 9. v0.5.6 follow-up — Dashboard `NewVaultWizard` (lost-in-limbo 회수)
+
+> **이 섹션은 v0.5.6 머지 이후 별도 세션에서 추가된 후속 작업입니다.**
+
+### 발견
+
+세션 종료 후 `dashboard/`에 untracked 파일 2건 발견 (이전 세션에서 commit 누락):
+
+```
+?? dashboard/src/components/NewVaultWizard.tsx  (529 lines, 16.8 KB)
+?? dashboard/src/routes/NewVaultPage.tsx        (13 lines)
+?? dashboard/tsconfig.tsbuildinfo               (build artifact)
+```
+
+→ 핸드오프 문서엔 언급 없음. **lost-in-limbo 위험** → 다음 세션 진입 시 회수.
+
+### 작업
+
+- `git worktree add /tmp/feat-vault-wizard -b feat/vault-wizard master`
+- untracked 파일 2개를 worktree로 복사 (`cp`)
+- `App.tsx:23` 라우트 `/vault/new` → `NewVaultPage` 이미 등록되어 있음 확인 ✅
+- `tsc -b` typecheck ✅ + `npm run build` ✅ (exit 0)
+- diff 범위 검증: 3파일 → wizard 2파일 staged, `tsconfig.tsbuildinfo`는 unstaged 유지
+
+### Wizard 3-step 흐름
+
+| Step | 입력 | 검증 |
+|---|---|---|
+| **1. 이름 + 경로** | `name` (kebab-case 강제), `path` (절대경로) | `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, `~` 또는 `/` 시작 |
+| **2. 모드 + 템플릿** | `mode` (personal/shared/agent), `template` (none/wiki-v1) | default: `personal` + `wiki-v1` |
+| **3. 확인 + 만들기** | 요약 → `POST /api/vaults/create` | 성공 → `navigate('/page/<name>/index')`, 실패 → inline error |
+
+### 백엔드 연결
+
+`/api/vaults/create` 엔드포인트 확인: `raven/api/server.py:150` — `VaultCreate` payload 받는 구현 이미 존재.
+
+### 변경 사항
+
+| 파일 | 변경 | 비고 |
+|---|---|---|
+| `dashboard/src/components/NewVaultWizard.tsx` | **신규** (529 lines) | 3-step state machine + Carbon 토큰 |
+| `dashboard/src/routes/NewVaultPage.tsx` | **신규** (13 lines) | Wrapper |
+
+코드 변경: +542 lines (신규 2파일). 회귀 0.
+
+### 남은 사항 (의사결정 필요)
+
+- `dashboard/tsconfig.tsbuildinfo`가 **git 추적 중**. 의도된 추적인지 불명:
+  - 만약 의도 ❌ → `.gitignore` 추가 + `git rm --cached` 후 별도 커밋
+  - 만약 의도 ✅ → 이번 PR엔 unstaged 유지 (이미 그렇게 함)
+  - **사용자 확인 필요**
