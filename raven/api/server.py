@@ -114,6 +114,80 @@ def list_vaults():
     }
 
 
+@app.get("/api/index.json")
+def get_index_json() -> list:
+    """Page index for the Dashboard HomePage.
+
+    v0.6.5+: dev API now serves the same shape as `scripts/export_static.py`
+    produces for the static `dashboard/public/api/index.json`. Previously
+    the dev server returned 404 (no such route) — HomePage was always
+    empty in `make dev` until the user ran `raven export` first.
+
+    Shape (per page):
+        {slug, title, type, path, created, updated, tags}
+
+    Vault selection:
+        - If a `default` is set in the registry, use it
+        - Otherwise fall back to the first registered vault
+        - 404 if no vaults are registered
+
+    Filter rules match `export_static.py`:
+        - skip hidden paths (start with `.`)
+        - skip `node_modules/` and `dashboard/`
+    """
+    from fastapi import HTTPException
+
+    # Pick default (or first) vault — same pattern as the Dashboard's
+    # `GET /api/vaults` consumer.
+    reg_data = registry()._data
+    default_name = reg_data.get("default")
+    vaults = registry().list()
+    if not vaults:
+        raise HTTPException(status_code=404, detail="no vaults registered")
+    target_meta = None
+    if default_name:
+        target_meta = next((v for v in vaults if v.name == default_name), None)
+    if target_meta is None:
+        target_meta = vaults[0]
+    # registry().list() returns VaultMeta objects; we need a live Vault
+    # handle to access .content_root / .root for filesystem reads.
+    target = Vault.load(target_meta)
+
+    rows: list = []
+    # Path components that must never be exposed via the page index
+    # (mirrors `scripts/export_static.py` SQL filter on L120-124).
+    hidden_top = {".", "..", "node_modules", "dashboard", ".git"}
+    for fp in target.content_root.rglob("*.md"):
+        rel = fp.relative_to(target.root)
+        rel_str = str(rel).replace("\\", "/")
+        # Skip if ANY path component is hidden (matches SQL's
+        # `slug NOT LIKE '.%'` for the second-level component + the
+        # explicit node_modules / dashboard blocklist).
+        parts = rel_str.split("/")
+        if any(p in hidden_top or p.startswith(".") for p in parts):
+            continue
+
+        text = fp.read_text(errors="replace")
+        meta, _ = _split_fm(text)
+        slug = rel_str[:-3]  # drop ".md"
+        tags_str = meta.get("tags", "") or ""
+        rows.append(
+            {
+                "slug": slug,
+                "title": meta.get("title", slug.split("/")[-1]),
+                "type": meta.get("type", "?"),
+                "path": rel_str,
+                "created": meta.get("created", ""),
+                "updated": meta.get("updated", ""),
+                "tags": tags_str,
+            }
+        )
+
+    # Sort by (type, slug) — same as export_static L137.
+    rows.sort(key=lambda p: (p["type"] or "", p["slug"]))
+    return rows
+
+
 @app.get("/api/vaults/{name}")
 def vault_info(name: str):
     v = _vault_or_404(name)
