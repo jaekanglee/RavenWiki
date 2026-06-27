@@ -124,15 +124,28 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
     logic lives in one place (testable without the MCP transport).
     """
 
+    EXPERIMENTAL_PREFIX = (
+        "[mcp/experimental] multi-agent write is advisory-only: "
+        "advisory locks + idempotency are best-effort, NOT a hard concurrency guard. "
+        "Concurrent writers face last-writer-wins. locks/queue/review are not implemented. "
+        "Caller is responsible for sequencing. "
+    )
+
     # ─── 1. wiki_search ───
-    @mcp.tool(name="wiki_search", description="FTS5 BM25 search across slug/title/tags/content.")
+    @mcp.tool(
+        name="wiki_search",
+        description=EXPERIMENTAL_PREFIX + "FTS5 BM25 search across slug/title/tags/content.",
+    )
     def wiki_search(query: str, top_k: int = 10) -> list[dict]:
         return db_module.search_fts(query=query, top_k=top_k, vault=vault)
 
     # ─── 2. wiki_get_page ───
     @mcp.tool(
         name="wiki_get_page",
-        description="Single page with content, frontmatter, backlinks, outbound links, and tags.",
+        description=(
+            EXPERIMENTAL_PREFIX
+            + "Single page with content, frontmatter, backlinks, outbound links, and tags."
+        ),
     )
     def wiki_get_page(slug: str) -> dict | None:
         return db_module.get_page(slug=slug, vault=vault)
@@ -140,7 +153,10 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
     # ─── 3. wiki_lint ───
     @mcp.tool(
         name="wiki_lint",
-        description="Run scripts/lint.py against wiki.db and return counts + structured issues.",
+        description=(
+            EXPERIMENTAL_PREFIX
+            + "Run scripts/lint.py against wiki.db and return counts + structured issues."
+        ),
     )
     def wiki_lint() -> dict:
         return read_tools.wiki_lint(ctx=None)
@@ -148,7 +164,10 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
     # ─── 4. wiki_graph ───
     @mcp.tool(
         name="wiki_graph",
-        description="Vault link graph as {nodes, edges}. Optional project filter substring-matches slugs.",
+        description=(
+            EXPERIMENTAL_PREFIX
+            + "Vault link graph as {nodes, edges}. Optional project filter substring-matches slugs."
+        ),
     )
     def wiki_graph(
         project: Optional[str] = None,
@@ -157,7 +176,10 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         return read_tools.wiki_graph(project=project, fmt=fmt, ctx=None)
 
     # ─── 5. wiki_log ───
-    @mcp.tool(name="wiki_log", description="Last N non-empty log.md lines as structured entries.")
+    @mcp.tool(
+        name="wiki_log",
+        description=EXPERIMENTAL_PREFIX + "Last N non-empty log.md lines as structured entries.",
+    )
     def wiki_log(tail_n: int = 20) -> list[dict]:
         return read_tools.wiki_log(tail_n=tail_n, ctx=None)
 
@@ -166,7 +188,8 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         @mcp.tool(
             name="wiki_update",
             description=(
-                "Overwrite a vault markdown page. Requires --write or --admin. "
+                EXPERIMENTAL_PREFIX
+                + "Overwrite a vault markdown page. Requires --write or --admin. "
                 "Optional M4/F1 kwargs: actor (caller identity), "
                 "idempotency_key (retry-suppression token)."
             ),
@@ -190,7 +213,8 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         @mcp.tool(
             name="wiki_ingest",
             description=(
-                "Copy a raw source file into <vault>/raw/<project>/. "
+                EXPERIMENTAL_PREFIX
+                + "Copy a raw source file into <vault>/raw/<project>/. "
                 "Requires --write or --admin. Optional M4/F1 kwargs: actor, "
                 "idempotency_key."
             ),
@@ -213,7 +237,8 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         @mcp.tool(
             name="wiki_delete",
             description=(
-                "Archive a vault page to _archive/ and rebuild wiki.db. "
+                EXPERIMENTAL_PREFIX
+                + "Archive a vault page to _archive/ and rebuild wiki.db. "
                 "Requires --admin. Optional M4/F1 kwargs: actor, "
                 "idempotency_key."
             ),
@@ -225,14 +250,16 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         ) -> dict:
             return write_tools.wiki_delete(
                 slug=slug,
-                actor=actor, idempotency_key=idempotency_key,
+                actor=actor,
+                idempotency_key=idempotency_key,
                 ctx=None,
             )
 
         @mcp.tool(
             name="wiki_rename",
             description=(
-                "Rename a slug, rewrite every inbound wikilink, and rebuild "
+                EXPERIMENTAL_PREFIX
+                + "Rename a slug, rewrite every inbound wikilink, and rebuild "
                 "wiki.db. Requires --admin. Optional M4/F1 kwargs: actor, "
                 "idempotency_key."
             ),
@@ -248,7 +275,6 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
                 actor=actor, idempotency_key=idempotency_key,
                 ctx=None,
             )
-
 
 # ────────────────────────── main ───────────────────────────────────
 

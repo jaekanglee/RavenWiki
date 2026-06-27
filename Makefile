@@ -25,7 +25,7 @@ install: ## Create venv + install raven + dev deps
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e .
-	$(PIP) install --quiet pytest typer fastapi uvicorn 'httpx<0.28' pydantic
+	$(PIP) install --quiet pytest typer fastapi uvicorn 'httpx<0.28' pydantic python-frontmatter
 	@echo "✅ installed ($(VENV))"
 
 .PHONY: venv-check

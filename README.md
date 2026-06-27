@@ -16,7 +16,7 @@ raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
 | **CLI** (사람/자동화) | Typer 9 commands | `raven/cli/` |
-| **API** (HTTP) | FastAPI 12 endpoints | `raven/api/` |
+| **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
 | **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `mcp/` |
 | **Adapter** (에이전트) | Python scope-based API | `raven/agents/` |
@@ -89,6 +89,19 @@ raven link check
 raven export                      # GUI 정적 JSON 재생성
 ```
 
+### Lite bootstrap (v0.5.5+) — `raven vault create` 시 자동 복사
+
+새 vault를 만들면 다음 **4종**이 vault 폴더에 자동 복사됩니다 (사용자 vault = `_meta/system/` 표준):
+
+| 파일 | 용도 |
+|---|---|
+| `_meta/system/SCHEMA.md` | frontmatter / type / tag / wikilink 규약 |
+| `_meta/system/RULES.md` | 편집 5규칙 |
+| `_meta/system/AGENTS.md` | vault 운영자 규칙 (사람+에이전트 공통) |
+| `log.md` | 작업 이력 (append-only) |
+
+**Tier 1 문서** (`OPERATIONS.md` / `agent/*` / `raven-policy.md`)는 raven 패키지 내부에 있으며 vault에 **복사되지 않습니다**. 접근은 `raven docs show <topic>`. `vault clone` 기본 = content only (Tier 1 leak 방지).
+
 ---
 
 ## 환경 변수 (선택)
@@ -129,7 +142,7 @@ raven export [--vault N] [--out DIR]          # GUI 정적 JSON
 
 ---
 
-## HTTP API (12 endpoints)
+## HTTP API (26 endpoints)
 
 ```bash
 # vault 관리
@@ -228,6 +241,19 @@ hermes.vault("default")         # ❌ PermissionError (scope 밖)
   }
 }
 ```
+
+### Tier 1 ↔ Tier 2 경계
+
+Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다:
+
+| Tier | 위치 | 접근 | 용도 |
+|---|---|---|---|
+| **Tier 1** (raven 패키지 내부) | `raven/agent/`, `raven-policy.md`, `OPERATIONS.md` | `raven docs show <topic>` | raven CLI/API 운영 매뉴얼 |
+| **Tier 2** (사용자 vault) | `<vault>/_meta/system/` | vault 직접 read | vault 데이터 운영 규칙 |
+
+- `vault clone` 기본 = **content only** (Tier 1 leak 방지)
+- Tier 2 Lite = **4종 고정** (`SCHEMA.md` / `RULES.md` / `AGENTS.md` / `log.md`)
+- Tier 1 ↔ Tier 2 혼동 시 `raven vault verify <name>`로 진단
 
 ---
 
