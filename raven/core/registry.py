@@ -22,9 +22,17 @@ from typing import Optional
 
 
 def VAULTS_ROOT() -> Path:
-    """Vaults root. Override via $WIKI_VAULTS_DIR."""
+    """Vaults root. Override via $WIKI_VAULTS_DIR.
+
+    v0.6.3+: default changed from `~/vaults` to `~/Raven` per user
+    specification — `~/Raven/<vault-name>/` is the canonical location
+    for new vaults. Existing installations that relied on `~/vaults/`
+    can override with `WIKI_VAULTS_DIR=~/vaults` (no migration needed).
+    """
     override = os.environ.get("WIKI_VAULTS_DIR", "").strip()
-    return Path(override).expanduser().resolve() if override else (Path.home() / "vaults").resolve()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path.home() / "Raven").resolve()
 
 
 def REGISTRY_PATH() -> Path:

@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from raven.core import registry, resolve_active_vault, link_module
+from raven.core.registry import VAULTS_ROOT
 from raven.core import db_module, lint_module, export_module
 from raven.core import slug_module, frontmatter_module, archive_module
 from raven.core import log_module, digest_module
@@ -92,7 +93,11 @@ class LogAppend(BaseModel):
 
 @app.get("/api/vaults")
 def list_vaults():
-    """All registered vaults (with metadata)."""
+    """All registered vaults (with metadata).
+
+    v0.6.3+: also returns the resolved `vaults_root` so the dashboard
+    can show "Vaults root: ~/Raven" or wherever WIKI_VAULTS_DIR points.
+    """
     out = []
     for v in registry().list():
         out.append({
@@ -102,7 +107,11 @@ def list_vaults():
             "owner": v.owner,
             "default": v.default,
         })
-    return {"ok": True, "vaults": out}
+    return {
+        "ok": True,
+        "vaults": out,
+        "vaults_root": str(VAULTS_ROOT()),
+    }
 
 
 @app.get("/api/vaults/{name}")
