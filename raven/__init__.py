@@ -7,4 +7,4 @@ Layered architecture:
     raven.api       — FastAPI HTTP server (GUI backend)
     dashboard/        — React 19 SPA (read + write UI)
 """
-__version__ = "0.2.0"
+__version__ = "0.5.7"
