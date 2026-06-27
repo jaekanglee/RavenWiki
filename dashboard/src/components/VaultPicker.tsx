@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 interface VaultMeta {
   name: string;
@@ -21,14 +22,12 @@ export function VaultPicker({
   const [vaultsRoot, setVaultsRoot] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
 
-  // new vault form state
-  const [newName, setNewName] = useState("");
-  const [newPath, setNewPath] = useState("");
-  const [newMode, setNewMode] = useState("personal");
-  const [newBusy, setNewBusy] = useState(false);
-  const [newErr, setNewErr] = useState<string | null>(null);
+  // v0.6.7: new vault creation moved entirely to the NewVaultWizard
+  // (`/vault/new`). The inline form used to live here (with path
+  // input + mode select 3개) but duplicated the wizard and violated
+  // the "user only types a name" rule from v0.6.6. The button
+  // below is just a Link to the wizard — single source of truth.
 
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +66,6 @@ export function VaultPicker({
     function onDoc(e: MouseEvent | PointerEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
-        setShowCreate(false);
       }
     }
     document.addEventListener("pointerdown", onDoc, { capture: true });
@@ -83,36 +81,8 @@ export function VaultPicker({
     onChange(name);
     localStorage.setItem(ACTIVE_KEY, name);
     setOpen(false);
-    setShowCreate(false);
     fetch(`/api/vaults/${name}/select`, { method: "POST" }).catch(() => {});
     window.location.reload();
-  }
-
-  // ─── create vault ────────────────────────────────────────
-  async function createVault() {
-    setNewErr(null);
-    if (!newName || !newPath) {
-      setNewErr("name + path 필수");
-      return;
-    }
-    setNewBusy(true);
-    try {
-      const r = await fetch("/api/vaults/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName, path: newPath, mode: newMode }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
-      setShowCreate(false);
-      setNewName("");
-      setNewPath("");
-      loadVaults();
-    } catch (e: any) {
-      setNewErr(e.message || String(e));
-    } finally {
-      setNewBusy(false);
-    }
   }
 
   const current = vaults.find((v) => v.name === active);
@@ -122,36 +92,46 @@ export function VaultPicker({
       <button
         onClick={() => setOpen(!open)}
         disabled={loading}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         style={{
-          fontSize: 14,
-          fontWeight: 500,
-          padding: "8px 14px",
-          borderRadius: "var(--radius-full)",
-          border: "1px solid var(--color-hairline-strong)",
-          background: "var(--color-canvas)",
-          color: "var(--color-ink)",
-          cursor: loading ? "not-allowed" : "pointer",
-          whiteSpace: "nowrap",
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 8,
+          padding: "6px 12px",
+          height: 32,
+          background: "transparent",
+          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+          borderRadius: 16,
+          color: "var(--color-ink)",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: loading ? "wait" : "pointer",
+          fontFamily: "inherit",
         }}
       >
-        {loading ? "…" : `📁 ${current?.name || active || "vault"}`}
+        <span aria-hidden>📁</span>
+        <span>{current ? current.name : loading ? "loading…" : "—"}</span>
+        <span aria-hidden style={{ fontSize: 10, opacity: 0.6 }}>▾</span>
       </button>
 
       {open && (
         <div
+          role="listbox"
+          aria-label="vault picker"
           style={{
             position: "absolute",
-            top: "calc(100% + 8px)",
+            top: "calc(100% + 4px)",
             left: 0,
+            minWidth: 240,
+            maxHeight: 360,
+            overflowY: "auto",
             background: "var(--color-canvas)",
-            border: "1px solid var(--color-hairline)",
-            borderRadius: "var(--radius-md)",
-            boxShadow: "var(--shadow-card)",
-            zIndex: 50,
-            minWidth: 320,
+            border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+            borderRadius: 8,
+            boxShadow: "var(--shadow-overlay, 0 4px 16px rgba(0,0,0,0.12))",
+            zIndex: 100,
+            fontSize: 14,
           }}
         >
           <div
@@ -186,135 +166,86 @@ export function VaultPicker({
               no vaults registered.
             </div>
           ) : (
-            <div style={{ maxHeight: 256, overflowY: "auto" }}>
-              {vaults.map((v) => (
-                <button
-                  key={v.name}
-                  onClick={() => select(v.name)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 16px",
-                    fontSize: 14,
-                    background:
-                      v.name === active ? "var(--color-surface-soft)" : "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                    {v.default ? "★ " : ""}
-                    {v.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
-                    {v.mode} · {v.owner} · {v.path}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* ─── create form ──────────────────────────────── */}
-          <div style={{ borderTop: "1px solid var(--color-hairline)" }}>
-            {!showCreate ? (
+            vaults.map((v) => (
               <button
-                onClick={() => setShowCreate(true)}
+                key={v.name}
+                role="option"
+                aria-selected={v.name === active}
+                onClick={() => select(v.name)}
                 style={{
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   width: "100%",
-                  textAlign: "left",
                   padding: "10px 16px",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "var(--color-primary)",
-                  background: "transparent",
+                  background:
+                    v.name === active
+                      ? "var(--cds-field-01, #f4f4f4)"
+                      : "transparent",
                   border: "none",
+                  textAlign: "left",
+                  fontSize: 14,
+                  color: "var(--color-ink)",
                   cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+                onMouseEnter={(e) => {
+                  if (v.name === active) return;
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--cds-field-hover, #f0f0f0)";
+                }}
+                onMouseLeave={(e) => {
+                  if (v.name === active) return;
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
                 }}
               >
-                ➕ 새 vault 등록
-              </button>
-            ) : (
-              <div style={{ padding: 16, background: "var(--color-surface-soft)" }}>
-                <div
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {v.default && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        color: "var(--color-primary)",
+                        fontWeight: 700,
+                      }}
+                      aria-label="default"
+                    >
+                      ★
+                    </span>
+                  )}
+                  {v.name}
+                </span>
+                <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: "0.32px",
-                    textTransform: "uppercase",
                     color: "var(--color-muted)",
-                    marginBottom: 8,
+                    fontFamily: "ui-monospace, SFMono-Regular, monospace",
                   }}
                 >
-                  새 vault
-                </div>
-                <input
-                  className="input-pill"
-                  style={{
-                    background: "var(--color-canvas)",
-                    marginBottom: 8,
-                    height: 40,
-                  }}
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="name (예: work)"
-                />
-                <input
-                  className="input-pill"
-                  style={{
-                    background: "var(--color-canvas)",
-                    marginBottom: 8,
-                    height: 40,
-                  }}
-                  value={newPath}
-                  onChange={(e) => setNewPath(e.target.value)}
-                  placeholder="/absolute/path"
-                />
-                <select
-                  className="input-pill"
-                  style={{
-                    background: "var(--color-canvas)",
-                    marginBottom: 8,
-                    height: 40,
-                  }}
-                  value={newMode}
-                  onChange={(e) => setNewMode(e.target.value)}
-                >
-                  <option value="personal">personal</option>
-                  <option value="shared">shared</option>
-                  <option value="agent">agent</option>
-                </select>
-                {newErr && (
-                  <div style={{ fontSize: 12, color: "var(--color-error-text)", marginBottom: 8 }}>
-                    {newErr}
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button
-                    onClick={() => {
-                      setShowCreate(false);
-                      setNewErr(null);
-                      setNewName("");
-                      setNewPath("");
-                    }}
-                    disabled={newBusy}
-                    className="btn-secondary"
-                    style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={createVault}
-                    disabled={newBusy}
-                    className="btn-primary"
-                    style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
-                  >
-                    {newBusy ? "생성 중…" : "생성"}
-                  </button>
-                </div>
-              </div>
-            )}
+                  {v.mode}
+                </span>
+              </button>
+            ))
+          )}
+
+          {/* v0.6.7: vault creation is handled by the NewVaultWizard
+              (`/vault/new`). The button below is a single Link — the
+              inline form (path input + mode select 3개) that used to
+              live here is removed for consistency. */}
+          <div style={{ borderTop: "1px solid var(--color-hairline)" }}>
+            <Link
+              to="/vault/new"
+              onClick={() => setOpen(false)}
+              style={{
+                display: "block",
+                padding: "10px 16px",
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--color-primary)",
+                textDecoration: "none",
+              }}
+            >
+              ➕ 새 vault 만들기
+            </Link>
           </div>
         </div>
       )}
