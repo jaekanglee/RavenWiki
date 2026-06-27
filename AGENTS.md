@@ -113,7 +113,8 @@ log.md                    → 작업 이력 (append-only)
    - **commit** — 변경 확정 (worktree 패턴 권장)
 3. **verify-in-loop**: 각 변경 후 `pytest tests/ -q` 또는 `make typecheck` 실행
 4. **changelog 갱신**: `_meta/changelog-v0.5.x.md` 새 섹션 append
-5. **사용자 보고**:
+5. **commit은 사용자 승인 후**: 패치·검증이 끝나면 "commit할까요?"로 명시 확인 → 승인 시에만 `git add` + `git commit`. 묵시적 commit ❌.
+6. **사용자 보고**:
    - **무엇을 했는가** (파일 경로, 명령)
    - **왜 그렇게 했는가** (4 저장 신호 중 무엇에 해당)
    - **다음에 무엇이 가능한가** (후속 후보)
@@ -127,12 +128,22 @@ log.md                    → 작업 이력 (append-only)
 | `raven/` | **read / write** | 핵심 코드 (CLI/API/core/agents) |
 | `tests/` | **read / write** | 테스트 (TDD 원칙, RED-GREEN-REFACTOR) |
 | `_meta/` | **read** | changelog / decisions / persona (변경 시 사용자 승인 필수) |
-| `dashboard/` | **read** | React UI (변경 시 worktree 패턴 + 사용자 승인) |
+| `dashboard/` | **read / write** | React UI (변경 시 사용자 승인) |
 
 → 위 4 영역을 벗어나는 경로:
 - `raven/mcp/` — 변경 시 import path 검증 필수 (v0.6.0+ namespace)
 - `scripts/.venv/` — 생성/삭제 ❌ (가상환경, 재생성 가능)
 - `_deprecated/` — read only (B안으로 archive됨, 복원 시 사용자 결정)
+
+### 격리 — worktree 트리거 (v0.6.9+)
+
+Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 채택한다:
+
+- **단일 작업**: master에 직접 commit. worktree 불필요.
+- **다중 병렬 작업**: 동일 시점에 2+ 작업을 병렬로 진행할 때만 `git worktree add` 사용.
+  - 예: hotfix + feature 동시 / codex·claude 위임 + 본인 작업 / 큰 패치 + 그에 딸린 문서 갱신
+  - 격리 끝나면 `git worktree remove`
+- **다중 작업의 정의**: "지금 다른 작업이 진행 중이라 master를 깨면 안 됨" 또는 "각 작업이 독립 검증되어야 함"
 
 ---
 
@@ -164,7 +175,8 @@ log.md                    → 작업 이력 (append-only)
 
 ## 10. 하지 말 것
 
-- ❌ 직접 `master`에 커밋/푸시 ❌ (worktree + PR 패턴)
+- ❌ force push ❌ (master 직접 commit은 허용 — 1인 + web 검증 워크플로우)
+- ❌ 사용자 승인 없이 commit ❌ (묵시적 commit 금지 — §6 참조)
 - ❌ 사용자 vault 데이터 write ❌ (`~/vaults/*` 절대 ❌)
 - ❌ `.vault.json`, `wiki.db`, `.pyc`, `*.db-journal` 등 gitignore 수정/추가 ❌
 - ❌ SOUL.md 수정 ❌ (Hermes 프로필 설정이지 Raven 제품 문서 ❌)
