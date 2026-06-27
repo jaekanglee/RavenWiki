@@ -25,6 +25,7 @@
  */
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { setActiveVault } from "../lib/api";
 
 /** Default mode for Dashboard-created vaults.
  *
@@ -126,8 +127,48 @@ export function NewVaultWizard() {
       if (!r.ok || data.ok === false) {
         throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
       }
-      // 성공 → vault index 페이지로 redirect
-      navigate(`/page/${name}/index`);
+      // v0.6.8: 성공 → 새 vault를 active로 설정 (Dashboard가
+      // 옛 default를 가리키는 문제 해결). 그리고 첫 페이지(index.md)
+      // 를 자동 생성해 사용자가 즉시 페이지에 진입할 수 있게 한다.
+      setActiveVault(name);
+
+      try {
+        const indexBody =
+          `# ${name}\n\n` +
+          `> Vault 홈 — 첫 페이지입니다. 자유롭게 편집하세요.\n\n` +
+          `## 시작하기\n\n` +
+          `- 새 페이지는 **사이드바 → ➕ 새 페이지** 또는 헤더의 **✚ 새 페이지** Quick Action에서 만드세요.\n` +
+          `- **🔍 검색**으로 vault 전체를 BM25 검색할 수 있습니다.\n` +
+          `- **⬡ 그래프**에서 페이지 간 연결을 시각화할 수 있습니다.\n`;
+        const createPageRes = await fetch(
+          `/api/vaults/${encodeURIComponent(name)}/pages`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slug: "index",
+              title: name,
+              type: "concept",
+              tags: ["home"],
+              content: indexBody,
+            }),
+          }
+        );
+        if (!createPageRes.ok) {
+          // index.md 생성이 실패해도 vault 자체는 만들어졌으므로
+          // 사용자에게 알림만 띄우고 redirect는 진행한다.
+          const errBody = await createPageRes.json().catch(() => ({}));
+          console.warn("index.md auto-create failed:", errBody);
+        }
+      } catch (e) {
+        console.warn("index.md auto-create error:", e);
+      }
+
+      // 성공 → vault index 페이지로 redirect.
+      // v0.6.8: POST /api/vaults/{name}/pages applies slug normalization
+      // (bare "index" → "content/index"). We mirror that here so
+      // PageView's GET /api/vaults/{name}/pages/{slug} resolves.
+      navigate(`/page/${name}/content/index`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(`만들기 실패: ${msg}`);
