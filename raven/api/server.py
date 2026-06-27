@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from raven.core import registry, resolve_active_vault, link_module
 from raven.core import db_module, lint_module, export_module
 from raven.core import slug_module, frontmatter_module, archive_module
-from raven.core import log_module
+from raven.core import log_module, digest_module
 from raven.core.vault import Vault
 
 
@@ -679,6 +679,20 @@ def get_lint_summary(name: str):
         "counts": result["counts"],
         "by_check": result["by_check"],
     }
+
+
+# ────────────────────────── digest (v0.5.6, M5 F5) ──────────────────────────
+
+
+@app.get("/api/vaults/{name}/digest")
+def get_digest(name: str, days: int = Query(7, ge=1, le=30, description="this_week 윈도우 (1–30)")):
+    """Dashboard digest — 사람 운영자 진입 시 '오늘 vault 상태' 한 화면 요약.
+
+    Returns: compute_digest() payload — today / this_week / lint / log_recent / stats.
+    """
+    v = _vault_or_404(name)
+    payload = digest_module.compute_digest(v, days=days)
+    return {"ok": True, **payload}
 
 
 # ────────────────────────── local helpers ──────────────────────────

@@ -6,6 +6,8 @@ import { SearchPage } from "./routes/SearchPage";
 import { GraphPage } from "./routes/GraphPage";
 import { LogPage } from "./routes/LogPage";
 import { LintPage } from "./routes/LintPage";
+import { NewVaultPage } from "./routes/NewVaultPage";
+import { DashboardDigest } from "./routes/DashboardDigest";
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/log" element={<LogPage />} />
           <Route path="/lint" element={<LintPage />} />
+          <Route path="/vault/new" element={<NewVaultPage />} />
+          <Route path="/digest" element={<DashboardDigest />} />
         </Route>
       </Routes>
     </BrowserRouter>

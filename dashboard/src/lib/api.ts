@@ -190,3 +190,63 @@ export async function fetchLintSummary(vault: string): Promise<LintSummary | nul
   if (!r.ok) return null;
   return r.json();
 }
+
+// ────────────────────────── digest (v0.5.6, M5 F5) ──────────────────────────
+
+export interface DigestTodayEntry {
+  date: string;
+  action: string;
+  subject: string;
+  details: string[];
+}
+
+export interface DigestDayBucket {
+  date: string;
+  count: number;
+  by_action: Record<string, number>;
+}
+
+export interface DigestTopIssue {
+  id: string;
+  slug: string;
+  message: string;
+}
+
+export interface DigestLint {
+  ok: boolean;
+  counts: Record<LintSeverity | "total", number>;
+  by_check: Record<string, number>;
+  top_issues: Record<LintSeverity, DigestTopIssue[]>;
+}
+
+export interface DigestRecentPage {
+  slug: string;
+  title: string;
+  type: string;
+  updated: string;
+}
+
+export interface DigestStats {
+  total_pages: number;
+  types: Record<string, number>;
+  recent_pages: DigestRecentPage[];
+  broken_links: number;
+  missing_links: number;
+}
+
+export interface DigestPayload {
+  ok: boolean;
+  vault: string;
+  generated_at: string;
+  today: DigestTodayEntry[];
+  this_week: DigestDayBucket[];
+  lint: DigestLint;
+  log_recent: DigestTodayEntry[];
+  stats: DigestStats;
+}
+
+export async function fetchDigest(vault: string, days: number = 7): Promise<DigestPayload | null> {
+  const r = await fetch(`/api/vaults/${vault}/digest?days=${days}`);
+  if (!r.ok) return null;
+  return r.json();
+}

@@ -22,6 +22,7 @@ from . import slug as slug_module
 from . import frontmatter as frontmatter_module
 from . import archive as archive_module
 from . import log as log_module
+from . import digest as digest_module
 
 __all__ = [
     "VaultRegistry",
@@ -38,4 +39,5 @@ __all__ = [
     "frontmatter_module",
     "archive_module",
     "log_module",
+    "digest_module",
 ]
