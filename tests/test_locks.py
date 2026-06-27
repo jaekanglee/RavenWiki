@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from mcp.tools import (
+from raven.mcp.tools import (
     ANONYMOUS_ACTOR,
     DEFAULT_LOCK_TTL_SECONDS,
     acquire_lock,
     check_lock,
     extend_lock,
     release_lock,
+    _load_locks_store,
 )
-
 
 # ─────────────── acquire_lock ───────────────
 

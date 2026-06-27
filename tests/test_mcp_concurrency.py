@@ -30,14 +30,14 @@ from pathlib import Path
 
 import pytest
 
-from mcp.tools import (
+from raven.mcp.tools import (
     ADMIN,
     ANONYMOUS_ACTOR,
     VaultContext,
     WRITE,
     acquire_lock,
 )
-from mcp.tools.write import (
+from raven.mcp.tools.write import (
     wiki_delete,
     wiki_ingest,
     wiki_rename,

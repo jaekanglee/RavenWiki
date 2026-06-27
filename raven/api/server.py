@@ -719,7 +719,7 @@ def list_locks(name: str, slug: Optional[str] = Query(None, description="specifi
     # Import lazily so server.py doesn't take a hard dependency on mcp.tools
     # at import time (the API server runs in processes that may not have
     # mcp installable, e.g. slim prod containers).
-    from mcp.tools import check_lock, _load_locks_store, _is_expired
+    from raven.mcp.tools import check_lock, _load_locks_store, _is_expired
 
     if slug:
         holder = check_lock(v.root, slug)

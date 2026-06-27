@@ -28,7 +28,7 @@ def register_resources(mcp: Any, vault: Path) -> None:
 
     # Local imports kept inside the function so resources.py is importable
     # on its own (e.g. from tests) without forcing db.py to open a connection.
-    from mcp import db as db_module
+    from raven.mcp import db as db_module
 
     # ─── wiki://index ───
     @mcp.resource("wiki://index")

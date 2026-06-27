@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp import db
+from raven.mcp import db
 
 
 def test_db_connect(wiki_db: Path):

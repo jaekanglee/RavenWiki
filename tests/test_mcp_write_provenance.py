@@ -39,7 +39,7 @@ from pathlib import Path
 import frontmatter
 import pytest
 
-from mcp.tools import (
+from raven.mcp.tools import (
     ADMIN,
     ANONYMOUS_ACTOR,
     READ,
@@ -48,7 +48,7 @@ from mcp.tools import (
     normalize_actor,
     params_fingerprint,
 )
-from mcp.tools.write import (
+from raven.mcp.tools.write import (
     wiki_delete,
     wiki_ingest,
     wiki_rename,
