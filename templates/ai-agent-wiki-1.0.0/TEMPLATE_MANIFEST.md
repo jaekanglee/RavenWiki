@@ -49,10 +49,10 @@
 Raven Lite bootstrap은 다음 4종만 자동 복사합니다 (이 manifest 의 일부가 아님):
 
 ```
-SCHEMA.md     # Raven SCHEMA 정의
-RULES.md      # vault 운영 규칙
-log.md        # 작업 로그
-_meta/        # 메타데이터 디렉토리
+_meta/system/SCHEMA.md    # Raven SCHEMA 정의 (v0.5.5+: system/ 하위)
+_meta/system/RULES.md     # vault 운영 규칙
+_meta/system/AGENTS.md    # vault 운영자 규칙 (vendor-agnostic, v0.5.5+ 추가)
+log.md                     # 작업 로그 (vault 루트)
 ```
 
 > 절대 자동 복사 ❌: `OPERATIONS.md`, `agent/*`, `raven-policy.md`. 그리고 이 템플릿의 모든 파일(`README.md`, `AGENTS.md`, `START_HERE.md`, `index.md`, `prompts/`, `scripts/`, `VERSION`, `LICENSE.md`, `TEMPLATE_MANIFEST.md`, `.gitignore`).

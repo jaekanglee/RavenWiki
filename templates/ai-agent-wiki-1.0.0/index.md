@@ -28,11 +28,12 @@
 │   ├── query/       # 자주 묻는 질문/답
 │   ├── journal/     # 시계열 일지
 │   └── rule/        # 규칙/가이드
-├── _meta/           # 메타데이터, 인덱스. read/write.
+├── _meta/system/     # SCHEMA.md / RULES.md / AGENTS.md (Lite bootstrap 자동 복사). read/write.
 ├── raw/             # ingest 이전 원본. read only.
 ├── conversations/   # 핸드오프/대화 메모. 사람 검토용.
-├── SCHEMA.md        # Raven SCHEMA 정의 (bootstrap 자동 복사)
-├── RULES.md         # vault 운영 규칙 (bootstrap 자동 복사)
+├── _meta/system/SCHEMA.md    # Raven SCHEMA 정의 (bootstrap 자동 복사)
+├── _meta/system/RULES.md     # vault 운영 규칙 (bootstrap 자동 복사)
+├── _meta/system/AGENTS.md    # vault 운영자 규칙, vendor-agnostic (bootstrap 자동 복사)
 └── log.md           # 작업 로그 (bootstrap 자동 복사)
 ```
 

@@ -92,10 +92,10 @@ Raven이 사용자 vault를 처음 만들 때 다음 파일만 자동 복사됩�
 
 | 자동 복사 ✅ | 자동 복사 ❌ |
 |---|---|
-| `SCHEMA.md`     | `OPERATIONS.md`  |
-| `RULES.md`      | `agent/*`        |
-| `log.md`        | `raven-policy.md`|
-| `_meta/`        | (없음)           |
+| `_meta/system/SCHEMA.md` | `OPERATIONS.md`  |
+| `_meta/system/RULES.md`  | `agent/*`        |
+| `_meta/system/AGENTS.md` | `raven-policy.md`|
+| `log.md`                  | (없음)           |
 
 이 템플릿 파일(`README.md`, `AGENTS.md`, `START_HERE.md`, `index.md`, `prompts/`, `scripts/`, …)은 **vault bootstrap 대상이 아닙니다**. 사용자 vault는 비어 있는 상태에서 시작합니다.
 
@@ -107,7 +107,7 @@ Raven이 사용자 vault를 처음 만들 때 다음 파일만 자동 복사됩�
 
 1. 이 템플릿을 사용자 vault 경로에 복사합니다.
 2. `START_HERE.md` 를 에이전트 프롬프트에 붙여넣어 첫 vault 세팅을 실행시킵니다.
-3. 에이전트가 `raven vault create`, `raven vault use` 로 새 vault를 만들고, `SCHEMA.md` / `RULES.md` / `log.md` / `_meta/` 가 자동 복사되었는지 확인합니다.
+3. 에이전트가 `raven vault create`, `raven vault use` 로 새 vault를 만들고, `_meta/system/SCHEMA.md` / `_meta/system/RULES.md` / `_meta/system/AGENTS.md` / `log.md` 가 자동 복사되었는지 확인합니다.
 
 ### 5.2 에이전트용 (매 세션 시작)
 

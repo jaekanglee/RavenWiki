@@ -66,13 +66,13 @@ vault 내부에서 당신이 접근할 수 있는 영역은 다음으로 제한�
 | 경로 | 권한 | 용도 |
 |---|---|---|
 | `<vault>/content/` | **read / write** | 정리된 노트 (페이지) 저장 |
-| `<vault>/_meta/` | **read / write** | 메타데이터, 인덱스 |
+| `<vault>/_meta/system/` | **read / write** | 메타데이터, 인덱스 (SCHEMA.md / RULES.md / AGENTS.md 자동 복사) |
 | `<vault>/raw/` | **read only** | ingest 이전 원본 |
 | `<vault>/conversations/` | **handoff** | 핸드오프 노트 (사람이 검토) |
 
 위 네 영역을 벗어난 경로(`OPERATIONS.md`, `agent/*`, `raven-policy.md`, vault 외부 시스템 설정 등)는 **건드리지 마세요**.
 
-> Raven SCHEMA 의 자동 복사 대상(`SCHEMA.md` / `RULES.md` / `log.md` / `_meta/`)은 vault bootstrap 시 Raven이 자체적으로 채워 넣습니다. 당신이 수동으로 만들지 마세요.
+> Raven SCHEMA 의 자동 복사 대상(`_meta/system/SCHEMA.md` / `_meta/system/RULES.md` / `_meta/system/AGENTS.md` / `log.md`)은 vault bootstrap 시 Raven이 자체적으로 채워 넣습니다. 당신이 수동으로 만들지 마세요.
 
 ---
 
