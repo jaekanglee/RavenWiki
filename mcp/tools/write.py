@@ -23,6 +23,7 @@ from mcp import db
 from mcp.tools import (
     VaultContext,
     append_log_entry,
+    check_lock,
     check_permission,
     lookup_idempotent,
     normalize_actor,
@@ -156,6 +157,63 @@ def _resolve_idempotency(
     return replay, params
 
 
+# ─────────────── M5 / F4 — advisory concurrency lock ───────────────
+#
+# M4/F1 attaches actor/idempotency_key/timestamp via ``_attach_provenance``.
+# M5/F4 adds ``_lock_holder``: a non-blocking advisory read of any active
+# lock on the slugs this write is about to touch. The write proceeds
+# regardless (F4 is advisory per AGENTS.md §3); the caller sees
+# ``_lock_holder`` (with ``_advisory_conflict`` if a different actor
+# holds the claim) and decides whether to back off.
+#
+# Helpers in this section are read-only — ``acquire_lock`` itself is
+# exposed in mcp.tools and is the caller's job when they want to *claim*
+# a slug before editing. A write tool just *reports* the current state.
+
+
+def _attach_lock_holder(
+    response: dict,
+    *,
+    vault: Path,
+    slugs: list[str],
+    actor: str,
+) -> dict:
+    """Return a copy of ``response`` with ``_lock_holder`` attached.
+
+    Walks ``slugs`` in order and reports the *first* non-self, non-expired
+    lock it finds. "Self" here means the holder's actor equals the
+    caller — re-acquiring your own lock is fine, we don't want every
+    edit to look like a conflict.
+
+    Returns the response unchanged when no advisory conflict exists.
+    """
+    for slug in slugs:
+        if not slug:
+            continue
+        holder = check_lock(vault, slug)
+        if holder is None:
+            continue
+        if holder.get("actor") == actor:
+            # Our own claim — not a conflict, just metadata.
+            response["_lock_holder"] = holder
+            response["_lock_holder"]["_advisory_conflict"] = False
+            response["_lock_holder"]["_self"] = True
+            return response
+        # Foreign actor — this is the F4 advisory case.
+        response["_lock_holder"] = holder
+        # holder already carries ``_advisory_conflict: True`` from
+        # ``check_lock``; we re-state it at the response level so a
+        # shallow ``if resp.get("_advisory_conflict")`` check still
+        # works without descending into the lock dict.
+        response["_advisory_conflict"] = True
+        response["_lock_holder"]["_self"] = False
+        return response
+    # No active lock on any slug → explicit None so callers don't have
+    # to special-case missing vs empty.
+    response["_lock_holder"] = None
+    return response
+
+
 def _finalize_write(
     *,
     tool: str,
@@ -168,16 +226,30 @@ def _finalize_write(
     response: dict,
     extras: Optional[list[str]] = None,
     skip_idempotency_record: bool = False,
+    slugs: Optional[list[str]] = None,
 ) -> dict:
     """Post-write bookkeeping.
 
-    Attaches provenance, appends the log entry, persists the idempotency
-    record (unless the caller is on the cached-replay path). Returns
-    the augmented response dict.
+    Attaches provenance, reads the advisory lock state on ``slugs``,
+    appends the log entry, persists the idempotency record (unless the
+    caller is on the cached-replay path). Returns the augmented response
+    dict.
+
+    The ``slugs`` arg is the F4 hook — callers pass the slugs their write
+    touched (one for update/ingest/delete, two for rename). When omitted,
+    no lock probe is performed (preserves pre-F4 behavior for any
+    existing caller that hasn't been migrated).
     """
     response = _attach_provenance(
         response, actor=actor, idempotency_key=idempotency_key
     )
+    if slugs:
+        # F4: read-only advisory lock check. The write has already
+        # succeeded by this point; we just surface the conflict for the
+        # caller to see.
+        response = _attach_lock_holder(
+            response, vault=vault, slugs=list(slugs), actor=actor,
+        )
     # Skip the log append on cached replays — re-executing an idempotent
     # write should not produce a second provenance entry.
     if not response.get("_idempotent_replay"):
@@ -295,6 +367,7 @@ def wiki_update(
                 "frontmatter_data": frontmatter_data},
         response=response,
         extras=[f"path: {rel}"],
+        slugs=[slug],
     )
 
 
@@ -409,6 +482,7 @@ def wiki_ingest(
         params=ingest_params, response=response,
         extras=[f"source: {src_path.name}",
                 f"project: {project or 'default'}"],
+        slugs=[f"raw/{project or 'default'}/{src_path.name}"],
     )
 
 
@@ -502,6 +576,7 @@ def wiki_delete(
         subject=slug, actor=actor_norm, idempotency_key=idempotency_key,
         params={"slug": slug}, response=response,
         extras=[f"archived_to: {archive_path.relative_to(vault_path)}"],
+        slugs=[slug],
     )
 
 
@@ -654,4 +729,5 @@ def wiki_rename(
         params={"old_slug": old_slug, "new_slug": new_slug},
         response=response,
         extras=[f"wikilinks_rewritten: {rewritten}"],
+        slugs=[old_slug, new_slug],
     )

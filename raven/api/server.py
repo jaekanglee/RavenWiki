@@ -695,6 +695,54 @@ def get_digest(name: str, days: int = Query(7, ge=1, le=30, description="this_we
     return {"ok": True, **payload}
 
 
+# ────────────────────────── advisory locks (M5 F4) ──────────────────────────
+#
+# Read-only advisory lock view for the Dashboard. Mirrors mcp.tools.check_lock
+# exactly so the Dashboard and the MCP write tools see the same state. We do
+# NOT add POST endpoints here — F4 is "advisory" and claim/release flow is
+# the caller's job (typically via the MCP transport). Exposing GET only keeps
+# this endpoint truly read-only and safe for the Dashboard to poll.
+
+
+@app.get("/api/vaults/{name}/locks")
+def list_locks(name: str, slug: Optional[str] = Query(None, description="specific slug to inspect")):
+    """Advisory lock state for a vault (M5 F4).
+
+    With ``slug``: returns the lock record (or ``{"holder": None}``) for
+    that slug, same shape ``mcp.tools.check_lock`` returns.
+
+    Without ``slug``: returns all currently active lock entries. Expired
+    entries are filtered out (the underlying store does its own GC on
+    read).
+    """
+    v = _vault_or_404(name)
+    # Import lazily so server.py doesn't take a hard dependency on mcp.tools
+    # at import time (the API server runs in processes that may not have
+    # mcp installable, e.g. slim prod containers).
+    from mcp.tools import check_lock, _load_locks_store, _is_expired
+
+    if slug:
+        holder = check_lock(v.root, slug)
+        return {
+            "ok": True,
+            "vault": name,
+            "slug": slug,
+            "holder": holder,
+        }
+
+    store = _load_locks_store(v.root)
+    active = {
+        s: entry for s, entry in store.items()
+        if not _is_expired(entry)
+    }
+    return {
+        "ok": True,
+        "vault": name,
+        "count": len(active),
+        "locks": active,
+    }
+
+
 # ────────────────────────── local helpers ──────────────────────────
 
 

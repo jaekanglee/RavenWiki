@@ -9,6 +9,13 @@ reach them without reimplementing the JSON file dance. The store is per-vault
 (under ``<vault>/.mcp/idempotency.json``), append-only, and intentionally
 lock-free: the multi-agent write caveat in AGENTS.md §3 still applies —
 idempotency prevents accidental *retry*, not concurrent writers.
+
+M5 / F4 — advisory lock helpers live here too. They store per-vault claim
+records under ``<vault>/.mcp/locks.json`` and are **advisory only**: a write
+tool never refuses to run when a lock is held by another actor. The response
+just carries ``_lock_holder`` (with ``_advisory_conflict: True``) so the
+caller can decide whether to back off. This matches AGENTS.md §3's
+"multi-agent experimental" posture: surface the conflict, don't enforce it.
 """
 from __future__ import annotations
 
@@ -285,3 +292,276 @@ def append_log_entry(
         import sys
         print(f"⚠️  could not append log.md entry: {exc}", file=sys.stderr)
         return False
+
+
+# ─────────────── M5 / F4 — advisory concurrency lock ───────────────
+#
+# Per-vault advisory lock store at ``<vault>/.mcp/locks.json``.
+#
+# Shape:
+#   {
+#     "<slug>": {
+#       "actor": "<actor name>",
+#       "since": "<ISO timestamp>",
+#       "ttl_seconds": 300,
+#       "expires_at": "<ISO timestamp>"  # since + ttl, for cheap GC
+#     },
+#     ...
+#   }
+#
+# Semantics (F4 spec, AGENTS.md §3):
+#   - advisory only — no write tool blocks on a held lock
+#   - claim is overwritten by the SAME actor (idempotent re-acquire / extend)
+#   - claim by a DIFFERENT actor is refused: ``acquire_lock`` returns the
+#     existing claim as ``{"_advisory_conflict": True, "lock": {...}}`` so
+#     the caller can surface the conflict without raising
+#   - expired claims (now > expires_at) are treated as released on read;
+#     the next acquire by anyone wins
+#
+# This mirrors the F1 pattern: best-effort persistence, corruption-tolerant,
+# never blocks a write path.
+
+# Default TTL for an advisory lock (5 minutes). Long enough to cover a
+# normal "I'm editing this page" session, short enough that a crashed
+# actor doesn't hold the slug hostage forever.
+DEFAULT_LOCK_TTL_SECONDS = 300
+
+
+def _locks_path(vault: Path) -> Path:
+    """Where the advisory lock store lives for a given vault.
+
+    Same directory as ``idempotency.json`` (``<vault>/.mcp/``), distinct
+    file so F1 tests don't accidentally observe lock writes.
+    """
+    return vault / ".mcp" / "locks.json"
+
+
+def _load_locks_store(vault: Path) -> dict[str, dict[str, Any]]:
+    """Read the advisory lock store from disk. Returns ``{}`` on miss/error.
+
+    Failures are swallowed (logged to stderr) so a corrupted store never
+    blocks a legitimate write — the trade-off mirrors ``_load_idempotency_store``.
+    """
+    path = _locks_path(vault)
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except (OSError, json.JSONDecodeError) as exc:
+        import sys
+        print(f"⚠️  locks store unreadable ({exc}); treating as empty",
+              file=sys.stderr)
+        return {}
+
+
+def _save_locks_store(vault: Path, store: dict[str, dict[str, Any]]) -> bool:
+    """Atomically persist the lock store.
+
+    Same temp-file + ``os.replace`` dance as ``_save_idempotency_store``.
+    Returns True on success, False on error.
+    """
+    path = _locks_path(vault)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix="locks.", suffix=".tmp", dir=path.parent
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(store, fh, ensure_ascii=False, indent=2, sort_keys=True)
+            os.replace(tmp_name, path)
+            return True
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+    except OSError as exc:
+        import sys
+        print(f"⚠️  could not persist locks store: {exc}", file=sys.stderr)
+        return False
+
+
+def _is_expired(entry: dict[str, Any], *, now: Optional[dt.datetime] = None) -> bool:
+    """True if ``entry`` has passed its ``expires_at`` (or is malformed).
+
+    Used by ``check_lock`` / ``acquire_lock`` to GC stale claims without a
+    separate sweeper. A missing or unparseable ``expires_at`` counts as
+    expired (fail-open — better to lose a stale claim than block forever).
+    """
+    expires_at = entry.get("expires_at")
+    if not expires_at:
+        return True
+    try:
+        when = dt.datetime.fromisoformat(expires_at)
+    except (TypeError, ValueError):
+        return True
+    return (now or dt.datetime.now()) >= when
+
+
+def check_lock(vault: Path, slug: str) -> Optional[dict[str, Any]]:
+    """Return the active lock for ``slug`` or ``None``.
+
+    A lock is "active" when it exists, has a different actor from the
+    caller (passes through unchanged for the *same* actor — see
+    ``acquire_lock``), and has not expired. Expired entries are *removed*
+    on read so the next ``acquire_lock`` by anyone wins.
+
+    The returned dict is shaped::
+
+        {"actor": "...", "since": "...", "ttl_seconds": int,
+         "expires_at": "...", "_advisory_conflict": True}
+
+    The trailing ``_advisory_conflict`` label is what F4 spec requires
+    every caller to surface, so we attach it here once.
+    """
+    store = _load_locks_store(vault)
+    entry = store.get(slug)
+    if entry is None:
+        return None
+    if _is_expired(entry):
+        # GC the stale claim so it doesn't haunt ``check_lock`` forever.
+        store.pop(slug, None)
+        _save_locks_store(vault, store)
+        return None
+    return {
+        "actor": entry.get("actor"),
+        "since": entry.get("since"),
+        "ttl_seconds": entry.get("ttl_seconds"),
+        "expires_at": entry.get("expires_at"),
+        "_advisory_conflict": True,
+    }
+
+
+def acquire_lock(
+    vault: Path,
+    slug: str,
+    actor: str,
+    *,
+    ttl_seconds: int = DEFAULT_LOCK_TTL_SECONDS,
+) -> dict[str, Any]:
+    """Claim an advisory lock on ``slug`` for ``actor``.
+
+    Returns one of:
+
+      * ``{"ok": True, "lock": {...}}`` — claim acquired (or refreshed by
+        the *same* actor — this matches the F4 "extend by re-acquire"
+        convenience).
+      * ``{"ok": False, "lock": <existing>, "_advisory_conflict": True}`` —
+        another actor holds a non-expired claim. Caller decides whether
+        to surface the conflict, wait, or proceed (F4 is advisory — no
+        blocking).
+
+    A failed ``_save_locks_store`` returns ``ok=False`` with
+    ``_persisted=False`` but does *not* raise — write tools must never
+    crash on a lock-store I/O error.
+    """
+    actor = normalize_actor(actor)
+    store = _load_locks_store(vault)
+    existing = store.get(slug)
+    now = dt.datetime.now()
+
+    # Expired claim → free to take over.
+    if existing is not None and not _is_expired(existing, now=now):
+        if existing.get("actor") != actor:
+            return {
+                "ok": False,
+                "lock": {
+                    "actor": existing.get("actor"),
+                    "since": existing.get("since"),
+                    "ttl_seconds": existing.get("ttl_seconds"),
+                    "expires_at": existing.get("expires_at"),
+                    "_advisory_conflict": True,
+                },
+                "_advisory_conflict": True,
+            }
+        # Same actor → fall through and refresh TTL.
+
+    since = now.replace(microsecond=0).isoformat()
+    expires_at = (now + dt.timedelta(seconds=ttl_seconds)).replace(microsecond=0).isoformat()
+    entry = {
+        "actor": actor,
+        "since": since,
+        "ttl_seconds": ttl_seconds,
+        "expires_at": expires_at,
+    }
+    store[slug] = entry
+    persisted = _save_locks_store(vault, store)
+    out = {"ok": persisted, "lock": entry}
+    if not persisted:
+        out["_persisted"] = False
+    return out
+
+
+def release_lock(vault: Path, slug: str, actor: str) -> bool:
+    """Release an advisory lock on ``slug``.
+
+    Only the actor that holds the lock may release it — releasing on
+    behalf of someone else is a silent no-op (returns False) so a
+    concurrent agent cannot accidentally drop a peer's claim.
+
+    Returns True if a claim was removed, False otherwise (no claim,
+    different actor, or persistence error).
+    """
+    actor = normalize_actor(actor)
+    store = _load_locks_store(vault)
+    existing = store.get(slug)
+    if existing is None or existing.get("actor") != actor:
+        return False
+    store.pop(slug, None)
+    return _save_locks_store(vault, store)
+
+
+def extend_lock(
+    vault: Path,
+    slug: str,
+    actor: str,
+    *,
+    ttl_seconds: int = DEFAULT_LOCK_TTL_SECONDS,
+) -> dict[str, Any]:
+    """Extend an existing lock's TTL.
+
+    Mirrors ``acquire_lock``'s actor check: extending someone else's lock
+    is a conflict, not a takeover. Expired locks cannot be extended —
+    the caller must re-acquire (which is the natural workflow anyway,
+    since an expired lock means the previous holder is gone).
+    """
+    actor = normalize_actor(actor)
+    store = _load_locks_store(vault)
+    existing = store.get(slug)
+    now = dt.datetime.now()
+    if existing is None or _is_expired(existing, now=now):
+        return {
+            "ok": False,
+            "lock": None,
+            "_advisory_conflict": True,
+            "reason": "no active lock to extend",
+        }
+    if existing.get("actor") != actor:
+        return {
+            "ok": False,
+            "lock": {
+                "actor": existing.get("actor"),
+                "since": existing.get("since"),
+                "ttl_seconds": existing.get("ttl_seconds"),
+                "expires_at": existing.get("expires_at"),
+                "_advisory_conflict": True,
+            },
+            "_advisory_conflict": True,
+            "reason": "different actor",
+        }
+    expires_at = (now + dt.timedelta(seconds=ttl_seconds)).replace(microsecond=0).isoformat()
+    entry = dict(existing)
+    entry["ttl_seconds"] = ttl_seconds
+    entry["expires_at"] = expires_at
+    store[slug] = entry
+    persisted = _save_locks_store(vault, store)
+    out = {"ok": persisted, "lock": entry}
+    if not persisted:
+        out["_persisted"] = False
+    return out
