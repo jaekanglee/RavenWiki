@@ -156,6 +156,44 @@ def vault_create(
         typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 
 
+@vault_app.command("verify")
+def vault_verify(
+    name: Optional[str] = typer.Argument(None, help="vault name (default: active)"),
+    json_out: bool = typer.Option(False, "--json", help="machine-readable output"),
+) -> None:
+    """Verify Lite bootstrap files match source templates (SHA256).
+
+    M4 F3 — Bootstrap Self-Test. Checks the 4 Lite bootstrap files
+    (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/AGENTS.md,
+    log.md) for existence + content match against the raven package's
+    source templates.
+
+    Exit codes:
+      0 = all 4 files OK
+      1 = at least one file missing or hash mismatch
+    """
+    v = _resolve_vault_or_die(name)
+    result = v.verify_bootstrap()
+    if json_out:
+        typer.echo(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        typer.echo(f"🔍 bootstrap self-test: {v.meta.name} ({v.root})")
+        for c in result.checks:
+            if c.status == "ok":
+                typer.echo(f"   ✅ {c.rel_path:34s} sha256={c.actual_sha256[:12]}…")
+            elif c.status == "missing":
+                typer.echo(f"   ❌ {c.rel_path:34s} MISSING — {c.detail}")
+            elif c.status == "mismatch":
+                exp = (c.expected_sha256 or "")[:12]
+                got = (c.actual_sha256 or "")[:12]
+                typer.echo(f"   ⚠️  {c.rel_path:34s} MISMATCH (expected {exp}…, got {got}…)")
+            elif c.status == "template_error":
+                typer.echo(f"   ⛔ {c.rel_path:34s} TEMPLATE ERROR — {c.detail}")
+        typer.echo(f"\n   {result.summary()}")
+    if not result.ok:
+        raise typer.Exit(1)
+
+
 @vault_app.command("register")
 def vault_register(
     name: str,

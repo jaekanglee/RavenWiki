@@ -26,16 +26,21 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from .registry import registry, VaultMeta
+
+if TYPE_CHECKING:
+    from .verify import BootstrapVerifyResult
 
 
 # Lite bootstrap whitelist — only files every user needs.
 # These are user-facing schema/rules, NOT raven internals.
+# v0.5.5+: 4 entries (SCHEMA + RULES + AGENTS + log.md) — must match template_map in _bootstrap_lite().
 _LITE_BOOTSTRAP_FILES = (
     "_meta/system/SCHEMA.md",
     "_meta/system/RULES.md",
+    "_meta/system/AGENTS.md",
     "log.md",
 )
 
@@ -87,6 +92,15 @@ class Vault:
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
         if bootstrap:
             cls._bootstrap_lite(path)
+            # M4 F3 — Bootstrap Self-Test (read-back verification).
+            # Lite bootstrap = 4 files. AGENTS.md §9 silent-failure policy:
+            # verify failure emits a warning, write itself succeeds.
+            try:
+                from . import verify as _verify
+                _verify.verify_and_warn(path, context=f"vault.create({name})")
+            except Exception:
+                # Verify must never break vault create (defensive).
+                pass
         else:
             # Even without bootstrap, content/ + _meta/ should exist as empty dirs
             # so users have a writable starting point. (v0.4 fix — discovered via clone test)
@@ -348,6 +362,24 @@ class Vault:
         # log.md 자동 보장 (없으면 빈 헤더)
         from . import log as _log
         _log.ensure_log(self)
+
+    # ─── bootstrap self-test (F3, M4) ────────────
+
+    def verify_bootstrap(self) -> "BootstrapVerifyResult":
+        """Verify this vault's Lite bootstrap files match the source templates.
+
+        Returns:
+            BootstrapVerifyResult with per-file status + overall `ok` flag.
+
+        Use case:
+            - CLI: `raven vault verify <name>`
+            - API: `POST /api/vaults/{name}/verify`
+            - Direct: `Vault.load(meta).verify_bootstrap()`
+
+        Does NOT raise on missing/mismatched files — caller inspects `result.ok`.
+        """
+        from . import verify as _verify
+        return _verify.verify_bootstrap(self.root)
 
 
 # Re-export datetime at module scope (used by clone)

@@ -189,6 +189,24 @@ def create_vault(payload: VaultCreate):
     }
 
 
+@app.post("/api/vaults/{name}/verify")
+def verify_vault_bootstrap(name: str):
+    """Verify the vault's Lite bootstrap files match source templates (SHA256).
+
+    M4 F3 — Bootstrap Self-Test. Mirrors `raven vault verify <name>`.
+
+    Returns:
+        ok=True if all 4 Lite bootstrap files match the source templates.
+        ok=False with per-file checks otherwise.
+    """
+    v = _vault_or_404(name)
+    result = v.verify_bootstrap()
+    payload = result.to_dict()
+    if not result.ok:
+        raise HTTPException(status_code=409, detail=payload)
+    return payload
+
+
 # ────────────────────────── page endpoints ──────────────────────────
 
 
