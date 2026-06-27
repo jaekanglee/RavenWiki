@@ -6,6 +6,9 @@ wiki.db-shm
 wiki.db.backup
 backups/
 
+# MCP runtime artifacts (M4 / F1 — idempotency store, ephemeral per-vault state)
+.mcp/
+
 # Service logs
 logs/
 
