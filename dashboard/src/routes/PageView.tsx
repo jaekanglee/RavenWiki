@@ -15,8 +15,11 @@ interface Ctx {
 export function PageView() {
   const params = useParams();
   const slug = params["*"];
+  // v0.6.9 (P15 fix): URL의 :vault 파라미터를 SOT로 사용. Layout의 ctx.vault가
+  // Wizard 후 stale여도 URL 우선이면 stale race 차단.
+  const vaultFromUrl = params.vault;
   const ctx = useOutletContext<Ctx>();
-  const vault = ctx?.vault || getActiveVault() || "default";
+  const vault = vaultFromUrl || ctx?.vault || getActiveVault() || "default";
   const [page, setPage] = useState<Page | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
 

@@ -15,7 +15,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/page/*" element={<PageView />} />
+          <Route path="/page/:vault/*" element={<PageView />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/log" element={<LogPage />} />
