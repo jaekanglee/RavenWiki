@@ -49,7 +49,7 @@ def test_bootstrap_creates_content_and_meta_dirs(isolated_vaults_root, isolated_
 
 
 def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
-    """Lite bootstrap: only SCHEMA.md, RULES.md, log.md are copied."""
+    """Lite bootstrap: SCHEMA.md, RULES.md, AGENTS.md, log.md are copied (v0.5.5+)."""
     v = Vault.create("smoke2", isolated_target / "smoke2", bootstrap=True)
     # Must exist (Lite whitelist)
     assert (v.root / "_meta" / "system" / "SCHEMA.md").is_file()

@@ -151,7 +151,7 @@ def vault_create(
     )
     if bootstrap:
         typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-        typer.echo(f"   bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md}}")
+        typer.echo(f"   bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md, AGENTS.md}}")
     else:
         typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 
