@@ -18,6 +18,7 @@ from raven.core import registry, resolve_active_vault, VAULTS_ROOT, REGISTRY_PAT
 from raven.core import db_module, lint_module, export_module, link_module
 from raven.core import slug_module, frontmatter_module, archive_module
 from raven.core import log_module
+from raven.core import contracts
 from raven import migrate as migrate_module
 from raven.core.vault import Vault
 
@@ -399,48 +400,28 @@ def page_new(
         - 'foo' → 'content/foo' (auto prefix when no '/' in slug)
         - 'meta/welcome' → '_meta/welcome' (explicit prefix preserved)
         - Invalid slugs (.., ~, absolute, NUL, ':') are rejected.
+
+    v0.6.2+:
+        - Delegates to `raven.core.contracts.write_page` (shared recipe).
     """
     v = _resolve_vault_or_die(vault)
-    # R3: auto-prefix short names
-    normalized = slug_module.normalize_prefix(slug)
-    # R1: validate (raises SlugError on bad path)
-    try:
-        safe_path = slug_module.validate(normalized, vault_root=v.root)
-    except slug_module.SlugError as e:
-        typer.echo(f"❌ invalid slug: {e}", err=True)
-        raise typer.Exit(1)
-    fp = safe_path.with_suffix(".md")
-    if fp.exists():
-        typer.echo(f"❌ exists: {normalized}", err=True)
-        raise typer.Exit(1)
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    # R2: use unified frontmatter.render() — consistent with API/Agent
-    today = __import__("datetime").date.today().isoformat()
-    meta = frontmatter_module.merge(
-        {},
-        {
-            "title": title,
-            "type": type_,
-            "tags": tags,
-            "created": today,
-            "updated": today,
-        },
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    result = contracts.write_page(
+        v,
+        slug,
+        f"# {title}\n",
+        title=title,
+        type=type_,
+        tags=tag_list,
+        overwrite=False,  # create-only: typer.Exit on exists (matches pre-v0.6.2)
     )
-    body = f"# {title}\n"
-    rendered = frontmatter_module.render(meta, body)
-    fp.write_text(rendered, encoding="utf-8")
-    # v0.5.1+: log.md에 create entry 자동 append
-    try:
-        log_module.append(
-            v,
-            action="create",
-            subject=normalized,
-            files=[normalized],
-            note=f"type={type_}",
-        )
-    except Exception:
-        pass
-    typer.echo(f"✅ created: {normalized}")
+    if not result.ok:
+        if result.error == "exists":
+            typer.echo(f"❌ exists: {result.slug}", err=True)
+        else:
+            typer.echo(f"❌ {result.error}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✅ created: {result.slug}")
 
 
 # ────────────────────────── note (트리거 헬퍼) ──────────────────────────

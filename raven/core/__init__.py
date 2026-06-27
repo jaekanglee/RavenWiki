@@ -11,6 +11,7 @@ Split:
     frontmatter  — unified FM parse/render/merge (v0.3+)
     archive      — _archive/ cleanup + restore (v0.4+)
     log          — log.md (작업 이력) 관리 (v0.5.0+, 카파시 가이드)
+    contracts    — single write contract shared by all entrypoints (v0.6.2+)
 """
 from .registry import VaultRegistry, registry, REGISTRY_PATH, VAULTS_ROOT
 from .vault import Vault, resolve_active_vault
@@ -23,6 +24,7 @@ from . import frontmatter as frontmatter_module
 from . import archive as archive_module
 from . import log as log_module
 from . import digest as digest_module
+from . import contracts as contracts_module
 
 __all__ = [
     "VaultRegistry",
@@ -40,4 +42,5 @@ __all__ = [
     "archive_module",
     "log_module",
     "digest_module",
+    "contracts_module",
 ]
