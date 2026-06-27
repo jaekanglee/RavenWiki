@@ -18,7 +18,7 @@ raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한
 | **CLI** (사람/자동화) | Typer 9 commands | `raven/cli/` |
 | **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
-| **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `mcp/` |
+| **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
 | **Adapter** (에이전트) | Python scope-based API | `raven/agents/` |
 
 **SoT = 마크다운**. DB/API/GUI/MCP는 **모두 재생성 가능**한 파생 산출물.
@@ -354,7 +354,8 @@ raven build && raven link check
 │   ├── export_static.py
 │   └── backup_db.py
 ├── _meta/                            ← 시스템 문서 (이 프로젝트 자기 자신에 대한 wiki)
-├── mcp/                              ← (legacy) MCP 서버
+├── raven/mcp/                      ← MCP 서버 (v0.6.0+ namespace)
+├── mcp/                              ← (deprecated, v0.6.0에서 raven/mcp/로 이동)
 └── log.md                            ← 작업 로그
 ```
 

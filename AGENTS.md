@@ -46,7 +46,7 @@ Raven은 **4개 진입점만** 제공합니다. **5번째 진입점 추가 ❌**
 | **CLI** | 사람 운영자 / 자동화 (canonical control plane) | `raven/cli/` |
 | **HTTP API** | Dashboard backend / 외부 자동화 | `raven/api/` |
 | **Dashboard** | 사람 탐색/편집 UX (read-write, API-backed) | `dashboard/` |
-| **MCP** | LLM 클라이언트 표준 진입점 (read/write/admin 모드) | `mcp/` |
+| **MCP** | LLM 클라이언트 표준 진입점 (read/write/admin 모드) | `raven/mcp/` |
 
 → 진입점 추가/제거는 ADR(Architecture Decision Record)로만. **`raven docs`로 노출되는 패키지 내부 문서 ≠ 진입점**.
 
@@ -130,7 +130,7 @@ log.md                    → 작업 이력 (append-only)
 | `dashboard/` | **read** | React UI (변경 시 worktree 패턴 + 사용자 승인) |
 
 → 위 4 영역을 벗어나는 경로:
-- `mcp/` — 변경 시 import path 검증 필수 (네임스페이스 위험)
+- `raven/mcp/` — 변경 시 import path 검증 필수 (v0.6.0+ namespace)
 - `scripts/.venv/` — 생성/삭제 ❌ (가상환경, 재생성 가능)
 - `_deprecated/` — read only (B안으로 archive됨, 복원 시 사용자 결정)
 
@@ -170,7 +170,7 @@ log.md                    → 작업 이력 (append-only)
 - ❌ SOUL.md 수정 ❌ (Hermes 프로필 설정이지 Raven 제품 문서 ❌)
 - ❌ 5번째 진입점 추가 ❌ (Telegram, Slack 등)
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)
-- ❌ `mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌)
+- ❌ `raven/mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌 회피를 위해 v0.6.0+ 고정)
 - ❌ SCHEMA.md 8종 외 type 정의 ❌
 - ❌ Tier 1 문서(OPERATIONS, agent/*, raven-policy)를 vault에 복사 ❌
 - ❌ 의존성 추가 without 사용자 승인 ❌

@@ -19,8 +19,8 @@ from typing import Optional
 
 import frontmatter
 
-from mcp import db
-from mcp.tools import (
+from raven.mcp import db
+from raven.mcp.tools import (
     VaultContext,
     append_log_entry,
     check_lock,

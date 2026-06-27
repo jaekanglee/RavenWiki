@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from mcp import db
-from mcp.tools import VaultContext
+from raven.mcp import db
+from raven.mcp.tools import VaultContext
 
 
 # ─────────────── 1. wiki_search ───────────────

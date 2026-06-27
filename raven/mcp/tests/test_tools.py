@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from mcp import db
-from mcp.tools import (
+from raven.mcp import db
+from raven.mcp.tools import (
     VaultContext,
     PermissionError_,
     check_permission,
@@ -14,14 +14,14 @@ from mcp.tools import (
     READ,
     ADMIN,
 )
-from mcp.tools.read import (
+from raven.mcp.tools.read import (
     wiki_search,
     wiki_get_page,
     wiki_lint,
     wiki_graph,
     wiki_log,
 )
-from mcp.tools.write import wiki_update, wiki_ingest, wiki_delete, wiki_rename
+from raven.mcp.tools.write import wiki_update, wiki_ingest, wiki_delete, wiki_rename
 
 
 # ─────────────── permission model ───────────────
@@ -279,7 +279,7 @@ def test_wiki_delete_archives_and_rebuilds(wiki_db: Path, tmp_path: Path):
     # Restore from archive (best-effort) to keep tests idempotent
     archive = ctx.vault / result["archived"]
     archive.rename(target)
-    from mcp.tools import write as _write_mod
+    from raven.mcp.tools import write as _write_mod
     _write_mod._rebuild_db(ctx.vault)
 
 
@@ -344,7 +344,7 @@ def test_wiki_rename_rewrites_wikilinks_and_aliases(wiki_db: Path, tmp_path: Pat
 
 def _write_mod_rebuild(vault: Path) -> None:
     """Helper: rebuild wiki.db so subsequent assertions see the new state."""
-    from mcp.tools import write as _write_mod
+    from raven.mcp.tools import write as _write_mod
     _write_mod._rebuild_db(vault)
 
 
