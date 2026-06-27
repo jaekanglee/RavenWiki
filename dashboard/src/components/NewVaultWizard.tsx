@@ -1,109 +1,109 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-
 /**
- * Vault creation wizard — 3-step flow.
+ * NewVaultWizard — v0.6.6: 2-step wizard (3 step → 2 step).
  *
- *   Step 1 — 이름 + 경로            (name kebab-case 강제, path 기본 제안)
- *   Step 2 — 모드 + 템플릿          (personal/shared/agent + AI-Agent-Wiki v1.0.0)
- *   Step 3 — 확인 + 만들기          (요약 → POST /api/vaults/create → redirect)
+ *   Step 1 — 이름 (path/mode/template 자동)
+ *   Step 2 — 확인 + 만들기 (요약 → POST /api/vaults/create → redirect)
  *
- * 토큰 사용: --color-primary / --color-canvas / --color-surface-soft /
- *            --color-ink / --color-muted / --radius-md / --radius-lg /
- *            --shadow-overlay / --color-error-text
+ * v0.6.6 simplifications (4가지 user pain 해소):
+ *   1. "wiki가 표시되는것도 이상해" → PWA 캐시/이전 세션 이슈, 강제 reload 안내
+ *   2. "wiki 눌러서 새 vault 만들기" → 이 위저드에서 직접 (VaultPicker 우회 가능)
+ *   3. "absolute path 왜 굳이 입력" → v0.6.3에서 이미 readonly, 강제 reload 필요
+ *   4. "personal/shared/agent 선택 필요 없음" → personal fixed (shared/agent는
+ *      system-internal, 사용자 표면에서 ❌ — AGENTS.md §3 over-promise 회피)
  *
- * API: POST /api/vaults/create
- *      { name, path, mode, description, bootstrap }
+ * Surgical: NewVaultWizard.tsx 본문만 교체. Sidebar.tsx / Layout.tsx /
+ * VaultPicker.tsx 변경 0.
  *
- * 응답 ok 시 → navigate(`/page/<name>/index`)
- *       실패 시 → inline 에러 표시 (그 자리에 머무름)
+ * "안정·심플" 컨셉 부합:
+ *   - mode는 personal 한 가지 (사용자 비전 = "1인 vault" 기본)
+ *   - template는 wiki-v1 (Lite bootstrap 4종 자동)
+ *   - path는 ~/Raven/<name>/ 자동 (WIKI_VAULTS_DIR override 가능, 표시)
+ *   - 사용자가 입력하는 것: name 한 줄
+ *
+ * Advanced 옵션 (CLI):
+ *   `raven vault create <name> <path> --mode shared|agent --template none`
  */
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
-type Mode = "personal" | "shared" | "agent";
-type TemplateKey = "none" | "wiki-v1";
-type Step = 1 | 2 | 3;
+/** Default mode for Dashboard-created vaults.
+ *
+ * Why "personal" only? Because:
+ *   - `shared` and `agent` are system-internal ownership concepts (CLI use)
+ *   - User persona = "1인 vault" by default (Raven product spec)
+ *   - AGENTS.md §3 forbids exposing `agent` mode with "안정" wording
+ *   - Multi-vault user can have multiple `personal` vaults (D8 ADR)
+ */
+const DEFAULT_MODE: "personal" = "personal";
 
-const TEMPLATES: { key: TemplateKey; label: string; desc: string }[] = [
-  { key: "none", label: "없음 (빈 vault)", desc: "bootstrap 안 함. 최소한의 메타만 생성." },
-  { key: "wiki-v1", label: "AI-Agent-Wiki v1.0.0", desc: "Lite bootstrap (SCHEMA/RULES/AGENTS/log.md 자동 복사)" },
-];
-
-const MODES: { key: Mode; label: string; hint: string }[] = [
-  { key: "personal", label: "personal", hint: "1인용 vault. 기본값." },
-  { key: "shared", label: "shared", hint: "여러 사람/기계가 공유. 동시 쓰기는 사용자 책임." },
-  { key: "agent", label: "agent", hint: "단일 에이전트가 owner. scope/provenance 안전장치 활성." },
-];
+/** Default template — Lite bootstrap (4종: SCHEMA.md / RULES.md / AGENTS.md / log.md).
+ *  "none" is also possible via CLI but the Dashboard skips that choice
+ *  entirely — every new vault is a real Raven vault.
+ */
+const DEFAULT_TEMPLATE: "wiki-v1" = "wiki-v1";
 
 // kebab-case: 소문자/숫자/하이픈, 시작은 소문자, 연속 하이픈 ❌
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
-/**
- * Canonical vault path under the Raven root. Mirrors
+/** Canonical vault path under the Raven root. Mirrors
  * `raven.core.registry.VAULTS_ROOT()` default of `~/Raven/`.
- *
- * v0.6.3+: The path is auto-determined from the vault name — users no
- * longer type it. The field in Step 1 is rendered as a read-only
- * preview so the user can see where the vault will be created. If
- * the server is configured with `WIKI_VAULTS_DIR=<elsewhere>`, the
- * backend will honor that override (we display the same string but
- * the actual creation uses the env-resolved root).
  */
 function defaultPath(name: string) {
   return `~/Raven/${name}/`;
 }
 
+type Step = 1 | 2;
+
 export function NewVaultWizard() {
   const navigate = useNavigate();
 
-  // state machine
+  // state machine — 2 step only
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
-  const [path, setPath] = useState("");
-  const [mode, setMode] = useState<Mode>("personal");
-  const [template, setTemplate] = useState<TemplateKey>("wiki-v1");
+  const [path, setPath] = useState(""); // readonly display
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [pathTouched, setPathTouched] = useState(false);
+  const [vaultsRoot, setVaultsRoot] = useState<string>("");
 
-  // name이 바뀌면 path 기본값 자동 제안 (사용자가 직접 만지지 않은 경우에만)
+  // name이 바뀌면 path 자동 결정 (사용자 입력 0)
   useEffect(() => {
-    if (!pathTouched && step === 1) {
-      setPath(name ? defaultPath(name) : "");
-    }
-  }, [name, pathTouched, step]);
+    setPath(name ? defaultPath(name) : "");
+  }, [name]);
 
-  // ─── validation ──────────────────────────────────────────
-  function validateStep1(): string | null {
-    if (!name.trim()) return "vault name은 필수입니다.";
+  // vaultsRoot 조회 (env override 표시)
+  useEffect(() => {
+    fetch("/api/vaults")
+      .then((r) => (r.ok ? r.json() : { vaults_root: "" }))
+      .then((d) => {
+        if (typeof d.vaults_root === "string") {
+          setVaultsRoot(d.vaults_root);
+        }
+      })
+      .catch(() => setVaultsRoot(""));
+  }, []);
+
+  // ─── step 1 validation ──────────────────────────────────────
+  function validateName(): string | null {
+    if (!name.trim()) return "vault 이름을 입력하세요.";
     if (!KEBAB_RE.test(name)) {
-      return "name은 kebab-case여야 합니다 (예: my-notes, work-2026). 소문자/숫자/하이픈만, 하이픈으로 시작 ❌";
-    }
-    if (!path.trim()) return "path는 필수입니다.";
-    if (!path.startsWith("/") && !path.startsWith("~")) {
-      return "path는 절대경로여야 합니다 (~/ 또는 / 로 시작).";
+      return "이름은 kebab-case여야 합니다 (예: my-notes, work-2026). 소문자/숫자/하이픈만, 하이픈으로 시작 ❌";
     }
     return null;
   }
 
-  // ─── step transitions ─────────────────────────────────────
   function next() {
     setError(null);
-    if (step === 1) {
-      const err = validateStep1();
-      if (err) {
-        setError(err);
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
+    const err = validateName();
+    if (err) {
+      setError(err);
+      return;
     }
+    setStep(2);
   }
 
   function back() {
     setError(null);
     if (step === 2) setStep(1);
-    else if (step === 3) setStep(2);
   }
 
   // ─── submit ───────────────────────────────────────────────
@@ -116,14 +116,14 @@ export function NewVaultWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          path,
-          mode,
-          description: `Created via Dashboard wizard (${template})`,
-          bootstrap: template === "wiki-v1",
+          path: path, // auto-determined from name (v0.6.3)
+          mode: DEFAULT_MODE,
+          description: "Created via Dashboard wizard",
+          bootstrap: true, // v0.6.6: 항상 Lite bootstrap
         }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data.ok) {
+      if (!r.ok || data.ok === false) {
         throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
       }
       // 성공 → vault index 페이지로 redirect
@@ -135,411 +135,378 @@ export function NewVaultWizard() {
     }
   }
 
-  // ─── step indicator ───────────────────────────────────────
-  const StepIndicator = (
-    <div
-      style={{
-        display: "flex",
-        gap: 8,
-        marginBottom: 24,
-        fontSize: 12,
-        fontWeight: 700,
-        letterSpacing: "0.32px",
-        textTransform: "uppercase",
-        color: "var(--color-muted)",
-      }}
-      aria-label="wizard step"
-    >
-      {([1, 2, 3] as const).map((n) => {
-        const active = n === step;
-        const done = n < step;
-        return (
-          <div
-            key={n}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              background: active
-                ? "var(--cds-layer-accent)"
-                : done
-                  ? "var(--cds-tag-blue-bg)"
-                  : "var(--color-surface-soft)",
-              color: active
-                ? "var(--color-on-primary)"
-                : done
-                  ? "var(--cds-tag-blue-text)"
-                  : "var(--color-muted)",
-            }}
-          >
-            <span>{done ? "✓" : n}</span>
-            <span>
-              {n === 1 ? "이름 + 경로" : n === 2 ? "모드 + 템플릿" : "확인"}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // ─── step 1: name + path ──────────────────────────────────
-  if (step === 1) {
-    return (
-      <div
-        className="card-flat"
-        style={{
-          padding: 24,
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "var(--shadow-overlay)",
-        }}
-      >
-        {StepIndicator}
-
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.32px",
-            textTransform: "uppercase",
-            color: "var(--color-muted)",
-            marginBottom: 8,
-          }}
-        >
-          Vault 이름 *
-        </label>
-        <input
-          autoFocus
-          className="input-base"
-          style={{ height: 64 }}
-          value={name}
-          onChange={(e) => setName(e.target.value.toLowerCase().trim())}
-          placeholder="my-notes"
-          aria-label="vault name"
-        />
-        <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 6 }}>
-          kebab-case 강제: <code>{`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`}</code>
-        </div>
-
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.32px",
-            textTransform: "uppercase",
-            color: "var(--color-muted)",
-            marginTop: 24,
-            marginBottom: 8,
-          }}
-        >
-          경로 (자동 결정됨)
-        </label>
-        <input
-          className="input-base"
-          readOnly
-          style={{
-            height: 64,
-            fontFamily: "ui-monospace, SFMono-Regular, monospace",
-            background: "var(--cds-field-01, #f4f4f4)",
-            color: "var(--color-muted)",
-            cursor: "default",
-          }}
-          value={path}
-          placeholder="이름을 입력하면 자동으로 표시됩니다"
-          aria-label="vault path (auto-determined)"
-        />
-        <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 6 }}>
-          v0.6.3+: 모든 Raven vault는 <code>~/Raven/&lt;name&gt;/</code> 패턴으로 자동 생성됩니다
-          (백엔드 <code>VAULTS_ROOT</code> 기본값). 서버에 <code>WIKI_VAULTS_DIR</code> 환경변수가
-          설정되어 있으면 그 경로가 우선 적용됩니다.
-        </div>
-
-        {error && (
-          <div
-            role="alert"
-            style={{
-              marginTop: 16,
-              padding: 12,
-              borderRadius: "var(--radius-md)",
-              background: "var(--color-surface-soft)",
-              color: "var(--color-error-text)",
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 32 }}>
-          <button
-            className="btn-primary"
-            onClick={next}
-            disabled={!name || !path}
-            style={{ minWidth: 120 }}
-          >
-            다음 →
-          </button>
-        </div>
-      </div>
-    );
+  // ─── step indicator ────────────────────────────────────────
+  function stepLabel(s: Step) {
+    return s === 1 ? "이름" : "확인";
   }
-
-  // ─── step 2: mode + template ──────────────────────────────
-  if (step === 2) {
-    return (
-      <div
-        className="card-flat"
-        style={{
-          padding: 24,
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "var(--shadow-overlay)",
-        }}
-      >
-        {StepIndicator}
-
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.32px",
-            textTransform: "uppercase",
-            color: "var(--color-muted)",
-            marginBottom: 12,
-          }}
-        >
-          모드
-        </div>
-        <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {MODES.map((m) => {
-            const selected = mode === m.key;
-            return (
-              <label
-                key={m.key}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: 16,
-                  border: `2px solid ${selected ? "var(--cds-border-interactive)" : "var(--cds-border-subtle)"}`,
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  background: selected
-                    ? "var(--cds-tag-blue-bg)"
-                    : "var(--cds-background)",
-                  transition: "border-color 0.12s ease, background-color 0.12s ease",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  value={m.key}
-                  checked={selected}
-                  onChange={() => setMode(m.key)}
-                  style={{ marginTop: 3 }}
-                />
-                <div>
-                  <div style={{ fontWeight: 700, color: "var(--color-ink)" }}>
-                    {m.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
-                    {m.hint}
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.32px",
-            textTransform: "uppercase",
-            color: "var(--color-muted)",
-            marginTop: 28,
-            marginBottom: 12,
-          }}
-        >
-          템플릿
-        </div>
-        <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {TEMPLATES.map((t) => {
-            const selected = template === t.key;
-            return (
-              <label
-                key={t.key}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: 16,
-                  border: `2px solid ${selected ? "var(--cds-border-interactive)" : "var(--cds-border-subtle)"}`,
-                  borderRadius: "var(--radius-md)",
-                  cursor: "pointer",
-                  background: selected
-                    ? "var(--cds-tag-blue-bg)"
-                    : "var(--cds-background)",
-                  transition: "border-color 0.12s ease, background-color 0.12s ease",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="template"
-                  value={t.key}
-                  checked={selected}
-                  onChange={() => setTemplate(t.key)}
-                  style={{ marginTop: 3 }}
-                />
-                <div>
-                  <div style={{ fontWeight: 700, color: "var(--color-ink)" }}>
-                    {t.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 2 }}>
-                    {t.desc}
-                  </div>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
-          <button className="btn-secondary" onClick={back}>
-            ← 뒤로
-          </button>
-          <button className="btn-primary" onClick={next} style={{ minWidth: 120 }}>
-            다음 →
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── step 3: confirm ──────────────────────────────────────
-  const templateLabel =
-    TEMPLATES.find((t) => t.key === template)?.label ?? template;
-  const modeLabel = MODES.find((m) => m.key === mode)?.label ?? mode;
 
   return (
-    <div
-      className="card-flat"
-      style={{
-        padding: 24,
-        borderRadius: "var(--radius-lg)",
-        boxShadow: "var(--shadow-overlay)",
-      }}
-    >
-      {StepIndicator}
-
+    <div style={{ maxWidth: 640 }}>
+      {/* ─── step indicator ─────────────────────────────────────── */}
       <div
         style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 32,
           fontSize: 12,
           fontWeight: 700,
           letterSpacing: "0.32px",
           textTransform: "uppercase",
           color: "var(--color-muted)",
-          marginBottom: 12,
+        }}
+        aria-label="wizard step"
+      >
+        {[1, 2].map((s) => (
+          <div
+            key={s}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              color: s === step ? "var(--color-primary)" : "var(--color-muted)",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                background:
+                  s === step
+                    ? "var(--color-primary)"
+                    : "var(--cds-background, #f4f4f4)",
+                color: s === step ? "#fff" : "var(--color-muted)",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {s}
+            </span>
+            {stepLabel(s as Step)}
+          </div>
+        ))}
+      </div>
+
+      {step === 1 ? (
+        <Step1
+          name={name}
+          setName={setName}
+          path={path}
+          vaultsRoot={vaultsRoot}
+          error={error}
+          onNext={next}
+        />
+      ) : (
+        <Step2
+          name={name}
+          path={path}
+          error={error}
+          submitting={submitting}
+          onBack={back}
+          onSubmit={submit}
+        />
+      )}
+
+      <div style={{ marginTop: 32 }}>
+        <Link to="/" className="link-muted" style={{ fontSize: 13 }}>
+          ← 홈으로
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────── Step 1: 이름 ──────────────────────────
+
+function Step1({
+  name,
+  setName,
+  path,
+  vaultsRoot,
+  error,
+  onNext,
+}: {
+  name: string;
+  setName: (n: string) => void;
+  path: string;
+  vaultsRoot: string;
+  error: string | null;
+  onNext: () => void;
+}) {
+  return (
+    <section>
+      <h1 style={{ marginBottom: 8 }}>새 vault</h1>
+      <p
+        className="text-body"
+        style={{ fontSize: 14, color: "var(--color-muted)", marginBottom: 24 }}
+      >
+        이름만 정하면 경로와 Lite bootstrap(4종 표준 문서)은 자동으로 만들어집니다.
+      </p>
+
+      <label
+        style={{
+          display: "block",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "0.32px",
+          textTransform: "uppercase",
+          color: "var(--color-muted)",
+          marginBottom: 8,
         }}
       >
-        요약
+        이름 *
+      </label>
+      <input
+        className="input-base"
+        autoFocus
+        style={{ height: 56, fontSize: 18 }}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onNext();
+        }}
+        placeholder="my-notes"
+        aria-label="vault name"
+      />
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--color-muted)",
+          marginTop: 6,
+        }}
+      >
+        kebab-case 강제: <code>{`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`}</code>
       </div>
+
+      <label
+        style={{
+          display: "block",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "0.32px",
+          textTransform: "uppercase",
+          color: "var(--color-muted)",
+          marginTop: 24,
+          marginBottom: 8,
+        }}
+      >
+        경로 (자동)
+      </label>
+      <input
+        className="input-base"
+        readOnly
+        style={{
+          height: 56,
+          fontFamily: "ui-monospace, SFMono-Regular, monospace",
+          background: "var(--cds-field-01, #f4f4f4)",
+          color: "var(--color-muted)",
+          cursor: "default",
+        }}
+        value={path}
+        placeholder="이름을 입력하면 자동으로 표시됩니다"
+        aria-label="vault path (auto-determined)"
+      />
+      <div
+        style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 6 }}
+      >
+        {vaultsRoot && (
+          <>
+            모든 Raven vault는 <code>{vaultsRoot}/&lt;name&gt;/</code> 패턴으로
+            만들어집니다. 서버에 <code>WIKI_VAULTS_DIR</code>가 설정되어 있으면
+            그 경로가 우선 적용됩니다.
+          </>
+        )}
+      </div>
+
+      {error && (
+        <p
+          role="alert"
+          style={{
+            marginTop: 16,
+            color: "var(--cds-support-error, #da1e28)",
+            fontSize: 13,
+          }}
+        >
+          {error}
+        </p>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginTop: 24,
+        }}
+      >
+        <button
+          type="button"
+          className="btn-pill-primary"
+          onClick={onNext}
+          aria-label="다음 단계로"
+        >
+          다음 →
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ────────────────────────── Step 2: 확인 ──────────────────────────
+
+function Step2({
+  name,
+  path,
+  error,
+  submitting,
+  onBack,
+  onSubmit,
+}: {
+  name: string;
+  path: string;
+  error: string | null;
+  submitting: boolean;
+  onBack: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <section>
+      <h1 style={{ marginBottom: 8 }}>확인</h1>
+      <p
+        className="text-body"
+        style={{ fontSize: 14, color: "var(--color-muted)", marginBottom: 24 }}
+      >
+        아래 정보로 vault를 만듭니다. Lite bootstrap(4종 표준 문서) 자동 복사.
+      </p>
+
       <dl
         style={{
-          margin: 0,
-          padding: 16,
-          background: "var(--color-surface-soft)",
-          borderRadius: "var(--radius-md)",
           display: "grid",
           gridTemplateColumns: "120px 1fr",
-          rowGap: 12,
-          columnGap: 16,
+          gap: "12px 16px",
+          padding: 20,
+          background: "var(--cds-field-01, #fafafa)",
+          borderRadius: 8,
+          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
           fontSize: 14,
         }}
       >
-        <dt style={{ color: "var(--color-muted)", fontWeight: 500 }}>이름</dt>
-        <dd
+        <dt
           style={{
-            margin: 0,
-            color: "var(--color-ink)",
-            fontFamily: "ui-monospace, SFMono-Regular, monospace",
-            fontWeight: 600,
+            color: "var(--color-muted)",
+            fontWeight: 700,
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "0.32px",
           }}
         >
-          {name}
-        </dd>
+          이름
+        </dt>
+        <dd style={{ margin: 0, fontWeight: 600 }}>{name}</dd>
 
-        <dt style={{ color: "var(--color-muted)", fontWeight: 500 }}>경로</dt>
+        <dt
+          style={{
+            color: "var(--color-muted)",
+            fontWeight: 700,
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "0.32px",
+          }}
+        >
+          경로
+        </dt>
         <dd
           style={{
             margin: 0,
-            color: "var(--color-ink)",
             fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            fontSize: 13,
           }}
         >
           {path}
         </dd>
 
-        <dt style={{ color: "var(--color-muted)", fontWeight: 500 }}>모드</dt>
-        <dd style={{ margin: 0, color: "var(--color-ink)" }}>
-          <span className="chip-strong">{modeLabel}</span>
-        </dd>
+        <dt
+          style={{
+            color: "var(--color-muted)",
+            fontWeight: 700,
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "0.32px",
+          }}
+        >
+          모드
+        </dt>
+        <dd style={{ margin: 0 }}>personal (1인용 — 기본값)</dd>
 
-        <dt style={{ color: "var(--color-muted)", fontWeight: 500 }}>템플릿</dt>
-        <dd style={{ margin: 0, color: "var(--color-ink)" }}>
-          <span className="chip">{templateLabel}</span>
+        <dt
+          style={{
+            color: "var(--color-muted)",
+            fontWeight: 700,
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "0.32px",
+          }}
+        >
+          Bootstrap
+        </dt>
+        <dd style={{ margin: 0 }}>
+          Lite 4종 자동 복사
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--color-muted)",
+              fontFamily: "ui-monospace, SFMono-Regular, monospace",
+              marginTop: 4,
+            }}
+          >
+            _meta/system/SCHEMA.md, _meta/system/RULES.md,
+            _meta/system/AGENTS.md, log.md
+          </div>
         </dd>
       </dl>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: 12,
-          background: "var(--cds-tag-blue-bg)",
-          color: "var(--cds-tag-blue-text)",
-          borderRadius: "var(--radius-md)",
-          fontSize: 13,
-        }}
-      >
-        ℹ️ 만들기 후 <code>/page/{name}/index</code>로 이동합니다.
-      </div>
-
       {error && (
-        <div
+        <p
           role="alert"
           style={{
             marginTop: 16,
-            padding: 12,
-            borderRadius: "var(--radius-md)",
-            background: "var(--color-surface-soft)",
-            color: "var(--color-error-text)",
+            color: "var(--cds-support-error, #da1e28)",
             fontSize: 13,
           }}
         >
           {error}
-        </div>
+        </p>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 24,
+        }}
+      >
         <button
-          className="btn-secondary"
-          onClick={back}
+          type="button"
+          className="btn-pill-secondary"
+          onClick={onBack}
           disabled={submitting}
+          aria-label="이전 단계로"
         >
-          ← 뒤로
+          ← 이전
         </button>
         <button
-          className="btn-primary"
-          onClick={submit}
+          type="button"
+          className="btn-pill-primary"
+          onClick={onSubmit}
           disabled={submitting}
-          style={{ minWidth: 160 }}
+          aria-label="vault 만들기"
         >
-          {submitting ? "만드는 중…" : "만들기"}
+          {submitting ? "만드는 중..." : "만들기"}
         </button>
       </div>
-    </div>
+    </section>
   );
 }
