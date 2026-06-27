@@ -30,7 +30,7 @@ def _resolve_md_path(vault: Path, slug: str) -> Path:
     """Resolve a slug to an absolute markdown path.
 
     The slug may be a vault-relative path with or without the .md suffix
-    (e.g. ``"concepts/wiki"`` or ``"_meta/SCHEMA.md"``).
+    (e.g. ``"concepts/wiki"`` or ``"_meta/system/SCHEMA.md"``).
     """
     p = Path(slug)
     if p.suffix != ".md":
@@ -72,7 +72,7 @@ def wiki_update(
 
     Args:
         slug: vault slug (e.g. ``"concepts/wiki"``, ``"SCHEMA"``,
-              ``"_meta/SCHEMA.md"``). Top-level slugs (no ``/``) are
+              ``"_meta/system/SCHEMA.md"``). Top-level slugs (no ``/``) are
               allowed — the file simply lives at the vault root.
         content: raw markdown body (without frontmatter)
         frontmatter_data: optional dict to serialize as YAML frontmatter
