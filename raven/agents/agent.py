@@ -23,6 +23,7 @@ from typing import Iterable, Optional, Union
 
 from raven.core import resolve_active_vault, registry, link_module
 from raven.core import slug_module, frontmatter_module
+from raven.core import contracts
 from raven.core.vault import Vault
 
 
@@ -208,37 +209,54 @@ class AgentVault:
         v0.3+:
             - slug is validated (same rules as CLI/API)
             - 'created' preserved on overwrite (via frontmatter.merge)
+
+        v0.6.2+:
+            - Delegates to `raven.core.contracts.write_page` for the
+              common 4-step recipe (slug validate → FM merge → write → log).
+            - This method is now a thin provenance-builder on top of the
+              shared contract — see `raven/core/contracts.py` for the
+              single source of truth on write behavior.
         """
-        # v0.3+: validate slug (raises SlugError on bad path)
-        try:
-            fp = self._safe_path(slug)
-        except slug_module.SlugError as e:
-            return Result(ok=False, slug=slug, error=f"invalid slug: {e}")
-
-        fp.parent.mkdir(parents=True, exist_ok=True)
-
-        today = _dt.date.today().isoformat()
-        # Use fm_module.parse for existing meta (handles nested agents block gracefully)
-        existing_text = fp.read_text(encoding="utf-8") if fp.exists() else ""
-        existing_meta, _ = frontmatter_module.parse(existing_text)
-
-        updates: dict = {
-            "title": title if title is not None else existing_meta.get("title") or slug.split("/")[-1],
-            "type": type if type is not None else existing_meta.get("type") or self.agent.scope.default_type,
-            "tags": list(tags) if tags is not None else (
-                existing_meta.get("tags") if isinstance(existing_meta.get("tags"), list)
-                else self.agent.scope.default_tags
-            ),
+        actor = {
+            "name": self.agent.name,
+            "run_id": self.agent.provenance.run_id,
+            "timestamp": self.agent.provenance.timestamp,
+            "intent": self.agent.provenance.intent,
         }
-        meta = frontmatter_module.merge(existing_meta, updates, today=today)
-        rendered = self._render(meta, content)
-        fp.write_text(rendered, encoding="utf-8")
+        # Defaults chain: existing meta → caller arg → scope default.
+        # (contracts.write_page only preserves *existing* meta when the
+        # caller passes None — it doesn't know about scope defaults.)
+        default_title = slug.split("/")[-1]
+        default_type = self.agent.scope.default_type
+        default_tags = list(self.agent.scope.default_tags)
+        existing_meta: dict = {}
+        try:
+            fp_existing = self._safe_path(slug).with_suffix(".md")
+            if fp_existing.exists():
+                existing_meta, _ = frontmatter_module.parse(fp_existing.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        result = contracts.write_page(
+            self.vault,
+            slug,
+            content,
+            title=title if title is not None else existing_meta.get("title") or default_title,
+            type=type if type is not None else existing_meta.get("type") or default_type,
+            tags=list(tags) if tags is not None else (
+                existing_meta.get("tags") if isinstance(existing_meta.get("tags"), list)
+                else default_tags
+            ),
+            actor=actor,
+            overwrite=True,
+            normalize=False,  # Agent semantics: bare slug stays at vault root
+        )
         return Result(
-            ok=True,
-            slug=slug,
-            path=str(fp),
-            bytes_written=len(rendered),
-            message=f"wrote {slug}",
+            ok=result.ok,
+            slug=result.slug,
+            path=str(result.path) if result.path else None,
+            bytes_written=result.bytes_written,
+            error=result.error,
+            message=result.message,
         )
 
     def read(self, slug: str) -> Optional[str]:

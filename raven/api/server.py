@@ -24,6 +24,7 @@ from raven.core import registry, resolve_active_vault, link_module
 from raven.core import db_module, lint_module, export_module
 from raven.core import slug_module, frontmatter_module, archive_module
 from raven.core import log_module, digest_module
+from raven.core import contracts
 from raven.core.vault import Vault
 
 
@@ -259,37 +260,27 @@ def create_page(name: str, payload: PageCreate):
     Slug handling (v0.3+):
         - Invalid slugs (.., ~, absolute, NUL, ':') rejected with HTTP 400.
         - 'foo' (no '/') is auto-prefixed to 'content/foo' (matches CLI).
+
+    v0.6.2+:
+        - Delegates to `raven.core.contracts.write_page` (shared recipe).
+        - HTTPException types preserved for the FastAPI boundary.
     """
     v = _vault_or_404(name)
-    normalized = slug_module.normalize_prefix(payload.slug)
-    safe_path = _safe_slug_or_400(normalized, v)
-    fp = safe_path.with_suffix(".md")
-    if fp.exists():
-        raise HTTPException(status_code=409, detail=f"page {normalized!r} already exists")
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    today = __import__("datetime").date.today().isoformat()
-    meta = frontmatter_module.merge(
-        {},
-        {
-            "title": payload.title,
-            "type": payload.type,
-            "tags": payload.tags,
-            "created": today,
-            "updated": today,
-        },
+    result = contracts.write_page(
+        v,
+        payload.slug,
+        f"# {payload.title}\n{payload.content}".rstrip() + "\n",
+        title=payload.title,
+        type=payload.type,
+        tags=payload.tags,
+        overwrite=False,  # create-only: 409 on exists (matches pre-v0.6.2)
     )
-    body = f"# {payload.title}\n{payload.content}".rstrip() + "\n"
-    rendered = frontmatter_module.render(meta, body)
-    fp.write_text(rendered, encoding="utf-8")
-    # v0.5.1+: log.md에 create entry 자동 append
-    try:
-        log_module.append(
-            v, action="create", subject=normalized,
-            files=[normalized], note=f"type={payload.type}",
-        )
-    except Exception:
-        pass
-    return {"ok": True, "vault": name, "slug": normalized}
+    if not result.ok:
+        if result.error == "exists":
+            raise HTTPException(status_code=409, detail=f"page {result.slug!r} already exists")
+        # Slug validation error → 400
+        raise HTTPException(status_code=400, detail=result.error)
+    return {"ok": True, "vault": name, "slug": result.slug}
 
 
 @app.put("/api/vaults/{name}/pages/{slug:path}")
@@ -298,35 +289,41 @@ def update_page(name: str, slug: str, payload: PageUpdate):
 
     Slug is validated (v0.3+). 'created' is preserved from existing frontmatter
     (v0.3+ — matches Agent and CLI behavior).
+
+    v0.6.2+:
+        - Delegates to `raven.core.contracts.write_page` (shared recipe).
     """
     v = _vault_or_404(name)
-    safe_path = _safe_slug_or_400(slug, v)
-    fp = safe_path.with_suffix(".md")
-    if not fp.exists():
-        raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
-    existing_text = fp.read_text(encoding="utf-8")
-    existing_meta, _ = frontmatter_module.parse(existing_text)
-    today = __import__("datetime").date.today().isoformat()
-    updates = {"updated": today}
-    if payload.title is not None:
-        updates["title"] = payload.title
-    if payload.type is not None:
-        updates["type"] = payload.type
-    if payload.tags is not None:
-        updates["tags"] = payload.tags
-    meta = frontmatter_module.merge(existing_meta, updates, today=today)
-    body = payload.content.rstrip() + "\n"
-    rendered = frontmatter_module.render(meta, body)
-    fp.write_text(rendered, encoding="utf-8")
-    # v0.5.1+: log.md에 update entry 자동 append
+    # First validate slug via the original safe_slug helper — preserves
+    # the pre-v0.6.2 400-on-bad-slug semantics at the API boundary.
+    _safe_slug_or_400(slug, v)
+    # Existence check for update-only 404 semantics.
     try:
-        log_module.append(
-            v, action="update", subject=slug,
-            files=[slug], note=f"updated={today}",
-        )
-    except Exception:
+        normalized = slug_module.normalize_prefix(slug)
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+        if not safe_path.with_suffix(".md").exists():
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
+    except slug_module.SlugError:
+        # Already validated above; this means normalize/validate drift
+        # — let contracts.report it.
         pass
-    return {"ok": True, "vault": name, "slug": slug, "created": meta.get("created")}
+    result = contracts.write_page(
+        v,
+        slug,
+        payload.content.rstrip() + "\n",
+        title=payload.title,
+        type=payload.type,
+        tags=payload.tags,
+        overwrite=True,
+    )
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {
+        "ok": True,
+        "vault": name,
+        "slug": result.slug,
+        "created": result.created_date,
+    }
 
 
 @app.delete("/api/vaults/{name}/pages/{slug:path}")
