@@ -1,25 +1,39 @@
-# Raven — 옵시디언을 대체할 마크다운 기반 PKM 노트 프로덕트
+# Raven — local-first agent-aware markdown vault
 
-> **Obsidian-free, agent-aware, multi-vault.** markdown + git + 자체 뷰어 + Python 어댑터.
-> vault는 어디든 지정 가능, 사람과 에이전트가 동시에 사용.
+> **markdown SoT + agent-native + multi-vault.** 사람 + AI 에이전트가 같은 vault를 CLI / HTTP API / Dashboard / MCP 4개 진입점으로 동시 사용.
+>
+> 옵시디언의 모티브를 빌려왔지만, **에이전트 1급 시민 + 프로그래머블 진입점**이 차별점. Obsidian clone이 아님.
 
 ---
 
 ## 무엇인가
 
-raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 **마크다운 기반 PKM 노트 프로덕트**.
+raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 **local-first 마크다운 지식 vault**.
 
 | 계층 | 구현 | 위치 |
 |---|---|---|
 | **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/vaults/<name>/` |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
-| **CLI** (사람) | Typer 9 commands | `raven/cli/` |
+| **CLI** (사람/자동화) | Typer 9 commands | `raven/cli/` |
 | **API** (HTTP) | FastAPI 12 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
+| **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `mcp/` |
 | **Adapter** (에이전트) | Python scope-based API | `raven/agents/` |
 
-**SoT = 마크다운**. DB/API/GUI는 **모두 재생성 가능**한 파생 산출물.
+**SoT = 마크다운**. DB/API/GUI/MCP는 **모두 재생성 가능**한 파생 산출물.
+
+---
+
+## 누가 쓰는가 (사용자 3종 — 정직한 표현)
+
+| 사용자 | 상태 | 진입점 |
+|---|---|---|
+| **사람 (개발자 1인)** | ✅ 안정 — CLI/Dashboard/API | 직접 |
+| **단일 에이전트** | ✅ 안정 — scope + provenance 강제 | Python adapter |
+| **멀티 에이전트 (MCP 다중)** | ⚠️ **experimental** — 동시 쓰기 충돌 보호 없음 (locks/queue/review 미구현) | MCP |
+
+> 멀티 에이전트 write는 **scope 명시 + 동시성은 사용자 책임**. "안정 지원"이라고 표현하지 않음.
 
 ---
 
@@ -28,16 +42,21 @@ raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한
 | Obsidian | raven |
 |---|---|
 | vault = 사용자가 폴더 지정 ✅ | 동일 ✅ |
-| GUI만 있음 | **GUI + CLI + Python + HTTP 4개 인터페이스** |
-| 사람이 1차 사용자 | **사람 + 에이전트 동시 1차 사용자** |
-| 플러그인 = UI 확장 | **에이전트 = vault 1급 시민** (scope/provenance) |
-| 단일 앱 | **multi-vault, multi-user 가능** |
+| GUI만 있음 | **GUI + CLI + Python + HTTP + MCP 5개 진입점** |
+| 사람이 1차 사용자 | **사람 + 단일 에이전트 동시 1차, 멀티 에이전트 experimental** |
+| 플러그인 = UI 확장 | **에이전트 = vault 1급 시민** (scope/provenance/AGENTS.md) |
+| 단일 앱 | **multi-vault, multi-user 가능 (단, ACL은 non-goal)** |
+
+**대체하지 않는 범위** (정직):
+- Obsidian의 모바일 UX, sync 서비스, 플러그인 생태계 → 비목표
+- 단일 사용자 가정 (auth 없음, 127.0.0.1 기본 바인딩) → 명시
+- 대규모 팀 (Notion/Confluence 영역) → Anti-persona
 
 사용자 인용 (2026-06-25):
 > "옵시디언 안 사고, 모티브만 빌려서 내가 직접 만들 거야"
 > "안정적이고, 심플한걸로 기준. 도전적인건 지양"
 
-→ Obsidian의 **사용성 + 안정성**을 닮되, **에이전트 협업**을 1급 시민으로 추가.
+→ Obsidian의 **사용성 + 안정성**을 닮되, **에이전트 협업 + 프로그래머블 진입점**을 1급 시민으로 추가.
 
 ---
 
@@ -365,19 +384,34 @@ cd dashboard && npm install
 
 ## 관련 문서
 
-- `~/vaults/default/_meta/raven-guide.md` — vault 사용자 가이드 (사람/에이전트 공통)
-- `~/vaults/default/_meta/raven-faq.md` — 자주 묻는 질문
-- `_meta/architecture-5layer.md` — 시스템 아키텍처 (4 layer)
-- `_meta/SCHEMA.md` — vault frontmatter 스키마
-- `_meta/RULES.md` — 운영 규칙
+- `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
+- `~/vaults/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사)
+- `_meta/changelog-v0.5*.md` — 변경 이력
+- `_meta/decisions-d1-d6.md` + `decisions-d7-d9-multivault.md` — 결정 내역
+- `_meta/SCHEMA-v0.2-multivault.md` — vault frontmatter 스키마
+- `_meta/architecture-5layer.md` — 시스템 아키텍처
 - `_meta/deployment.md` — VPS + Tailscale 배포
 - `_meta/dr-runbook.md` — 재해 복구
-- `_meta/decisions-d1-d6.md` + 후속 결정 (D7-D9)
+
+---
+
+## 진입점 추가 / 변경 의사결정
+
+진입점 구조 변경은 **큰 결정**. 다음 절차 따르세요:
+
+1. **ADR 작성**: `_meta/decisions/adr-YYYY-MM-DD-<topic>.md`
+2. **write contract 단일화 검증**: 모든 write가 `raven.core`의 같은 create/update/delete/log/rebuild contract를 타는지 확인
+3. **테스트 추가**: 새 진입점의 회귀 가드
+4. **README + AGENTS.md 동기화**
+5. **사용자 승인** → 머지
+
+→ 5번째 진입점 (Telegram, Slack 등) 추가 ❌ — 외부 오케스트레이터의 영역.
 
 ---
 
 ## 라이선스 / 상태
 
-- v0.2.0 (multi-vault)
+- v0.5.5 (Lite bootstrap 4종 with AGENTS.md, templates → _deprecated)
 - 단일 사용자 가정 (auth 없음, 127.0.0.1 기본 바인딩)
+- 멀티 에이전트 write는 **experimental** (scope 명시 + 동시성 사용자 책임)
 - Not production-ready for multi-tenant (CORS open, no auth)

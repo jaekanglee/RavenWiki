@@ -128,6 +128,7 @@ class Vault:
         template_map = {
             "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
             "_meta/system/RULES.md":  "templates/system/RULES.md",
+            "_meta/system/AGENTS.md": "templates/system/AGENTS.md",
             "log.md":                  "templates/log.md",
         }
 
