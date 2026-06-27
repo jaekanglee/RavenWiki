@@ -20,7 +20,15 @@ from typing import Optional
 import frontmatter
 
 from mcp import db
-from mcp.tools import VaultContext, check_permission
+from mcp.tools import (
+    VaultContext,
+    append_log_entry,
+    check_permission,
+    lookup_idempotent,
+    normalize_actor,
+    now_iso,
+    record_idempotent,
+)
 
 
 # ─────────────── shared helpers ───────────────
@@ -59,6 +67,132 @@ def _rebuild_db(vault: Path) -> None:
         sys.stderr.write(f"⚠️  build_db.py failed: {e.stderr or e.stdout}\n")
 
 
+# ─────────────── M4 / F1 — provenance + idempotency ───────────────
+#
+# The four write tools all follow the same shape:
+#
+#   1. normalize actor
+#   2. check idempotency_key (short-circuit if already executed)
+#   3. do the actual write (page archive / frontmatter rewrite / etc.)
+#   4. attach actor/idempotency_key/timestamp to the response
+#   5. record provenance in log.md
+#   6. persist idempotency cache for future retries
+#
+# Steps 1, 2, 4, 5, 6 are tool-agnostic and live in helpers below.
+# Step 3 — the real work — is intentionally untouched per F1 spec.
+
+# Common response keys attached to every successful write. Tools merge
+# these into their existing return dicts so AGENTS.md §8 ("additive-only
+# response keys") is honored.
+_PROVENANCE_KEYS = ("actor", "idempotency_key", "timestamp")
+
+
+def _attach_provenance(
+    response: dict,
+    *,
+    actor: str,
+    idempotency_key: Optional[str],
+    timestamp: Optional[str] = None,
+) -> dict:
+    """Return a copy of ``response`` with provenance keys attached."""
+    out = dict(response)
+    out["actor"] = actor
+    out["idempotency_key"] = idempotency_key
+    out["timestamp"] = timestamp or now_iso()
+    return out
+
+
+def _resolve_idempotency(
+    *,
+    tool: str,
+    vault: Path,
+    idempotency_key: Optional[str],
+    params: dict,
+    actor: str,
+):
+    """Idempotency precheck.
+
+    Returns ``(cached_response, fingerprint_params)`` where ``cached_response``
+    is one of:
+
+      * ``None`` — first call for this key, proceed normally
+      * a ``dict`` — the cached response from a previous successful call;
+        attach provenance (so the caller sees actor/key/timestamp even
+        on a retry) and return immediately
+      * a dict with ``"_idempotency_conflict": True`` — the same key was
+        used for a *different* write; fail-closed with a clear message
+
+    ``fingerprint_params`` is the params dict the caller should pass into
+    ``record_idempotent`` after a successful write (typically the same as
+    the input ``params``).
+    """
+    cached = lookup_idempotent(vault, idempotency_key, tool, params)
+    if cached is None:
+        return None, params
+    if cached.get("_idempotency_conflict"):
+        stored = cached.get("stored", {})
+        return {
+            "ok": False,
+            "message": (
+                f"idempotency_key {idempotency_key!r} was previously used "
+                f"for tool={stored.get('tool')!r} at {stored.get('timestamp')!r}; "
+                "refusing to silently reuse it for a different write"
+            ),
+            "_idempotency_conflict": True,
+            "stored": stored,
+            "actor": actor,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+        }, params
+    # Hit: re-emit cached response with current actor/timestamp attached
+    # so callers always see provenance keys. Mark with _idempotent_replay
+    # so callers can tell a retry from a fresh write.
+    replay = _attach_provenance(
+        cached,
+        actor=actor,
+        idempotency_key=idempotency_key,
+    )
+    replay["_idempotent_replay"] = True
+    return replay, params
+
+
+def _finalize_write(
+    *,
+    tool: str,
+    vault: Path,
+    action: str,
+    subject: str,
+    actor: str,
+    idempotency_key: Optional[str],
+    params: dict,
+    response: dict,
+    extras: Optional[list[str]] = None,
+    skip_idempotency_record: bool = False,
+) -> dict:
+    """Post-write bookkeeping.
+
+    Attaches provenance, appends the log entry, persists the idempotency
+    record (unless the caller is on the cached-replay path). Returns
+    the augmented response dict.
+    """
+    response = _attach_provenance(
+        response, actor=actor, idempotency_key=idempotency_key
+    )
+    # Skip the log append on cached replays — re-executing an idempotent
+    # write should not produce a second provenance entry.
+    if not response.get("_idempotent_replay"):
+        log_ok = append_log_entry(
+            vault, action=action, subject=subject,
+            actor=actor, idempotency_key=idempotency_key, extras=extras,
+        )
+        response["log_appended"] = log_ok
+        if not skip_idempotency_record:
+            record_idempotent(vault, idempotency_key, tool, params, response)
+    else:
+        response["log_appended"] = False
+    return response
+
+
 # ─────────────── 6. wiki_update ───────────────
 
 
@@ -67,6 +201,8 @@ def wiki_update(
     content: str,
     frontmatter_data: Optional[dict] = None,
     ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
 ) -> dict:
     """Update (or create) a markdown page by slug.
 
@@ -77,9 +213,16 @@ def wiki_update(
         content: raw markdown body (without frontmatter)
         frontmatter_data: optional dict to serialize as YAML frontmatter
         ctx: VaultContext; defaults to read/write/admin per the CLI
+        actor: optional caller identity (M4/F1 provenance). Defaults to
+            ``"anonymous"`` when omitted.
+        idempotency_key: optional retry-suppression key (M4/F1). Re-running
+            a write with the same key + same parameters returns the cached
+            response without touching the file. Reusing a key with
+            *different* parameters fails closed with an ``ok=False`` reply.
 
     Returns:
-        ``{"ok": bool, "message": str, "path": str}``
+        ``{"ok": bool, "message": str, "path": str, "actor": str,
+            "idempotency_key": str|None, "timestamp": str}``
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
     ctx.require("wiki_update")  # raises if read mode
@@ -87,28 +230,72 @@ def wiki_update(
     # M3 fix (was: rejected any slug without "/"). We now only require
     # *some* non-empty slug — top-level pages (e.g. SCHEMA.md) are valid.
     if not slug:
-        return {"ok": False, "message": "slug required", "path": ""}
+        return {
+            "ok": False,
+            "message": "slug required", "path": "",
+            "actor": normalize_actor(actor),
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+        }
 
-    abs_path = _resolve_md_path(ctx.vault, slug)
+    actor_norm = normalize_actor(actor)
+    vault_path = Path(ctx.vault).expanduser()
+
+    # Idempotency precheck. Only meaningful when the file exists, because
+    # the cached response is keyed on (slug, content, frontmatter_data) —
+    # if the file was deleted between calls the cache should not hide the
+    # "does not exist" error.
+    abs_path = _resolve_md_path(vault_path, slug)
+    if idempotency_key and abs_path.exists():
+        cached, _ = _resolve_idempotency(
+            tool="wiki_update", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params={
+                "slug": slug, "content": content,
+                "frontmatter_data": frontmatter_data,
+            },
+        )
+        if cached is not None:
+            return cached
+
     if not abs_path.exists():
         return {
             "ok": False,
             "message": (
-                f"file does not exist: {abs_path.relative_to(ctx.vault)}. "
+                f"file does not exist: {abs_path.relative_to(vault_path)}. "
                 "Use wiki_ingest for new pages."
             ),
-            "path": str(abs_path.relative_to(ctx.vault)),
+            "path": str(abs_path.relative_to(vault_path)),
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
         }
 
     # Read existing frontmatter if caller didn't supply one
     existing = frontmatter.load(abs_path)
     meta = dict(frontmatter_data) if frontmatter_data else dict(existing.metadata)
     meta["updated"] = dt.date.today().isoformat()
+    # M4/F1: actor provenance on the page itself.
+    meta["actor"] = actor_norm
 
     post = frontmatter.Post(content, **meta)
     abs_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
-    rel = abs_path.relative_to(ctx.vault)
-    return {"ok": True, "message": f"updated {rel}", "path": str(rel)}
+    rel = abs_path.relative_to(vault_path)
+    response = {
+        "ok": True,
+        "message": f"updated {rel}",
+        "path": str(rel),
+        "rewritten_files": 0,
+    }
+    return _finalize_write(
+        tool="wiki_update", vault=vault_path, action="update",
+        subject=str(rel), actor=actor_norm,
+        idempotency_key=idempotency_key,
+        params={"slug": slug, "content": content,
+                "frontmatter_data": frontmatter_data},
+        response=response,
+        extras=[f"path: {rel}"],
+    )
 
 
 # ─────────────── 7. wiki_ingest ───────────────
@@ -119,6 +306,8 @@ def wiki_ingest(
     project: Optional[str] = None,
     mode: str = "auto",
     ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
 ) -> dict:
     """Ingest a raw source into the vault.
 
@@ -129,12 +318,32 @@ def wiki_ingest(
         mode: "auto" → write to raw/<project>/ if not yet present,
               "force" → always overwrite
         ctx: VaultContext
+        actor: optional caller identity (M4/F1 provenance). Defaults to
+            ``"anonymous"`` when omitted.
+        idempotency_key: optional retry-suppression key (M4/F1). Re-running
+            a write with the same key + same parameters returns the cached
+            response without touching the file. Reusing a key with
+            *different* parameters fails closed with an ``ok=False`` reply.
 
     Returns:
-        {"ok": bool, "message": str, "pages_created": int, "pages_updated": int}
+        ``{"ok": bool, "message": str, "pages_created": int,
+            "pages_updated": int, "actor": str,
+            "idempotency_key": str|None, "timestamp": str}``
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
     ctx.require("wiki_ingest")
+
+    actor_norm = normalize_actor(actor)
+    provenance = {
+        "actor": actor_norm,
+        "idempotency_key": idempotency_key,
+        "timestamp": now_iso(),
+    }
+    fail = lambda msg, **kw: {  # noqa: E731
+        "ok": False, "message": msg,
+        "pages_created": 0, "pages_updated": 0,
+        **provenance, **kw,
+    }
 
     # M3 fix: callers sometimes pass VaultContext(vault="~/wiki") as a str.
     # Normalize to Path before any / operator, otherwise `str / "raw"`
@@ -142,37 +351,65 @@ def wiki_ingest(
     vault_path = Path(ctx.vault).expanduser()
     raw_root = vault_path / "raw"
     if not raw_root.exists():
-        return {"ok": False, "message": f"raw/ does not exist at {raw_root}",
-                "pages_created": 0, "pages_updated": 0}
+        return fail(f"raw/ does not exist at {raw_root}")
 
     src_path = Path(source).expanduser()
     if not src_path.is_absolute():
         src_path = vault_path / source
 
     if not src_path.exists():
-        return {"ok": False, "message": f"source not found: {source}",
-                "pages_created": 0, "pages_updated": 0}
+        return fail(f"source not found: {source}")
 
     # Decide destination under raw/<project>/<basename>
     project_dir = raw_root / (project or "default")
     project_dir.mkdir(parents=True, exist_ok=True)
     dest = project_dir / src_path.name
 
+    # Idempotency precheck — only when the destination already exists,
+    # because wiki_ingest already short-circuits re-ingestion in that
+    # case. We layer our cache on top: the cached response takes priority
+    # over the file-system "already exists" branch.
+    ingest_params = {
+        "source": str(src_path), "project": project,
+        "mode": mode,
+    }
+    if idempotency_key and dest.exists():
+        cached, _ = _resolve_idempotency(
+            tool="wiki_ingest", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params=ingest_params,
+        )
+        if cached is not None:
+            return cached
+
     if dest.exists() and mode != "force":
-        return {
+        response = {
             "ok": True,
             "message": f"already ingested at {dest.relative_to(vault_path)} (use mode=force to overwrite)",
             "pages_created": 0,
             "pages_updated": 0,
         }
+        # No actual copy happened — skip log/idempotency to avoid spurious
+        # provenance on a no-op. Still return provenance keys so callers
+        # see them.
+        return _attach_provenance(response, actor=actor_norm,
+                                   idempotency_key=idempotency_key)
 
     shutil.copy2(src_path, dest)
-    return {
+    response = {
         "ok": True,
         "message": f"ingested to {dest.relative_to(vault_path)}",
         "pages_created": 1,
         "pages_updated": 0,
     }
+    return _finalize_write(
+        tool="wiki_ingest", vault=vault_path, action="ingest",
+        subject=str(dest.relative_to(vault_path)),
+        actor=actor_norm, idempotency_key=idempotency_key,
+        params=ingest_params, response=response,
+        extras=[f"source: {src_path.name}",
+                f"project: {project or 'default'}"],
+    )
 
 
 # ─────────────── 8. wiki_delete (admin) ───────────────
@@ -181,6 +418,8 @@ def wiki_ingest(
 def wiki_delete(
     slug: str,
     ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
 ) -> dict:
     """Delete a vault page by archiving it to ``_archive/``.
 
@@ -191,23 +430,53 @@ def wiki_delete(
     Args:
         slug: vault slug (e.g. ``"concepts/wiki"``)
         ctx: VaultContext (must be ``admin`` mode)
+        actor: optional caller identity (M4/F1 provenance). Defaults to
+            ``"anonymous"`` when omitted.
+        idempotency_key: optional retry-suppression key (M4/F1). Re-running
+            a write with the same key + same parameters returns the cached
+            response without re-archiving. Reusing a key with *different*
+            parameters fails closed with an ``ok=False`` reply.
 
     Returns:
         ``{"ok": bool, "message": str, "archived": str|None,
-            "rewritten_files": int}``
+            "rewritten_files": int, "actor": str,
+            "idempotency_key": str|None, "timestamp": str}``
     """
     ctx = ctx or VaultContext(vault=db._default_vault(), mode="admin")
     ctx.require("wiki_delete")
 
+    actor_norm = normalize_actor(actor)
+    provenance = {
+        "actor": actor_norm,
+        "idempotency_key": idempotency_key,
+        "timestamp": now_iso(),
+    }
+    fail = lambda msg, **kw: {  # noqa: E731
+        "ok": False, "message": msg,
+        "archived": None, "rewritten_files": 0,
+        **provenance, **kw,
+    }
+
     if not slug:
-        return {"ok": False, "message": "slug required",
-                "archived": None, "rewritten_files": 0}
+        return fail("slug required")
 
     vault_path = Path(ctx.vault).expanduser()
     abs_path = _resolve_md_path(vault_path, slug)
+
+    # Idempotency precheck. Run even when the file is missing: a retry of
+    # a successful archive should still return the cached "ok=True"
+    # response, not the fresh "not found" branch.
+    if idempotency_key:
+        cached, _ = _resolve_idempotency(
+            tool="wiki_delete", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params={"slug": slug},
+        )
+        if cached is not None:
+            return cached
+
     if not abs_path.exists():
-        return {"ok": False, "message": f"{slug} not found",
-                "archived": None, "rewritten_files": 0}
+        return fail(f"{slug} not found")
 
     archive_dir = vault_path / "_archive"
     archive_dir.mkdir(exist_ok=True)
@@ -222,12 +491,18 @@ def wiki_delete(
     abs_path.rename(archive_path)
     _rebuild_db(vault_path)
 
-    return {
+    response = {
         "ok": True,
         "message": f"archived {slug} → {archive_path.relative_to(vault_path)}",
         "archived": str(archive_path.relative_to(vault_path)),
         "rewritten_files": 0,
     }
+    return _finalize_write(
+        tool="wiki_delete", vault=vault_path, action="archive",
+        subject=slug, actor=actor_norm, idempotency_key=idempotency_key,
+        params={"slug": slug}, response=response,
+        extras=[f"archived_to: {archive_path.relative_to(vault_path)}"],
+    )
 
 
 # ─────────────── 9. wiki_rename (admin) ───────────────
@@ -237,6 +512,8 @@ def wiki_rename(
     old_slug: str,
     new_slug: str,
     ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
 ) -> dict:
     """Rename a slug and rewrite every inbound ``[[old_slug]]`` wikilink.
 
@@ -254,28 +531,58 @@ def wiki_rename(
         old_slug: current vault slug (file must exist)
         new_slug: target vault slug (file must NOT exist)
         ctx: VaultContext (must be ``admin`` mode)
+        actor: optional caller identity (M4/F1 provenance). Defaults to
+            ``"anonymous"`` when omitted.
+        idempotency_key: optional retry-suppression key (M4/F1). Re-running
+            a write with the same key + same parameters returns the cached
+            response without re-renaming. Reusing a key with *different*
+            parameters fails closed with an ``ok=False`` reply.
 
     Returns:
         ``{"ok": bool, "message": str, "rewritten_files": int,
-            "old_slug": str, "new_slug": str}``
+            "old_slug": str, "new_slug": str, "actor": str,
+            "idempotency_key": str|None, "timestamp": str}``
     """
     ctx = ctx or VaultContext(vault=db._default_vault(), mode="admin")
     ctx.require("wiki_rename")
 
+    actor_norm = normalize_actor(actor)
+    provenance = {
+        "actor": actor_norm,
+        "idempotency_key": idempotency_key,
+        "timestamp": now_iso(),
+    }
+    fail = lambda msg, **kw: {  # noqa: E731
+        "ok": False, "message": msg, "rewritten_files": 0,
+        "old_slug": old_slug, "new_slug": new_slug,
+        **provenance, **kw,
+    }
+
     if not old_slug or not new_slug:
-        return {"ok": False, "message": "old_slug and new_slug are required",
-                "rewritten_files": 0, "old_slug": old_slug, "new_slug": new_slug}
+        return fail("old_slug and new_slug are required")
 
     vault_path = Path(ctx.vault).expanduser()
+
+    # Idempotency precheck. The rename fingerprint includes both slugs
+    # — a retry with the same key+slug pair returns the cached response,
+    # even if old_slug no longer exists on disk (which it won't, after a
+    # successful rename).
+    if idempotency_key:
+        cached, _ = _resolve_idempotency(
+            tool="wiki_rename", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params={"old_slug": old_slug, "new_slug": new_slug},
+        )
+        if cached is not None:
+            return cached
+
     old_path = _resolve_md_path(vault_path, old_slug)
     if not old_path.exists():
-        return {"ok": False, "message": f"{old_slug} not found",
-                "rewritten_files": 0, "old_slug": old_slug, "new_slug": new_slug}
+        return fail(f"{old_slug} not found")
 
     new_path = _resolve_md_path(vault_path, new_slug)
     if new_path.exists() and new_path != old_path:
-        return {"ok": False, "message": f"{new_slug} already exists",
-                "rewritten_files": 0, "old_slug": old_slug, "new_slug": new_slug}
+        return fail(f"{new_slug} already exists")
 
     # 1+2+3: rewrite frontmatter and move file.
     text = old_path.read_text(encoding="utf-8")
@@ -294,6 +601,8 @@ def wiki_rename(
         aliases.insert(0, old_slug)
     meta["aliases"] = aliases
     meta["updated"] = dt.date.today().isoformat()
+    # M4/F1: actor provenance on the renamed page itself.
+    meta["actor"] = actor_norm
 
     if body.startswith("---\n"):
         # safety: re-strip frontmatter if loader missed it
@@ -331,10 +640,18 @@ def wiki_rename(
     # 5: rebuild DB
     _rebuild_db(vault_path)
 
-    return {
+    response = {
         "ok": True,
         "message": f"renamed {old_slug} → {new_slug} ({rewritten} wikilinks rewritten)",
         "rewritten_files": rewritten,
         "old_slug": old_slug,
         "new_slug": new_slug,
     }
+    return _finalize_write(
+        tool="wiki_rename", vault=vault_path, action="rename",
+        subject=f"{old_slug} → {new_slug}",
+        actor=actor_norm, idempotency_key=idempotency_key,
+        params={"old_slug": old_slug, "new_slug": new_slug},
+        response=response,
+        extras=[f"wikilinks_rewritten: {rewritten}"],
+    )

@@ -346,3 +346,74 @@ def _write_mod_rebuild(vault: Path) -> None:
     """Helper: rebuild wiki.db so subsequent assertions see the new state."""
     from mcp.tools import write as _write_mod
     _write_mod._rebuild_db(vault)
+
+
+# ─────────────── M4 / F1 — provenance + idempotency (additive) ───────────────
+
+
+def test_wiki_update_response_has_provenance_keys(wiki_db: Path, sample_slug: str):
+    """M4/F1: every write response now carries actor/idempotency_key/timestamp."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    page = db.get_page(sample_slug, vault=ctx.vault)
+    if page is None:
+        pytest.skip("sample page not present in DB")
+    result = wiki_update(
+        slug=sample_slug, content=page["content"],
+        actor="test-agent", ctx=ctx,
+    )
+    assert result["ok"] is True
+    assert result["actor"] == "test-agent"
+    assert result["idempotency_key"] is None
+    assert isinstance(result["timestamp"], str)
+    # Backward compat: pre-F1 keys still present
+    assert "message" in result and "path" in result
+
+
+def test_wiki_update_anonymous_actor_default(wiki_db: Path, sample_slug: str):
+    """No actor supplied → 'anonymous' (F1 default)."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    page = db.get_page(sample_slug, vault=ctx.vault)
+    if page is None:
+        pytest.skip("sample page not present in DB")
+    result = wiki_update(slug=sample_slug, content=page["content"], ctx=ctx)
+    assert result["actor"] == "anonymous"
+
+
+def test_wiki_update_idempotent_replay(wiki_db: Path, sample_slug: str):
+    """Same idempotency_key + same params → _idempotent_replay=True, no rewrite."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    page = db.get_page(sample_slug, vault=ctx.vault)
+    if page is None:
+        pytest.skip("sample page not present in DB")
+    key = "m4-f1-replay-test-key"
+    r1 = wiki_update(
+        slug=sample_slug, content=page["content"],
+        actor="replayer", idempotency_key=key, ctx=ctx,
+    )
+    r2 = wiki_update(
+        slug=sample_slug, content=page["content"],
+        actor="replayer", idempotency_key=key, ctx=ctx,
+    )
+    assert r1["ok"] and r2["ok"]
+    assert r2.get("_idempotent_replay") is True
+    assert r2["actor"] == "replayer"
+    assert r2["idempotency_key"] == key
+
+
+def test_wiki_update_idempotency_conflict(wiki_db: Path, sample_slug: str):
+    """Same key, different content → ok=False, conflict marker."""
+    ctx = VaultContext(vault=wiki_db.parent, mode=WRITE)
+    page = db.get_page(sample_slug, vault=ctx.vault)
+    if page is None:
+        pytest.skip("sample page not present in DB")
+    key = "m4-f1-conflict-test-key"
+    wiki_update(
+        slug=sample_slug, content=page["content"],
+        actor="x", idempotency_key=key, ctx=ctx,
+    )
+    conflict = wiki_update(
+        slug=sample_slug, content="# different",
+        actor="y", idempotency_key=key, ctx=ctx,
+    )
+    assert conflict["ok"] is False
+    assert conflict.get("_idempotency_conflict") is True

@@ -165,48 +165,89 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
     if mode in ("write", "admin"):
         @mcp.tool(
             name="wiki_update",
-            description="Overwrite a vault markdown page. Requires --write or --admin.",
+            description=(
+                "Overwrite a vault markdown page. Requires --write or --admin. "
+                "Optional M4/F1 kwargs: actor (caller identity), "
+                "idempotency_key (retry-suppression token)."
+            ),
         )
         def wiki_update(
             slug: str,
             content: str,
             frontmatter: dict | None = None,
+            actor: str | None = None,
+            idempotency_key: str | None = None,
         ) -> dict:
             return write_tools.wiki_update(
                 slug=slug,
                 content=content,
                 frontmatter_data=frontmatter,
+                actor=actor,
+                idempotency_key=idempotency_key,
                 ctx=None,
             )
 
         @mcp.tool(
             name="wiki_ingest",
-            description="Copy a raw source file into <vault>/raw/<project>/. Requires --write or --admin.",
+            description=(
+                "Copy a raw source file into <vault>/raw/<project>/. "
+                "Requires --write or --admin. Optional M4/F1 kwargs: actor, "
+                "idempotency_key."
+            ),
         )
         def wiki_ingest(
             source: str,
             project: str | None = None,
             mode: str = "auto",
+            actor: str | None = None,
+            idempotency_key: str | None = None,
         ) -> dict:
             return write_tools.wiki_ingest(
-                source=source, project=project, mode=mode, ctx=None
+                source=source, project=project, mode=mode,
+                actor=actor, idempotency_key=idempotency_key,
+                ctx=None,
             )
 
     # ─── 7. wiki_delete / wiki_rename (admin only) ───
     if mode == "admin":
         @mcp.tool(
             name="wiki_delete",
-            description="Archive a vault page to _archive/ and rebuild wiki.db. Requires --admin.",
+            description=(
+                "Archive a vault page to _archive/ and rebuild wiki.db. "
+                "Requires --admin. Optional M4/F1 kwargs: actor, "
+                "idempotency_key."
+            ),
         )
-        def wiki_delete(slug: str) -> dict:
-            return write_tools.wiki_delete(slug=slug, ctx=None)
+        def wiki_delete(
+            slug: str,
+            actor: str | None = None,
+            idempotency_key: str | None = None,
+        ) -> dict:
+            return write_tools.wiki_delete(
+                slug=slug,
+                actor=actor, idempotency_key=idempotency_key,
+                ctx=None,
+            )
 
         @mcp.tool(
             name="wiki_rename",
-            description="Rename a slug, rewrite every inbound wikilink, and rebuild wiki.db. Requires --admin.",
+            description=(
+                "Rename a slug, rewrite every inbound wikilink, and rebuild "
+                "wiki.db. Requires --admin. Optional M4/F1 kwargs: actor, "
+                "idempotency_key."
+            ),
         )
-        def wiki_rename(old_slug: str, new_slug: str) -> dict:
-            return write_tools.wiki_rename(old_slug=old_slug, new_slug=new_slug, ctx=None)
+        def wiki_rename(
+            old_slug: str,
+            new_slug: str,
+            actor: str | None = None,
+            idempotency_key: str | None = None,
+        ) -> dict:
+            return write_tools.wiki_rename(
+                old_slug=old_slug, new_slug=new_slug,
+                actor=actor, idempotency_key=idempotency_key,
+                ctx=None,
+            )
 
 
 # ────────────────────────── main ───────────────────────────────────
