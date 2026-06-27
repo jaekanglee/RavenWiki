@@ -256,10 +256,12 @@ def test_cli_meta_sync_json_out(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    # Lite: only 3 files (no agent/, no OPERATIONS, no raven-policy)
+    # Lite: only SCHEMA/RULES copied (no agent/, no OPERATIONS, no raven-policy)
+    # v0.5.5+ silent-write fix: log.md already exists from Vault.create() → skipped, not copied
     assert "_meta/system/SCHEMA.md" in data["copied"]
     assert "_meta/system/RULES.md" in data["copied"]
-    assert "log.md" in data["copied"]
+    assert "log.md" not in data["copied"]
+    assert "log.md" in data["skipped"]
     assert "_meta/agent/README.md" not in data["copied"]
     assert "_meta/system/OPERATIONS.md" not in data["copied"]
 

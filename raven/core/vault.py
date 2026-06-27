@@ -94,7 +94,25 @@ class Vault:
             (path / "_meta").mkdir(parents=True, exist_ok=True)
         # register
         registry().add(meta)
-        return cls(meta=meta, root=path)
+
+        # log.md에 create entry 자동 append (silent write 방지, AGENTS.md §8/§9).
+        # ensure_log()가 log.md 부재 시 템플릿에서 1회 생성 → 첫 vault create 안전.
+        # log append 실패는 무시 — vault create 자체는 성공 유지 (db.py와 동일 패턴).
+        instance = cls(meta=meta, root=path)
+        try:
+            from . import log as _log
+            _log.ensure_log(instance)
+            _log.append(
+                instance,
+                action="create",
+                subject=f"vault created (mode={mode}, bootstrap={bootstrap})",
+                files=[".vault.json"],
+                note=f"path={path}",
+            )
+        except Exception:
+            pass
+
+        return instance
 
     @classmethod
     def _bootstrap_lite(cls, path: Path) -> None:

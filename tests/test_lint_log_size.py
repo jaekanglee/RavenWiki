@@ -31,8 +31,13 @@ def vault(monkeypatch):
 
 
 def test_log_size_below_threshold(vault):
-    """499 entries → info 0."""
-    for i in range(LOG_ROTATE_THRESHOLD - 1):
+    """499 entries → info 0.
+
+    v0.5.5+ silent-write fix: fixture 의 Vault.create() 가 log.md 에 1개 entry 를 남기므로,
+    threshold 미만(< 500) 을 검증하려면 (LOG_ROTATE_THRESHOLD - 2) 개의 explicit entry 만 append.
+    (498 explicit + 1 silent = 499 < 500)
+    """
+    for i in range(LOG_ROTATE_THRESHOLD - 2):
         append(vault, "chore", f"entry {i}")
     issues = check_log_size(vault)
     assert issues == []

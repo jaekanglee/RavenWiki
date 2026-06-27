@@ -17,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from raven.core.registry import VAULTS_ROOT, registry
+from raven.core.log import load
 from raven.core.vault import Vault
 
 
@@ -90,15 +91,25 @@ def test_bootstrap_lite_idempotent_does_not_overwrite(isolated_vaults_root, isol
 def test_no_bootstrap_creates_empty_dirs_but_no_template_files(
     isolated_vaults_root, isolated_target
 ):
-    """--no-bootstrap creates empty content/ + _meta/ but no templates."""
+    """--no-bootstrap creates empty content/ + _meta/ but no template files.
+
+    v0.5.5+ silent-write fix: Vault.create() 가 log.md 를 보장하고 create entry 를
+    1개 남기므로 --no-bootstrap 라도 log.md 가 존재한다 (silent write). 단, Lite
+    bootstrap (SCHEMA/RULES) 은 여전히 복사되지 않음을 검증.
+    """
     v = Vault.create("existing1", isolated_target / "existing1", bootstrap=False)
     assert (v.root / ".vault.json").is_file()
     assert (v.root / "content").is_dir()   # empty, exists
     assert (v.root / "_meta").is_dir()     # empty, exists
-    # no templates copied (Lite policy enforces this)
+    # no Lite bootstrap templates copied
     assert not (v.root / "_meta" / "system" / "SCHEMA.md").exists()
     assert not (v.root / "_meta" / "system" / "RULES.md").exists()
-    assert not (v.root / "log.md").exists()
+    # silent-write fix: log.md is auto-created by Vault.create() with 1 create entry
+    # (this is the v0.5.5+ behavior — log.md is now guaranteed, not a bootstrap artifact)
+    assert (v.root / "log.md").is_file()
+    entries = load(v)
+    assert len(entries) == 1
+    assert entries[0].action == "create"
 
 
 def test_no_bootstrap_does_not_delete_existing(isolated_vaults_root, isolated_target):
@@ -114,13 +125,20 @@ def test_no_bootstrap_does_not_delete_existing(isolated_vaults_root, isolated_ta
 
 
 def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
-    """sync_meta(lite=True) default — copies 3 Lite files when missing."""
+    """sync_meta(lite=True) default — copies 3 Lite files when missing.
+
+    v0.5.5+ silent-write fix: Vault.create() 가 log.md 를 보장하므로 sync_meta() 가
+    다시 복사하지 않고 skipped 에 들어간다. SCHEMA/RULES 는 bootstrap=False 라 미존재
+    → copied.
+    """
     # bootstrap=False so SCHEMA/RULES don't exist yet
     v = Vault.create("sync1", isolated_target / "sync1", bootstrap=False)
     result = v.sync_meta()  # lite=True default
     assert "_meta/system/SCHEMA.md" in result["copied"]
     assert "_meta/system/RULES.md" in result["copied"]
-    assert "log.md" in result["copied"]
+    # log.md already exists (silent-write by Vault.create) → skipped, not copied
+    assert "log.md" not in result["copied"]
+    assert "log.md" in result["skipped"]
     # No raven-internals
     assert "_meta/system/OPERATIONS.md" not in result["copied"]
     assert "_meta/agent/README.md" not in result["copied"]
