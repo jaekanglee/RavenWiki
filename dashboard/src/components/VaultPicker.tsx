@@ -18,6 +18,7 @@ export function VaultPicker({
   onChange: (name: string) => void;
 }) {
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
+  const [vaultsRoot, setVaultsRoot] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -38,6 +39,12 @@ export function VaultPicker({
       .then((r) => (r.ok ? r.json() : { vaults: [] }))
       .then((d) => {
         setVaults(d.vaults || []);
+        // v0.6.3+: server returns resolved vaults_root so the picker
+        // can show "Vaults root: ~/Raven" (or whatever WIKI_VAULTS_DIR
+        // resolves to).
+        if (typeof d.vaults_root === "string") {
+          setVaultsRoot(d.vaults_root);
+        }
         setLoading(false);
         if (!active && d.vaults?.length) {
           const def = d.vaults.find((v: VaultMeta) => v.default) || d.vaults[0];
@@ -159,6 +166,20 @@ export function VaultPicker({
           >
             Vaults ({vaults.length})
           </div>
+
+          {vaultsRoot && (
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--color-muted)",
+                padding: "0 16px 8px",
+                fontFamily: "ui-monospace, SFMono-Regular, monospace",
+              }}
+              data-testid="vaults-root-label"
+            >
+              root: {vaultsRoot}
+            </div>
+          )}
 
           {vaults.length === 0 ? (
             <div style={{ padding: 16, fontSize: 13, color: "var(--color-muted)" }}>

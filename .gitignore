@@ -18,6 +18,7 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .venv/
+scripts/.venv/
 *.egg-info/
 
 # OS

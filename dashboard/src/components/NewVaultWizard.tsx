@@ -37,8 +37,19 @@ const MODES: { key: Mode; label: string; hint: string }[] = [
 // kebab-case: 소문자/숫자/하이픈, 시작은 소문자, 연속 하이픈 ❌
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
+/**
+ * Canonical vault path under the Raven root. Mirrors
+ * `raven.core.registry.VAULTS_ROOT()` default of `~/Raven/`.
+ *
+ * v0.6.3+: The path is auto-determined from the vault name — users no
+ * longer type it. The field in Step 1 is rendered as a read-only
+ * preview so the user can see where the vault will be created. If
+ * the server is configured with `WIKI_VAULTS_DIR=<elsewhere>`, the
+ * backend will honor that override (we display the same string but
+ * the actual creation uses the env-resolved root).
+ */
 function defaultPath(name: string) {
-  return `~/vaults/${name}/`;
+  return `~/Raven/${name}/`;
 }
 
 export function NewVaultWizard() {
@@ -224,21 +235,26 @@ export function NewVaultWizard() {
             marginBottom: 8,
           }}
         >
-          경로 *
+          경로 (자동 결정됨)
         </label>
         <input
           className="input-base"
-          style={{ height: 64, fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
-          value={path}
-          onChange={(e) => {
-            setPathTouched(true);
-            setPath(e.target.value);
+          readOnly
+          style={{
+            height: 64,
+            fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            background: "var(--cds-field-01, #f4f4f4)",
+            color: "var(--color-muted)",
+            cursor: "default",
           }}
-          placeholder="~/vaults/my-notes/"
-          aria-label="vault path"
+          value={path}
+          placeholder="이름을 입력하면 자동으로 표시됩니다"
+          aria-label="vault path (auto-determined)"
         />
         <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 6 }}>
-          절대경로 (~/ 또는 / 로 시작). 기본값은 <code>~/vaults/&lt;name&gt;/</code>.
+          v0.6.3+: 모든 Raven vault는 <code>~/Raven/&lt;name&gt;/</code> 패턴으로 자동 생성됩니다
+          (백엔드 <code>VAULTS_ROOT</code> 기본값). 서버에 <code>WIKI_VAULTS_DIR</code> 환경변수가
+          설정되어 있으면 그 경로가 우선 적용됩니다.
         </div>
 
         {error && (
