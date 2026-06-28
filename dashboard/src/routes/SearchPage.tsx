@@ -86,7 +86,7 @@ export function SearchPage() {
                     marginBottom: 16,
                   }}
                 >
-                  <Link to={`/page/${r.slug}`} className="link-ink">
+                  <Link to={`/page/${vault}/${r.slug}`} className="link-ink">
                     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
                       {r.title}
                     </div>

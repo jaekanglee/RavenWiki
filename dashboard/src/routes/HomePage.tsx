@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Page } from "../types";
@@ -78,8 +78,9 @@ const MOBILE_MQ = "(max-width: 744px)";
 
 export function HomePage() {
   const [index, setIndex] = useState<Page[]>([]);
-  const [vault, setVault] = useState<VaultSummary | null>(null);
+  const [vaultSummary, setVaultSummary] = useState<VaultSummary | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const { vault } = useOutletContext<{ vault: string }>();
   const navigate = useNavigate();
 
   // ─── data fetch ────────────────────────────────────────
@@ -93,9 +94,9 @@ export function HomePage() {
       .then((r) => (r.ok ? r.json() : { vaults: [] }))
       .then((d) => {
         const def = d.vaults?.find((v: VaultSummary) => v.default) || d.vaults?.[0];
-        setVault(def || null);
+        setVaultSummary(def || null);
       })
-      .catch(() => setVault(null));
+      .catch(() => setVaultSummary(null));
   }, []);
 
   // ─── viewport ────────────────────────────────────────
@@ -130,7 +131,7 @@ export function HomePage() {
         }}
       >
         <h1 style={{ marginBottom: 8, fontSize: isMobile ? 22 : 28 }}>
-          {vault ? vault.name : "Wiki"}
+          {vaultSummary ? vaultSummary.name : "Wiki"}
         </h1>
         <p
           className="text-body"
@@ -143,7 +144,7 @@ export function HomePage() {
         >
           {index.length === 0
             ? "아직 페이지가 없음. 새 페이지를 만들어보세요."
-            : `전체 ${index.length}개 페이지 · ${types.length}개 타입 · ${vault?.path ?? "—"}`}
+            : `전체 ${index.length}개 페이지 · ${types.length}개 타입 · ${vaultSummary?.path ?? "—"}`}
         </p>
       </section>
 
@@ -213,7 +214,7 @@ export function HomePage() {
                 key={p.slug}
                 page={p}
                 isMobile={isMobile}
-                onOpen={() => navigate(`/page/${p.slug}`)}
+                onOpen={() => navigate(`/page/${vault}/${p.slug}`)}
               />
             ))}
           </div>

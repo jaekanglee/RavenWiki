@@ -12,7 +12,7 @@ function root(children: any[]) {
 
 function run(input: string) {
   const tree = root([textNode(input)]);
-  wikilinkPlugin()(tree);
+  wikilinkPlugin("develop")(tree);
   return tree.children;
 }
 

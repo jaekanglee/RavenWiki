@@ -455,7 +455,7 @@ function RecentCard({
                 {p.type}
               </span>
               <Link
-                to={`/page/${p.slug}`}
+                to={`/page/${vault}/${p.slug}`}
                 className="link-ink"
                 style={{
                   flex: 1,

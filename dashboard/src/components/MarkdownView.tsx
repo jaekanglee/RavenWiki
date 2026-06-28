@@ -5,11 +5,11 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { wikilinkPlugin } from "../lib/wikilink";
 
-export function MarkdownView({ content }: { content: string }) {
+export function MarkdownView({ content, vault }: { content: string; vault: string }) {
   return (
     <article className="prose dark:prose-invert max-w-none">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, wikilinkPlugin]}
+        remarkPlugins={[remarkGfm, remarkMath, wikilinkPlugin(vault)]}
         rehypePlugins={[rehypeKatex, rehypeHighlight]}
       >
         {content}

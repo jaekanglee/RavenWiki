@@ -280,7 +280,7 @@ export function LintPage() {
       ) : (
         <div style={{ border: "1px solid var(--color-hairline)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
           {result.issues.slice(0, 200).map((iss, i) => (
-            <IssueRow key={i} issue={iss} isLast={i === Math.min(199, result.issues.length - 1)} />
+            <IssueRow key={i} issue={iss} isLast={i === Math.min(199, result.issues.length - 1)} vault={vault} />
           ))}
           {result.issues.length > 200 && (
             <p
@@ -328,7 +328,7 @@ function SeverityCard({ label, count }: { label: string; count: number }) {
   );
 }
 
-function IssueRow({ issue, isLast }: { issue: LintIssue; isLast: boolean }) {
+function IssueRow({ issue, isLast, vault }: { issue: LintIssue; isLast: boolean; vault: string }) {
   return (
     <div
       style={{
@@ -360,7 +360,7 @@ function IssueRow({ issue, isLast }: { issue: LintIssue; isLast: boolean }) {
         {issue.id}
       </span>
       <a
-        href={`/page/${issue.slug}`}
+        href={`/page/${vault}/${issue.slug}`}
         style={{
           fontFamily: "ui-monospace, SFMono-Regular, monospace",
           fontSize: 12,

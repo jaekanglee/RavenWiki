@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { GraphCanvas } from "../components/GraphCanvas";
 import type { Graph } from "../types";
 
@@ -11,6 +11,7 @@ import type { Graph } from "../types";
 export function GraphPage() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const navigate = useNavigate();
+  const { vault } = useOutletContext<{ vault: string }>();
 
   useEffect(() => {
     fetch("/api/graph.json")
@@ -40,7 +41,7 @@ export function GraphPage() {
         <GraphCanvas
           nodes={graph.nodes}
           edges={graph.edges}
-          onNodeClick={(slug) => navigate(`/page/${slug}`)}
+          onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
         />
       </div>
     </div>

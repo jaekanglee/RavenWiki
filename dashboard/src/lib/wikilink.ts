@@ -1,6 +1,6 @@
 import { visit } from "unist-util-visit";
 
-export function wikilinkPlugin() {
+export function wikilinkPlugin(vault: string) {
   return (tree: any) => {
     visit(tree, "text", (node: any, index: number | undefined, parent: any) => {
       if (!parent || typeof node.value !== "string" || index === undefined) return;
@@ -19,7 +19,7 @@ export function wikilinkPlugin() {
         const slug = m[1];
         parts.push({
           type: "link",
-          url: `/page/${encodeURIComponent(slug)}`,
+          url: `/page/${encodeURIComponent(vault)}/${encodeURIComponent(slug)}`,
           title: slug,
           children: [{ type: "text", value: slug }],
           data: { hProperties: { className: "wikilink" } },

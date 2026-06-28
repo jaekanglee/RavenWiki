@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { useState } from "react";
 
 export function BacklinksPanel({
@@ -6,6 +6,7 @@ export function BacklinksPanel({
 }: {
   backlinks: { source_slug: string; source_title: string }[];
 }) {
+  const { vault } = useOutletContext<{ vault: string }>();
   // Mobile-friendly: collapsible on narrow screens.
   const [open, setOpen] = useState(true);
   const count = backlinks?.length ?? 0;
@@ -85,7 +86,7 @@ export function BacklinksPanel({
           {backlinks.map((b) => (
             <li key={b.source_slug} style={{ marginBottom: 8 }}>
               <Link
-                to={`/page/${b.source_slug}`}
+                to={`/page/${vault}/${b.source_slug}`}
                 className="link-ink"
                 style={{ fontSize: 14 }}
               >

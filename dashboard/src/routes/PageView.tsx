@@ -127,7 +127,7 @@ export function PageView() {
         </div>
 
         {/* Body */}
-        <MarkdownView content={page.content} />
+        <MarkdownView content={page.content} vault={vault} />
       </article>
 
       <BacklinksPanel backlinks={page.backlinks ?? []} />
