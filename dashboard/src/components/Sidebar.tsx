@@ -121,7 +121,6 @@ function VaultTreeGroup({
 }) {
   // 기본 닫힘 (v0.6.10 UX 강화).
   const [open, setOpen] = useState(false);
-  const [pagesOpen, setPagesOpen] = useState(false);
 
   return (
     <div
@@ -159,8 +158,6 @@ function VaultTreeGroup({
           onClick={(e) => {
             e.stopPropagation();
             setOpen(!open);
-            // vault 닫을 때 children도 닫기.
-            if (open) setPagesOpen(false);
           }}
           aria-hidden
           style={{
@@ -214,67 +211,36 @@ function VaultTreeGroup({
 
       {open && (
         <div style={{ paddingLeft: 8, paddingTop: 2 }}>
-          <button
-            onClick={() => setPagesOpen(!pagesOpen)}
-            className={clsx("link-ink")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "2px 8px",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "var(--color-muted)",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              width: "100%",
-              textAlign: "left",
-              fontFamily: "inherit",
-              letterSpacing: "0.32px",
-              textTransform: "uppercase",
-            }}
-          >
-            <span aria-hidden style={{ fontSize: 9 }}>
-              {pagesOpen ? "▾" : "▸"}
-            </span>
-            Pages
-          </button>
-
-          {pagesOpen && (
-            <div>
-              {tree ? (
-                tree.children?.length ? (
-                  tree.children.map((child) => (
-                    <TreeLeaf
-                      key={child.slug}
-                      node={child}
-                      vault={vault.name}
-                      onClose={onClose}
-                    />
-                  ))
-                ) : (
-                  <div
-                    style={{
-                      padding: "4px 8px",
-                      fontSize: 12,
-                      color: "var(--color-muted)",
-                    }}
-                  >
-                    empty
-                  </div>
-                )
-              ) : (
-                <div
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: 12,
-                    color: "var(--color-muted)",
-                  }}
-                >
-                  loading…
-                </div>
-              )}
+          {tree ? (
+            tree.children?.length ? (
+              tree.children.map((child) => (
+                <TreeLeaf
+                  key={child.slug}
+                  node={child}
+                  vault={vault.name}
+                  onClose={onClose}
+                />
+              ))
+            ) : (
+              <div
+                style={{
+                  padding: "4px 8px",
+                  fontSize: 12,
+                  color: "var(--color-muted)",
+                }}
+              >
+                empty
+              </div>
+            )
+          ) : (
+            <div
+              style={{
+                padding: "4px 8px",
+                fontSize: 12,
+                color: "var(--color-muted)",
+              }}
+            >
+              loading…
             </div>
           )}
         </div>
