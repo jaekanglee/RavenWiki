@@ -116,8 +116,34 @@ log.md                    → 작업 이력 (append-only)
 5. **commit은 사용자 승인 후**: 패치·검증이 끝나면 "commit할까요?"로 명시 확인 → 승인 시에만 `git add` + `git commit`. 묵시적 commit ❌.
 6. **사용자 보고**:
    - **무엇을 했는가** (파일 경로, 명령)
-   - **왜 그렇게 했는가** (4 저장 신호 중 무엇에 해당)
-   - **다음에 무엇이 가능한가** (후속 후보)
+   - **왜 그렇게 했는가** (4 저장 신호 중 어떤 항목에 해당)
+   - **검증** (pytest 결과, lint 결과, 동작 확인)
+   - **다음에 무엇이 가능한가** (후속 작업 후보)
+
+### Dashboard UI/UX 운영 규약 (v0.6.10+)
+
+Codex 1라운드 critique 결과 (한국 원티드 사이트 레퍼런스 분석):
+
+- **Nav tabs 라벨은 한국어 통일** (홈/그래프/검색/로그/린트/관리) — 영문/한글 혼재 ❌
+- **저장 토스트 600ms → 2400ms** — "✅ 저장 완료" 메시지 사용자가 읽을 시간 확보
+- **Vault 컨텍스트 헤더 표시** — Graph/Search/Lint 페이지에서 `in <vault>` 한 줄 표시
+- **EmptyState 컴포넌트 통일** — 빈 상태는 텍스트만 ❌, 일러스트 또는 CTA 포함
+- **인라인 편집 우선** — EditButton modal ❌, side sheet 인라인 편집 ⭕
+
+### 자가 사용 SOP (v0.6.10+, wiki-self-user 프로필)
+
+자가 사용자가 raven-dev vault에 ADR/concept 자동 생성 시 **3-pass critique SOP** 적용:
+
+1. **구조/형식** (Codex 관점) — 명명 규칙, type-본문 일치, wikilink footer
+2. **가독성/UX** (Claude 관점) — BLUF 1줄, Progressive Disclosure, Diátaxis 4종
+3. **통합** — 자가 사용 self-audit 체크리스트 7개 항목 통과
+
+### 문서 작성 기법 (자가 사용 표준)
+
+- **BLUF** (Bottom Line Up Front) — 모든 페이지 첫 줄에 결론/결정 1문장
+- **Diátaxis** — type 8종을 4종(Explanation/How-to/Reference/Tutorial)에 매핑
+- **Progressive Disclosure** — 한 줄 요약 → 본문 → "더 보기" wikilink navigation
+- **Pyramid Principle** — ADR은 결론 → 맥락 → 결과 위계
 
 ---
 
