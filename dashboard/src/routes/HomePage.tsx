@@ -7,6 +7,7 @@ import {
   setActiveVault as setActiveVaultLS,
   type VaultInfo,
 } from "../lib/api";
+import { NewPageInline } from "../components/NewPageInline";
 
 /**
  * HomePage — v0.6.10 (P16): 종합 홈 (vault 미선택).
@@ -90,6 +91,15 @@ const ACTIONS: QuickAction[] = [
   },
 ];
 
+// Plan v1 묶음 B: "새 페이지" Quick Action — onClick으로 인라인 폼을 토글한다.
+interface NewPageAction {
+  kind: "new-page";
+  label: string;
+  description: string;
+  icon: string;
+  requiresVault: true;
+}
+
 const MOBILE_MQ = "(max-width: 744px)";
 
 export function HomePage() {
@@ -97,6 +107,8 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [activeVault, setActiveVault] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  // Plan v1 묶음 B (Tasks 5-7): 인라인 폼 트리거.
+  const [showNewPageForm, setShowNewPageForm] = useState(false);
   const navigate = useNavigate();
 
   // ─── viewport ────────────────────────────────────────
@@ -222,6 +234,13 @@ export function HomePage() {
               disabled={Boolean(a.requiresVault) && !activeVault}
             />
           ))}
+          {/* 묶음 B: "새 페이지" 카드 — 클릭 시 인라인 폼 토글. */}
+          <NewPageCard
+            isMobile={isMobile}
+            disabled={!activeVault}
+            active={showNewPageForm}
+            onToggle={() => setShowNewPageForm((v) => !v)}
+          />
         </div>
         {!activeVault && vaults.length > 0 && (
           <p
@@ -232,6 +251,14 @@ export function HomePage() {
           </p>
         )}
       </section>
+
+      {/* ─── Inline new-page form (묶음 B, Tasks 5-7) ─────── */}
+      {showNewPageForm && activeVault && (
+        <NewPageInline
+          vault={activeVault}
+          onClose={() => setShowNewPageForm(false)}
+        />
+      )}
 
       {/* ─── Vaults ────────────────────────────────────────── */}
       <section style={{ paddingBottom: 64 }}>
@@ -288,13 +315,24 @@ export function HomePage() {
                 v={v}
                 isMobile={isMobile}
                 isActive={v.meta.name === activeVault}
-                onOpen={() => {
-                  // active로 표시하고 첫 페이지로 이동
+                onOpen={async () => {
                   setActiveVaultLS(v.meta.name);
                   setActiveVault(v.meta.name);
-                  navigate(
-                    `/page/${encodeURIComponent(v.meta.name)}/content/index`
-                  );
+                  // 옛 vault는 content/index 없음. 첫 페이지 또는 manage로 fallback.
+                  try {
+                    const r = await fetch(
+                      `/api/vaults/${encodeURIComponent(v.meta.name)}/pages?top_k=1`
+                    );
+                    const d = await r.json();
+                    const slug = d?.pages?.[0]?.slug;
+                    if (slug) {
+                      navigate(`/page/${encodeURIComponent(v.meta.name)}/${slug}`);
+                    } else {
+                      navigate(`/vault/manage`);
+                    }
+                  } catch {
+                    navigate(`/vault/manage`);
+                  }
                 }}
                 onManage={() => navigate("/vault/manage")}
               />
@@ -598,5 +636,96 @@ function Stat({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── 묶음 B: "새 페이지" Quick Action 카드 ──────────────────
+// ActionCard와 동일 비주얼이지만 Link가 아닌 button — 클릭 시 인라인 폼 토글.
+function NewPageCard({
+  isMobile,
+  disabled,
+  active,
+  onToggle,
+}: {
+  isMobile: boolean;
+  disabled: boolean;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  const base: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    textAlign: "left",
+    padding: isMobile ? 16 : 20,
+    background: active
+      ? "var(--cds-background-brand, #f4f7fc)"
+      : "var(--cds-field-01, #fff)",
+    border: active
+      ? "1.5px solid var(--color-primary, #1c69d4)"
+      : "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+    borderRadius: 8,
+    minHeight: isMobile ? 88 : 96,
+    color: "var(--color-ink)",
+    textDecoration: "none",
+    cursor: disabled ? "not-allowed" : "pointer",
+    transition:
+      "box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease",
+    opacity: disabled ? 0.45 : 1,
+    pointerEvents: disabled ? "none" : "auto",
+    fontFamily: "inherit",
+    width: "100%",
+  };
+  return (
+    <button
+      type="button"
+      style={base}
+      aria-disabled={disabled || undefined}
+      aria-pressed={active}
+      onClick={() => {
+        if (disabled) return;
+        onToggle();
+      }}
+      onMouseEnter={(e) => {
+        if (isMobile || disabled) return;
+        const el = e.currentTarget as HTMLElement;
+        el.style.boxShadow = "var(--shadow-card, 0 2px 6px rgba(0,0,0,0.08))";
+        el.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.boxShadow = "none";
+        el.style.transform = "none";
+      }}
+    >
+      <div
+        style={{
+          fontSize: isMobile ? 20 : 22,
+          marginBottom: 6,
+          lineHeight: 1,
+        }}
+        aria-hidden
+      >
+        {active ? "✕" : "➕"}
+      </div>
+      <div
+        style={{
+          fontSize: isMobile ? 14 : 15,
+          fontWeight: 600,
+          marginBottom: 2,
+        }}
+      >
+        {active ? "폼 닫기" : "새 페이지"}
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--color-muted)",
+          lineHeight: 1.3,
+        }}
+      >
+        {active ? "인라인 폼이 열려 있습니다" : "인라인 폼으로 만들기"}
+      </div>
+    </button>
   );
 }
