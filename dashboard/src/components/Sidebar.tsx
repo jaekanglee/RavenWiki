@@ -122,25 +122,29 @@ function VaultTreeGroup({
   // 기본 닫힘 (v0.6.10 UX 강화).
   const [open, setOpen] = useState(false);
 
+  // 묶음 A (Plan v1, Tasks 2-3): title 영역 클릭 = toggle, arrow 클릭 = toggle.
+  // 둘 다 동일한 toggle 동작. 단, vault 선택(setActive)은 별도 액션.
+  // 모바일(<744px) 터치 영역 32px 유지를 위해 min-height 적용.
+  const toggleVault = () => setOpen(!open);
+
   return (
     <div
       style={{
-        marginBottom: 4,
+        marginBottom: 2,
         background: isActive ? "var(--cds-field-01, #f4f4f4)" : "transparent",
         borderRadius: 4,
         padding: "2px 0",
       }}
     >
       <button
-        onClick={() => {
-          onSelect();
-        }}
+        onClick={onSelect}
         style={{
           display: "flex",
           alignItems: "center",
           gap: 4,
           width: "100%",
-          padding: "4px 8px",
+          padding: "6px 8px",
+          minHeight: 32,
           background: "transparent",
           border: "none",
           textAlign: "left",
@@ -154,18 +158,27 @@ function VaultTreeGroup({
         aria-label={`switch to vault ${vault.name}`}
         title={`${vault.path}`}
       >
+        {/* arrow: 24px 컨테이너로 터치 영역 ↑ (모바일 32px 터치 타겟 충족).
+            클릭 = toggle. 부모 button과 stopPropagation으로 선택 액션 분리. */}
         <span
+          role="button"
+          tabIndex={-1}
           onClick={(e) => {
             e.stopPropagation();
-            setOpen(!open);
+            toggleVault();
           }}
           aria-hidden
           style={{
-            fontSize: 10,
+            width: 24,
+            height: 24,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             opacity: 0.6,
-            width: 12,
-            display: "inline-block",
             cursor: "pointer",
+            flexShrink: 0,
+            fontSize: 11,
+            lineHeight: 1,
           }}
         >
           {open ? "▾" : "▸"}
@@ -264,7 +277,7 @@ function TreeLeaf({
   const [isOpen, setIsOpen] = useState(false);
 
   if (!node.children || node.children.length === 0) {
-    // leaf page
+    // leaf page (마진 압축: padding 3px 8px 유지, 들여쓰기 12px→14px grid 호환)
     return (
       <Link
         to={`/page/${vault}/${node.slug}`}
@@ -276,7 +289,7 @@ function TreeLeaf({
           fontSize: 13,
           fontWeight: 400,
           color: "var(--color-ink)",
-          marginLeft: depth * 12,
+          marginLeft: depth * 14,
           borderRadius: 3,
         }}
       >
@@ -285,7 +298,7 @@ function TreeLeaf({
     );
   }
 
-  // dir node
+  // dir node (묶음 A, Task 3: arrow 24px 컨테이너 + 마진 압축)
   return (
     <div>
       <button
@@ -296,6 +309,7 @@ function TreeLeaf({
           alignItems: "center",
           gap: 4,
           padding: "3px 8px",
+          minHeight: 28,
           fontSize: 12,
           fontWeight: 600,
           color: "var(--color-muted)",
@@ -305,11 +319,24 @@ function TreeLeaf({
           width: "100%",
           textAlign: "left",
           fontFamily: "inherit",
-          marginLeft: depth * 12,
+          marginLeft: depth * 14,
           borderRadius: 3,
         }}
       >
-        <span aria-hidden style={{ fontSize: 9 }}>
+        <span
+          aria-hidden
+          style={{
+            width: 20,
+            height: 20,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 0.6,
+            flexShrink: 0,
+            fontSize: 10,
+            lineHeight: 1,
+          }}
+        >
           {isOpen ? "▾" : "▸"}
         </span>
         {displayTitle(node.title || node.slug)}
