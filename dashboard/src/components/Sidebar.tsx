@@ -88,6 +88,21 @@ export function Sidebar({
   );
 }
 
+// ─── display title helper ────────────────────────────────────
+// Vault filenames are slugs — turn "2026-06-28-pwa-cache" into "Pwa Cache",
+// "index" into "Index", keep "_template" as-is. Strips leading
+// date prefix and replaces separators with spaces.
+function displayTitle(slug: string): string {
+  const last = slug.split("/").pop() || slug;
+  const base = last.replace(/\.md$/, "");
+  // strip leading YYYY-MM-DD- prefix
+  const dated = base.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+  if (dated === "") return base;
+  return dated
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // ─── Vault tree group ────────────────────────────────────────
 function VaultTreeGroup({
   vault,
@@ -104,15 +119,17 @@ function VaultTreeGroup({
   onClose: () => void;
   onRefresh?: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // 기본 닫힘 (v0.6.10 UX 강화).
+  const [open, setOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
 
   return (
     <div
       style={{
-        marginBottom: 8,
+        marginBottom: 4,
         background: isActive ? "var(--cds-field-01, #f4f4f4)" : "transparent",
-        borderRadius: 6,
-        padding: "4px 0",
+        borderRadius: 4,
+        padding: "2px 0",
       }}
     >
       <button
@@ -122,17 +139,18 @@ function VaultTreeGroup({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 4,
           width: "100%",
-          padding: "6px 8px",
+          padding: "4px 8px",
           background: "transparent",
           border: "none",
           textAlign: "left",
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: 600,
           color: "var(--color-ink)",
           cursor: "pointer",
           fontFamily: "inherit",
+          borderRadius: 4,
         }}
         aria-label={`switch to vault ${vault.name}`}
         title={`${vault.path}`}
@@ -141,6 +159,8 @@ function VaultTreeGroup({
           onClick={(e) => {
             e.stopPropagation();
             setOpen(!open);
+            // vault 닫을 때 children도 닫기.
+            if (open) setPagesOpen(false);
           }}
           aria-hidden
           style={{
@@ -193,25 +213,68 @@ function VaultTreeGroup({
       </button>
 
       {open && (
-        <div style={{ paddingLeft: 12 }}>
-          {tree ? (
-            tree.children?.map((child) => (
-              <TreeLeaf
-                key={child.slug}
-                node={child}
-                vault={vault.name}
-                onClose={onClose}
-              />
-            ))
-          ) : (
-            <div
-              style={{
-                padding: "4px 8px",
-                fontSize: 12,
-                color: "var(--color-muted)",
-              }}
-            >
-              loading…
+        <div style={{ paddingLeft: 8, paddingTop: 2 }}>
+          <button
+            onClick={() => setPagesOpen(!pagesOpen)}
+            className={clsx("link-ink")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--color-muted)",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              width: "100%",
+              textAlign: "left",
+              fontFamily: "inherit",
+              letterSpacing: "0.32px",
+              textTransform: "uppercase",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 9 }}>
+              {pagesOpen ? "▾" : "▸"}
+            </span>
+            Pages
+          </button>
+
+          {pagesOpen && (
+            <div>
+              {tree ? (
+                tree.children?.length ? (
+                  tree.children.map((child) => (
+                    <TreeLeaf
+                      key={child.slug}
+                      node={child}
+                      vault={vault.name}
+                      onClose={onClose}
+                    />
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 12,
+                      color: "var(--color-muted)",
+                    }}
+                  >
+                    empty
+                  </div>
+                )
+              ) : (
+                <div
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    color: "var(--color-muted)",
+                  }}
+                >
+                  loading…
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -232,7 +295,7 @@ function TreeLeaf({
   onClose: () => void;
   depth?: number;
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   if (!node.children || node.children.length === 0) {
     // leaf page
@@ -243,13 +306,15 @@ function TreeLeaf({
         className="link-ink"
         style={{
           display: "block",
-          padding: "4px 8px",
+          padding: "3px 8px",
           fontSize: 13,
-          marginLeft: depth * 8,
-          borderRadius: 4,
+          fontWeight: 400,
+          color: "var(--color-ink)",
+          marginLeft: depth * 12,
+          borderRadius: 3,
         }}
       >
-        {node.title}
+        {displayTitle(node.title || node.slug)}
       </Link>
     );
   }
@@ -264,7 +329,7 @@ function TreeLeaf({
           display: "flex",
           alignItems: "center",
           gap: 4,
-          padding: "4px 8px",
+          padding: "3px 8px",
           fontSize: 12,
           fontWeight: 600,
           color: "var(--color-muted)",
@@ -274,13 +339,14 @@ function TreeLeaf({
           width: "100%",
           textAlign: "left",
           fontFamily: "inherit",
-          marginLeft: depth * 8,
+          marginLeft: depth * 12,
+          borderRadius: 3,
         }}
       >
         <span aria-hidden style={{ fontSize: 9 }}>
           {isOpen ? "▾" : "▸"}
         </span>
-        {node.title}
+        {displayTitle(node.title || node.slug)}
       </button>
       {isOpen &&
         node.children.map((c) => (
