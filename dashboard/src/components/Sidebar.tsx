@@ -1,17 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
-import { useState } from "react";
-import type { TreeNode as TNode } from "../types";
 import { NewPageButton } from "./NewPageButton";
+import type { TreeNode as TNode, VaultMeta } from "../types";
 
-export function Sidebar({
-  vault,
-  tree,
-  open,
-  onClose,
-}: {
-  vault: string;
-  tree: TNode | null;
+interface SidebarProps {
+  vaults: VaultMeta[];
+  trees: Record<string, TNode | null>;
+  activeVault: string;
+  onSelectVault: (name: string) => void;
+  onRefresh?: () => void;
   /** Reserved for future tree-mutation refresh hooks; not used in the
    *  off-canvas-drawer flow. */
   onTreeChange?: () => void;
@@ -21,14 +19,24 @@ export function Sidebar({
   open: boolean;
   /** Called by the leaf Link onClick and (in Layout) by backdrop/Escape. */
   onClose: () => void;
-}) {
+}
+
+export function Sidebar({
+  vaults,
+  trees,
+  activeVault,
+  onSelectVault,
+  onRefresh,
+  open,
+  onClose,
+}: SidebarProps) {
   return (
     <aside
       id="primary-sidebar"
       className={clsx(
         "layout-sidebar",
         "sidebar-offcanvas",
-        open && "sidebar-offcanvas-open",
+        open && "sidebar-offcanvas-open"
       )}
       style={{
         borderRight: "1px solid var(--color-hairline)",
@@ -48,43 +56,186 @@ export function Sidebar({
       <div
         className="sidebar-label"
         style={{
+          padding: "8px 0 4px",
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: "0.32px",
           textTransform: "uppercase",
           color: "var(--color-muted)",
-          padding: "0 8px 8px",
         }}
       >
-        Pages
+        Vaults ({vaults.length})
       </div>
 
-      {tree ? (
-        <TreeNodeView node={tree} depth={0} vault={vault} onClose={onClose} />
-      ) : (
-        <div className="text-muted sidebar-text" style={{ padding: "8px", fontSize: 13 }}>
-          Loading {vault}…
+      {vaults.length === 0 && (
+        <div style={{ padding: 8, fontSize: 13, color: "var(--color-muted)" }}>
+          vault 없음
         </div>
       )}
+
+      {vaults.map((v) => (
+        <VaultTreeGroup
+          key={v.name}
+          vault={v}
+          tree={trees[v.name] ?? null}
+          isActive={v.name === activeVault}
+          onSelect={() => onSelectVault(v.name)}
+          onClose={onClose}
+          onRefresh={onRefresh}
+        />
+      ))}
     </aside>
   );
 }
 
-function TreeNodeView({
+// ─── Vault tree group ────────────────────────────────────────
+function VaultTreeGroup({
+  vault,
+  tree,
+  isActive,
+  onSelect,
+  onClose,
+  onRefresh,
+}: {
+  vault: VaultMeta;
+  tree: TNode | null;
+  isActive: boolean;
+  onSelect: () => void;
+  onClose: () => void;
+  onRefresh?: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div
+      style={{
+        marginBottom: 8,
+        background: isActive ? "var(--cds-field-01, #f4f4f4)" : "transparent",
+        borderRadius: 6,
+        padding: "4px 0",
+      }}
+    >
+      <button
+        onClick={() => {
+          onSelect();
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          width: "100%",
+          padding: "6px 8px",
+          background: "transparent",
+          border: "none",
+          textAlign: "left",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--color-ink)",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+        aria-label={`switch to vault ${vault.name}`}
+        title={`${vault.path}`}
+      >
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
+          aria-hidden
+          style={{
+            fontSize: 10,
+            opacity: 0.6,
+            width: 12,
+            display: "inline-block",
+            cursor: "pointer",
+          }}
+        >
+          {open ? "▾" : "▸"}
+        </span>
+        {vault.default && (
+          <span
+            style={{
+              fontSize: 9,
+              color: "var(--color-primary)",
+              fontWeight: 700,
+            }}
+            aria-label="default"
+          >
+            ★
+          </span>
+        )}
+        {isActive && (
+          <span
+            style={{
+              fontSize: 9,
+              color: "var(--color-success, #198038)",
+              fontWeight: 700,
+            }}
+            aria-label="active"
+          >
+            ●
+          </span>
+        )}
+        <span style={{ flex: 1 }}>{vault.name}</span>
+        <span
+          style={{
+            fontSize: 10,
+            padding: "1px 5px",
+            background: "var(--cds-background, #fff)",
+            border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+            borderRadius: 8,
+            color: "var(--color-muted)",
+          }}
+        >
+          {vault.mode}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ paddingLeft: 12 }}>
+          {tree ? (
+            tree.children?.map((child) => (
+              <TreeLeaf
+                key={child.slug}
+                node={child}
+                vault={vault.name}
+                onClose={onClose}
+              />
+            ))
+          ) : (
+            <div
+              style={{
+                padding: "4px 8px",
+                fontSize: 12,
+                color: "var(--color-muted)",
+              }}
+            >
+              loading…
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tree leaf (recursive for nested dirs) ───────────────────
+function TreeLeaf({
   node,
-  depth,
   vault,
   onClose,
+  depth = 0,
 }: {
   node: TNode;
-  depth: number;
   vault: string;
   onClose: () => void;
+  depth?: number;
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
   if (!node.children || node.children.length === 0) {
-    if (node.slug === "root") return null;
+    // leaf page
     return (
       <Link
         to={`/page/${vault}/${node.slug}`}
@@ -92,10 +243,10 @@ function TreeNodeView({
         className="link-ink"
         style={{
           display: "block",
-          padding: "6px 8px",
-          fontSize: 14,
-          marginLeft: depth * 12,
-          borderRadius: 6,
+          padding: "4px 8px",
+          fontSize: 13,
+          marginLeft: depth * 8,
+          borderRadius: 4,
         }}
       >
         {node.title}
@@ -103,31 +254,43 @@ function TreeNodeView({
     );
   }
 
+  // dir node
   return (
-    <div style={{ marginLeft: depth * 12 }}>
-      {node.slug !== "root" && (
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={clsx("link-ink")}
-          style={{
-            display: "block",
-            padding: "6px 8px",
-            fontSize: 14,
-            fontWeight: 600,
-            width: "100%",
-            textAlign: "left",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            borderRadius: 6,
-          }}
-        >
-          {isOpen ? "▾" : "▸"} {node.title}
-        </button>
-      )}
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={clsx("link-ink")}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "4px 8px",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--color-muted)",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          width: "100%",
+          textAlign: "left",
+          fontFamily: "inherit",
+          marginLeft: depth * 8,
+        }}
+      >
+        <span aria-hidden style={{ fontSize: 9 }}>
+          {isOpen ? "▾" : "▸"}
+        </span>
+        {node.title}
+      </button>
       {isOpen &&
         node.children.map((c) => (
-          <TreeNodeView key={c.slug} node={c} depth={depth + 1} vault={vault} onClose={onClose} />
+          <TreeLeaf
+            key={c.slug}
+            node={c}
+            vault={vault}
+            onClose={onClose}
+            depth={depth + 1}
+          />
         ))}
     </div>
   );

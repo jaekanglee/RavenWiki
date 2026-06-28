@@ -17,6 +17,14 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
+export interface VaultMeta {
+  name: string;
+  path: string;
+  mode: string;
+  owner: string;
+  default: boolean;
+}
+
 export interface GraphNode {
   slug: string;
   title: string;

@@ -2,59 +2,81 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
-import { VaultPicker } from "./VaultPicker";
+import { fetchVaults, fetchPages, getActiveVault, setActiveVault } from "../lib/api";
 import { useEffect, useState } from "react";
-import { fetchPages, getActiveVault, setActiveVault } from "../lib/api";
-import type { TreeNode } from "../types";
+import type { TreeNode, VaultMeta } from "../types";
 
 const NAV_TABS = [
   { to: "/", label: "Home", icon: "🏠", match: (p: string) => p === "/" },
   { to: "/graph", label: "Graph", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
-  { to: "/search", label: "Search", icon: "🔎", match: (p: string) => p.startsWith("/search") },
-  { to: "/log", label: "Log", icon: "📜", match: (p: string) => p.startsWith("/log") },
-  { to: "/lint", label: "Lint", icon: "🔧", match: (p: string) => p.startsWith("/lint") },
+  { to: "/search", label: "Search", icon: "🔍", match: (p: string) => p.startsWith("/search") },
+  { to: "/log", label: "Log", icon: "📋", match: (p: string) => p.startsWith("/log") },
+  { to: "/lint", label: "Lint", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
+  { to: "/vault/manage", label: "Manage", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
 ];
 
 export function Layout() {
-  const [vault, setVault] = useState<string>(() => getActiveVault() || "default");
-  const [tree, setTree] = useState<TreeNode | null>(null);
+  const [vault, setVault] = useState<string>(() => getActiveVault() || "");
+  const [vaults, setVaults] = useState<VaultMeta[]>([]);
+  const [trees, setTrees] = useState<Record<string, TreeNode | null>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
 
+  // ─── load all vaults ────────────────────────────────────────
   useEffect(() => {
-    if (!vault) return;
-    fetchPages(vault)
-      .then((pages) => {
-        const root: TreeNode = { slug: "root", title: "root", type: "root", children: [] };
+    fetchVaults()
+      .then((vs) => setVaults(vs))
+      .catch(() => setVaults([]));
+  }, []);
+
+  // ─── build tree per vault (in parallel) ─────────────────────
+  useEffect(() => {
+    if (vaults.length === 0) return;
+    const fetchTree = async (
+      vname: string
+    ): Promise<[string, TreeNode | null]> => {
+      try {
+        const pages = await fetchPages(vname);
+        const root: TreeNode = {
+          slug: "root",
+          title: "root",
+          type: "root",
+          children: [],
+        };
         for (const p of pages) {
           const parts = p.slug.split("/");
           let cur = root;
-          for (let i = 0; i < parts.length; i++) {
+          for (let i = 0; i < parts.length - 1; i++) {
             const part = parts[i];
-            const fullSlug = parts.slice(0, i + 1).join("/");
-            let child = (cur.children || []).find((c) => c.slug === fullSlug);
-            if (!child) {
-              child = {
-                slug: fullSlug,
-                title: i === parts.length - 1 ? p.title : part,
-                type: p.type,
-                children: [],
-              };
+            let next = cur.children?.find((c) => c.slug === part);
+            if (!next) {
+              next = { slug: part, title: part, type: "dir", children: [] };
               cur.children = cur.children || [];
-              cur.children.push(child);
+              cur.children.push(next);
             }
-            cur = child;
+            cur = next;
           }
+          cur.children = cur.children || [];
+          cur.children.push({
+            slug: p.slug,
+            title: p.title || parts[parts.length - 1],
+            type: p.type || "?",
+          });
         }
-        setTree(root);
-      })
-      .catch(() => setTree(null));
-  }, [vault, refreshKey]);
+        return [vname, root];
+      } catch {
+        return [vname, null];
+      }
+    };
+    Promise.all(vaults.map((v) => fetchTree(v.name))).then((results) => {
+      const map: Record<string, TreeNode | null> = {};
+      for (const [name, root] of results) map[name] = root;
+      setTrees(map);
+    });
+  }, [vaults, refreshKey]);
 
   // Track narrow viewport so the drawer state is only meaningful on mobile.
-  // Above 744px the drawer/backdrop/hamburger are inert and the sidebar
-  // returns to its in-flow 288px layout.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 744px)");
@@ -68,8 +90,7 @@ export function Layout() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // Close the drawer on route change so tapping a leaf link cleanly reveals
-  // the destination without leaving the drawer on top of the new view.
+  // Close the drawer on route change.
   useEffect(() => {
     setMobileNavOpen(false);
   }, [location.pathname]);
@@ -87,14 +108,20 @@ export function Layout() {
   return (
     <div className="flex h-screen" style={{ background: "var(--color-canvas)" }}>
       <Sidebar
-        vault={vault}
-        tree={tree}
-        onTreeChange={() => setRefreshKey((k) => k + 1)}
+        vaults={vaults}
+        trees={trees}
+        activeVault={vault}
+        onSelectVault={(name) => {
+          setVault(name);
+          setActiveVault(name);
+          setRefreshKey((k) => k + 1);
+        }}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
         open={isMobile && mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
       />
 
-      {/* Drawer backdrop — only on mobile when the drawer is open. Tap to close. */}
+      {/* Drawer backdrop */}
       {isMobile && mobileNavOpen && (
         <div
           className="sidebar-backdrop"
@@ -104,8 +131,6 @@ export function Layout() {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
-        {/* Top nav — 80px white, 1px bottom hairline.
-            Wraps to 2 rows below 1280px (handled by .top-nav-row media query). */}
         <header
           className="top-nav-row flex items-center gap-4 px-8"
           style={{
@@ -114,7 +139,7 @@ export function Layout() {
             background: "var(--color-canvas)",
           }}
         >
-          {/* Hamburger — mobile only (≤744px). 44×44 tap target, Apple HIG. */}
+          {/* Hamburger — mobile only (≤744px). */}
           <button
             type="button"
             className="header-hamburger"
@@ -128,7 +153,7 @@ export function Layout() {
             </span>
           </button>
 
-          {/* Wordmark */}
+          {/* Wordmark — pure brand, no vault info */}
           <Link
             to="/"
             className="text-ink"
@@ -141,22 +166,10 @@ export function Layout() {
               flexShrink: 0,
             }}
           >
-            🐦 Raven
+            <span aria-hidden style={{ marginRight: 6 }}>🐦</span>Raven
           </Link>
 
-          {/* Vault picker */}
-          <div style={{ flexShrink: 0 }}>
-            <VaultPicker
-              active={vault}
-              onChange={(name) => {
-                setVault(name);
-                setActiveVault(name);
-                setRefreshKey((k) => k + 1);
-              }}
-            />
-          </div>
-
-          {/* Search bar — pill, expands. Wraps below the nav row on narrow screens. */}
+          {/* Search bar */}
           <div className="top-nav-search flex-1 flex justify-center min-w-0">
             <div style={{ width: "100%", maxWidth: 560 }}>
               <SearchBar
@@ -168,7 +181,7 @@ export function Layout() {
             </div>
           </div>
 
-          {/* Right-side product tabs — horizontally scrollable when narrow. */}
+          {/* Right-side product tabs */}
           <nav className="top-nav-tabs flex items-center gap-1">
             {NAV_TABS.map((t) => (
               <Link
@@ -182,9 +195,12 @@ export function Layout() {
                   whiteSpace: "nowrap",
                   flexShrink: 0,
                 }}
+                aria-current={t.match(location.pathname) ? "page" : undefined}
               >
-                <span aria-hidden>{t.icon}</span>
-                <span>{t.label}</span>
+                <span aria-hidden style={{ fontSize: 14 }}>
+                  {t.icon}
+                </span>
+                {t.label}
               </Link>
             ))}
           </nav>
@@ -194,7 +210,12 @@ export function Layout() {
           className="page-content flex-1 overflow-y-auto"
           style={{ padding: "32px 64px", background: "var(--color-canvas)" }}
         >
-          <Outlet context={{ vault, refresh: () => setRefreshKey((k) => k + 1) }} />
+          <Outlet
+            context={{
+              vault,
+              refresh: () => setRefreshKey((k) => k + 1),
+            }}
+          />
         </div>
       </main>
     </div>
