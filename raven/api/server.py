@@ -336,6 +336,131 @@ def get_page(name: str, slug: str):
     }
 
 
+# ─── vault management (v0.6.10+) ─────────────────────────────────
+# stats / rename / delete — 운영자가 vault 단위로 관리할 수 있는 API.
+
+@app.get("/api/vaults/{name}/stats")
+def vault_stats(name: str):
+    """Return content + index stats for a vault.
+
+    Used by the Dashboard vault manager to show "12 pages / 5 broken
+    links / 84 KB" before destructive ops (rename/delete).
+    """
+    v = _vault_or_404(name)
+    pages = list(v.content_root.rglob("*.md")) if v.content_root.exists() else []
+    size_bytes = sum(p.stat().st_size for p in pages)
+    log_path = v.root / "log.md"
+    log_entries = 0
+    if log_path.exists():
+        log_entries = sum(
+            1 for line in log_path.read_text().splitlines() if line.startswith("## [")
+        )
+    # broken wikilink count via existing CLI recipe (single source of truth)
+    broken = 0
+    try:
+        from raven.core import link as _link
+        broken = len(_link.find_broken(v))
+    except Exception:
+        pass  # don't fail stats on link audit errors
+    return {
+        "ok": True,
+        "vault": name,
+        "pages": len(pages),
+        "size_bytes": size_bytes,
+        "log_entries": log_entries,
+        "broken_links": broken,
+    }
+
+
+class VaultRename(BaseModel):
+    name: str = Field(..., description="new vault name (lowercase kebab-case 권장)")
+
+
+@app.put("/api/vaults/{name}")
+def rename_vault(name: str, payload: VaultRename):
+    """Rename a vault. The directory on disk is renamed too (matches CLI).
+
+    Registry default stays valid: if the renamed vault was default, the new
+    name becomes default automatically.
+    """
+    reg = registry()
+    v = _vault_or_404(name)
+    new_name = payload.name.strip()
+    if not new_name or new_name == name:
+        raise HTTPException(status_code=400, detail=f"invalid new name: {new_name!r}")
+    if reg.get(new_name):
+        raise HTTPException(status_code=409, detail=f"vault {new_name!r} already exists")
+
+    old_root = v.root
+    new_root = old_root.parent / new_name
+
+    # 1. rename directory on disk
+    try:
+        old_root.rename(new_root)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"rename failed: {e}")
+
+    # 2. update registry
+    was_default = reg._data.get("default") == name
+    reg.remove(name)
+    from raven.core.registry import VaultMeta as _VM
+    reg.add(_VM(name=new_name, path=new_root, mode=v.meta.mode, owner=v.meta.owner,
+                created=v.meta.created, description=v.meta.description))
+    if was_default:
+        reg.set_default(new_name)
+
+    return {"ok": True, "vault": {"old": name, "new": new_name, "path": str(new_root)}}
+
+
+@app.delete("/api/vaults/{name}")
+def delete_vault(name: str, force: bool = False):
+    """Delete (unregister) a vault.
+
+    Default behavior (force=False):
+        - refuses if the vault contains any .md files (protects user data)
+        - unregisters only — directory on disk is left intact
+
+    force=True:
+        - removes the entire directory recursively (DESTRUCTIVE)
+        - use with care
+    """
+    import shutil
+    v = _vault_or_404(name)
+    pages = list(v.content_root.rglob("*.md")) if v.content_root.exists() else []
+    log_path = v.root / "log.md"
+    has_log = log_path.exists() and log_path.stat().st_size > 0
+
+    if (pages or has_log) and not force:
+        return {
+            "ok": False,
+            "vault": name,
+            "reason": "vault contains content",
+            "stats": {
+                "pages": len(pages),
+                "log_present": has_log,
+            },
+            "hint": "retry with ?force=true to delete the directory",
+        }
+
+    # destructive path
+    if force:
+        try:
+            shutil.rmtree(v.root)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"rmtree failed: {e}")
+
+    # always unregister (even non-destructive unregister)
+    was_default = registry()._data.get("default") == name
+    registry().remove(name)
+    if was_default:
+        # pick another vault as default if any
+        remaining = list(registry()._data.get("vaults", {}).keys())
+        if remaining:
+            registry().set_default(remaining[0])
+
+    return {"ok": True, "vault": name, "destructive": force}
+
+
 @app.post("/api/vaults/{name}/pages")
 def create_page(name: str, payload: PageCreate):
     """Create a new page.
