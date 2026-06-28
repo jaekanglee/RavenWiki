@@ -1,41 +1,54 @@
-import { Link, useNavigate, useOutletContext } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import type { Page } from "../types";
+import {
+  fetchVaults,
+  getActiveVault,
+  setActiveVault as setActiveVaultLS,
+  type VaultInfo,
+} from "../lib/api";
 
 /**
- * HomePage — v0.6.4: "vault 운영 콘솔" 3영역 재구성.
+ * HomePage — v0.6.10 (P16): 종합 홈 (vault 미선택).
+ *
+ * 이전: HomePage가 useOutletContext<{vault}>로 활성 vault를 받아 그 vault
+ *   한 곳의 페이지/통계만 표시 = "vault 운영 콘솔"로 동작.
+ * 변경: Home = "vault를 선택하거나 새로 만드는 곳"으로 재정의.
+ *   - 활성 vault에 의존 ❌ (outlet context 무시)
+ *   - 모든 vault 카드 리스트 (GET /api/vaults + 각 stats)
+ *   - hero: "vault를 선택하거나 새로 만드세요"
+ *   - Quick Actions는 vault 선택 시 활성화, 미선택 시 disabled + 안내
  *
  * Desktop (≥745px):
  *   ┌──────────────────────────────────────────────────────────┐
- *   │  Hero (h1 + vault 요약)                                 │
- *   │  ┌─────────┐                                            │
- *   │  │ Quick   │  4 large action cards (2x2):                │
- *   │  │ Actions │  · Search  · New page                      │
- *   │  │ (left)  │  · Graph   · Digest                        │
- *   │  └─────────┘                                            │
+ *   │  Hero: "Raven — vault를 선택하거나 새로 만드세요"        │
+ *   │  Quick Actions (4-up grid; 미선택 vault 시 disabled)    │
  *   ├──────────────────────────────────────────────────────────┤
- *   │  Recent pages (3-col grid)                              │
+ *   │  Vaults (3-col grid of cards)                           │
+ *   │   · 각 카드: 이름, 모드, 페이지 수, 깨진 링크, 로그     │
+ *   │   · 클릭 → /vault/manage 또는 /page/<vault>/content/.. │
  *   └──────────────────────────────────────────────────────────┘
  *
- * Mobile (≤744px):
- *   ┌──────────────────┐
- *   │  Hero (compact)  │
- *   │  Quick actions   │  ← full-width 2-col grid (2x2)
- *   │  Recent pages    │  ← 1-col stack (larger tap targets)
- *   └──────────────────┘
- *
- * Mobile pain 해소: 검색·새페이지·그래프·디제스트 모두 1-tap 도달.
- * (Sidebar 진입 2-tap 회피.)
- *
- * "안정적이고 심플" 원칙 준수: 새 라우트/상태 0, 기존 Sidebar 그대로.
+ * Mobile (≤744px): 1-col stack.
  */
 
-interface VaultSummary {
-  name: string;
-  path: string;
-  default: boolean;
+interface VaultStats {
+  ok: boolean;
+  vault: string;
+  pages: number;
+  size_bytes: number;
+  log_entries: number;
+  broken_links: number;
 }
+
+interface VaultWithStats {
+  meta: VaultInfo;
+  stats: VaultStats | null;
+  statsError?: string;
+}
+
+// VaultMeta = VaultInfo (lib/api의 정식 이름 사용)
+type VaultMeta = VaultInfo;
 
 interface QuickAction {
   to: string;
@@ -43,61 +56,48 @@ interface QuickAction {
   description: string;
   icon: string;
   primary?: boolean;
+  requiresVault?: boolean;
 }
 
 const ACTIONS: QuickAction[] = [
   {
     to: "/search",
     label: "검색",
-    description: "vault 전체에서 BM25 검색",
+    description: "활성 vault 전체 BM25",
     icon: "🔍",
+    requiresVault: true,
   },
   {
     to: "/vault/new",
-    label: "새 페이지",
-    description: "지금 만드는 마크다운 페이지",
+    label: "새 vault",
+    description: "지금 만드는 새 vault",
     icon: "✚",
     primary: true,
   },
   {
     to: "/graph",
     label: "그래프",
-    description: "vault 페이지 연결 관계",
+    description: "vault 페이지 연결",
     icon: "⬡",
+    requiresVault: true,
   },
   {
     to: "/digest",
     label: "디제스트",
     description: "오늘 vault 운영 요약",
     icon: "◐",
+    requiresVault: true,
   },
 ];
 
-// 744px = Layout 모바일 breakpoint와 일치.
 const MOBILE_MQ = "(max-width: 744px)";
 
 export function HomePage() {
-  const [index, setIndex] = useState<Page[]>([]);
-  const [vaultSummary, setVaultSummary] = useState<VaultSummary | null>(null);
+  const [vaults, setVaults] = useState<VaultWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeVault, setActiveVault] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const { vault } = useOutletContext<{ vault: string }>();
   const navigate = useNavigate();
-
-  // ─── data fetch ────────────────────────────────────────
-  useEffect(() => {
-    fetch("/api/index.json")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setIndex)
-      .catch(() => setIndex([]));
-
-    fetch("/api/vaults")
-      .then((r) => (r.ok ? r.json() : { vaults: [] }))
-      .then((d) => {
-        const def = d.vaults?.find((v: VaultSummary) => v.default) || d.vaults?.[0];
-        setVaultSummary(def || null);
-      })
-      .catch(() => setVaultSummary(null));
-  }, []);
 
   // ─── viewport ────────────────────────────────────────
   useEffect(() => {
@@ -108,17 +108,55 @@ export function HomePage() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // ─── derivations ──────────────────────────────────────
-  const recent = useMemo(
+  // ─── data fetch: vaults + per-vault stats ─────────────
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const metas = await fetchVaults();
+      if (cancelled) return;
+      // active vault: localStorage(Sidebar/VaultPicker 동기화) → default → first
+      const stored = getActiveVault();
+      const active =
+        (stored && metas.find((v) => v.name === stored)?.name) ||
+        metas.find((v) => v.default)?.name ||
+        metas[0]?.name ||
+        null;
+      setActiveVault(active);
+      // stats fetch in parallel
+      const enriched = await Promise.all(
+        metas.map(async (meta): Promise<VaultWithStats> => {
+          try {
+            const r = await fetch(
+              `/api/vaults/${encodeURIComponent(meta.name)}/stats`
+            );
+            if (!r.ok) {
+              return { meta, stats: null, statsError: `HTTP ${r.status}` };
+            }
+            const s = (await r.json()) as VaultStats;
+            return { meta, stats: s };
+          } catch (e: any) {
+            return { meta, stats: null, statsError: e?.message ?? "fetch error" };
+          }
+        })
+      );
+      if (cancelled) return;
+      setVaults(enriched);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const sorted = useMemo(
     () =>
-      [...index]
-        .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
-        .slice(0, isMobile ? 8 : 12),
-    [index, isMobile]
-  );
-  const types = useMemo(
-    () => Array.from(new Set(index.map((p) => p.type))).filter(Boolean),
-    [index]
+      [...vaults].sort((a, b) => {
+        // default first, then by name
+        if (a.meta.default !== b.meta.default) return a.meta.default ? -1 : 1;
+        return a.meta.name.localeCompare(b.meta.name);
+      }),
+    [vaults]
   );
 
   return (
@@ -127,11 +165,11 @@ export function HomePage() {
       <section
         style={{
           paddingTop: isMobile ? 8 : 16,
-          paddingBottom: isMobile ? 24 : 48,
+          paddingBottom: isMobile ? 24 : 40,
         }}
       >
-        <h1 style={{ marginBottom: 8, fontSize: isMobile ? 22 : 28 }}>
-          {vaultSummary ? vaultSummary.name : "Wiki"}
+        <h1 style={{ marginBottom: 8, fontSize: isMobile ? 22 : 30 }}>
+          🐦 Raven
         </h1>
         <p
           className="text-body"
@@ -140,15 +178,20 @@ export function HomePage() {
             maxWidth: 640,
             color: "var(--color-muted)",
             margin: 0,
+            lineHeight: 1.5,
           }}
         >
-          {index.length === 0
-            ? "아직 페이지가 없음. 새 페이지를 만들어보세요."
-            : `전체 ${index.length}개 페이지 · ${types.length}개 타입 · ${vaultSummary?.path ?? "—"}`}
+          {loading
+            ? "vault 목록을 불러오는 중…"
+            : vaults.length === 0
+            ? "아직 등록된 vault가 없습니다. 새 vault를 만들어 시작하세요."
+            : activeVault
+            ? `vault를 선택하거나 새로 만드세요. 현재 활성: ${activeVault}`
+            : "vault를 선택하거나 새로 만드세요."}
         </p>
       </section>
 
-      {/* ─── Quick actions (2x2 grid; mobile & desktop) ──────── */}
+      {/* ─── Quick actions ─────────────────────────────────── */}
       <section style={{ paddingBottom: isMobile ? 24 : 40 }}>
         <h2
           style={{
@@ -172,12 +215,25 @@ export function HomePage() {
           }}
         >
           {ACTIONS.map((a) => (
-            <ActionCard key={a.to} action={a} isMobile={isMobile} />
+            <ActionCard
+              key={a.to}
+              action={a}
+              isMobile={isMobile}
+              disabled={Boolean(a.requiresVault) && !activeVault}
+            />
           ))}
         </div>
+        {!activeVault && vaults.length > 0 && (
+          <p
+            className="text-muted"
+            style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}
+          >
+            💡 vault를 선택하면 검색·그래프·디제스트가 활성화됩니다.
+          </p>
+        )}
       </section>
 
-      {/* ─── Recent pages ──────────────────────────────────── */}
+      {/* ─── Vaults ────────────────────────────────────────── */}
       <section style={{ paddingBottom: 64 }}>
         <div
           style={{
@@ -187,34 +243,60 @@ export function HomePage() {
             marginBottom: 16,
           }}
         >
-          <h2 style={{ fontSize: 18 }}>최근 수정</h2>
+          <h2 style={{ fontSize: 18 }}>
+            Vaults{" "}
+            <span
+              className="text-muted"
+              style={{ fontSize: 13, fontWeight: 400 }}
+            >
+              ({sorted.length})
+            </span>
+          </h2>
           <Link
-            to="/search"
+            to="/vault/manage"
             className="link-muted"
             style={{ fontSize: 13 }}
           >
-            전체 검색 →
+            vault 관리 →
           </Link>
         </div>
 
-        {recent.length === 0 ? (
-          <p className="text-muted">아직 페이지가 없음</p>
+        {loading ? (
+          <p className="text-muted">불러오는 중…</p>
+        ) : sorted.length === 0 ? (
+          <div className="card-flat" style={{ padding: 24, borderRadius: 8 }}>
+            <p className="text-muted" style={{ marginBottom: 12 }}>
+              등록된 vault가 없습니다.
+            </p>
+            <Link to="/vault/new" className="btn-pill-primary">
+              ✚ 첫 vault 만들기
+            </Link>
+          </div>
         ) : (
           <div
             style={{
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "1fr"
-                : "repeat(auto-fill, minmax(280px, 1fr))",
+                : "repeat(auto-fill, minmax(300px, 1fr))",
               gap: 12,
             }}
           >
-            {recent.map((p) => (
-              <RecentCard
-                key={p.slug}
-                page={p}
+            {sorted.map((v) => (
+              <VaultCard
+                key={v.meta.name}
+                v={v}
                 isMobile={isMobile}
-                onOpen={() => navigate(`/page/${vault}/${p.slug}`)}
+                isActive={v.meta.name === activeVault}
+                onOpen={() => {
+                  // active로 표시하고 첫 페이지로 이동
+                  setActiveVaultLS(v.meta.name);
+                  setActiveVault(v.meta.name);
+                  navigate(
+                    `/page/${encodeURIComponent(v.meta.name)}/content/index`
+                  );
+                }}
+                onManage={() => navigate("/vault/manage")}
               />
             ))}
           </div>
@@ -229,12 +311,12 @@ export function HomePage() {
 function ActionCard({
   action,
   isMobile,
+  disabled,
 }: {
   action: QuickAction;
   isMobile: boolean;
+  disabled: boolean;
 }) {
-  // 모바일: 44px 이상 tap target (Apple HIG / Material).
-  // 데스크탑: 기존 card-flat hover 유지.
   const base: CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -247,8 +329,11 @@ function ActionCard({
     minHeight: isMobile ? 88 : 96,
     color: "var(--color-ink)",
     textDecoration: "none",
-    cursor: "pointer",
-    transition: "box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease",
+    cursor: disabled ? "not-allowed" : "pointer",
+    transition:
+      "box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease",
+    opacity: disabled ? 0.45 : 1,
+    pointerEvents: disabled ? "none" : "auto",
   };
   if (action.primary) {
     base.borderColor = "var(--color-primary, #1c69d4)";
@@ -258,8 +343,12 @@ function ActionCard({
     <Link
       to={action.to}
       style={base}
+      aria-disabled={disabled || undefined}
+      onClick={(e) => {
+        if (disabled) e.preventDefault();
+      }}
       onMouseEnter={(e) => {
-        if (isMobile) return;
+        if (isMobile || disabled) return;
         const el = e.currentTarget as HTMLElement;
         el.style.boxShadow = "var(--shadow-card, 0 2px 6px rgba(0,0,0,0.08))";
         el.style.transform = "translateY(-1px)";
@@ -302,32 +391,35 @@ function ActionCard({
   );
 }
 
-function RecentCard({
-  page,
+function VaultCard({
+  v,
   isMobile,
+  isActive,
   onOpen,
+  onManage,
 }: {
-  page: Page;
+  v: VaultWithStats;
   isMobile: boolean;
+  isActive: boolean;
   onOpen: () => void;
+  onManage: () => void;
 }) {
+  const s = v.stats;
+  const bytesKb = s ? Math.max(1, Math.round(s.size_bytes / 1024)) : null;
   return (
-    <Link
-      to={`/page/${page.slug}`}
-      onClick={(e) => {
-        // 모바일에서 nav-bar 없는 경우 카드 전체가 tap target.
-        // onOpen은 click default 동작으로 충분하므로 별도 처리 없음.
-        if (isMobile) e.preventDefault();
-        onOpen();
-      }}
+    <div
       className="card-flat"
       style={{
-        display: "block",
-        textDecoration: "none",
         padding: isMobile ? 16 : 18,
-        minHeight: isMobile ? 64 : undefined,
         borderRadius: 8,
-        transition: "box-shadow 0.12s ease, transform 0.12s ease",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        border: isActive
+          ? "1.5px solid var(--color-primary, #1c69d4)"
+          : undefined,
+        transition:
+          "box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease",
       }}
       onMouseEnter={(e) => {
         if (isMobile) return;
@@ -341,42 +433,57 @@ function RecentCard({
         el.style.transform = "none";
       }}
     >
+      {/* header: name + badge */}
       <div
         style={{
           display: "flex",
-          gap: 8,
-          marginBottom: 8,
-          flexWrap: "wrap",
           alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
         }}
       >
-        <span className="chip">{page.type}</span>
-        {page.updated && (
+        <span
+          style={{
+            fontSize: isMobile ? 16 : 17,
+            fontWeight: 700,
+            color: "var(--color-ink)",
+          }}
+        >
+          {v.meta.name}
+        </span>
+        {v.meta.default && (
           <span
-            style={{
-              fontSize: 11,
-              color: "var(--color-muted)",
-              fontFamily: "ui-monospace, SFMono-Regular, monospace",
-            }}
+            className="chip"
+            style={{ fontSize: 10, background: "#dbeafe", color: "#1c69d4" }}
           >
-            {String(page.updated).slice(0, 10)}
+            default
           </span>
         )}
+        {isActive && (
+          <span
+            className="chip"
+            style={{ fontSize: 10, background: "#dcfce7", color: "#15803d" }}
+          >
+            active
+          </span>
+        )}
+        <span
+          className="chip"
+          style={{
+            fontSize: 10,
+            marginLeft: "auto",
+            background: "#f1f5f9",
+            color: "#475569",
+          }}
+        >
+          {v.meta.mode}
+        </span>
       </div>
+
+      {/* path */}
       <div
         style={{
-          fontSize: isMobile ? 15 : 16,
-          fontWeight: 600,
-          color: "var(--color-ink)",
-          marginBottom: 4,
-          lineHeight: 1.3,
-        }}
-      >
-        {page.title}
-      </div>
-      <div
-        style={{
-          fontSize: 12,
+          fontSize: 11,
           color: "var(--color-muted)",
           fontFamily: "ui-monospace, SFMono-Regular, monospace",
           overflow: "hidden",
@@ -384,8 +491,112 @@ function RecentCard({
           whiteSpace: "nowrap",
         }}
       >
-        {page.path}
+        {v.meta.path}
       </div>
-    </Link>
+
+      {/* stats row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 8,
+          marginTop: 4,
+        }}
+      >
+        <Stat label="페이지" value={s ? s.pages : "—"} />
+        <Stat
+          label="깨진 링크"
+          value={s ? s.broken_links : "—"}
+          tone={s && s.broken_links > 0 ? "warn" : "default"}
+        />
+        <Stat
+          label="용량"
+          value={bytesKb !== null ? `${bytesKb} KB` : "—"}
+          hint={s ? `${s.log_entries} log` : undefined}
+        />
+      </div>
+
+      {v.statsError && (
+        <div style={{ fontSize: 11, color: "#dc2626" }}>
+          stats 오류: {v.statsError}
+        </div>
+      )}
+
+      {/* actions */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginTop: 6,
+        }}
+      >
+        <button
+          type="button"
+          className="btn-pill-primary"
+          style={{ flex: 1, fontSize: 13 }}
+          onClick={onOpen}
+        >
+          열기
+        </button>
+        <button
+          type="button"
+          className="btn-pill"
+          style={{ flex: 1, fontSize: 13 }}
+          onClick={onManage}
+        >
+          관리
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone = "default",
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "default" | "warn";
+  hint?: string;
+}) {
+  const color =
+    tone === "warn" ? "#b45309" : "var(--color-ink, #161616)";
+  return (
+    <div
+      style={{
+        padding: "6px 8px",
+        background: "var(--cds-background, #f4f4f4)",
+        borderRadius: 4,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--color-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.3px",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color,
+          lineHeight: 1.2,
+        }}
+      >
+        {value}
+      </div>
+      {hint && (
+        <div style={{ fontSize: 10, color: "var(--color-muted)" }}>
+          {hint}
+        </div>
+      )}
+    </div>
   );
 }

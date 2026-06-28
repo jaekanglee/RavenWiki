@@ -141,7 +141,7 @@ export function Layout() {
               flexShrink: 0,
             }}
           >
-            📚 Wiki
+            🐦 Raven
           </Link>
 
           {/* Vault picker */}
