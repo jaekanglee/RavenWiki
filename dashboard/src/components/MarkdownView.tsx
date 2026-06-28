@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import { wikilinkPlugin } from "../lib/wikilink";
 
 export function MarkdownView({ content, vault }: { content: string; vault: string }) {
+  console.log("[Raven-Debug] MarkdownView mount, content length=", content?.length);
   return (
     <article className="prose dark:prose-invert max-w-none">
       <ReactMarkdown

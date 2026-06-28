@@ -134,7 +134,7 @@ h3 {
   margin: 0;
 }
 
-/* ── Wiki prose body ─────────────────────────────────────── */
+/* ── Raven prose body ─────────────────────────────────────── */
 .prose {
   line-height: 1.40;
   color: var(--color-ink);
@@ -226,7 +226,8 @@ mark {
 
 /* ── Wikilink — ink with subtle underline (not Rausch — Rausch is reserved
  *    for CTAs / search orb / destructive actions only). The dotted style
- *    distinguishes wikilinks from regular markdown links. */
+ *    distinguishes wikilinks from regular markdown links. Class name kept
+ *    for markdown library compatibility — visual is "Raven wikilink". */
 .wikilink {
   color: var(--color-ink);
   text-decoration: underline;

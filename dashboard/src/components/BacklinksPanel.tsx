@@ -1,12 +1,13 @@
-import { Link, useOutletContext } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 
 export function BacklinksPanel({
   backlinks,
+  vault,
 }: {
   backlinks: { source_slug: string; source_title: string }[];
+  vault: string;
 }) {
-  const { vault } = useOutletContext<{ vault: string }>();
   // Mobile-friendly: collapsible on narrow screens.
   const [open, setOpen] = useState(true);
   const count = backlinks?.length ?? 0;

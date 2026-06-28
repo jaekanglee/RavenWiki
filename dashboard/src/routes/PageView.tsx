@@ -13,6 +13,7 @@ interface Ctx {
 }
 
 export function PageView() {
+  console.log("[Raven-Debug] PageView mount");
   const params = useParams();
   const slug = params["*"];
   // v0.6.9 (P15 fix): URL의 :vault 파라미터를 SOT로 사용. Layout의 ctx.vault가
@@ -20,15 +21,21 @@ export function PageView() {
   const vaultFromUrl = params.vault;
   const ctx = useOutletContext<Ctx>();
   const vault = vaultFromUrl || ctx?.vault || getActiveVault() || "default";
+  console.log("[Raven-Debug] PageView vault=", vault, "slug=", slug);
   const [page, setPage] = useState<Page | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug) {
+      console.log("[Raven-Debug] useEffect early return (no slug)");
+      return;
+    }
+    console.log("[Raven-Debug] useEffect fetchPage start");
     setPage(undefined);
     setErr(null);
     fetchPage(vault, slug)
       .then((d) => {
+        console.log("[Raven-Debug] fetchPage OK, slug=", d.slug);
         const fm = d.frontmatter || {};
         const tags = (fm.tags || "").replace(/[\[\]]/g, "").trim();
         setPage({
@@ -42,8 +49,10 @@ export function PageView() {
           content: d.content,
           backlinks: [],
         });
+        console.log("[Raven-Debug] setPage done");
       })
       .catch((e) => {
+        console.log("[Raven-Debug] fetchPage CATCH:", e);
         setErr(String(e.message || e));
         setPage(null);
       });
@@ -130,7 +139,7 @@ export function PageView() {
         <MarkdownView content={page.content} vault={vault} />
       </article>
 
-      <BacklinksPanel backlinks={page.backlinks ?? []} />
+      <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} />
     </div>
   );
 }

@@ -5,8 +5,8 @@
  *   Step 2 — 확인 + 만들기 (요약 → POST /api/vaults/create → redirect)
  *
  * v0.6.6 simplifications (4가지 user pain 해소):
- *   1. "wiki가 표시되는것도 이상해" → PWA 캐시/이전 세션 이슈, 강제 reload 안내
- *   2. "wiki 눌러서 새 vault 만들기" → 이 위저드에서 직접 (VaultPicker 우회 가능)
+ *   1. "PWA 캐시/이전 세션 이슈, 강제 reload 안내"
+ *   2. "헤더에서 새 vault 만들기" → 이 위저드에서 직접 (VaultPicker 우회 가능)
  *   3. "absolute path 왜 굳이 입력" → v0.6.3에서 이미 readonly, 강제 reload 필요
  *   4. "personal/shared/agent 선택 필요 없음" → personal fixed (shared/agent는
  *      system-internal, 사용자 표면에서 ❌ — AGENTS.md §3 over-promise 회피)
@@ -16,7 +16,7 @@
  *
  * "안정·심플" 컨셉 부합:
  *   - mode는 personal 한 가지 (사용자 비전 = "1인 vault" 기본)
- *   - template는 wiki-v1 (Lite bootstrap 4종 자동)
+ *   - template는 raven-v1 (Lite bootstrap 4종 자동)
  *   - path는 ~/Raven/<name>/ 자동 (WIKI_VAULTS_DIR override 가능, 표시)
  *   - 사용자가 입력하는 것: name 한 줄
  *
@@ -41,7 +41,7 @@ const DEFAULT_MODE: "personal" = "personal";
  *  "none" is also possible via CLI but the Dashboard skips that choice
  *  entirely — every new vault is a real Raven vault.
  */
-const DEFAULT_TEMPLATE: "wiki-v1" = "wiki-v1";
+const DEFAULT_TEMPLATE: "raven-v1" = "raven-v1";
 
 // kebab-case: 소문자/숫자/하이픈, 시작은 소문자, 연속 하이픈 ❌
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -358,7 +358,7 @@ function Step1({
           <>
             모든 Raven vault는 <code>{vaultsRoot}/&lt;name&gt;/</code> 패턴으로
             만들어집니다. 서버에 <code>WIKI_VAULTS_DIR</code>가 설정되어 있으면
-            그 경로가 우선 적용됩니다.
+            (v0.6.10 이전 env 호환) 그 경로가 우선 적용됩니다.
           </>
         )}
       </div>

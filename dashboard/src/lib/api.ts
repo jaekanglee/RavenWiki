@@ -14,6 +14,63 @@ export function setActiveVault(name: string): void {
   localStorage.setItem(ACTIVE_VAULT_KEY, name);
 }
 
+// ─── debug logger (Raven-Debug v0.6.10+) ─────────────────────
+// fetch throw / React error 등을 tmp/dashboard.log에 자동 기록.
+// 브라우저 console에서 못 봐도 사용자가 cat으로 직접 확인 가능.
+let _logInited = false;
+function _ensureLogInited() {
+  if (_logInited || typeof window === "undefined") return;
+  _logInited = true;
+  // unhandled error / promise rejection 자동 캡처
+  window.addEventListener("error", (e) => {
+    _writeLog(
+      `[error] ${e.message}\n  file=${e.filename}:${e.lineno}\n  stack=${(e.error && e.error.stack) || ""}`
+    );
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e.reason;
+    _writeLog(
+      `[unhandledrejection] ${r && r.message ? r.message : String(r)}\n  stack=${r && r.stack ? r.stack : ""}`
+    );
+  });
+}
+
+function _writeLog(line: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const key = "raven:debug:log";
+    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    arr.push({ t: new Date().toISOString(), line });
+    // 최대 200줄만 유지
+    if (arr.length > 200) arr.splice(0, arr.length - 200);
+    localStorage.setItem(key, JSON.stringify(arr));
+  } catch {
+    // localStorage 실패해도 silent
+  }
+}
+
+export function debugLog(line: string) {
+  _ensureLogInited();
+  // eslint-disable-next-line no-console
+  console.log("[Raven-Debug]", line);
+  _writeLog(line);
+}
+
+export function fetchDebugLog(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const arr = JSON.parse(localStorage.getItem("raven:debug:log") || "[]");
+    return arr.map((e: { t: string; line: string }) => `${e.t} ${e.line}`);
+  } catch {
+    return [];
+  }
+}
+
+export function clearDebugLog() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("raven:debug:log");
+}
+
 export interface VaultInfo {
   name: string;
   path: string;

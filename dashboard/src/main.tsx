@@ -4,15 +4,10 @@ import App from "./App";
 import "./styles/globals.css";
 
 // v0.6.10 (P16): PWA registerType="prompt" handler.
-// - vite.config.ts에서 registerType을 "prompt"로 변경했으므로,
-//   새 SW가 감지되어도 자동 reload하지 않고 onNeedRefresh 콜백을 호출한다.
-// - 사용자에게 confirm 다이얼로그를 보여, 승인 시에만 SW 활성화 + reload.
-// - "쓸데없는 재로딩" 사용자 불만 해소 (앱 내렸다 다시 켰을 때 자동 reload ❌).
 import { registerSW } from "virtual:pwa-register";
 
 const updateSW = registerSW({
   onNeedRefresh() {
-    // 사용자가 새로고침을 명시적으로 승인할 때만 활성화.
     if (
       window.confirm(
         "Raven에 새 버전이 있습니다. 지금 업데이트할까요?\n" +
@@ -23,12 +18,108 @@ const updateSW = registerSW({
     }
   },
   onOfflineReady() {
+    // eslint-disable-next-line no-console
     console.info("[Raven] 오프라인 캐시 준비 완료 — 네트워크 없이도 동작합니다.");
   },
   onRegisterError(error: unknown) {
+    // eslint-disable-next-line no-console
     console.warn("[Raven] SW 등록 오류:", error);
   },
 });
+
+// ─── v0.6.10+ 개발 단계 throw/error catch (tmp/dashboard.log) ─────
+// mobile DevTools 못 볼 때 사용자가 `cat tmp/dashboard.log`로 직접 진단.
+// ESbuild/Node 환경에서는 window 없음 → 가드.
+if (typeof window !== "undefined") {
+  const post = (entry: {
+    level: string;
+    source: string;
+    message: string;
+    stack?: string;
+    url?: string;
+    vault?: string;
+  }) => {
+    try {
+      const body = JSON.stringify(entry);
+      // sendBeacon 우선 (페이지 unload에도 안전), 미지원 시 fetch keepalive.
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon("/api/debug-log", blob);
+      } else {
+        fetch("/api/debug-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {
+      // best-effort, silent
+    }
+  };
+
+  const ctx = () => ({
+    url: window.location?.href ?? "",
+    vault: window.localStorage?.getItem("raven:active_vault") ?? "",
+  });
+
+  // unhandled error
+  window.addEventListener("error", (e) => {
+    post({
+      level: "error",
+      source: "window.error",
+      message: e.message || String(e),
+      stack: e.error && e.error.stack ? e.error.stack : "",
+      ...ctx(),
+    });
+  });
+
+  // unhandled promise rejection
+  window.addEventListener("unhandledrejection", (e) => {
+    const r: any = e.reason;
+    post({
+      level: "error",
+      source: "unhandledrejection",
+      message: r && r.message ? r.message : String(r),
+      stack: r && r.stack ? r.stack : "",
+      ...ctx(),
+    });
+  });
+
+  // fetch throw 자동 catch (4xx/5xx도 포함)
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async (...args: Parameters<typeof fetch>) => {
+    try {
+      const res = await origFetch(...args);
+      if (!res.ok && res.status >= 400) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[Raven-Debug] fetch non-ok:",
+          res.status,
+          typeof args[0] === "string" ? args[0] : (args[0] as Request).url
+        );
+        post({
+          level: "warn",
+          source: "fetch",
+          message: `${res.status} ${res.statusText} ${typeof args[0] === "string" ? args[0] : (args[0] as Request).url}`,
+          ...ctx(),
+        });
+      }
+      return res;
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn("[Raven-Debug] fetch throw:", e?.message, typeof args[0] === "string" ? args[0] : (args[0] as Request).url);
+      post({
+        level: "error",
+        source: "fetch",
+        message: e?.message || String(e),
+        stack: e?.stack || "",
+        ...ctx(),
+      });
+      throw e; // 원래 throw 보존
+    }
+  };
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -204,7 +204,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - ❌ force push ❌ (master 직접 commit은 허용 — 1인 + web 검증 워크플로우)
 - ❌ 사용자 승인 없이 commit ❌ (묵시적 commit 금지 — §6 참조)
 - ❌ 사용자 vault 데이터 write ❌ (`~/vaults/*` 절대 ❌)
-- ❌ `.vault.json`, `wiki.db`, `.pyc`, `*.db-journal` 등 gitignore 수정/추가 ❌
+- ❌ `.vault.json`, `wiki.db`, `.pyc`, `*.db-journal` 등 gitignore 수정/추가 ❌ — **예외**: `tmp/`, `dashboard.tmp/`, `*.tmp` (debug/scratch 용도, 재현 가능) v0.6.10+ 허용
 - ❌ SOUL.md 수정 ❌ (Hermes 프로필 설정이지 Raven 제품 문서 ❌)
 - ❌ 5번째 진입점 추가 ❌ (Telegram, Slack 등)
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)

@@ -39,8 +39,8 @@ export function VaultPicker({
       .then((d) => {
         setVaults(d.vaults || []);
         // v0.6.3+: server returns resolved vaults_root so the picker
-        // can show "Vaults root: ~/Raven" (or whatever WIKI_VAULTS_DIR
-        // resolves to).
+        // can show "Vaults root: ~/Raven" (or whatever RAVEN_VAULTS_DIR / legacy
+        // WIKI_VAULTS_DIR resolves to).
         if (typeof d.vaults_root === "string") {
           setVaultsRoot(d.vaults_root);
         }

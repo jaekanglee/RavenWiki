@@ -11,11 +11,10 @@ Design:
     - all write ops use the engine; no shortcuts
 """
 from __future__ import annotations
-
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -817,6 +816,42 @@ def post_log(name: str, payload: LogAppend):
 
 @app.post("/api/vaults/{name}/log/rotate")
 def post_log_rotate(name: str, year: Optional[int] = None, force: bool = False):
+    """log.md rotate (500 entries 초과 시)."""
+
+
+# ─── /api/debug-log (v0.6.10+, 개발 단계 throw/error catch) ───────
+# Dashboard 브라우저에서 fetch throw / window.onerror / unhandledrejection
+# 등을 POST하면 서버가 tmp/dashboard.log에 append. mobile DevTools 못 볼 때
+# 사용자가 `cat tmp/dashboard.log`로 직접 진단 가능.
+class DebugLogEntry(BaseModel):
+    level: str = Field("info", description="info | warn | error")
+    source: str = Field("", description="dashboard | unhandledrejection | fetch | component")
+    message: str = Field(..., description="에러 메시지 또는 진단 라인")
+    stack: str = Field("", description="스택 트레이스 (선택)")
+    url: str = Field("", description="window.location.href (선택)")
+    vault: str = Field("", description="active vault (선택)")
+
+
+_DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "tmp" / "dashboard.log"
+
+
+@app.post("/api/debug-log")
+def post_debug_log(entry: DebugLogEntry):
+    """Dashboard throw / error를 tmp/dashboard.log에 append. dev only."""
+    _DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] {entry.level.upper():5s} {entry.source:20s} vault={entry.vault or '-':12s} url={entry.url or '-'}\n"
+    line += f"  msg: {entry.message}\n"
+    if entry.stack:
+        for sl in entry.stack.splitlines()[:10]:
+            line += f"  at:  {sl}\n"
+    line += "\n"
+    try:
+        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "path": str(_DEBUG_LOG_PATH)}
     """log.md rotate (500 entries 초과 시)."""
     v = _vault_or_404(name)
     total = log_module.count(v)

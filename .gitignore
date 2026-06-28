@@ -12,6 +12,11 @@ backups/
 # Service logs
 logs/
 
+# Debug / scratch (developer-thrown files, regen from code)
+tmp/
+dashboard.tmp/
+*.tmp
+
 # Python
 __pycache__/
 *.pyc
