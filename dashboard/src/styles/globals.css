@@ -109,18 +109,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode — handled by body[data-theme="dark"] for explicit opt-in.
-   The warm archetype keeps the canvas light by default. */
-body[data-theme="dark"] {
-  --color-canvas: #ffffff;
-  --color-surface-soft: #f7f7f7;
-  --color-surface-strong: #f2f2f2;
-  --color-ink: #262626;              /* BMW near-black */
-  --color-body: #404040;             /* slightly darker */
-  --color-muted: #757575;            /* BMW Meta Gray */
-  --color-hairline: #ebebeb;
-  --color-hairline-strong: #dddddd;
-}
+/* Dark mode — v0.6.10: 미구현. 추후 dark theme 지원 시 재추가. */
 
 /* ── Headings — modest display sizes ───────────────────────── */
 h1 {

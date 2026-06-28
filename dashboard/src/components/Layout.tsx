@@ -7,12 +7,12 @@ import { useEffect, useState } from "react";
 import type { TreeNode, VaultMeta } from "../types";
 
 const NAV_TABS = [
-  { to: "/", label: "Home", icon: "🏠", match: (p: string) => p === "/" },
-  { to: "/graph", label: "Graph", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
-  { to: "/search", label: "Search", icon: "🔍", match: (p: string) => p.startsWith("/search") },
-  { to: "/log", label: "Log", icon: "📋", match: (p: string) => p.startsWith("/log") },
-  { to: "/lint", label: "Lint", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
-  { to: "/vault/manage", label: "Manage", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
+  { to: "/", label: "홈", icon: "🏠", match: (p: string) => p === "/" },
+  { to: "/graph", label: "그래프", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
+  { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
+  { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
+  { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
+  { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
 ];
 
 export function Layout() {

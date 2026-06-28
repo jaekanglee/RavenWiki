@@ -25,8 +25,8 @@ export function GraphPage() {
       <div style={{ marginBottom: 16 }}>
         <h1>Graph</h1>
         <p className="text-muted" style={{ fontSize: 14, marginTop: 4 }}>
-          노드를 클릭하면 페이지로 이동합니다 · {graph.nodes.length} nodes ·{" "}
-          {graph.edges.length} edges
+          in <strong>{vault}</strong> · 노드를 클릭하면 페이지로 이동합니다 ·{" "}
+          {graph.nodes.length} nodes · {graph.edges.length} edges
         </p>
       </div>
       <div

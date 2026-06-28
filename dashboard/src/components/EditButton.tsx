@@ -26,7 +26,7 @@ export function EditButton({
       setTimeout(() => {
         setOpen(false);
         onSaved?.();
-      }, 600);
+      }, 2400);
     } catch (e: any) {
       setMsg(`❌ ${e.message}`);
       setBusy(false);
