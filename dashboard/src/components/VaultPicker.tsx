@@ -230,7 +230,8 @@ export function VaultPicker({
           {/* v0.6.7: vault creation is handled by the NewVaultWizard
               (`/vault/new`). The button below is a single Link — the
               inline form (path input + mode select 3개) that used to
-              live here is removed for consistency. */}
+              live here is removed for consistency. v0.6.10: vault
+              management (rename/delete/stats) lives at `/vault/manage`. */}
           <div style={{ borderTop: "1px solid var(--color-hairline)" }}>
             <Link
               to="/vault/new"
@@ -245,6 +246,20 @@ export function VaultPicker({
               }}
             >
               ➕ 새 vault 만들기
+            </Link>
+            <Link
+              to="/vault/manage"
+              onClick={() => setOpen(false)}
+              style={{
+                display: "block",
+                padding: "10px 16px",
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--color-muted)",
+                textDecoration: "none",
+              }}
+            >
+              ⚙ vault 관리 (이름변경/삭제)
             </Link>
           </div>
         </div>
