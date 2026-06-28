@@ -60,7 +60,7 @@ export function Sidebar({
       </div>
 
       {tree ? (
-        <TreeNodeView node={tree} depth={0} onClose={onClose} />
+        <TreeNodeView node={tree} depth={0} vault={vault} onClose={onClose} />
       ) : (
         <div className="text-muted sidebar-text" style={{ padding: "8px", fontSize: 13 }}>
           Loading {vault}…
@@ -73,10 +73,12 @@ export function Sidebar({
 function TreeNodeView({
   node,
   depth,
+  vault,
   onClose,
 }: {
   node: TNode;
   depth: number;
+  vault: string;
   onClose: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -85,7 +87,7 @@ function TreeNodeView({
     if (node.slug === "root") return null;
     return (
       <Link
-        to={`/page/${node.slug}`}
+        to={`/page/${vault}/${node.slug}`}
         onClick={onClose}
         className="link-ink"
         style={{
@@ -125,7 +127,7 @@ function TreeNodeView({
       )}
       {isOpen &&
         node.children.map((c) => (
-          <TreeNodeView key={c.slug} node={c} depth={depth + 1} onClose={onClose} />
+          <TreeNodeView key={c.slug} node={c} depth={depth + 1} vault={vault} onClose={onClose} />
         ))}
     </div>
   );
