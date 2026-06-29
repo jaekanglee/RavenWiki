@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { createPage, fetchTree, getActiveVault } from "../lib/api";
 import type { TreeNode } from "../types";
+import { TextField } from "./ui/TextField";
 
 interface NewPageButtonProps {
   vault?: string;
@@ -188,50 +189,22 @@ export function NewPageButton({
 
               {/* 우측: 폼 */}
               <div>
-                <label style={{ display: "block", marginBottom: 16 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      marginBottom: 6,
-                      color: "var(--color-ink)",
-                    }}
-                  >
-                    경로 *
-                  </span>
-                  <input
-                    className="input-base"
-                    style={{ height: 48 }}
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="content/my-concept"
-                  />
-                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                    좌측에서 폴더를 클릭하거나 직접 입력하세요. 마지막 segment가 파일명입니다.
-                  </span>
-                </label>
+                <TextField
+                  label="경로"
+                  required
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  placeholder="content/my-concept"
+                  helper="좌측에서 폴더를 클릭하거나 직접 입력하세요. 마지막 segment가 파일명입니다."
+                />
 
-                <label style={{ display: "block", marginBottom: 16 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      marginBottom: 6,
-                      color: "var(--color-ink)",
-                    }}
-                  >
-                    제목 *
-                  </span>
-                  <input
-                    className="input-base"
-                    style={{ height: 48 }}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="내 컨셉"
-                  />
-                </label>
+                <TextField
+                  label="제목"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="내 컨셉"
+                />
 
             <button
               type="button"

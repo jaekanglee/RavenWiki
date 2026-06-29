@@ -337,12 +337,13 @@ mark {
   border-right: none;
   border-bottom: 2px solid var(--cds-border-subtle);
   border-radius: 0;
-  padding: 14px 0;
+  padding: 14px 14px;
   height: 56px;
   font-size: 16px;
   font-family: inherit;
   outline: none;
   transition: border-color 0.12s ease;
+  box-sizing: border-box;
 }
 .input-base:focus {
   border-bottom-color: var(--cds-focus);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { createFolder } from "../lib/api";
+import { TextField } from "./ui/TextField";
 
 interface NewFolderButtonProps {
   vault: string;
@@ -102,34 +103,17 @@ export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: N
               폴더 이름만 정하면 됩니다. 빈 폴더도 sidebar에 그대로 나타나요.
             </p>
 
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  marginBottom: 6,
-                  color: "var(--color-ink)",
-                }}
-              >
-                폴더 이름
-              </span>
-              <input
-                className="input-base"
-                style={{ height: 48 }}
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                placeholder={parentPath ? `${parentPath.split("/").pop()}-하위` : "폴더 이름"}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submit();
-                }}
-              />
-              <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                예: <code>사용자</code> · <code>참고/논문</code> ·{" "}
-                <code>content/users/admin</code> (전체 경로 직접 입력도 가능)
-              </span>
-            </label>
+            <TextField
+              label="폴더 이름"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder={parentPath ? `${parentPath.split("/").pop()}-하위` : "폴더 이름"}
+              helper="예: 사용자 · 참고/논문 · content/users/admin (전체 경로 직접 입력도 가능)"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+              }}
+            />
 
             {err && (
               <div
