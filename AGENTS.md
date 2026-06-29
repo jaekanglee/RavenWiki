@@ -1,7 +1,7 @@
 ---
 title: Raven — Agent Operations
 created: 2026-06-27
-updated: 2026-06-27
+updated: 2026-06-30
 type: rule
 audience: agent
 confidence: high
@@ -23,6 +23,12 @@ confidence: high
 - 모든 변경은 PR/커밋 단위로 추적되고 `_meta/changelog-*.md`에 기록됩니다.
 - 작업 후 사용자에게 무엇을 했는지 보고합니다.
 
+### 0.5 North Star (v0.6.31+, 사용자 원칙 확립)
+
+> **"LLM의 휘발성 메모리를 git-tracked 영속 markdown으로 변환해, 매 세션 재구성하지 않고 compounding knowledge를 누적한다."**
+>
+> — **이 레포는 Karpathy LLM Wiki (2026) 패턴의 self-host 구현체.** 분업: 사람은 source curate + 방향 결정, 에이전트는 compile / cross-reference / lint / consistency 유지. **컴파일 후 reuse, 매번 재구성 ❌.**
+
 ---
 
 ## 1. 작업 시작 전 — 읽을 것
@@ -32,6 +38,7 @@ confidence: high
 1. `README.md` — 제품 정체성, 사용자, 진입점, 운영 모델
 2. `_meta/changelog-v*.md` (최신 1-2개) — 현재 상태, 최근 결정
 3. `git log --oneline -10` — 최근 작업 흐름
+4. **`_meta/index.md`** — 코드베이스 wiki 카탈로그 (어디에 무엇이 있는지)
 
 → 이 셋을 안 읽고 컨텍스트를 가정하지 마세요.
 
@@ -86,6 +93,18 @@ log.md                    → 작업 이력 (append-only)
 ```
 
 → Tier 1 ↔ Tier 2 경계 강제. `vault clone` 기본 = content only (Tier 1 leak 방지).
+
+### 4.5 Audience 라우팅 표 (v0.6.35+)
+
+Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진입점 다름:
+
+| 독자 | 시작 문서 | 예시 |
+|---|---|---|
+| **사람 (운영자)** | `README.md` (CLI/사용법) + 사용자 vault `_meta/system/AGENTS.md` | vault 운영, 페이지 작성, 검색 |
+| **Raven 개발팀 (당신)** | `AGENTS.md` (이 문서) + `_meta/changelog-v*.md` | 코드 변경, lint, ADR |
+| **LLM agent (vault에서 일함)** | `raven/core/templates/agent/README.md` + `TOOLS.md` + `WORKFLOW.md` + `SAFETY.md` (4개 묶음) | vault write, cross-reference, log.md |
+
+→ 혼용 ❌. **당신(=Raven 개발팀 agent)**이 `agent/*`를 *읽을 필요 없음* (그건 vault 사용자 에이전트용). 반대로 vault 사용자 agent가 AGENTS.md를 *읽을 필요 없음* (이건 코드베이스용).
 
 ---
 
@@ -263,3 +282,29 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - 한 컴포넌트씩 점진 도입 (예: v0.6.20은 TextField + NewPage/NewFolder 2곳만)
 - 회귀 가드 + 변경 라인 trace 필수 (§6 4 저장 신호)
 - 신규 사용처 추가는 OK, 기존 사용처 일괄 교체 ❌ (별도 패치)
+
+---
+
+## 14. 연관 개발문서 인덱스 (v0.6.35+, 사용자 보강)
+
+코드베이스 `_meta/` 하위 SOT 파일 매핑. 새 작업 시 **필요한 문서만** 골라 read.
+
+| 파일 | 역할 | SOT |
+|---|---|---|
+| `_meta/SCHEMA.md` | vault 내부 frontmatter v2.4 (type 8종, tag taxonomy) | ✅ |
+| `_meta/RULES.md` | cross-cutting 운영 정책 (M1) | ✅ |
+| `_meta/ai-roadmap.md` | M3-M6 로드맵 | ✅ |
+| `_meta/deployment.md` | VPS/Tailscale 배포 | ✅ |
+| `_meta/dr-runbook.md` | DR (disaster recovery) 절차 | ✅ |
+| `_meta/decisions/adr-*.md` | 신규 결정 (v0.6.0+ ADR 정책) | ✅ |
+| `_meta/changelog-v0.6.34.md` 외 | 변경 이력 (append-only) | ✅ |
+| `_meta/raw/articles/karpathy-llm-wiki-2026.md` | Karpathy 원본 gist (불변) | ✅ |
+| `_meta/architecture-5layer.md` | M1 5-Layer (보존본) | 📦 archive |
+| `_meta/decisions-d*.md` (legacy) | M1 결정 (개별 파일) | ⚠️ `decisions/` 흡수 검토 |
+
+### 신규 (P2 우선순위, v0.6.35 이후 별도 패치)
+
+- `_meta/raven-architecture.md` — M2 4-Layer 현행 아키텍처. **현재 링크 깨짐** (`_meta/index.md` 가 가리키지만 파일 없음).
+- `_meta/llm-wiki-scenario.md` — LLM Wiki 시나리오 walkthrough. "vault 만들고 → agent 4-file 첨부 → write → log → 4-pass 보고" 패턴. 하루모아 같은 신규 프로젝트 boilerplate.
+
+→ **`docs/` 신설 불필요** — `_meta/`가 이미 그 역할. 신규 추가 시 `_meta/` 컨벤션 따르세요.
