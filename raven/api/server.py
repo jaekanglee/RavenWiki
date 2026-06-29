@@ -338,7 +338,21 @@ def vault_graph(name: str):
             db = sqlite3.connect(str(wiki_db))
             db.row_factory = sqlite3.Row
             pages = db.execute("SELECT slug, title, type FROM pages").fetchall()
-            nodes = [{"id": p["slug"], "title": p["title"], "type": p["type"]} for p in pages]
+            # in-degree: target_slug별 들어오는 edge 수 (auto+broken 한정, missing 제외)
+            in_deg_raw = db.execute(
+                "SELECT target_slug, COUNT(*) AS cnt FROM links "
+                "WHERE intent IN ('auto', 'broken') GROUP BY target_slug"
+            ).fetchall()
+            in_degree = {r["target_slug"]: r["cnt"] for r in in_deg_raw}
+            nodes = [
+                {
+                    "id": p["slug"],
+                    "title": p["title"],
+                    "type": p["type"],
+                    "weight": in_degree.get(p["slug"], 0),
+                }
+                for p in pages
+            ]
             # intent='auto' or 'broken' 만 edge로 (missing은 의도적 placeholder)
             edges_raw = db.execute(
                 "SELECT source_slug, target_slug FROM links WHERE intent IN ('auto', 'broken')"
@@ -375,6 +389,8 @@ def vault_graph(name: str):
     wikilink_re = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
     edges = []
     edge_set = set()
+    # in-degree 카운트 — rglob fallback에서도 weight 필드 보존 (대시보드 UI 일관성)
+    in_degree: dict[str, int] = {}
     for fp in v.content_root.rglob("*.md"):
         text = fp.read_text(errors="replace")
         meta, body = _split_fm(text)
@@ -392,6 +408,11 @@ def vault_graph(name: str):
                 continue
             edge_set.add(key)
             edges.append({"source": src, "target": tgt})
+            in_degree[tgt] = in_degree.get(tgt, 0) + 1
+
+    # nodes에 weight 부착
+    for node in nodes:
+        node["weight"] = in_degree.get(node["id"], 0)
 
     return {
         "ok": True,

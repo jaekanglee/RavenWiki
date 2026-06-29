@@ -327,3 +327,47 @@ def test_api_get_page_happy_path(client, isolated_env):
     assert data["ok"] is True
     assert data["slug"] == "content/hello"
     assert data["frontmatter"]["title"] == "Hello"
+
+
+# ─── vault graph (v0.6.10 — weight field regression) ────────
+
+
+def test_api_vault_graph_nodes_carry_weight_field(client, isolated_env):
+    """vault_graph()의 모든 노드는 weight(in-degree) 필드를 가져야 한다.
+
+    v0.6.10 Graph 1라운드 Patch #3 — 노드 크기 = in-degree.
+    없으면 프론트 GraphCanvas가 1로 fallback하지만, 의미가 사라지므로
+    회귀 가드로 0이라도 명시적으로 존재해야 한다.
+    """
+    target = isolated_env["target_root"] / "gv1"
+    client.post("/api/vaults/create", json={"name": "gv1", "path": str(target), "bootstrap": False})
+    # content 페이지 2개 작성 → graph에 노드 2개
+    client.post("/api/vaults/gv1/pages", json={"slug": "content/a", "title": "A"})
+    client.post("/api/vaults/gv1/pages", json={"slug": "content/b", "title": "B"})
+    resp = client.get("/api/vaults/gv1/graph")
+    assert resp.status_code == 200
+    nodes = resp.json()["nodes"]
+    assert len(nodes) >= 2
+    for n in nodes:
+        assert "weight" in n, f"node missing weight field: {n}"
+        assert isinstance(n["weight"], int)
+        assert n["weight"] >= 0
+
+
+def test_api_vault_graph_weight_matches_in_degree(client, isolated_env):
+    """weight 값이 실제 incoming edge 수와 일치해야 한다.
+
+    a → b wikilink를 만들면 b.weight >= 1 (a는 outbound만).
+    """
+    target = isolated_env["target_root"] / "gv2"
+    client.post("/api/vaults/create", json={"name": "gv2", "path": str(target), "bootstrap": False})
+    # a에서 b로 wikilink 1개 — content 필드에 wikilink 작성
+    client.post(
+        "/api/vaults/gv2/pages",
+        json={"slug": "content/a", "title": "A", "content": "links to [[content/b]]"},
+    )
+    client.post("/api/vaults/gv2/pages", json={"slug": "content/b", "title": "B"})
+    resp = client.get("/api/vaults/gv2/graph")
+    nodes = {n["id"]: n for n in resp.json()["nodes"]}
+    assert "content/b" in nodes, "b가 노드에 존재해야 함"
+    assert nodes["content/b"]["weight"] >= 1, f"b는 a로부터 incoming을 받아야 함, got {nodes['content/b']['weight']}"
