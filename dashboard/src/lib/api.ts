@@ -4,6 +4,8 @@
  * Vault identity is stored in localStorage so refresh keeps the choice.
  * Components read this through `useActiveVault()` and refresh when needed.
  */
+import type { TreeNode } from "../types";
+
 export const ACTIVE_VAULT_KEY = "raven:active_vault";
 
 export function getActiveVault(): string {
@@ -102,6 +104,29 @@ export async function fetchPages(vault: string, opts: { type?: string; tag?: str
   if (!r.ok) return [];
   const d = await r.json();
   return d.pages || [];
+}
+
+export async function fetchTree(vault: string): Promise<TreeNode | null> {
+  const r = await fetch(`/api/vaults/${vault}/tree`);
+  if (!r.ok) return null;
+  const d = await r.json();
+  return d.tree || null;
+}
+
+export async function createFolder(
+  vault: string,
+  payload: { path: string },
+): Promise<{ ok: boolean; path: string; existed: boolean }> {
+  const r = await fetch(`/api/vaults/${vault}/folders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `create folder failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
 }
 
 export async function fetchPage(vault: string, slug: string) {

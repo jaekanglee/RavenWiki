@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
+import { NewFolderButton } from "./NewFolderButton";
 import { nodeColor } from "./GraphCanvas";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
@@ -11,41 +12,12 @@ interface SidebarProps {
   activeVault: string;
   onSelectVault: (name: string) => void;
   onRefresh?: () => void;
-  /** Reserved for future tree-mutation refresh hooks; not used in the
-   *  off-canvas-drawer flow. */
   onTreeChange?: () => void;
-  /** Controlled drawer state owned by Layout. On desktop the off-canvas
-   *  CSS only takes effect inside @media (max-width: 744px), so this is
-   *  effectively a no-op above the breakpoint. */
+  /** Controlled drawer state owned by Layout. Off-canvas only kicks in
+   *  inside @media (max-width: 744px); no-op above the breakpoint. */
   open: boolean;
-  /** Called by the leaf Link onClick and (in Layout) by backdrop/Escape. */
+  /** Called by the X button, dim area, and Escape. */
   onClose: () => void;
-}
-
-/**
- * contentRoot (v0.6.15 sidebar cleanup)
- * ─────────────────────────────────────────────────
- * 모든 vault에 공통으로 있는 `content/` 같은 single-child 디렉토리는
- * 사용자에게 노이즈다. TreeNode에서 이걸 자동 감지해서 그 자식들만 노출한다.
- *
- * 예: vault tree = {content/ → [concept/, decision/]}
- *     → sidebar에 "content/" 자체를 숨기고 concept/, decision/가 root로 표시
- *
- * v1 heuristic: root.children 중 단일 child만 있고, 그 child의 slug가
- * `content` (case-insensitive)이면 그 child의 children을 root로 올림.
- * 다른 디렉토리(`notes/`, `wiki/`)는 vault에 따라 다르므로 압축 안 함.
- */
-function flattenCommonRoot(tree: TNode | null): TNode | null {
-  if (!tree || !tree.children || tree.children.length === 0) return tree;
-  const SINGLE_CHILD_NAMES = new Set(["content"]);
-  if (
-    tree.children.length === 1 &&
-    SINGLE_CHILD_NAMES.has(tree.children[0].slug.toLowerCase())
-  ) {
-    const inner = tree.children[0];
-    return { ...inner, children: inner.children ?? [] };
-  }
-  return tree;
 }
 
 const VAULT_OPEN_KEY = "__vault__";
@@ -74,12 +46,6 @@ function writeOpenFolders(vault: string, folders: Set<string>) {
   }
 }
 
-function folderCreatePrefix(slug: string): string {
-  const clean = slug.replace(/\/$/, "");
-  const prefixed = clean.startsWith("content/") ? clean : `content/${clean}`;
-  return `${prefixed}/`;
-}
-
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
@@ -96,11 +62,14 @@ function filterTree(tree: TNode | null, query: string): TNode | null {
   if (!tree || !q) return tree;
 
   function matches(node: TNode): boolean {
-    return (
-      node.slug.toLowerCase().includes(q) ||
-      displayTitle(node.slug, node.title).toLowerCase().includes(q) ||
-      (node.type ?? "").toLowerCase().includes(q)
-    );
+    if (node.path.toLowerCase().includes(q)) return true;
+    if (node.type === "page") {
+      const title = (node.title ?? "").toLowerCase();
+      if (title.includes(q)) return true;
+      const pt = (node.pageType ?? "").toLowerCase();
+      if (pt.includes(q)) return true;
+    }
+    return false;
   }
 
   function visit(node: TNode): TNode | null {
@@ -165,10 +134,6 @@ export function Sidebar({
         </button>
       </div>
 
-      {/*
-        "Vaults (N)" label: 1개일 땐 의미 없어서 숨김. 2개+일 때만 카운트 표시.
-        각 vault는 자체 row에서 vault name + mode badge로 충분히 식별 가능.
-      */}
       {vaults.length > 1 && (
         <div
           className="sidebar-label"
@@ -216,7 +181,7 @@ export function Sidebar({
         <VaultTreeGroup
           key={v.name}
           vault={v}
-          tree={filterTree(flattenCommonRoot(trees[v.name] ?? null), filter)}
+          tree={filterTree(trees[v.name] ?? null, filter)}
           isActive={v.name === activeVault}
           showMeta={vaults.length > 1}
           activeSlug={activePage?.vault === v.name ? activePage.slug : null}
@@ -231,32 +196,17 @@ export function Sidebar({
 }
 
 // ─── display title helper ───────────────────────────────────
-// Vault filenames are slugs — turn "2026-06-28-pwa-cache" into "Pwa Cache",
-// "index" into "Index" (with 📑 prefix per Obsidian/Notion/Craft 컨벤션),
-// keep "_template" as-is. Strips leading date prefix and replaces separators
-// with spaces.
-//
-// v0.6.15: Index 페이지는 frontmatter title과 무관하게 항상 "📑 Index"로
-// 표기 (Obsidian/Notion/Craft 컨벤션 + 자료조사 결과). 파일명 변경 ❌
-// — [[wiki-link]] 호환성 유지.
-function displayTitle(slug: string, explicitTitle?: string): string {
-  const last = slug.split("/").pop() || slug;
-  const base = last.replace(/\.md$/, "");
-  // Index page: 파일명/경로가 'index'로 끝나면 frontmatter title과 무관하게
-  // "📑 Index"로 고정. wiki-link는 파일명 기반이라 링크 깨지지 않음.
-  if (/^index(\.|$)/i.test(base)) {
-    return "📑 Index";
+// v0.6.16+: TreeNode가 path/slug/title을 분리해서 들고 있으므로 폴더는 path의
+// 마지막 segment, 페이지는 title을 그대로 표시.
+function displayTitle(node: TNode): string {
+  if (node.type === "page") {
+    return node.title ?? node.path;
   }
-  if (explicitTitle?.trim()) return explicitTitle.trim();
-  // strip leading YYYY-MM-DD- prefix (e.g. for dated ADRs)
-  const dated = base.replace(/^\d{4}-\d{2}-\d{2}-/, "");
-  if (dated === "") return base;
-  return dated
-    .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  // dir: 마지막 segment만 표시 ("content/concept" → "concept")
+  const parts = node.path.split("/");
+  return parts[parts.length - 1] || node.path;
 }
 
-// ─── Vault tree group ────────────────────────────────────────
 function VaultTreeGroup({
   vault,
   tree,
@@ -279,7 +229,7 @@ function VaultTreeGroup({
   onRefresh?: () => void;
 }) {
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => readOpenFolders(vault.name));
-  const open = openFolders.has(VAULT_OPEN_KEY) || filterActive;
+  const open = openFolders.has(VAULT_OPEN_KEY);
 
   function toggleFolder(key: string) {
     setOpenFolders((prev) => {
@@ -291,34 +241,18 @@ function VaultTreeGroup({
     });
   }
 
-  // 묶음 A (Plan v1, Tasks 2-3): title 영역 클릭 = toggle, arrow 클릭 = toggle.
-  // 둘 다 동일한 toggle 동작. 단, vault 선택(setActive)은 별도 액션.
-  // 모바일(<744px) 터치 영역 32px 유지를 위해 min-height 적용.
-  const toggleVault = () => toggleFolder(VAULT_OPEN_KEY);
-
   return (
-    <div
-      style={{
-        marginBottom: 2,
-        background: isActive ? "var(--cds-field-01, #f4f4f4)" : "transparent",
-        borderRadius: 4,
-        padding: "2px 0",
-      }}
-    >
+    <div style={{ marginBottom: 8 }}>
       <button
-        onClick={onSelect}
+        type="button"
         className="sidebar-vault-row"
-        aria-label={`switch to vault ${vault.name}`}
-        title={`${vault.path}`}
+        onClick={() => {
+          toggleFolder(VAULT_OPEN_KEY);
+          onSelect();
+        }}
+        aria-expanded={open}
       >
-        {/* arrow: 16px 컨테이너 + 12px chevron + 90° rotation transition. */}
         <span
-          role="button"
-          tabIndex={-1}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleVault();
-          }}
           aria-hidden
           className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}
         >
@@ -333,6 +267,8 @@ function VaultTreeGroup({
             />
           </svg>
         </span>
+        <span className="sidebar-vault-name">{vault.name}</span>
+        <NewPageButton vault={vault.name} variant="icon" label="페이지" />
         {showMeta && vault.default && (
           <span className="sidebar-vault-default" aria-label="default">
             ★
@@ -343,49 +279,24 @@ function VaultTreeGroup({
             ●
           </span>
         )}
-        <span className="sidebar-vault-name">{vault.name}</span>
-        <NewPageButton vault={vault.name} variant="icon" label="페이지" />
-        {showMeta && <span className="sidebar-vault-mode">{vault.mode}</span>}
       </button>
 
-      {open && (
-        <div style={{ paddingLeft: 8, paddingTop: 2 }}>
-          {tree ? (
-            tree.children?.length ? (
-              tree.children.map((child) => (
-                <TreeLeaf
-                  key={child.slug}
-                  node={child}
-                  vault={vault.name}
-                  onClose={onClose}
-                  activeSlug={activeSlug}
-                  filterActive={filterActive}
-                  openFolders={openFolders}
-                  onToggleFolder={toggleFolder}
-                />
-              ))
-            ) : (
-              <div
-                style={{
-                  padding: "4px 8px",
-                  fontSize: 12,
-                  color: "var(--color-muted)",
-                }}
-              >
-                empty
-              </div>
-            )
-          ) : (
-            <div
-              style={{
-                padding: "4px 8px",
-                fontSize: 12,
-                color: "var(--color-muted)",
-              }}
-            >
-              loading…
-            </div>
-          )}
+      {open && tree && (
+        <div className="sidebar-tree">
+          {(tree.children ?? []).map((child) => (
+            <TreeLeaf
+              key={child.path}
+              node={child}
+              vault={vault.name}
+              onClose={onClose}
+              activeSlug={activeSlug}
+              filterActive={filterActive}
+              openFolders={openFolders}
+              onToggleFolder={toggleFolder}
+              onRefresh={onRefresh}
+              depth={1}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -401,6 +312,7 @@ function TreeLeaf({
   filterActive,
   openFolders,
   onToggleFolder,
+  onRefresh,
   depth = 0,
 }: {
   node: TNode;
@@ -410,37 +322,41 @@ function TreeLeaf({
   filterActive: boolean;
   openFolders: Set<string>;
   onToggleFolder: (slug: string) => void;
+  onRefresh?: () => void;
   depth?: number;
 }) {
-  const nodeSlug = decodeURIComponent(node.slug);
-  const isActive = slugMatchesActive(nodeSlug, activeSlug);
-  const isOpen = openFolders.has(node.slug) || filterActive;
+  const isOpen = openFolders.has(node.path) || filterActive;
 
-  if (!node.children || node.children.length === 0) {
-    // leaf page
+  // ─── page leaf ───
+  if (node.type === "page") {
+    const slug = node.slug ?? node.path;
+    const isActive = slugMatchesActive(slug, activeSlug);
     return (
       <Link
-        to={`/page/${vault}/${node.slug}`}
+        to={`/page/${vault}/${slug}`}
         className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
         style={{ marginLeft: depth * 14 }}
       >
         <span
           className="sidebar-tree-leaf-dot"
-          style={{ background: nodeColor(node.type) }}
+          style={{ background: nodeColor(node.pageType) }}
           aria-hidden
         />
-        {displayTitle(node.slug, node.title)}
+        {displayTitle(node)}
       </Link>
     );
   }
 
-  // dir node — chevron + transition + IBM Plex Sans.
+  // ─── dir row ───
+  const children = node.children ?? [];
   return (
     <div>
       <div className="sidebar-tree-dir-row" style={{ marginLeft: depth * 14 }}>
         <button
-          onClick={() => onToggleFolder(node.slug)}
+          type="button"
+          onClick={() => onToggleFolder(node.path)}
           className="link-ink sidebar-tree-dir"
+          aria-expanded={isOpen}
         >
           <span
             aria-hidden
@@ -457,19 +373,18 @@ function TreeLeaf({
               />
             </svg>
           </span>
-          {displayTitle(node.slug, node.title)}
+          {displayTitle(node)}
         </button>
-        <NewPageButton
+        <NewFolderButton
           vault={vault}
-          variant="icon"
-          label="페이지"
-          initialSlug={folderCreatePrefix(node.slug)}
+          parentPath={node.path}
+          onCreated={() => onRefresh?.()}
         />
       </div>
       {isOpen &&
-        node.children.map((c) => (
+        children.map((c) => (
           <TreeLeaf
-            key={c.slug}
+            key={c.path}
             node={c}
             vault={vault}
             onClose={onClose}
@@ -477,6 +392,7 @@ function TreeLeaf({
             filterActive={filterActive}
             openFolders={openFolders}
             onToggleFolder={onToggleFolder}
+            onRefresh={onRefresh}
             depth={depth + 1}
           />
         ))}

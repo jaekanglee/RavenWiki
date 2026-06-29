@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
-import { fetchVaults, fetchPages, getActiveVault, setActiveVault } from "../lib/api";
+import { fetchVaults, fetchTree, getActiveVault, setActiveVault } from "../lib/api";
 import { useEffect, useState } from "react";
 import type { TreeNode, VaultMeta } from "../types";
 
@@ -48,49 +48,16 @@ export function Layout() {
   }, [vaults, vault]);
 
   // ─── build tree per vault (in parallel) ─────────────────────
+  // v0.6.16+: 폴더는 1차 시민. fetchTree가 OS 디렉토리 + .md 파일을 모두 반환.
+  // 빈 폴더도 children: []으로 포함. Sidebar가 그대로 렌더.
   useEffect(() => {
     if (vaults.length === 0) return;
-    const fetchTree = async (
-      vname: string
-    ): Promise<[string, TreeNode | null]> => {
-      try {
-        const pages = await fetchPages(vname);
-        const root: TreeNode = {
-          slug: "root",
-          title: "root",
-          type: "root",
-          children: [],
-        };
-        for (const p of pages) {
-          const parts = p.slug.split("/");
-          let cur = root;
-          for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            let next = cur.children?.find((c) => c.slug === part);
-            if (!next) {
-              next = { slug: part, title: part, type: "dir", children: [] };
-              cur.children = cur.children || [];
-              cur.children.push(next);
-            }
-            cur = next;
-          }
-          cur.children = cur.children || [];
-          cur.children.push({
-            slug: p.slug,
-            title: p.title || parts[parts.length - 1],
-            type: p.type || "?",
-          });
-        }
-        return [vname, root];
-      } catch {
-        return [vname, null];
-      }
-    };
-    Promise.all(vaults.map((v) => fetchTree(v.name))).then((results) => {
-      const map: Record<string, TreeNode | null> = {};
-      for (const [name, root] of results) map[name] = root;
-      setTrees(map);
-    });
+    Promise.all(vaults.map((v) => fetchTree(v.name)))
+      .then((results) => {
+        const map: Record<string, TreeNode | null> = {};
+        for (let i = 0; i < vaults.length; i++) map[vaults[i].name] = results[i];
+        setTrees(map);
+      });
   }, [vaults, refreshKey]);
 
   // Track narrow viewport so the drawer width adapts on small screens.
