@@ -381,6 +381,14 @@ function TreeLeaf({
           onCreated={() => onRefresh?.()}
           onOpen={onClose}
         />
+        {/* v0.6.22+: 폴더 hover 메뉴 — 인라인 페이지 만들기. initialSlug로 prefix 자동 주입. */}
+        <NewPageButton
+          vault={vault}
+          variant="icon"
+          label="페이지"
+          initialSlug={node.path}
+          onOpen={onClose}
+        />
       </div>
       {isOpen &&
         children.map((c) => (
