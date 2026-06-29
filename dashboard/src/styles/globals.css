@@ -708,7 +708,8 @@ mark {
   font-size: 18px;
   font-weight: 500;
   line-height: 1;
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    opacity 0.12s ease, transform 0.12s ease;
 }
 .sidebar-icon-action:hover {
   background: var(--color-surface-soft);
@@ -752,6 +753,24 @@ mark {
   width: 14px;
   height: 14px;
   opacity: 0.5;
+}
+.sidebar-tree-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar-tree-dir-row .sidebar-tree-dir {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-tree-dir-row .sidebar-icon-action {
+  opacity: 0;
+  transform: translateX(-2px);
+}
+.sidebar-tree-dir-row:hover .sidebar-icon-action,
+.sidebar-tree-dir-row:focus-within .sidebar-icon-action {
+  opacity: 1;
+  transform: translateX(0);
 }
 .sidebar-tree-dir {
   display: flex;

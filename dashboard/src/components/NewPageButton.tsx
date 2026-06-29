@@ -6,9 +6,15 @@ interface NewPageButtonProps {
   vault?: string;
   variant?: "pill" | "icon";
   label?: string;
+  initialSlug?: string;
 }
 
-export function NewPageButton({ vault: vaultProp, variant = "pill", label = "새 페이지" }: NewPageButtonProps) {
+export function NewPageButton({
+  vault: vaultProp,
+  variant = "pill",
+  label = "새 페이지",
+  initialSlug = "",
+}: NewPageButtonProps) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
   const vault = vaultProp || getActiveVault() || "default";
@@ -54,6 +60,7 @@ export function NewPageButton({ vault: vaultProp, variant = "pill", label = "새
       <button
         onClick={(e) => {
           e.stopPropagation();
+          if (initialSlug && !slug) setSlug(initialSlug);
           setOpen(true);
         }}
         className={variant === "icon" ? "sidebar-icon-action" : "btn-pill-primary"}
@@ -116,7 +123,7 @@ export function NewPageButton({ vault: vaultProp, variant = "pill", label = "새
                 style={{ height: 48 }}
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                placeholder="content/my-concept"
+                placeholder={initialSlug || "content/my-concept"}
               />
               <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
                 vault-relative path

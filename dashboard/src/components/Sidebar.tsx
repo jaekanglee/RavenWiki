@@ -74,6 +74,12 @@ function writeOpenFolders(vault: string, folders: Set<string>) {
   }
 }
 
+function folderCreatePrefix(slug: string): string {
+  const clean = slug.replace(/\/$/, "");
+  const prefixed = clean.startsWith("content/") ? clean : `content/${clean}`;
+  return `${prefixed}/`;
+}
+
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
@@ -377,28 +383,35 @@ function TreeLeaf({
   // dir node — chevron + transition + IBM Plex Sans.
   return (
     <div>
-      <button
-        onClick={() => onToggleFolder(node.slug)}
-        className="link-ink sidebar-tree-dir"
-        style={{ marginLeft: depth * 14 }}
-      >
-        <span
-          aria-hidden
-          className={clsx("sidebar-chevron sidebar-chevron-sm", isOpen && "sidebar-chevron-open")}
+      <div className="sidebar-tree-dir-row" style={{ marginLeft: depth * 14 }}>
+        <button
+          onClick={() => onToggleFolder(node.slug)}
+          className="link-ink sidebar-tree-dir"
         >
-          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-            <path
-              d="M4 2 L8 6 L4 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        {displayTitle(node.slug, node.title)}
-      </button>
+          <span
+            aria-hidden
+            className={clsx("sidebar-chevron sidebar-chevron-sm", isOpen && "sidebar-chevron-open")}
+          >
+            <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+              <path
+                d="M4 2 L8 6 L4 10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          {displayTitle(node.slug, node.title)}
+        </button>
+        <NewPageButton
+          vault={vault}
+          variant="icon"
+          label="페이지"
+          initialSlug={folderCreatePrefix(node.slug)}
+        />
+      </div>
       {isOpen &&
         node.children.map((c) => (
           <TreeLeaf
