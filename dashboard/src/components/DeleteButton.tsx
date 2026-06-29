@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { deletePage } from "../lib/api";
+import { TextField } from "./ui/TextField";
 
 export function DeleteButton({
   vault,
@@ -85,26 +86,13 @@ export function DeleteButton({
               </code>{" "}
               을(를) vault <strong>{vault}</strong>에서 삭제합니다. _archive/ 로 백업됨.
             </p>
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  marginBottom: 6,
-                  color: "var(--color-ink)",
-                }}
-              >
-                확인 — slug 입력
-              </span>
-              <input
-                className="input-base"
-                style={{ height: 48, fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={slug}
-              />
-            </label>
+            <TextField
+              label="확인 — slug 입력"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder={slug}
+              style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
+            />
             {msg && (
               <div
                 style={{

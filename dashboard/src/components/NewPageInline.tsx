@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPage, fetchPages } from "../lib/api";
+import { TextField } from "./ui/TextField";
 
 /**
  * NewPageInline — Plan v1 묶음 B (Tasks 5-7).
@@ -319,33 +320,26 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
       </div>
 
       {/* ─── title ─── */}
-      <label style={{ display: "block", marginBottom: 12 }}>
-        <FieldLabel>title *</FieldLabel>
-        <input
-          className="input-base"
-          type="text"
-          placeholder="페이지 제목"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          disabled={busy}
-          autoFocus
-          style={fieldStyle}
-        />
-      </label>
+      <TextField
+        label="title"
+        required
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        disabled={busy}
+        autoFocus
+        placeholder="페이지 제목"
+        style={fieldStyle}
+      />
 
       {/* ─── tags ─── */}
-      <label style={{ display: "block", marginBottom: 12 }}>
-        <FieldLabel>tags (선택, 쉼표 구분)</FieldLabel>
-        <input
-          className="input-base"
-          type="text"
-          placeholder="ai, llm"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          disabled={busy}
-          style={fieldStyle}
-        />
-      </label>
+      <TextField
+        label="tags (선택, 쉼표 구분)"
+        value={tags}
+        onChange={(e) => setTags(e.target.value)}
+        disabled={busy}
+        placeholder="ai, llm"
+        style={fieldStyle}
+      />
 
       {/* ─── slug preview ─── */}
       <div

@@ -26,6 +26,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { setActiveVault } from "../lib/api";
+import { TextField } from "./ui/TextField";
 
 /** Default mode for Dashboard-created vaults.
  *
@@ -288,21 +289,9 @@ function Step1({
         이름만 정하면 경로와 Lite bootstrap(4종 표준 문서)은 자동으로 만들어집니다.
       </p>
 
-      <label
-        style={{
-          display: "block",
-          fontSize: 12,
-          fontWeight: 700,
-          letterSpacing: "0.32px",
-          textTransform: "uppercase",
-          color: "var(--color-muted)",
-          marginBottom: 8,
-        }}
-      >
-        이름 *
-      </label>
-      <input
-        className="input-base"
+      <TextField
+        label="이름"
+        required
         autoFocus
         style={{ height: 56, fontSize: 18 }}
         value={name}
