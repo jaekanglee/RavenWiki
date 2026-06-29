@@ -319,18 +319,35 @@ def list_pages(
 
 
 class GraphLayoutParams(BaseModel):
-    iterations: int = Field(120, ge=1, le=2000, description="spring iterations (FR-style)")
+    iterations: int = Field(500, ge=1, le=2000, description="spring iterations (FR-style)")
+
+
+# Graph A2 (v0.6.11+): layout 튜닝 상수.
+# 사용자 피드백 — "노드 한 군데 뭉침 / 작은 원에서도 겹침 / 최악" 대응.
+# - iterations 120→500: 충분히 안정화, 작은 vault에서도 노드 간 spacing 확보
+# - repulsion ×10: hub가 인접 노드를 끌어당기는 힘 > 비인접 척력 불균형 해소
+# - attraction ×0.3: hub 중심으로 응집 압력 완화
+# - ideal_distance=200 (FR의 k로 강제): vault 크기와 무관하게 일정 spacing 목표
+# - uniform random 초기 위치 (FR 알고리즘 정석; 격자는 hub가 중앙에 모이는 패턴 유발)
+# - t0 100→50: 초기 변위 폭 절반으로 좁혀서 미세 조정 위주로 수렴
+LAYOUT_IDEAL_DISTANCE = 200.0  # 노드 간 목표 간격 (px)
+LAYOUT_REPULSION_GAIN = 10.0  # FR 기본 척력(k^2/d) 대비 배율
+LAYOUT_ATTRACTION_GAIN = 0.3  # FR 기본 인력(d^2/k) 대비 배율
+LAYOUT_T0 = 50.0  # 초기 temperature (이전 100의 절반)
 
 
 def _spring_layout(
-    ids: list[str], edges: list[tuple[str, str]], iterations: int = 120
+    ids: list[str],
+    edges: list[tuple[str, str]],
+    iterations: int = 500,
 ) -> dict[str, tuple[float, float]]:
-    """간단한 Fruchterman-Reingold 스타일의 force-directed layout.
+    """Fruchterman-Reingold 스타일의 force-directed layout (v0.6.11 튜닝).
 
-    의존성 최소화 (networkx/dagre ❌). 50 LoC 수준의 bare-bones 구현:
-    - 인접 노드간 인력 (attractive), 비인접 노드간 척력 (repulsive)
-    - 일정 간격 적용 후 클램핑
-    - 결정론: 시드 0 + 동일 slug 순서 → 같은 vault에서 같은 위치 재현
+    의존성 최소화 (networkx/dagre ❌). FR 알고리즘 직접 구현:
+    - 인접 노드간 인력 (attractive, ×0.3), 비인접 노드간 척력 (repulsive, ×10)
+    - ideal_distance=200 으로 spacing 목표 명시 (sparse layout)
+    - uniform random 초기 위치 (FR 정석; 격자 시작은 hub가 중앙 모이게 함)
+    - 결정론: 시드 0 고정 → 같은 vault에서 같은 위치 재현
 
     Returns: {slug: (x, y)} dict.
     """
@@ -341,13 +358,12 @@ def _spring_layout(
     n = len(ids)
     if n == 0:
         return {}
-    # 초기 위치 — 작은 격자 (너무 멀리 안 퍼지도록)
-    side = max(2, int(math.sqrt(n)) + 1)
-    pos_x = [0.0] * n
-    pos_y = [0.0] * n
-    for i in range(n):
-        pos_x[i] = (i % side) * 50.0 + rng.uniform(-10, 10)
-        pos_y[i] = (i // side) * 50.0 + rng.uniform(-10, 10)
+    # 초기 위치 — uniform random (FR 알고리즘 정석).
+    # 이전 격자 시작은 hub 노드가 중앙에 모이는 패턴을 유발했음.
+    # 스케일은 ideal_distance × sqrt(n) 정도로 잡아서 초기부터 적정 간격 근처.
+    spread = LAYOUT_IDEAL_DISTANCE * math.sqrt(max(n, 1))
+    pos_x = [rng.uniform(-spread, spread) for _ in range(n)]
+    pos_y = [rng.uniform(-spread, spread) for _ in range(n)]
 
     # 인접 리스트 (인덱스 기반)
     adj: list[set[int]] = [set() for _ in range(n)]
@@ -357,12 +373,12 @@ def _spring_layout(
             adj[si].add(ti)
             adj[ti].add(si)
 
-    area = 1200.0 * 800.0
-    k = math.sqrt(area / max(n, 1))
+    # ideal_distance 를 k 로 직접 사용 (vault 크기와 무관하게 일정 spacing 목표).
+    k = LAYOUT_IDEAL_DISTANCE
     k2 = k * k
 
-    # 온도 스케줄
-    t0 = 100.0
+    # 온도 스케줄 (v0.6.11: t0 100→50, 점진 감쇠)
+    t0 = LAYOUT_T0
     t_min = 1.0
 
     for it in range(iterations):
@@ -379,8 +395,8 @@ def _spring_layout(
                 if d2 < 0.01:
                     d2 = 0.01
                 d = math.sqrt(d2)
-                # FR 척력 = k^2 / d
-                force = k2 / d
+                # FR 척력 = k^2 / d × repulsion_gain (×10)
+                force = (k2 / d) * LAYOUT_REPULSION_GAIN
                 # 양쪽으로 분리
                 fx = (d_x / d) * force
                 fy = (d_y / d) * force
@@ -388,7 +404,7 @@ def _spring_layout(
                 dy[i] += fy
                 dx[j] -= fx
                 dy[j] -= fy
-        # 2) 인접 노드 인력 — d^2 / k
+        # 2) 인접 노드 인력 — d^2 / k × attraction_gain (×0.3)
         for i in range(n):
             for j in adj[i]:
                 if j < i:
@@ -399,7 +415,7 @@ def _spring_layout(
                 if d2 < 0.01:
                     d2 = 0.01
                 d = math.sqrt(d2)
-                force = (d * d) / k
+                force = ((d * d) / k) * LAYOUT_ATTRACTION_GAIN
                 fx = (d_x / d) * force
                 fy = (d_y / d) * force
                 dx[i] -= fx
@@ -427,7 +443,7 @@ def _spring_layout(
 @app.get("/api/vaults/{name}/graph")
 def vault_graph(
     name: str,
-    iterations: int = Query(120, ge=1, le=2000, description="spring iterations"),
+    iterations: int = Query(500, ge=1, le=2000, description="spring iterations"),
 ):
     """vault 페이지 + wikilink edges + force-directed 좌표를 반환.
 

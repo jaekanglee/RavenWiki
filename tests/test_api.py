@@ -445,3 +445,95 @@ def test_spring_layout_handles_small_graph():
         x, y = out[i]
         assert isinstance(x, float)
         assert isinstance(y, float)
+
+
+def test_spring_layout_v0611_sparse_spacing():
+    """v0.6.11 튜닝: 노드 간 평균 거리 ≥ ideal_distance / 2.
+
+    사용자 피드백("노드 한 군데 뭉침 / 작은 원에서도 겹침 / 최악") 회귀 가드.
+    ideal_distance=200 이므로 노드 간 평균 거리는 ≥100 px 기대.
+    """
+    import math
+    from raven.api.server import _spring_layout, LAYOUT_IDEAL_DISTANCE
+
+    # hub-style: 한 노드에 다수 링크가 몰리는 응집 압력 시나리오
+    ids = [f"n{i}" for i in range(12)]
+    edges = [("hub", f"n{i}") for i in range(11)]  # hub에 11개 연결
+    out = _spring_layout(["hub", *ids], edges, iterations=500)
+
+    # 모든 좌표 추출
+    coords = list(out.values())
+    # 페어와이즈 거리 평균
+    dists: list[float] = []
+    for i in range(len(coords)):
+        for j in range(i + 1, len(coords)):
+            x1, y1 = coords[i]
+            x2, y2 = coords[j]
+            d = math.hypot(x1 - x2, y1 - y2)
+            dists.append(d)
+    avg_dist = sum(dists) / len(dists)
+    min_dist = min(dists)
+    threshold = LAYOUT_IDEAL_DISTANCE / 2  # 100 px
+    assert avg_dist >= threshold, (
+        f"평균 노드 거리 {avg_dist:.1f} < {threshold} (ideal_distance={LAYOUT_IDEAL_DISTANCE}). "
+        "튜닝 회귀 — 다시 repulsion/attraction/iterations 확인."
+    )
+    # 최소 거리도 너무 작으면 안 됨 (동일 좌표 직전 충돌 감지)
+    assert min_dist > 1.0, f"최소 노드 거리 {min_dist:.2f} — 노드가 사실상 겹침"
+
+
+def test_spring_layout_v0611_deterministic_with_new_seeds():
+    """v0.6.11: uniform random + seed=0 → 결정론 유지 (같은 입력 = 같은 좌표)."""
+    from raven.api.server import _spring_layout
+
+    ids = [f"n{i}" for i in range(8)]
+    edges = [("n0", "n1"), ("n1", "n2"), ("n3", "n4")]
+    out1 = _spring_layout(ids, edges, iterations=200)
+    out2 = _spring_layout(ids, edges, iterations=200)
+    assert out1 == out2, f"비결정론: {set(out1.items()) ^ set(out2.items())}"
+
+
+def test_api_vault_graph_default_iterations_is_500():
+    """v0.6.11: GraphLayoutParams / vault_graph 의 기본 iterations 는 500 이어야 한다.
+
+    frontend 가 ?iterations= 를 안 넘기므로 기본값이 곧 사용자 경험.
+    """
+    from raven.api.server import GraphLayoutParams
+
+    # Pydantic 모델 기본
+    assert GraphLayoutParams().iterations == 500, (
+        f"GraphLayoutParams 기본 iterations={GraphLayoutParams().iterations}, 500 필요"
+    )
+
+
+def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
+    """v0.6.11: 실제 API 응답 노드 좌표가 충분히 펼쳐져 있다 (≥ ideal/2 평균)."""
+    import math
+    from raven.api.server import LAYOUT_IDEAL_DISTANCE
+
+    target = isolated_env["target_root"] / "gv_spread"
+    client.post("/api/vaults/create", json={"name": "gv_spread", "path": str(target), "bootstrap": False})
+    # 8 페이지 + 링크 몇 개
+    slugs = [f"content/p{i}" for i in range(8)]
+    for slug in slugs:
+        client.post(f"/api/vaults/gv_spread/pages", json={"slug": slug, "title": slug.split("/")[-1]})
+    # hub 링크
+    for slug in slugs[1:]:
+        client.post(
+            "/api/vaults/gv_spread/pages",
+            json={"slug": slugs[0], "title": "P0", "content": f"see [[{slug}]]"},
+        )
+    resp = client.get("/api/vaults/gv_spread/graph")
+    nodes = resp.json()["nodes"]
+    assert len(nodes) >= 4
+    coords = [(n["x"], n["y"]) for n in nodes]
+    dists: list[float] = []
+    for i in range(len(coords)):
+        for j in range(i + 1, len(coords)):
+            d = math.hypot(coords[i][0] - coords[j][0], coords[i][1] - coords[j][1])
+            dists.append(d)
+    avg = sum(dists) / len(dists)
+    threshold = LAYOUT_IDEAL_DISTANCE / 2
+    assert avg >= threshold, (
+        f"실 API 응답 평균 거리 {avg:.1f} < {threshold} — 튜닝이 API까지 반영 안 됨"
+    )
