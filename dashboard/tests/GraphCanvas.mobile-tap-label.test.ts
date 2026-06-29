@@ -68,23 +68,19 @@ describe("GraphCanvas v0.6.12 mobile tap label", () => {
     expect(["fixed", "absolute"]).toContain(overlayStyle.position);
   });
 
-  it("edge style은 v0.6.12 2차 강화 값 — slate-400 / 2px / 0.8", () => {
-    // 컴포넌트에서 정의한 edge style
+  it("edge style은 조용한 기본 톤 — slate-400 / 0.65px / 0.16", () => {
+    // 컴포넌트에서 정의한 기본 edge style: 평소에는 별자리 배경처럼 흐리게 유지.
     const edgeStyle = {
       stroke: "#94a3b8",
-      strokeWidth: 2,
-      strokeOpacity: 0.8,
+      strokeWidth: 0.65,
+      strokeOpacity: 0.16,
     };
-    // v0.6.12 1차 값(#6b7280/1.5/0.6)이 아닌지 확인
-    expect(edgeStyle.stroke).not.toBe("#6b7280");
-    expect(edgeStyle.strokeWidth).not.toBe(1.5);
-    expect(edgeStyle.strokeOpacity).not.toBe(0.6);
-    // 강화 값 검증
-    expect(edgeStyle.stroke).toBe("#94a3b8"); // slate-400 (더 밝음)
-    expect(edgeStyle.strokeWidth).toBe(2);
-    expect(edgeStyle.strokeOpacity).toBe(0.8);
-    // dark 배경(#0a0e1a)에서 명도대 충분히 확보 (slate-400 luminance ≈ 0.65)
-    expect(edgeStyle.strokeOpacity).toBeGreaterThanOrEqual(0.7);
+    // v0.6.12 1차/2차의 두꺼운 선으로 돌아가지 않도록 가드.
+    expect(edgeStyle.strokeWidth).toBeLessThan(1);
+    expect(edgeStyle.strokeOpacity).toBeLessThan(0.3);
+    expect(edgeStyle.stroke).toBe("#94a3b8");
+    expect(edgeStyle.strokeWidth).toBe(0.65);
+    expect(edgeStyle.strokeOpacity).toBe(0.16);
   });
 
   it("coarse pointer 검출: matchMedia('(pointer:coarse)') 매처 사용", () => {

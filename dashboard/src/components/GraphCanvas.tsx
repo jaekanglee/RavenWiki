@@ -83,7 +83,7 @@ export function nodeSize(weight: number | undefined): number {
 //   - 자기 자신은 absolute <div>로 label 표시하지 않고, 부모의 hover overlay에 의존.
 //     → xyflow의 nodeWidth/Height가 작아도 텍스트가 노드 박스에 영향 없음.
 // ───────────────────────────────────────────────────────────────────────────
-function ObsidianNode({ data }: { data: { color: string; size: number } }) {
+function ObsidianNode({ data }: { data: { color: string; size: number; opacity?: number; highlighted?: boolean } }) {
   // xyflow v12는 node에 `data`만 custom으로 전달받음.
   // 좌표/타이틀은 onMouseEnter에서 GraphNode 인덱스로 조회 (아래 handle).
   // Patch 3: pointerEvents: 'all' + cursor: 'grab' 으로 모바일에서 노드 잡기 신호.
@@ -97,7 +97,10 @@ function ObsidianNode({ data }: { data: { color: string; size: number } }) {
         borderRadius: "50%",
         background: data.color,
         border: "1px solid rgba(255,255,255,0.22)",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.32)",
+        boxShadow: data.highlighted
+          ? "0 0 0 1px rgba(226,232,240,0.75), 0 0 10px rgba(226,232,240,0.24)"
+          : "0 0 0 1px rgba(0,0,0,0.32)",
+        opacity: data.opacity ?? 1,
         cursor: "grab",
         pointerEvents: "all",
         touchAction: "none",
@@ -157,6 +160,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
     x: number; // viewport (screen) px
     y: number;
   } | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
   // Patch 2: 모바일/터치 디바이스 감지.
   // - matchMedia('(pointer:coarse)') → 터치스크린 (모바일/태블릿)
@@ -241,12 +245,11 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         id: `e${i}`,
         source: (e as any).source ?? e.source_slug,
         target: (e as any).target ?? e.target_slug,
-        // Obsidian-style: relationship lines should be present but quiet.
-        // Keep them thin and translucent so the graph reads like a synapse map.
+        // Obsidian-style: relationship lines are quiet by default; hover reveals structure.
         style: {
           stroke: "#94a3b8",
-          strokeWidth: 1,
-          strokeOpacity: 0.45,
+          strokeWidth: 0.65,
+          strokeOpacity: 0.16,
         },
         // xyflow marker 정의 (선택): 끝점 화살표는 일단 생략 — 점 노드 중심에
         // 닿는 직선만으로도 관계 가시화에 충분.
@@ -266,6 +269,72 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
   useEffect(() => {
     setFlowEdges(rfEdges);
   }, [rfEdges, setFlowEdges]);
+
+  const focus = useMemo(() => {
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+
+    if (hoveredEdgeId) {
+      const edge = flowEdges.find((e) => e.id === hoveredEdgeId);
+      if (edge) {
+        edgeIds.add(edge.id);
+        nodeIds.add(String(edge.source));
+        nodeIds.add(String(edge.target));
+      }
+    }
+
+    if (hoveredNode) {
+      nodeIds.add(hoveredNode.id);
+      for (const edge of flowEdges) {
+        if (edge.source === hoveredNode.id || edge.target === hoveredNode.id) {
+          edgeIds.add(edge.id);
+          nodeIds.add(String(edge.source));
+          nodeIds.add(String(edge.target));
+        }
+      }
+    }
+
+    return {
+      active: nodeIds.size > 0 || edgeIds.size > 0,
+      nodeIds,
+      edgeIds,
+    };
+  }, [flowEdges, hoveredEdgeId, hoveredNode]);
+
+  const displayNodes = useMemo(
+    () =>
+      flowNodes.map((node) => {
+        const highlighted = focus.nodeIds.has(node.id);
+        return {
+          ...node,
+          data: {
+            color: (node.data as any).color,
+            size: (node.data as any).size,
+            highlighted,
+            opacity: !focus.active || highlighted ? 1 : 0.22,
+          },
+        };
+      }),
+    [flowNodes, focus]
+  );
+
+  const displayEdges = useMemo(
+    () =>
+      flowEdges.map((edge) => {
+        const highlighted = focus.edgeIds.has(edge.id);
+        return {
+          ...edge,
+          animated: highlighted,
+          style: {
+            ...(edge.style ?? {}),
+            stroke: highlighted ? "#e2e8f0" : "#94a3b8",
+            strokeWidth: highlighted ? 1.35 : 0.65,
+            strokeOpacity: !focus.active ? 0.16 : highlighted ? 0.82 : 0.045,
+          },
+        };
+      }),
+    [flowEdges, focus]
+  );
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
@@ -436,8 +505,8 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
       }}
     >
       <ReactFlow
-        nodes={flowNodes}
-        edges={flowEdges}
+        nodes={displayNodes}
+        edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
@@ -445,6 +514,8 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeMouseEnter={handleNodeEnter}
         onNodeMouseLeave={handleNodeLeave}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+        onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         // Patch 2+: viewport 이동 시 표시 중인 라벨의 screen 좌표 재계산.
         onMove={handleMove}
         // Patch 3: 노드 드래그 활성화 (xyflow v12 기본값 true이지만 명시).

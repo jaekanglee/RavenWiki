@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -320,6 +320,9 @@ def list_pages(
 
 class GraphLayoutParams(BaseModel):
     iterations: int = Field(500, ge=1, le=2000, description="spring iterations (FR-style)")
+    layout: Literal["constellation", "spring"] = Field(
+        "constellation", description="graph layout: constellation or spring"
+    )
 
 
 # Graph A2 (v0.6.11+): layout 튜닝 상수.
@@ -334,6 +337,170 @@ LAYOUT_IDEAL_DISTANCE = 200.0  # 노드 간 목표 간격 (px)
 LAYOUT_REPULSION_GAIN = 10.0  # FR 기본 척력(k^2/d) 대비 배율
 LAYOUT_ATTRACTION_GAIN = 0.3  # FR 기본 인력(d^2/k) 대비 배율
 LAYOUT_T0 = 50.0  # 초기 temperature (이전 100의 절반)
+
+
+def _normalize_layout(
+    ids: list[str],
+    pos_x: list[float],
+    pos_y: list[float],
+    target: float = 500.0,
+) -> dict[str, tuple[float, float]]:
+    """그래프 좌표를 center=0, scale=±target 으로 정규화한다."""
+    n = len(ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {ids[0]: (0.0, 0.0)}
+    min_x, max_x = min(pos_x), max(pos_x)
+    min_y, max_y = min(pos_y), max(pos_y)
+    cx = (min_x + max_x) / 2.0
+    cy = (min_y + max_y) / 2.0
+    span_x = max(abs(min_x - cx), abs(max_x - cx))
+    span_y = max(abs(min_y - cy), abs(max_y - cy))
+    span = max(span_x, span_y) or 1.0
+    return {
+        ids[i]: (
+            round((pos_x[i] - cx) / span * target, 1),
+            round((pos_y[i] - cy) / span * target, 1),
+        )
+        for i in range(n)
+    }
+
+
+def _stable_unit(slug: str, salt: str = "") -> float:
+    """slug 기반 deterministic jitter: [0, 1)."""
+    import hashlib
+
+    h = hashlib.sha256(f"{salt}:{slug}".encode("utf-8")).digest()
+    return int.from_bytes(h[:8], "big") / float(1 << 64)
+
+
+def _constellation_layout(
+    ids: list[str],
+    edges: list[tuple[str, str]],
+    weights: dict[str, int] | None = None,
+) -> dict[str, tuple[float, float]]:
+    """Obsidian식 별자리/신경망 감각의 deterministic graph layout.
+
+    v1 기준:
+    - degree/weight 높은 hub는 component 중심부에 배치
+    - hub의 1-hop 이웃은 hub 주변 궤도, leaf/low-degree는 바깥 ring에 배치
+    - connected components는 큰 원 둘레에 분리
+    - slug hash 기반 각도 jitter로 입력이 같으면 항상 같은 좌표
+    - 최종 좌표는 기존 graph contract처럼 center=0, scale=±500
+    """
+    import math
+
+    n = len(ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {ids[0]: (0.0, 0.0)}
+
+    weights = weights or {}
+    idx = {s: i for i, s in enumerate(ids)}
+    adj: dict[str, set[str]] = {s: set() for s in ids}
+    for s, t in edges:
+        if s in idx and t in idx and s != t:
+            adj[s].add(t)
+            adj[t].add(s)
+
+    # connected components — 큰 component를 먼저 배치해 전체 별자리의 주 구조를 잡는다.
+    remaining = set(ids)
+    components: list[list[str]] = []
+    while remaining:
+        start = min(remaining)
+        stack = [start]
+        remaining.remove(start)
+        comp: list[str] = []
+        while stack:
+            cur = stack.pop()
+            comp.append(cur)
+            for nb in sorted(adj[cur]):
+                if nb in remaining:
+                    remaining.remove(nb)
+                    stack.append(nb)
+        components.append(comp)
+
+    def node_score(slug: str) -> tuple[int, int, float, str]:
+        degree = len(adj[slug])
+        weight = int(weights.get(slug, 0) or 0)
+        # degree가 가장 중요하고, in-degree/weight가 hub tie-breaker 역할.
+        return (degree * 10 + weight * 3, degree, _stable_unit(slug, "hub"), slug)
+
+    components.sort(key=lambda c: (-len(c), -max(node_score(s)[0] for s in c), min(c)))
+    comp_count = len(components)
+    global_pos: dict[str, tuple[float, float]] = {}
+
+    for comp_i, comp in enumerate(components):
+        comp_size = len(comp)
+        hub = max(comp, key=node_score)
+
+        # Component 중심: 단일/최대 component는 원점, 나머지는 큰 원 둘레에 deterministic 분리.
+        if comp_count == 1:
+            comp_cx = comp_cy = 0.0
+        else:
+            outer_r = 520.0 + 170.0 * math.sqrt(comp_count)
+            if comp_i == 0 and comp_size > 1:
+                comp_cx = comp_cy = 0.0
+            else:
+                angle = (2.0 * math.pi * (comp_i - 1) / max(comp_count - 1, 1))
+                angle += (_stable_unit(hub, "component") - 0.5) * 0.28
+                comp_cx = math.cos(angle) * outer_r
+                comp_cy = math.sin(angle) * outer_r
+
+        if comp_size == 1:
+            angle = 2.0 * math.pi * _stable_unit(hub, "isolated")
+            # 완전 고립 노드는 바깥 별 ring으로 보낸다.
+            r = 360.0 + 55.0 * comp_i
+            global_pos[hub] = (comp_cx + math.cos(angle) * r, comp_cy + math.sin(angle) * r)
+            continue
+
+        # Hub 중심. weight가 높은 hub가 시각 중심을 잡고, 주변 node는 level ring에 배치.
+        global_pos[hub] = (comp_cx, comp_cy)
+
+        # BFS level: hub 주변 1-hop ring, 그 밖은 더 외곽 ring.
+        levels: dict[str, int] = {hub: 0}
+        queue = [hub]
+        for cur in queue:
+            for nb in sorted(adj[cur]):
+                if nb in comp and nb not in levels:
+                    levels[nb] = levels[cur] + 1
+                    queue.append(nb)
+
+        rings: dict[int, list[str]] = {}
+        for slug in comp:
+            if slug == hub:
+                continue
+            level = levels.get(slug, 2)
+            degree = len(adj[slug])
+            # leaf/low-degree는 같은 level에서도 한 단계 바깥으로 밀어 별자리 꼬리를 만든다.
+            ring = level
+            if degree <= 1:
+                ring += 1
+            rings.setdefault(ring, []).append(slug)
+
+        base_angle = 2.0 * math.pi * _stable_unit(hub, "base-angle")
+        for ring, slugs in sorted(rings.items()):
+            slugs.sort(key=lambda s: (_stable_unit(s, f"ring-{ring}"), s))
+            count = len(slugs)
+            # 1-hop orbit은 촘촘히, leaf/outer ring은 넓게.
+            radius = 145.0 + 125.0 * ring + 18.0 * math.sqrt(comp_size)
+            for j, slug in enumerate(slugs):
+                angle = base_angle + 2.0 * math.pi * j / max(count, 1)
+                angle += (_stable_unit(slug, "angle-jitter") - 0.5) * (0.45 / max(ring, 1))
+                radial_jitter = (_stable_unit(slug, "radius-jitter") - 0.5) * 36.0
+                degree = len(adj[slug])
+                if degree >= 3:
+                    radial_jitter -= 45.0  # secondary hub는 안쪽으로
+                elif degree <= 1:
+                    radial_jitter += 55.0  # leaf는 바깥으로
+                r = radius + radial_jitter
+                global_pos[slug] = (comp_cx + math.cos(angle) * r, comp_cy + math.sin(angle) * r)
+
+    pos_x = [global_pos.get(s, (0.0, 0.0))[0] for s in ids]
+    pos_y = [global_pos.get(s, (0.0, 0.0))[1] for s in ids]
+    return _normalize_layout(ids, pos_x, pos_y)
 
 
 def _spring_layout(
@@ -437,33 +604,21 @@ def _spring_layout(
     # 특수 케이스:
     #   n == 1 → (0, 0)
     #   모든 노드가 같은 좌표 (scale == 0) → (0, 0)
-    if n == 0:
-        return {}
-    if n == 1:
-        return {ids[0]: (0.0, 0.0)}
-    min_x, max_x = min(pos_x), max(pos_x)
-    min_y, max_y = min(pos_y), max(pos_y)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
-    span_x = max(abs(min_x - cx), abs(max_x - cx))
-    span_y = max(abs(min_y - cy), abs(max_y - cy))
-    # 둘 중 큰 span을 공통 스케일로 — 그래프 종횡비 유지 (XY 동시).
-    span = max(span_x, span_y) or 1.0
-    NORMALIZE_TARGET = 500.0  # 결과 좌표 범위: ±500
-    for i in range(n):
-        pos_x[i] = (pos_x[i] - cx) / span * NORMALIZE_TARGET
-        pos_y[i] = (pos_y[i] - cy) / span * NORMALIZE_TARGET
-    return {ids[i]: (round(pos_x[i], 1), round(pos_y[i], 1)) for i in range(n)}
+    return _normalize_layout(ids, pos_x, pos_y)
 
 
 @app.get("/api/vaults/{name}/graph")
 def vault_graph(
     name: str,
     iterations: int = Query(500, ge=1, le=2000, description="spring iterations"),
+    layout: Literal["constellation", "spring"] = Query(
+        "constellation", description="layout: constellation or spring"
+    ),
 ):
-    """vault 페이지 + wikilink edges + force-directed 좌표를 반환.
+    """vault 페이지 + wikilink edges + graph layout 좌표를 반환.
 
-    v0.6.10+: nodes[i].x, nodes[i].y = 서버 계산 spring layout 좌표.
+    v0.6.10+: nodes[i].x, nodes[i].y = 서버 계산 graph layout 좌표.
+    v0.6.13+: default layout = constellation (spring은 ?layout=spring fallback).
 
     nodes: [{id: slug, title, type, weight, x, y}]
     edges: [{source: src_slug, target: tgt_slug}]
@@ -505,9 +660,14 @@ def vault_graph(
             # Patch A1 (v0.6.10+): force-directed 좌표 부착 (서버 1회 계산, 결정론).
             ids = [n["id"] for n in nodes]
             edge_pairs = [(e["source"], e["target"]) for e in edges]
-            layout = _spring_layout(ids, edge_pairs, iterations=iterations)
+            weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
+            layout_coords = (
+                _spring_layout(ids, edge_pairs, iterations=iterations)
+                if layout == "spring"
+                else _constellation_layout(ids, edge_pairs, weights=weights)
+            )
             for node in nodes:
-                xy = layout.get(node["id"], (0.0, 0.0))
+                xy = layout_coords.get(node["id"], (0.0, 0.0))
                 node["x"] = xy[0]
                 node["y"] = xy[1]
             return {
@@ -568,9 +728,14 @@ def vault_graph(
     # Patch A1 (v0.6.10+): force-directed 좌표 부착 (fallback 분기).
     ids = [n["id"] for n in nodes]
     edge_pairs = [(e["source"], e["target"]) for e in edges]
-    layout = _spring_layout(ids, edge_pairs, iterations=iterations)
+    weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
+    layout_coords = (
+        _spring_layout(ids, edge_pairs, iterations=iterations)
+        if layout == "spring"
+        else _constellation_layout(ids, edge_pairs, weights=weights)
+    )
     for node in nodes:
-        xy = layout.get(node["id"], (0.0, 0.0))
+        xy = layout_coords.get(node["id"], (0.0, 0.0))
         node["x"] = xy[0]
         node["y"] = xy[1]
 

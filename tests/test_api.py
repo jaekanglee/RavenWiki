@@ -562,3 +562,64 @@ def test_api_vault_graph_xy_normalized_to_pm500(client, isolated_env):
     # 그리고 가장 큰 |x| 또는 |y|가 정확히 500 (가장 먼 노드) — 정규화 보장.
     max_abs = max(max(abs(n["x"]), abs(n["y"])) for n in nodes)
     assert max_abs > 0, "노드가 모두 origin — 정규화 전력이 degenerate"
+
+
+# ─── Graph Constellation Layout v1 ─────
+
+
+def test_constellation_layout_hub_near_center_and_leaf_outer_ring():
+    """Constellation v1: hub는 중심부, low-degree/leaf는 바깥 ring에 배치한다."""
+    import math
+    from raven.api.server import _constellation_layout
+
+    ids = ["hub", *[f"leaf{i}" for i in range(10)], "bridge", "tail"]
+    edges = [("hub", f"leaf{i}") for i in range(10)] + [("hub", "bridge"), ("bridge", "tail")]
+    out = _constellation_layout(ids, edges, weights={"hub": 11})
+
+    hub_radius = math.hypot(*out["hub"])
+    leaf_radii = [math.hypot(*out[f"leaf{i}"]) for i in range(10)] + [math.hypot(*out["tail"])]
+    assert hub_radius < 80.0, f"hub가 중심에서 너무 멂: radius={hub_radius:.1f}"
+    assert sum(leaf_radii) / len(leaf_radii) > hub_radius + 250.0
+
+
+def test_constellation_layout_normalized_to_pm500_and_deterministic():
+    """Constellation v1: 좌표 범위 ±500, 같은 입력은 항상 같은 좌표."""
+    from raven.api.server import _constellation_layout
+
+    ids = ["a", "b", "c", "d", "e", "x", "y"]
+    edges = [("a", "b"), ("a", "c"), ("c", "d"), ("x", "y")]
+    out1 = _constellation_layout(ids, edges, weights={"a": 2, "c": 1})
+    out2 = _constellation_layout(ids, edges, weights={"a": 2, "c": 1})
+
+    assert out1 == out2
+    assert set(out1) == set(ids)
+    for slug, (x, y) in out1.items():
+        assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
+        assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
+    assert max(max(abs(x), abs(y)) for x, y in out1.values()) > 0
+
+
+def test_api_vault_graph_default_layout_is_constellation():
+    """GraphLayoutParams 기본 layout은 constellation이어야 한다."""
+    from raven.api.server import GraphLayoutParams
+
+    assert GraphLayoutParams().layout == "constellation"
+
+
+def test_api_vault_graph_layout_spring_fallback_still_available(client, isolated_env):
+    """기존 spring layout은 ?layout=spring 으로 legacy fallback 가능해야 한다."""
+    target = isolated_env["target_root"] / "gv_layout_spring"
+    client.post("/api/vaults/create", json={"name": "gv_layout_spring", "path": str(target), "bootstrap": False})
+    client.post(
+        "/api/vaults/gv_layout_spring/pages",
+        json={"slug": "content/a", "title": "A", "content": "see [[content/b]]"},
+    )
+    client.post("/api/vaults/gv_layout_spring/pages", json={"slug": "content/b", "title": "B"})
+
+    default_resp = client.get("/api/vaults/gv_layout_spring/graph")
+    spring_resp = client.get("/api/vaults/gv_layout_spring/graph?layout=spring&iterations=50")
+    assert default_resp.status_code == 200
+    assert spring_resp.status_code == 200
+    default_nodes = {n["id"]: (n["x"], n["y"]) for n in default_resp.json()["nodes"]}
+    spring_nodes = {n["id"]: (n["x"], n["y"]) for n in spring_resp.json()["nodes"]}
+    assert set(default_nodes) == set(spring_nodes) == {"content/a", "content/b"}
