@@ -13,8 +13,9 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
   const rfNodes = useMemo(
     () =>
       nodes.map((n) => ({
-        id: n.slug,
-        data: { label: n.title },
+        // endpoint key = id (GraphNode의 id 필드)
+        id: (n as any).id ?? n.slug,
+        data: { label: (n as any).title ?? n.title },
         position: { x: Math.random() * 800, y: Math.random() * 600 },
       })),
     [nodes]
@@ -24,8 +25,8 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
     () =>
       edges.map((e, i) => ({
         id: `e${i}`,
-        source: e.source_slug,
-        target: e.target_slug,
+        source: (e as any).source ?? e.source_slug,
+        target: (e as any).target ?? e.target_slug,
       })),
     [edges]
   );
