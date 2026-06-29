@@ -1,6 +1,13 @@
-import { ReactFlow, Background, Controls, MiniMap } from "@xyflow/react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  useReactFlow,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GraphNode, GraphEdge } from "../types";
 
 interface Props {
@@ -25,15 +32,20 @@ const TYPE_COLORS: Record<string, string> = {
 const DEFAULT_COLOR = "#9ca3af";
 
 // ───────────────────────────────────────────────────────────────────────────
-// v0.6.11 Graph B — 진짜 Obsidian-style 신경망 그래프
+// v0.6.11+ Graph — pinch zoom 후 노드 사라짐 fix.
 //
-// 변경 사항 (A 묶음 4 패치):
-//   Patch 1: 노드 = 작은 원 (14~26px). 이전 박스(16~40px) 제거. text 0px.
-//   Patch 2: label = hover 시에만 절대 위치 <div> 오버레이로 표시.
-//   Patch 3: 모바일 gesture 강화 (panOnDrag, panOnScroll, zoomOnPinch 등).
-//   Patch 4: wrapper CSS — touchAction:none, userSelect:none, tap highlight 제거.
-//
-// 서버 좌표는 그대로 사용 (백엔드 Fruchterman-Reingold 결정).
+// 변경 사항 (B 묶음 후속 패치):
+//   Patch 5: ReactFlowProvider + useReactFlow().fitView() programmatic 호출.
+//            - prop `fitView`는 mount 시 1회만 실행. 데이터 변경 후에는
+//              재fit 안 함 → orphan toggle / vault 변경 후 빈 화면.
+//            - useEffect([nodes, edges])에서 fitView({ duration: 300, padding: 0.2 })
+//              호출 → 데이터 변경 시 자동 재중심.
+//   Patch 6: zoom 범위 완화 (minZoom 0.1→0.05, maxZoom 3→4).
+//            - pinch zoom out 시 노드가 너무 작아져 화면 밖으로 사라지는 문제.
+//   Patch 7: translateExtent 확장 ([-10000,10000] → [-50000,50000]).
+//            - 서버 spring layout 결과는 vault 크기에 따라 ±10000까지 갈 수 있음.
+//              translateExtent가 너무 작으면 xyflow가 viewport를 clamp해서 노드가
+//              화면 밖으로 밀려남.
 // ───────────────────────────────────────────────────────────────────────────
 
 export function nodeColor(type: string | undefined): string {
@@ -87,7 +99,7 @@ function ObsidianNode({ data }: { data: { color: string; size: number } }) {
 
 const nodeTypes = { obsidian: ObsidianNode };
 
-export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
+function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -97,6 +109,10 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
     x: number; // viewport (screen) px
     y: number;
   } | null>(null);
+
+  // Patch 5: useReactFlow hook — programmatic fitView 호출용.
+  // ReactFlowProvider 안에서만 동작 → GraphCanvas를 Provider로 wrap (export 시).
+  const { fitView } = useReactFlow();
 
   // 노드 ID → GraphNode 매핑 (overlay에 메타 표시)
   const nodeMap = useMemo(() => {
@@ -140,6 +156,19 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
       })),
     [edges]
   );
+
+  // Patch 5: 데이터 변경 시 fitView 재호출.
+  // - mount 시 (rfNodes[0] 한 번 fit)
+  // - orphan toggle / vault 변경 / force-directed 재계산 후 자동 재중심.
+  // - 이전 mount 1회 한정 → 빈 화면.
+  useEffect(() => {
+    if (rfNodes.length === 0) return;
+    // 다음 tick에 호출 — xyflow가 viewport 측정을 끝낸 후 fitView가 동작.
+    const id = window.setTimeout(() => {
+      fitView({ duration: 300, padding: 0.2 });
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [rfNodes, rfEdges, fitView]);
 
   // hover 시 GraphNode 메타 + screen 좌표 계산
   const handleNodeEnter = useCallback(
@@ -195,19 +224,23 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
         onNodeClick={handleNodeClick}
         onNodeMouseEnter={handleNodeEnter}
         onNodeMouseLeave={handleNodeLeave}
-        fitView
+        // Patch 5: programmatic fitView 사용 → prop `fitView` 제거 (중복 fit 방지).
         // Patch 3: 모바일/데스크탑 gesture 강화
         panOnDrag
         panOnScroll
         zoomOnScroll
         zoomOnPinch
         selectionOnDrag={false} // drag = pan, click = select (텍스트 선택 방지)
-        minZoom={0.1}
-        maxZoom={3}
+        // Patch 6: zoom 범위 완화 — pinch zoom out 시 노드 사라짐 방지.
+        minZoom={0.05}
+        maxZoom={4}
+        // Patch 7: translateExtent 확장 — 서버 spring layout 결과 (±10000)에 여유.
+        //   xyflow v12는 viewport를 translateExtent로 clamp하므로 너무 작으면
+        //   노드가 viewport 밖으로 밀려나 사라짐.
         translateExtent={[
-          [-10000, -10000],
-          [10000, 10000],
-        ]} // 너무 멀리 pan 방지
+          [-50000, -50000],
+          [50000, 50000],
+        ]}
         proOptions={{ hideAttribution: true }}
       >
         <Background color="#1f2937" bgColor="#0a0e1a" size={1} gap={32} />
@@ -271,5 +304,16 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+// Patch 5: useReactFlow는 ReactFlowProvider 안에서만 동작.
+// 기존 호출처(<GraphCanvas ... />)가 깨지지 않도록 named export를
+// ReactFlowProvider로 wrap한 HOC로 재export.
+export function GraphCanvas(props: Props) {
+  return (
+    <ReactFlowProvider>
+      <GraphCanvasInner {...props} />
+    </ReactFlowProvider>
   );
 }
