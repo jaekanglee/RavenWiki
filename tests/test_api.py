@@ -599,11 +599,47 @@ def test_constellation_layout_normalized_to_pm500_and_deterministic():
     assert max(max(abs(x), abs(y)) for x, y in out1.values()) > 0
 
 
-def test_api_vault_graph_default_layout_is_constellation():
-    """GraphLayoutParams 기본 layout은 constellation이어야 한다."""
+def test_api_vault_graph_default_layout_is_atlas():
+    """GraphLayoutParams 기본 layout은 atlas(ForceAtlas2/LinLog hybrid)여야 한다."""
     from raven.api.server import GraphLayoutParams
 
-    assert GraphLayoutParams().layout == "constellation"
+    assert GraphLayoutParams().layout == "atlas"
+
+
+def test_atlas_layout_clusters_connected_nodes_and_separates_unrelated_nodes():
+    """Atlas v1: 같은 커뮤니티 연결 노드는 가깝고, 다른 커뮤니티는 더 멀어야 한다."""
+    import math
+    from raven.api.server import _forceatlas_layout
+
+    ids = ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"]
+    edges = [
+        ("a0", "a1"), ("a1", "a2"), ("a2", "a3"), ("a0", "a2"),
+        ("b0", "b1"), ("b1", "b2"), ("b2", "b3"), ("b0", "b2"),
+    ]
+    out = _forceatlas_layout(ids, edges, weights={"a0": 3, "b0": 3}, iterations=160)
+
+    def dist(x: str, y: str) -> float:
+        return math.hypot(out[x][0] - out[y][0], out[x][1] - out[y][1])
+
+    connected = [dist(s, t) for s, t in edges]
+    cross = [dist(a, b) for a in ids[:4] for b in ids[4:]]
+    assert sum(connected) / len(connected) < sum(cross) / len(cross) * 0.75
+
+
+def test_atlas_layout_normalized_and_deterministic():
+    """Atlas v1: 같은 입력은 같은 좌표이며 ±500 범위를 유지한다."""
+    from raven.api.server import _forceatlas_layout
+
+    ids = ["hub", "leaf1", "leaf2", "leaf3", "other"]
+    edges = [("hub", "leaf1"), ("hub", "leaf2"), ("hub", "leaf3")]
+    out1 = _forceatlas_layout(ids, edges, weights={"hub": 3}, iterations=80)
+    out2 = _forceatlas_layout(ids, edges, weights={"hub": 3}, iterations=80)
+
+    assert out1 == out2
+    assert set(out1) == set(ids)
+    for slug, (x, y) in out1.items():
+        assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
+        assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
 
 
 def test_api_vault_graph_layout_spring_fallback_still_available(client, isolated_env):

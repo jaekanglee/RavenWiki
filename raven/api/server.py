@@ -320,8 +320,8 @@ def list_pages(
 
 class GraphLayoutParams(BaseModel):
     iterations: int = Field(500, ge=1, le=2000, description="spring iterations (FR-style)")
-    layout: Literal["constellation", "spring"] = Field(
-        "constellation", description="graph layout: constellation or spring"
+    layout: Literal["atlas", "constellation", "spring"] = Field(
+        "atlas", description="graph layout: atlas, constellation, or spring"
     )
 
 
@@ -503,6 +503,105 @@ def _constellation_layout(
     return _normalize_layout(ids, pos_x, pos_y)
 
 
+def _forceatlas_layout(
+    ids: list[str],
+    edges: list[tuple[str, str]],
+    weights: dict[str, int] | None = None,
+    iterations: int = 220,
+) -> dict[str, tuple[float, float]]:
+    """ForceAtlas2/LinLog-style deterministic relax over constellation seed.
+
+    목적은 "예쁜 물리 배치" 자체보다 PKM graph의 군집 가독성:
+    - constellation layout을 deterministic seed로 사용한다.
+    - 연결된 노드는 LinLog-style attraction으로 같은 군집 안에 묶는다.
+    - 모든 노드는 degree/weight mass 기반 repulsion으로 겹침과 군집 간 섞임을 줄인다.
+    - 약한 gravity로 전체가 과도하게 흩어지지 않게 한다.
+    - 최종 좌표는 기존 graph contract처럼 center=0, scale=±500.
+    """
+    import math
+
+    n = len(ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {ids[0]: (0.0, 0.0)}
+
+    weights = weights or {}
+    idx = {s: i for i, s in enumerate(ids)}
+    valid_edges = [(s, t) for s, t in edges if s in idx and t in idx and s != t]
+
+    # Constellation seed keeps Raven-specific semantics (hub/ring/leaf) and avoids
+    # random starts. Atlas then refines local geometry.
+    seed = _constellation_layout(ids, valid_edges, weights=weights)
+    pos_x = [seed.get(s, (0.0, 0.0))[0] for s in ids]
+    pos_y = [seed.get(s, (0.0, 0.0))[1] for s in ids]
+
+    degree = [0] * n
+    for s, t in valid_edges:
+        degree[idx[s]] += 1
+        degree[idx[t]] += 1
+    mass = [1.0 + degree[i] * 0.75 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.35 for i in range(n)]
+
+    steps = max(20, min(iterations, 500))
+    repulsion = 2600.0
+    attraction = 0.045
+    gravity = 0.012
+    max_step0 = 24.0
+
+    edge_indices = [(idx[s], idx[t]) for s, t in valid_edges]
+
+    for it in range(steps):
+        # 점진적으로 안정화. 마지막에는 거의 안 움직이게 해서 deterministic rounding 안정.
+        temp = max_step0 * (1.0 - (it / max(steps - 1, 1))) + 1.2
+        dx = [0.0] * n
+        dy = [0.0] * n
+
+        # ForceAtlas2-style repulsion: degree/weight mass가 큰 노드가 군집 중심에서
+        # 주변을 더 밀어내서 hub 주변 뭉침을 줄인다.
+        for i in range(n):
+            for j in range(i + 1, n):
+                vx = pos_x[i] - pos_x[j]
+                vy = pos_y[i] - pos_y[j]
+                d2 = vx * vx + vy * vy + 16.0
+                d = math.sqrt(d2)
+                f = repulsion * mass[i] * mass[j] / d2
+                fx = (vx / d) * f
+                fy = (vy / d) * f
+                dx[i] += fx
+                dy[i] += fy
+                dx[j] -= fx
+                dy[j] -= fy
+
+        # LinLog-style attraction: 긴 edge는 당기되, 거리 증가에 선형 폭주하지 않게
+        # log로 완화한다. 그래서 같은 커뮤니티는 모이고 다른 커뮤니티는 repulsion으로 분리.
+        for i, j in edge_indices:
+            vx = pos_x[i] - pos_x[j]
+            vy = pos_y[i] - pos_y[j]
+            d = math.sqrt(vx * vx + vy * vy) + 0.001
+            f = attraction * math.log1p(d) * d
+            fx = (vx / d) * f
+            fy = (vy / d) * f
+            dx[i] -= fx
+            dy[i] -= fy
+            dx[j] += fx
+            dy[j] += fy
+
+        # 약한 gravity: disconnected component가 무한히 튀지 않게만 한다.
+        for i in range(n):
+            dx[i] -= pos_x[i] * gravity
+            dy[i] -= pos_y[i] * gravity
+
+        for i in range(n):
+            disp = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
+            if disp <= 0.0001:
+                continue
+            scale = min(disp, temp) / disp
+            pos_x[i] += dx[i] * scale
+            pos_y[i] += dy[i] * scale
+
+    return _normalize_layout(ids, pos_x, pos_y)
+
+
 def _spring_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
@@ -611,14 +710,14 @@ def _spring_layout(
 def vault_graph(
     name: str,
     iterations: int = Query(500, ge=1, le=2000, description="spring iterations"),
-    layout: Literal["constellation", "spring"] = Query(
-        "constellation", description="layout: constellation or spring"
+    layout: Literal["atlas", "constellation", "spring"] = Query(
+        "atlas", description="layout: atlas, constellation, or spring"
     ),
 ):
     """vault 페이지 + wikilink edges + graph layout 좌표를 반환.
 
     v0.6.10+: nodes[i].x, nodes[i].y = 서버 계산 graph layout 좌표.
-    v0.6.13+: default layout = constellation (spring은 ?layout=spring fallback).
+    v0.6.14+: default layout = atlas (constellation/spring은 query fallback).
 
     nodes: [{id: slug, title, type, weight, x, y}]
     edges: [{source: src_slug, target: tgt_slug}]
@@ -665,6 +764,8 @@ def vault_graph(
                 _spring_layout(ids, edge_pairs, iterations=iterations)
                 if layout == "spring"
                 else _constellation_layout(ids, edge_pairs, weights=weights)
+                if layout == "constellation"
+                else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations)
             )
             for node in nodes:
                 xy = layout_coords.get(node["id"], (0.0, 0.0))
@@ -733,6 +834,8 @@ def vault_graph(
         _spring_layout(ids, edge_pairs, iterations=iterations)
         if layout == "spring"
         else _constellation_layout(ids, edge_pairs, weights=weights)
+        if layout == "constellation"
+        else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations)
     )
     for node in nodes:
         xy = layout_coords.get(node["id"], (0.0, 0.0))
