@@ -292,6 +292,107 @@ def verify_vault_bootstrap(name: str):
 
 # ────────────────────────── page endpoints ──────────────────────────
 
+# v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.
+# _meta/, _archive/, _deprecated/ 같은 Raven 시스템 폴더는 sidebar에서 제외한다.
+RAVEN_SYSTEM_DIRS = {"_meta", "_archive", "_deprecated", "_templates"}
+
+
+def _build_tree_node(path: Path, v_root: Path) -> dict:
+    """폴더 노드 1개를 dict로. 자식은 재귀."""
+    rel = str(path.relative_to(v_root))
+    children: list[dict] = []
+    try:
+        for entry in sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            name = entry.name
+            if entry.is_dir():
+                if name in RAVEN_SYSTEM_DIRS:
+                    continue
+                children.append(_build_tree_node(entry, v_root))
+            elif entry.is_file() and name.endswith(".md"):
+                # page 노드
+                text = entry.read_text(errors="replace")
+                meta, _ = _split_fm(text)
+                slug = str(entry.relative_to(v_root))[:-3]
+                children.append({
+                    "type": "page",
+                    "path": slug,
+                    "slug": slug,
+                    "title": meta.get("title", slug),
+                    "pageType": meta.get("type", "?"),
+                })
+    except (PermissionError, OSError):
+        pass
+    return {"type": "dir", "path": rel, "children": children}
+
+
+@app.get("/api/vaults/{name}/tree")
+def vault_tree(name: str):
+    """Vault 트리 (v0.6.16+). 폴더 + 페이지. 빈 폴더도 포함.
+
+    폴더는 OS 디렉토리 그대로. 메타데이터 저장 안 함. `os.walk` 기반.
+    응답:
+        {
+          "ok": true,
+          "vault": name,
+          "tree": {
+            "type": "dir",
+            "path": "content",
+            "children": [
+              {"type": "dir", "path": "content/concept", "children": [...]},
+              {"type": "page", "path": "content/concept/users",
+               "slug": "content/concept/users", "title": "...", "pageType": "concept"}
+            ]
+          }
+        }
+    """
+    v = _vault_or_404(name)
+    return {
+        "ok": True,
+        "vault": name,
+        "tree": _build_tree_node(v.content_root, v.root),
+    }
+
+
+class FolderCreate(BaseModel):
+    path: str = Field(..., description="vault-relative folder path, e.g. 'content/users/admin'")
+
+
+@app.post("/api/vaults/{name}/folders")
+def create_folder(name: str, payload: FolderCreate):
+    """폴더 생성 (v0.6.16+). mkdir. 부수 파일 생성 안 함.
+
+    - payload.path는 vault-relative. 슬래시로 끝나도 OK.
+    - depth 제한 없음. 단, '..' / 절대경로 / NUL은 400.
+    - 이미 존재하면 409.
+    """
+    v = _vault_or_404(name)
+    raw = payload.path.strip().strip("/").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="folder path is empty")
+    if raw in {"", "."}:
+        raise HTTPException(status_code=400, detail="folder path is empty")
+    # 안전 검증: slug_module 재활용 (페이지 slug와 동일 가드).
+    try:
+        validated = slug_module.validate(raw, vault_root=v.root)
+    except slug_module.SlugError as e:
+        raise HTTPException(status_code=400, detail=f"invalid folder path: {e}")
+    if validated.suffix == ".md":
+        raise HTTPException(status_code=400, detail="folder path ends with .md")
+    if validated.exists():
+        if validated.is_file():
+            raise HTTPException(status_code=409, detail=f"path {raw!r} is a file")
+        # 디렉토리면 멱등 — 이미 존재해도 OK
+        return {"ok": True, "vault": name, "path": raw, "existed": True}
+    # 충돌: 같은 path에 .md 파일이 있으면 실패
+    md_path = validated.with_suffix(".md")
+    if md_path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=f"a page already exists at {raw!r} ({md_path.name})",
+        )
+    validated.mkdir(parents=True, exist_ok=False)
+    return {"ok": True, "vault": name, "path": raw, "existed": False}
+
 
 @app.get("/api/vaults/{name}/pages")
 def list_pages(

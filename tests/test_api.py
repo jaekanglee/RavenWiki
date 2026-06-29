@@ -775,3 +775,87 @@ def test_api_vault_graph_layout_spring_fallback_still_available(client, isolated
     default_nodes = {n["id"]: (n["x"], n["y"]) for n in default_resp.json()["nodes"]}
     spring_nodes = {n["id"]: (n["x"], n["y"]) for n in spring_resp.json()["nodes"]}
     assert set(default_nodes) == set(spring_nodes) == {"content/a", "content/b"}
+
+
+# ─── folder tree (v0.6.16+) ──────────────────────────────────
+
+
+def test_folder_first_class_create_then_tree_includes_it(client, isolated_env):
+    """Folder create 후 tree에 빈 폴더로 표시되어야 한다 (메타데이터 파일 없음)."""
+    target = isolated_env["target_root"] / "fv1"
+    client.post("/api/vaults/create", json={
+        "name": "fv1", "path": str(target), "bootstrap": False,
+    })
+
+    # depth 3 자유 폴더링
+    resp = client.post("/api/vaults/fv1/folders", json={
+        "path": "content/users/admin/v0.6",
+    })
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["existed"] is False
+
+    # filesystem: 디렉토리 3개만, 부수 파일 0개
+    base = target / "content" / "users" / "admin" / "v0.6"
+    assert base.is_dir()
+    on_disk_files = list(base.rglob("*"))
+    assert all(p.is_dir() for p in on_disk_files), f"unexpected files: {[p for p in on_disk_files if p.is_file()]}"
+    assert not any(p.is_file() for p in on_disk_files), "Raven should NOT create any file inside the folder"
+
+    # tree에 빈 폴더로 등장 (자식 0개)
+    tree_resp = client.get("/api/vaults/fv1/tree")
+    assert tree_resp.status_code == 200
+    tree = tree_resp.json()["tree"]
+
+    def find(node, path):
+        if node["path"] == path:
+            return node
+        for c in node.get("children", []):
+            r = find(c, path)
+            if r:
+                return r
+        return None
+
+    leaf = find(tree, "content/users/admin/v0.6")
+    assert leaf is not None, "folder should appear in tree"
+    assert leaf["type"] == "dir"
+    assert leaf["children"] == []
+
+
+def test_folder_create_conflict_with_existing_page(client, isolated_env):
+    """page가 이미 있는 경로에 folder 생성 시 409."""
+    target = isolated_env["target_root"] / "fv2"
+    client.post("/api/vaults/create", json={
+        "name": "fv2", "path": str(target), "bootstrap": False,
+    })
+    client.post("/api/vaults/fv2/pages", json={
+        "slug": "content/notes", "title": "Notes",
+    })
+    resp = client.post("/api/vaults/fv2/folders", json={"path": "content/notes"})
+    assert resp.status_code == 409
+    assert "page already exists" in resp.json()["detail"]
+
+
+def test_folder_create_rejects_path_traversal(client, isolated_env):
+    target = isolated_env["target_root"] / "fv3"
+    client.post("/api/vaults/create", json={
+        "name": "fv3", "path": str(target), "bootstrap": False,
+    })
+    resp = client.post("/api/vaults/fv3/folders", json={"path": "../escape"})
+    assert resp.status_code == 400
+    assert "invalid" in resp.json()["detail"].lower()
+
+
+def test_folder_create_is_idempotent(client, isolated_env):
+    """같은 path로 두 번 호출해도 OK (두 번째는 existed=true)."""
+    target = isolated_env["target_root"] / "fv4"
+    client.post("/api/vaults/create", json={
+        "name": "fv4", "path": str(target), "bootstrap": False,
+    })
+    first = client.post("/api/vaults/fv4/folders", json={"path": "content/dup"})
+    second = client.post("/api/vaults/fv4/folders", json={"path": "content/dup"})
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["existed"] is False
+    assert second.json()["existed"] is True
