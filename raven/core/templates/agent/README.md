@@ -64,3 +64,16 @@ raven page ls --tag <team> --has-contradictions
 > **당신의 기억은 휘발성, vault는 영구적.**
 > **결정 / lesson / journal이 생기는 순간 = 당신이 vault에 write해야 하는 순간.**
 > **scope 밖 read/write 절대 ❌. 사용자에게 항상 "어디 저장됐는지" 보고.**
+
+---
+
+## 외부 위임 backend (선택, v0.6.34+)
+
+`agent/README.md` 만으로 부족하면 다른 LLM의 cross-check을 위해 외부 CLI에 위임 가능. **사용자 명시 또는 Gemini-family cross-check 시점에만**.
+
+| Backend | 특징 | 호출 예 |
+|---|---|---|
+| **Codex CLI** (`codex`) | JSON envelope, --max-turns | `terminal(command="codex -p '...'", workdir=...)` |
+| **Antigravity CLI** (`agy`) | plain text only, --print-timeout 5m | `terminal(command="agy -p '...'", workdir=...)` |
+
+> 기본값은 직접 작업. **사용자 명시 / Gemini cross-check 시점에만** 다른 backend 시도. **wrap-up 단계 fix 침습 금지** — 분석만, 패치는 orchestrator에게 보고.
