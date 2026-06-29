@@ -455,7 +455,9 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         // Patch 5: programmatic fitView 사용 → prop `fitView` 제거 (중복 fit 방지).
         // Patch 3: 모바일/데스크탑 gesture 강화
         panOnDrag
-        panOnScroll
+        // Canvas hover + mouse wheel = zoom in/out. Keep scroll-pan off so wheel is
+        // always interpreted as graph zoom, matching the user's desktop expectation.
+        panOnScroll={false}
         zoomOnScroll
         zoomOnPinch
         selectionOnDrag={false} // drag = pan, click = select (텍스트 선택 방지)
