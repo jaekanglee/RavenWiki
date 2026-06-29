@@ -27,6 +27,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { setActiveVault } from "../lib/api";
 import { TextField } from "./ui/TextField";
+import { Button } from "./ui/Button";
 
 /** Default mode for Dashboard-created vaults.
  *
@@ -372,14 +373,9 @@ function Step1({
           marginTop: 24,
         }}
       >
-        <button
-          type="button"
-          className="btn-pill-primary"
-          onClick={onNext}
-          aria-label="다음 단계로"
-        >
+        <Button variant="pillPrimary" onClick={onNext} aria-label="다음 단계로">
           다음 →
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -518,24 +514,12 @@ function Step2({
           marginTop: 24,
         }}
       >
-        <button
-          type="button"
-          className="btn-pill-secondary"
-          onClick={onBack}
-          disabled={submitting}
-          aria-label="이전 단계로"
-        >
+        <Button variant="pillSecondary" onClick={onBack} disabled={submitting} aria-label="이전 단계로">
           ← 이전
-        </button>
-        <button
-          type="button"
-          className="btn-pill-primary"
-          onClick={onSubmit}
-          disabled={submitting}
-          aria-label="vault 만들기"
-        >
+        </Button>
+        <Button variant="pillPrimary" onClick={onSubmit} disabled={submitting} aria-label="vault 만들기">
           {submitting ? "만드는 중..." : "만들기"}
-        </button>
+        </Button>
       </div>
     </section>
   );

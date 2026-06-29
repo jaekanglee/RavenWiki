@@ -8,6 +8,7 @@ import {
   type VaultInfo,
 } from "../lib/api";
 import { NewPageInline } from "../components/NewPageInline";
+import { Button } from "../components/ui/Button";
 
 /**
  * HomePage — v0.6.10 (P16): 종합 홈 (vault 미선택).
@@ -568,22 +569,12 @@ function VaultCard({
           marginTop: 6,
         }}
       >
-        <button
-          type="button"
-          className="btn-pill-primary"
-          style={{ flex: 1, fontSize: 13 }}
-          onClick={onOpen}
-        >
+        <Button variant="pillPrimary" onClick={onOpen} style={{ flex: 1, fontSize: 13 }}>
           열기
-        </button>
-        <button
-          type="button"
-          className="btn-pill"
-          style={{ flex: 1, fontSize: 13 }}
-          onClick={onManage}
-        >
+        </Button>
+        <Button variant="pill" onClick={onManage} style={{ flex: 1, fontSize: 13 }}>
           관리
-        </button>
+        </Button>
       </div>
     </div>
   );

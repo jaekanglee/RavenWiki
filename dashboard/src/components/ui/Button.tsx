@@ -19,7 +19,7 @@ import { forwardRef } from "react";
 
 export interface ButtonProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "size"> {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "pillPrimary" | "pillSecondary" | "pill";
   size?: "sm" | "md" | "lg";
   fullWidth?: boolean;
 }
@@ -35,6 +35,19 @@ const VARIANT_CLASS: Record<NonNullable<ButtonProps["variant"]>, string> = {
   secondary: "btn-secondary",
   danger: "btn-primary",
   ghost: "btn-tertiary",
+  pillPrimary: "btn-pill-primary",
+  pillSecondary: "btn-pill-secondary",
+  pill: "btn-pill",
+};
+
+const VARIANT_DEFAULT_HEIGHT: Record<NonNullable<ButtonProps["variant"]>, number | undefined> = {
+  primary: 40,
+  secondary: 40,
+  danger: 40,
+  ghost: undefined, // ghost는 자유
+  pillPrimary: undefined,
+  pillSecondary: undefined,
+  pill: undefined,
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -50,13 +63,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) {
-    const height = SIZE_HEIGHT[size];
+    const height = size ? SIZE_HEIGHT[size] : VARIANT_DEFAULT_HEIGHT[variant];
     const variantClass = VARIANT_CLASS[variant];
 
     const mergedStyle: React.CSSProperties = {
-      height,
-      padding: "10px 20px",
-      fontSize: 14,
+      ...(height ? { height } : {}),
+      ...(size ? { padding: "10px 20px", fontSize: 14 } : {}),
       ...(fullWidth ? { width: "100%" } : {}),
       // danger는 btn-primary 위에 빨간 배경
       ...(variant === "danger" ? { background: "var(--color-error-text)" } : {}),
