@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { updatePage } from "../lib/api";
 import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
 
 export function EditButton({
   vault,
@@ -90,22 +91,12 @@ export function EditButton({
           </div>
         )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button
-            onClick={() => setOpen(false)}
-            disabled={busy}
-            className="btn-secondary"
-            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-          >
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
             취소
-          </button>
-          <button
-            onClick={save}
-            disabled={busy}
-            className="btn-primary"
-            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-          >
+          </Button>
+          <Button variant="primary" onClick={save} disabled={busy}>
             {busy ? "저장 중…" : "저장"}
-          </button>
+          </Button>
         </div>
       </Modal>
     </>

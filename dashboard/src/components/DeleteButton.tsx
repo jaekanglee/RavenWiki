@@ -2,6 +2,7 @@ import { useState } from "react";
 import { deletePage } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
 
 export function DeleteButton({
   vault,
@@ -97,27 +98,12 @@ export function DeleteButton({
           </div>
         )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button
-            onClick={() => setOpen(false)}
-            disabled={busy}
-            className="btn-secondary"
-            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-          >
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
             취소
-          </button>
-          <button
-            onClick={del}
-            disabled={busy}
-            className="btn-primary"
-            style={{
-              height: 40,
-              padding: "10px 20px",
-              fontSize: 14,
-              background: "var(--color-error-text)",
-            }}
-          >
+          </Button>
+          <Button variant="danger" onClick={del} disabled={busy}>
             {busy ? "삭제 중…" : "삭제"}
-          </button>
+          </Button>
         </div>
       </Modal>
     </>

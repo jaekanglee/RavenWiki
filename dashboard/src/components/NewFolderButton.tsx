@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFolder } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
 
 interface NewFolderButtonProps {
   vault: string;
@@ -114,22 +115,12 @@ export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: N
         )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button
-            onClick={() => setOpen(false)}
-            disabled={busy}
-            className="btn-secondary"
-            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-          >
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
             취소
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="btn-primary"
-            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-          >
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={busy}>
             {busy ? "만드는 중…" : "만들기"}
-          </button>
+          </Button>
         </div>
       </Modal>
     </>
