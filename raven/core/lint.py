@@ -1,4 +1,5 @@
-"""raven.core.lint — vault-aware lint runner (v0.5.1+ 13 checks).
+# -*- coding: utf-8 -*-
+"""raven.core.lint — vault-aware lint runner (v0.5.1+ 14 checks).
 
 카파시 LLM Wiki gist의 lint 항목 전체 자동화.
 
@@ -421,8 +422,48 @@ def check_log_size(vault: Vault) -> list[dict]:
     return []
 
 
+# v0.6.33+: Tier 1 leak — Karpathy LLM Wiki 3-Layer 분리의 vault 침투 감지.
+#
+# 카파시 LLM Wiki 패턴의 핵심: vault는 Layer 2 (사용자/에이전트가 쓰는 곳)지,
+# Layer 1 (raven internal docs — OPERATIONS.md / agent/* / raven-policy.md) 이
+# vault에 복사되면 안 됨. 사람이 실수로 vault clone 시 Tier 1 문서가 누설되는
+# 것을 자동 검증.
+TIER1_LEAK_PATTERNS = (
+    "OPERATIONS.md",
+    "agent/",
+    "raven-policy.md",
+)
+
+
+def check_tier_integrity(vault: Vault) -> list[dict]:
+    """#14 tier_integrity — Tier 1 leak 감지.
+
+    vault.content/ 하위에 Tier 1 문서 패턴이 있으면 critical로 보고.
+    카파시 3-Layer 분리 (raw/wiki/schema)를 lint 레벨에서 강제.
+    """
+    out: list[dict] = []
+    content_root = vault.content_root
+    if not content_root.exists():
+        return out
+    for fp in content_root.rglob("*"):
+        if not fp.is_file():
+            continue
+        rel = fp.relative_to(content_root)
+        rel_str = str(rel)
+        for pattern in TIER1_LEAK_PATTERNS:
+            if pattern in rel_str:
+                slug = str(rel.with_suffix("")).replace("\\", "/")
+                out.append(_mk_issue(
+                    "#14", "critical", slug,
+                    f"Tier 1 leak detected: '{rel}' — "
+                    f"matches '{pattern}' (Karpathy 3-Layer 위반)",
+                ))
+                break
+    return out
+
+
 def check_cognitive_governance(vault: Vault) -> list[dict]:
-    """#13 cognitive governance (🔵 info, v0.5.3+, 카파시 LLM Wiki 차용).
+    """#13 cognitive governance (카파시 LLM Wiki 차용, v0.5.3+).
 
     concept/comparison/page 타입에 다음 4 신호 중 누락 시 1 issue당 1 line 출력:
       1. **Why it matters** — 본문 첫 문단 또는 헤딩에 명시
@@ -623,21 +664,14 @@ def _legacy_link_issues(vault: Vault) -> list[dict]:
 
 
 def run_all(vault: Vault) -> dict:
-    """13 check 모두 실행. counts + issues list 반환.
+    """14 check 모두 실행. counts + issues list 반환.
 
-    Returns:
-        {
-          "vault": name,
-          "ok": bool (no critical),
-          "counts": {"critical": N, "warning": M, "info": K, "total": N+M+K},
-          "issues": [issue dicts],
-          "by_check": {"#1": count, "#2": ..., ...},
-        }
+    v0.6.33+: #14 tier_integrity 추가 — Karpathy 3-Layer 분리를 lint로 자동 검증.
     """
     issues: list[dict] = []
     # #1-3 link
     issues.extend(_legacy_link_issues(vault))
-    # #4-13
+    # #4-14
     issues.extend(check_orphans(vault))
     issues.extend(check_contradictions(vault))
     issues.extend(check_confidence_low(vault))
@@ -648,6 +682,7 @@ def run_all(vault: Vault) -> dict:
     issues.extend(check_index_completeness(vault))
     issues.extend(check_log_size(vault))
     issues.extend(check_cognitive_governance(vault))
+    issues.extend(check_tier_integrity(vault))  # v0.6.33+
 
     counts = {"critical": 0, "warning": 0, "info": 0, "total": 0}
     by_check: dict[str, int] = {}
