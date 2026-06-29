@@ -42,29 +42,42 @@ api: venv-check ## Run raven API on 127.0.0.1:8765 (foreground, Ctrl+C to stop)
 dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 	cd dashboard && npm run dev
 
+.PHONY: stop-dev
+stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite, best-effort)
+	@pids="$$( { \
+		lsof -ti :8765 -ti :5173 -ti :5174 2>/dev/null; \
+		ps -ef | awk '/[r]aven\.api|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
+	} | sort -u )"; \
+	if [ -n "$$pids" ]; then \
+		echo "🧹 stopping existing dev servers: $$pids"; \
+		kill $$pids 2>/dev/null || true; \
+		sleep 1; \
+		for pid in $$pids; do \
+			if kill -0 $$pid 2>/dev/null; then kill -9 $$pid 2>/dev/null || true; fi; \
+		done; \
+	else \
+		echo "✅ no existing dev servers"; \
+	fi
+
 .PHONY: dev
-dev: venv-check ## Run API + dashboard (reuses running API; Ctrl+C stops only dashboard)
+dev: venv-check ## Run exactly one API + dashboard instance (kills old dev servers first)
+	@$(MAKE) --no-print-directory stop-dev
 	@echo "🚀 raven API → http://127.0.0.1:8765"
 	@echo "🌐 dashboard  → http://localhost:5173/"
-	@echo "   (Ctrl+C stops dashboard. API is shared — \`make stop\` to kill it.)"
+	@echo "   (Ctrl+C stops dashboard; API can be stopped with \`make stop\`.)"
 	@echo ""
-	@if lsof -ti :8765 >/dev/null 2>&1; then \
-	    echo "✅ API already running on 8765 — reusing"; \
-	else \
-	    echo "🔌 starting API in background (detached from this shell)..."; \
-	    nohup env PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765 >/tmp/raven-api.log 2>&1 </dev/null & \
-	    disown 2>/dev/null || true; \
-	    for i in 1 2 3 4 5; do \
-	        sleep 1; \
-	        if lsof -ti :8765 >/dev/null 2>&1; then \
-	            echo "✅ API ready (pid $$(lsof -ti :8765 | head -1))"; \
-	            break; \
-	        fi; \
-	        if [ $$i -eq 5 ]; then \
-	            echo "❌ API failed to start — see /tmp/raven-api.log"; exit 1; \
-	        fi; \
-	    done; \
-	fi
+	@echo "🔌 starting API in background (detached from this shell)..."
+	@nohup env PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
+	@for i in 1 2 3 4 5; do \
+		sleep 1; \
+		if lsof -ti :8765 >/dev/null 2>&1; then \
+			echo "✅ API ready (pid $$(lsof -ti :8765 | head -1))"; \
+			break; \
+		fi; \
+		if [ $$i -eq 5 ]; then \
+			echo "❌ API failed to start — see /tmp/raven-api.log"; exit 1; \
+		fi; \
+	done
 	@echo ""
 	cd dashboard && npm run dev
 
@@ -76,9 +89,13 @@ status: ## Show whether API (8765) and dashboard (5173) are running
 	@lsof -i :5173 2>/dev/null | tail -n +2 || echo "  (not listening)"
 
 .PHONY: stop
-stop: ## Kill any running API / dashboard processes (best-effort)
-	@lsof -ti :8765 2>/dev/null | xargs -r kill 2>/dev/null || true
-	@lsof -ti :5173 2>/dev/null | xargs -r kill 2>/dev/null || true
+stop: ## Kill any running API / dashboard / make dev processes (best-effort)
+	@$(MAKE) --no-print-directory stop-dev
+	@pids="$$(ps -ef | awk '/[m]ake dev/ {print $$2}' | sort -u)"; \
+	if [ -n "$$pids" ]; then \
+		echo "🧹 stopping make dev wrappers: $$pids"; \
+		kill $$pids 2>/dev/null || true; \
+	fi
 	@echo "✅ stopped (best-effort)"
 
 # ────────────────────────── test ──────────────────────────
