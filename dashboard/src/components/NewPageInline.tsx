@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPage, fetchPages } from "../lib/api";
 import { TextField } from "./ui/TextField";
+import { SelectField } from "./ui/SelectField";
 
 /**
  * NewPageInline — Plan v1 묶음 B (Tasks 5-7).
@@ -26,6 +27,8 @@ const TYPES = [
   "query",
   "journal",
 ] as const;
+
+const TYPE_OPTIONS = TYPES.map((t) => ({ value: t, label: t }));
 
 const NEW_DIR = "__new__";
 
@@ -301,22 +304,14 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
         </label>
 
         {/* ─── type select ─── */}
-        <label style={{ display: "block" }}>
-          <FieldLabel>type</FieldLabel>
-          <select
-            className="input-base"
-            value={type}
-            onChange={(e) => setType(e.target.value as (typeof TYPES)[number])}
-            disabled={busy}
-            style={fieldStyle}
-          >
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="type"
+          value={type}
+          onChange={(e) => setType(e.target.value as (typeof TYPES)[number])}
+          disabled={busy}
+          options={TYPE_OPTIONS}
+          style={fieldStyle}
+        />
       </div>
 
       {/* ─── title ─── */}

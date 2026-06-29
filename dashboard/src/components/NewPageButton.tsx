@@ -5,6 +5,18 @@ import type { TreeNode } from "../types";
 import { TextField } from "./ui/TextField";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
+import { SelectField } from "./ui/SelectField";
+
+const TYPE_OPTIONS = [
+  { value: "concept", label: "일반 노트" },
+  { value: "person", label: "사람" },
+  { value: "comparison", label: "비교" },
+  { value: "project", label: "프로젝트" },
+  { value: "tool", label: "도구" },
+  { value: "rule", label: "규칙" },
+  { value: "query", label: "질문/검색" },
+  { value: "journal", label: "기록" },
+];
 
 interface NewPageButtonProps {
   vault?: string;
@@ -211,34 +223,12 @@ export function NewPageButton({
                   marginBottom: 16,
                 }}
               >
-                <label style={{ display: "block" }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      marginBottom: 6,
-                      color: "var(--color-ink)",
-                    }}
-                  >
-                    문서 분류
-                  </span>
-                  <select
-                    className="input-base"
-                    style={{ height: 48 }}
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                  >
-                    <option value="concept">일반 노트</option>
-                    <option value="person">사람</option>
-                    <option value="comparison">비교</option>
-                    <option value="project">프로젝트</option>
-                    <option value="tool">도구</option>
-                    <option value="rule">규칙</option>
-                    <option value="query">질문/검색</option>
-                    <option value="journal">기록</option>
-                  </select>
-                </label>
+                <SelectField
+                  label="문서 분류"
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  options={TYPE_OPTIONS}
+                />
                 <label style={{ display: "block" }}>
                   <span
                     style={{
