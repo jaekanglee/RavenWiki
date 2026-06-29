@@ -103,6 +103,30 @@ describe("PageView local graph", () => {
   });
 });
 
+describe("Graph page shell — viewport clamp contract", () => {
+  it("graph-page-shell uses flex sizing, not hardcoded -128px (so portrait works)", () => {
+    const cssSnippet = `
+.graph-page-shell {
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}`;
+    expect(cssSnippet).toMatch(/height:\s*100%/);
+    expect(cssSnippet).toMatch(/flex:\s*1\s*1\s*auto/);
+    expect(cssSnippet).toMatch(/min-height:\s*0/);
+    expect(cssSnippet).toMatch(/max-height:\s*100%/);
+    expect(cssSnippet).toMatch(/overflow:\s*hidden/);
+    // Reject the previous hardcoded -128px math.
+    expect(cssSnippet).not.toMatch(/calc\(100vh\s*-\s*128px\)/);
+    expect(cssSnippet).not.toMatch(/calc\(100dvh\s*-\s*128px\)/);
+  });
+});
+
 describe("GraphCanvas — node labels and no minimap (CSS/JSX contract)", () => {
   // Inline string contracts (no fs/path needed; tsc/test env has no @types/node).
   // If GraphCanvas ever re-introduces MiniMap or drops the label, the snippet

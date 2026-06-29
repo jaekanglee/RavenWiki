@@ -565,19 +565,28 @@ mark {
   background: rgba(59, 130, 246, 0.08);
 }
 
-/* Graph page — maximize canvas area and restyle xyflow controls for dark canvas. */
+/* Graph page — maximize canvas area and restyle xyflow controls for dark canvas.
+   The shell lives inside Layout's <main> → .page-content (flex-1 + overflow-y-auto).
+   We just take 100% of the available space and let the parent handle viewport math.
+   This works for both desktop landscape (1280×800) and portrait (800×1200) — the
+   height math follows whatever space the flex parent gives us, no hardcoded -128px. */
 .graph-page-shell {
-  height: calc(100vh - 128px);
-  min-height: 620px;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
 }
 .graph-page-toolbar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 14px;
   min-height: 36px;
+  flex-wrap: wrap;
 }
 .graph-page-toolbar h1 {
   font-size: 22px;
