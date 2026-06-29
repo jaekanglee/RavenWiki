@@ -233,3 +233,33 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - **왜 그렇게 했는가** (4 저장 신호 중 어떤 항목에 해당했는가)
 - **검증** (pytest 결과, lint 결과, 동작 확인)
 - **다음에 무엇이 가능한가** (후속 작업 후보)
+
+---
+
+## 13. 재사용 컴포넌트 + 스타일 토큰화 원칙 (v0.6.20+)
+
+> **사용자 원칙 (2026-06-29)**: "개발하면서 텍스트 라벨이던 버튼이던 가급적
+> 재사용할 수 있게 모두 컴포넌트화 하고, 컬러 폰트 스타일 등도 가급적
+> 구조화하면서 재사용할 수 있게 하자. 꼭 기억해."
+
+### 13.1 신규 컴포넌트 작성 시
+
+- 인라인 `<label><span/><input/></label>` 패턴 ❌
+- 인라인 색/폰트 하드코딩 ❌
+- 2회 이상 사용될 패턴은 `dashboard/src/components/ui/` 에 공통 컴포넌트로 추출
+- 기존 컴포넌트: `<TextField>` (label/helper/error/multiline + native attrs 위임)
+- `forwardRef` + `useId` + native input attrs 위임 패턴 따르기
+
+### 13.2 스타일 토큰화
+
+- 색/폰트/간격은 **CSS 변수** 우선 사용 (`var(--color-ink)`, `var(--font-display)`)
+- 인라인 `color: "#3b3b3b"` ❌
+- 신규 토큰은 `dashboard/src/styles/globals.css` `:root` 에 추가
+- 인라인 style은 **구조 배치**(grid/flex/margin/padding)만 사용, 색·폰트는 CSS 변수
+
+### 13.3 Surgical 유지 (Karpathy §3과 일치)
+
+- 큰 패치 ❌ — 한 번에 다 바꾸려 하지 말 것
+- 한 컴포넌트씩 점진 도입 (예: v0.6.20은 TextField + NewPage/NewFolder 2곳만)
+- 회귀 가드 + 변경 라인 trace 필수 (§6 4 저장 신호)
+- 신규 사용처 추가는 OK, 기존 사용처 일괄 교체 ❌ (별도 패치)
