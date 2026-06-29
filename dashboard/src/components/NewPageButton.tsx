@@ -2,10 +2,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPage, getActiveVault } from "../lib/api";
 
-export function NewPageButton() {
+interface NewPageButtonProps {
+  vault?: string;
+  variant?: "pill" | "icon";
+  label?: string;
+}
+
+export function NewPageButton({ vault: vaultProp, variant = "pill", label = "새 페이지" }: NewPageButtonProps) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
-  const vault = getActiveVault() || "default";
+  const vault = vaultProp || getActiveVault() || "default";
 
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
@@ -34,7 +40,7 @@ export function NewPageButton() {
           .filter(Boolean),
       });
       setOpen(false);
-      nav(`/page/${slug}`);
+      nav(`/page/${encodeURIComponent(vault)}/${slug}`);
       window.location.reload();
     } catch (e: any) {
       setErr(`❌ ${e.message}`);
@@ -44,9 +50,18 @@ export function NewPageButton() {
 
   return (
     <>
-      {/* Trigger — pill Rausch button in sidebar */}
-      <button onClick={() => setOpen(true)} className="btn-pill-primary" style={{ width: "100%" }}>
-        ➕ 새 페이지
+      {/* Trigger — sidebar explorer action. Default is full pill; icon variant is used in Vault row. */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className={variant === "icon" ? "sidebar-icon-action" : "btn-pill-primary"}
+        style={variant === "pill" ? { width: "100%" } : undefined}
+        aria-label={`${vault}에 ${label} 만들기`}
+        title={`${vault}에 ${label} 만들기`}
+      >
+        {variant === "icon" ? "＋" : `➕ ${label}`}
       </button>
 
       {open && (

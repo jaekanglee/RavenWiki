@@ -662,8 +662,8 @@ mark {
   background: transparent;
   border: none;
   text-align: left;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   color: var(--color-ink);
   cursor: pointer;
   font-family: var(--font-display);
@@ -691,6 +691,29 @@ mark {
   letter-spacing: 0.2px;
   text-transform: lowercase;
   flex-shrink: 0;
+}
+.sidebar-icon-action {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.sidebar-icon-action:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-hairline);
+  color: var(--color-ink);
 }
 .sidebar-vault-default {
   color: var(--color-primary);
@@ -753,7 +776,9 @@ mark {
   color: var(--color-ink);
 }
 .sidebar-tree-leaf {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 8px;
   font-size: 13px;
   font-weight: 400;
@@ -764,6 +789,23 @@ mark {
 }
 .sidebar-tree-leaf:hover {
   background: var(--color-surface-soft);
+}
+.sidebar-tree-leaf-active {
+  background: rgba(59, 130, 246, 0.10);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.sidebar-tree-leaf-active .sidebar-tree-leaf-dot {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.sidebar-tree-leaf-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* background은 inline style로 type별 색 주입 */
 }
 
 .graph-canvas-frame {

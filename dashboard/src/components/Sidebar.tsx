@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
+import { nodeColor } from "./GraphCanvas";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
 interface SidebarProps {
@@ -47,6 +48,26 @@ function flattenCommonRoot(tree: TNode | null): TNode | null {
   return tree;
 }
 
+function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
+  if (!activeSlug) return false;
+  if (nodeSlug === activeSlug) return true;
+  // Raven slug prefix tolerance: `index` and `content/index` should highlight the
+  // same sidebar leaf. API/page resolution already accepts both; Explorer should
+  // mirror that URL SOT behavior.
+  if (nodeSlug.replace(/^content\//, "") === activeSlug) return true;
+  if (`content/${activeSlug}` === nodeSlug) return true;
+  return false;
+}
+
+function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
+  const match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
+  if (!match) return null;
+  return {
+    vault: decodeURIComponent(match[1]),
+    slug: decodeURIComponent(match[2]),
+  };
+}
+
 export function Sidebar({
   vaults,
   trees,
@@ -56,6 +77,9 @@ export function Sidebar({
   open,
   onClose,
 }: SidebarProps) {
+  const location = useLocation();
+  const activePage = activePageFromPath(location.pathname);
+
   return (
     <aside
       id="primary-sidebar"
@@ -73,12 +97,6 @@ export function Sidebar({
         flexShrink: 0,
       }}
     >
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <NewPageButton />
-        </div>
-      </div>
-
       {/*
         "Vaults (N)" label: 1개일 땐 의미 없어서 숨김. 2개+일 때만 카운트 표시.
         각 vault는 자체 row에서 vault name + mode badge로 충분히 식별 가능.
@@ -119,6 +137,8 @@ export function Sidebar({
           vault={v}
           tree={flattenCommonRoot(trees[v.name] ?? null)}
           isActive={v.name === activeVault}
+          showMeta={vaults.length > 1}
+          activeSlug={activePage?.vault === v.name ? activePage.slug : null}
           onSelect={() => onSelectVault(v.name)}
           onClose={onClose}
           onRefresh={onRefresh}
@@ -128,14 +148,25 @@ export function Sidebar({
   );
 }
 
-// ─── display title helper ────────────────────────────────────
+// ─── display title helper ───────────────────────────────────
 // Vault filenames are slugs — turn "2026-06-28-pwa-cache" into "Pwa Cache",
-// "index" into "Index", keep "_template" as-is. Strips leading
-// date prefix and replaces separators with spaces.
-function displayTitle(slug: string): string {
+// "index" into "Index" (with 📑 prefix per Obsidian/Notion/Craft 컨벤션),
+// keep "_template" as-is. Strips leading date prefix and replaces separators
+// with spaces.
+//
+// v0.6.15: Index 페이지는 frontmatter title과 무관하게 항상 "📑 Index"로
+// 표기 (Obsidian/Notion/Craft 컨벤션 + 자료조사 결과). 파일명 변경 ❌
+// — [[wiki-link]] 호환성 유지.
+function displayTitle(slug: string, explicitTitle?: string): string {
   const last = slug.split("/").pop() || slug;
   const base = last.replace(/\.md$/, "");
-  // strip leading YYYY-MM-DD- prefix
+  // Index page: 파일명/경로가 'index'로 끝나면 frontmatter title과 무관하게
+  // "📑 Index"로 고정. wiki-link는 파일명 기반이라 링크 깨지지 않음.
+  if (/^index(\.|$)/i.test(base)) {
+    return "📑 Index";
+  }
+  if (explicitTitle?.trim()) return explicitTitle.trim();
+  // strip leading YYYY-MM-DD- prefix (e.g. for dated ADRs)
   const dated = base.replace(/^\d{4}-\d{2}-\d{2}-/, "");
   if (dated === "") return base;
   return dated
@@ -148,6 +179,8 @@ function VaultTreeGroup({
   vault,
   tree,
   isActive,
+  showMeta,
+  activeSlug,
   onSelect,
   onClose,
   onRefresh,
@@ -155,6 +188,8 @@ function VaultTreeGroup({
   vault: VaultMeta;
   tree: TNode | null;
   isActive: boolean;
+  showMeta: boolean;
+  activeSlug: string | null;
   onSelect: () => void;
   onClose: () => void;
   onRefresh?: () => void;
@@ -193,7 +228,7 @@ function VaultTreeGroup({
           aria-hidden
           className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}
         >
-          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+          <svg viewBox="0 0 12 12" width="14" height="14" aria-hidden>
             <path
               d="M4 2 L8 6 L4 10"
               fill="none"
@@ -204,18 +239,19 @@ function VaultTreeGroup({
             />
           </svg>
         </span>
-        {vault.default && (
+        {showMeta && vault.default && (
           <span className="sidebar-vault-default" aria-label="default">
             ★
           </span>
         )}
-        {isActive && (
+        {showMeta && isActive && (
           <span className="sidebar-vault-active" aria-label="active">
             ●
           </span>
         )}
         <span className="sidebar-vault-name">{vault.name}</span>
-        <span className="sidebar-vault-mode">{vault.mode}</span>
+        <NewPageButton vault={vault.name} variant="icon" label="페이지" />
+        {showMeta && <span className="sidebar-vault-mode">{vault.mode}</span>}
       </button>
 
       {open && (
@@ -228,6 +264,7 @@ function VaultTreeGroup({
                   node={child}
                   vault={vault.name}
                   onClose={onClose}
+                  activeSlug={activeSlug}
                 />
               ))
             ) : (
@@ -263,14 +300,18 @@ function TreeLeaf({
   node,
   vault,
   onClose,
+  activeSlug,
   depth = 0,
 }: {
   node: TNode;
   vault: string;
   onClose: () => void;
+  activeSlug: string | null;
   depth?: number;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const nodeSlug = decodeURIComponent(node.slug);
+  const isActive = slugMatchesActive(nodeSlug, activeSlug);
 
   if (!node.children || node.children.length === 0) {
     // leaf page
@@ -278,10 +319,15 @@ function TreeLeaf({
       <Link
         to={`/page/${vault}/${node.slug}`}
         onClick={onClose}
-        className="link-ink sidebar-tree-leaf"
+        className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
         style={{ marginLeft: depth * 14 }}
       >
-        {displayTitle(node.title || node.slug)}
+        <span
+          className="sidebar-tree-leaf-dot"
+          style={{ background: nodeColor(node.type) }}
+          aria-hidden
+        />
+        {displayTitle(node.slug, node.title)}
       </Link>
     );
   }
@@ -309,7 +355,7 @@ function TreeLeaf({
             />
           </svg>
         </span>
-        {displayTitle(node.title || node.slug)}
+        {displayTitle(node.slug, node.title)}
       </button>
       {isOpen &&
         node.children.map((c) => (
@@ -318,6 +364,7 @@ function TreeLeaf({
             node={c}
             vault={vault}
             onClose={onClose}
+            activeSlug={activeSlug}
             depth={depth + 1}
           />
         ))}
