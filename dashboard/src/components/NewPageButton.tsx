@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { createPage, fetchTree, getActiveVault } from "../lib/api";
 import type { TreeNode } from "../types";
 import { TextField } from "./ui/TextField";
+import { Modal } from "./ui/Modal";
 
 interface NewPageButtonProps {
   vault?: string;
@@ -109,42 +109,28 @@ export function NewPageButton({
         {variant === "icon" ? "＋" : `➕ ${label}`}
       </button>
 
-      {open && createPortal(
+      <Modal
+        open={open}
+        onClose={() => !busy && setOpen(false)}
+        maxWidth={880}
+        disableBackdropClose={busy}
+      >
         <div
-          onClick={() => !busy && setOpen(false)}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 80,
-            padding: 16,
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card"
-            style={{
-              maxWidth: 880,
-              width: "100%",
-              maxHeight: "90vh",
-              overflow: "hidden", // 2-column scroll 처리
-              padding: 32,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <h2 style={{ marginBottom: 8 }}>
-              새 페이지 만들기{" "}
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
-                in {vault}
-              </span>
-            </h2>
-            <p className="text-muted" style={{ fontSize: 13, marginBottom: 24 }}>
-              제목과 저장 위치만 정하면 바로 만들 수 있습니다.
-            </p>
+          <h2 style={{ marginBottom: 8 }}>
+            새 페이지 만들기{" "}
+            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
+              in {vault}
+            </span>
+          </h2>
+          <p className="text-muted" style={{ fontSize: 13, marginBottom: 24 }}>
+            제목과 저장 위치만 정하면 바로 만들 수 있습니다.
+          </p>
 
             <div
               style={{
@@ -341,10 +327,8 @@ export function NewPageButton({
             </div>
               </div>{/* 우측 폼 닫기 */}
             </div>{/* grid 닫기 */}
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>{/* outer flex column wrapper 닫기 */}
+        </Modal>
     </>
   );
 }

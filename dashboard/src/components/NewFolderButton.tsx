@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { createFolder } from "../lib/api";
 import { TextField } from "./ui/TextField";
+import { Modal } from "./ui/Modal";
 
 interface NewFolderButtonProps {
   vault: string;
@@ -70,88 +70,68 @@ export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: N
         ＋
       </button>
 
-      {open && createPortal(
-        <div
-          onClick={() => !busy && setOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 80,
-            padding: 16,
+      <Modal
+        open={open}
+        onClose={() => !busy && setOpen(false)}
+        maxWidth={480}
+        disableBackdropClose={busy}
+      >
+        <h2 style={{ marginBottom: 8 }}>
+          새 폴더 만들기{" "}
+          <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
+            in {vault}
+          </span>
+        </h2>
+        <p className="text-muted" style={{ fontSize: 13, marginBottom: 20 }}>
+          폴더 이름만 정하면 됩니다. 빈 폴더도 sidebar에 그대로 나타나요.
+        </p>
+
+        <TextField
+          label="폴더 이름"
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          placeholder={parentPath ? `${parentPath.split("/").pop()}-하위` : "폴더 이름"}
+          helper="예: 사용자 · 참고/논문 · content/users/admin (전체 경로 직접 입력도 가능)"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
           }}
-        >
+        />
+
+        {err && (
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="card"
             style={{
-              maxWidth: 480,
-              width: "100%",
-              padding: 28,
+              marginBottom: 16,
+              padding: 12,
+              background: "var(--color-surface-soft)",
+              fontSize: 13,
+              borderRadius: "var(--radius-sm)",
+              color: "var(--color-error-text)",
             }}
           >
-            <h2 style={{ marginBottom: 8 }}>
-              새 폴더 만들기{" "}
-              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
-                in {vault}
-              </span>
-            </h2>
-            <p className="text-muted" style={{ fontSize: 13, marginBottom: 20 }}>
-              폴더 이름만 정하면 됩니다. 빈 폴더도 sidebar에 그대로 나타나요.
-            </p>
-
-            <TextField
-              label="폴더 이름"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              placeholder={parentPath ? `${parentPath.split("/").pop()}-하위` : "폴더 이름"}
-              helper="예: 사용자 · 참고/논문 · content/users/admin (전체 경로 직접 입력도 가능)"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
-            />
-
-            {err && (
-              <div
-                style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  background: "var(--color-surface-soft)",
-                  fontSize: 13,
-                  borderRadius: "var(--radius-sm)",
-                  color: "var(--color-error-text)",
-                }}
-              >
-                {err}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setOpen(false)}
-                disabled={busy}
-                className="btn-secondary"
-                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-              >
-                취소
-              </button>
-              <button
-                onClick={submit}
-                disabled={busy}
-                className="btn-primary"
-                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-              >
-                {busy ? "만드는 중…" : "만들기"}
-              </button>
-            </div>
+            {err}
           </div>
-        </div>,
-        document.body
-      )}
+        )}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={() => setOpen(false)}
+            disabled={busy}
+            className="btn-secondary"
+            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
+          >
+            취소
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="btn-primary"
+            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
+          >
+            {busy ? "만드는 중…" : "만들기"}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
