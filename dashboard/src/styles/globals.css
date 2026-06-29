@@ -515,6 +515,79 @@ mark {
   }
 }
 
+/* Graph page — maximize canvas area and restyle xyflow controls for dark canvas. */
+.graph-page-shell {
+  height: calc(100vh - 128px);
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.graph-page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 36px;
+}
+.graph-page-toolbar h1 {
+  font-size: 22px;
+  line-height: 1.1;
+}
+.graph-page-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.graph-page-meta strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.graph-page-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+  white-space: nowrap;
+}
+.graph-canvas-frame {
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-hairline);
+}
+.react-flow__controls {
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.92) !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+.react-flow__controls-button {
+  width: 30px !important;
+  height: 30px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22) !important;
+  color: #e2e8f0 !important;
+  fill: #e2e8f0 !important;
+}
+.react-flow__controls-button:hover {
+  background: rgba(30, 41, 59, 0.98) !important;
+}
+.react-flow__controls-button svg {
+  fill: #e2e8f0 !important;
+}
+
 /* Page content padding collapses on narrow screens so cards have room. */
 @media (max-width: 1024px) {
   .page-content {

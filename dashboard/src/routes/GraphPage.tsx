@@ -45,27 +45,16 @@ export function GraphPage() {
   );
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 24 }}>
-        <div style={{ flex: 1 }}>
-          <h1>Graph</h1>
-          <p className="text-muted" style={{ fontSize: 14, marginTop: 4 }}>
-            in <strong>{vault}</strong> · 클릭하면 페이지로 이동 · 두 번 탭하면 페이지로 이동 (모바일) ·{" "}
-            {visibleNodes.length} / {graph.nodes.length} nodes · {visibleEdges.length} edges
-            {orphanCount > 0 && hideOrphans && ` · ${orphanCount} orphan 숨김`}
-          </p>
+    <div className="graph-page-shell">
+      <div className="graph-page-toolbar">
+        <h1>Graph</h1>
+        <div className="graph-page-meta" aria-label="그래프 상태">
+          <strong>{vault}</strong>
+          <span>{visibleNodes.length}/{graph.nodes.length} nodes</span>
+          <span>{visibleEdges.length} edges</span>
+          {orphanCount > 0 && hideOrphans && <span>{orphanCount} orphan 숨김</span>}
         </div>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            color: "var(--color-text-muted)",
-            cursor: "pointer",
-            userSelect: "none",
-          }}
-        >
+        <label className="graph-page-toggle">
           <input
             type="checkbox"
             checked={hideOrphans}
@@ -74,15 +63,7 @@ export function GraphPage() {
           고아 숨김
         </label>
       </div>
-      <div
-        style={{
-          flex: 1,
-          minHeight: 480,
-          borderRadius: "var(--radius-md)",
-          overflow: "hidden",
-          border: "1px solid var(--color-hairline)",
-        }}
-      >
+      <div className="graph-canvas-frame">
         <GraphCanvas
           nodes={visibleNodes}
           edges={visibleEdges}
