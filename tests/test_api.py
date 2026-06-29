@@ -626,6 +626,61 @@ def test_atlas_layout_clusters_connected_nodes_and_separates_unrelated_nodes():
     assert sum(connected) / len(connected) < sum(cross) / len(cross) * 0.75
 
 
+def test_atlas_v2_separates_disconnected_components():
+    """Atlas v2: 연결 컴포넌트들이 서로 다른 방향에 배치되어 군집 간 거리가
+    컴포넌트 내부 평균 거리보다 커야 한다. v1은 같은 조건에서 분리 약했음."""
+    import math
+    from raven.api.server import _forceatlas_layout
+
+    # 2개 컴포넌트, 각각 4-node 완전그래프(응집) + 1 isolated
+    ids = [
+        "c1a", "c1b", "c1c", "c1d",
+        "c2a", "c2b", "c2c", "c2d",
+        "iso1",
+    ]
+    edges = [
+        ("c1a", "c1b"), ("c1a", "c1c"), ("c1a", "c1d"),
+        ("c1b", "c1c"), ("c1b", "c1d"), ("c1c", "c1d"),
+        ("c2a", "c2b"), ("c2a", "c2c"), ("c2a", "c2d"),
+        ("c2b", "c2c"), ("c2b", "c2d"), ("c2c", "c2d"),
+    ]
+    out = _forceatlas_layout(ids, edges, iterations=200)
+
+    def d(x: str, y: str) -> float:
+        return math.hypot(out[x][0] - out[y][0], out[x][1] - out[y][1])
+
+    within_c1 = [d(a, b) for a in ids[:4] for b in ids[:4] if a < b]
+    within_c2 = [d(a, b) for a in ids[4:8] for b in ids[4:8] if a < b]
+    cross = [d(a, b) for a in ids[:4] for b in ids[4:8]]
+
+    within_avg = (sum(within_c1) + sum(within_c2)) / (len(within_c1) + len(within_c2))
+    cross_avg = sum(cross) / len(cross)
+    assert cross_avg > within_avg, (
+        f"다른 컴포넌트 간 평균 거리({cross_avg:.1f})가 내부 평균({within_avg:.1f})보다 작음 — 군집 분리 실패"
+    )
+
+
+def test_atlas_v2_hub_centerline_below_community_size():
+    """Atlas v2: hub는 자신의 컴포넌트 centroid 근처에 있어야 한다 (응집 유지)."""
+    import math
+    from raven.api.server import _forceatlas_layout
+
+    ids = ["hub", *[f"n{i}" for i in range(8)]]
+    edges = [("hub", f"n{i}") for i in range(8)] + [(f"n{i}", f"n{i+1}") for i in range(7)]
+    out = _forceatlas_layout(ids, edges, weights={"hub": 8}, iterations=200)
+
+    cx = sum(out[s][0] for s in ids) / len(ids)
+    cy = sum(out[s][1] for s in ids) / len(ids)
+    hub_to_centroid = math.hypot(out["hub"][0] - cx, out["hub"][1] - cy)
+    leaf_max = max(
+        math.hypot(out[f"n{i}"][0] - cx, out[f"n{i}"][1] - cy) for i in range(8)
+    )
+    # hub는 centroid 근처, leaf 중 일부는 더 멀리 있어야 hub 중심 정착이 됨.
+    assert hub_to_centroid < leaf_max, (
+        f"hub가 centroid({hub_to_centroid:.1f})보다 더 멀어 hub 중심 정착 실패 (max leaf={leaf_max:.1f})"
+    )
+
+
 def test_atlas_layout_normalized_and_deterministic():
     """Atlas v1: 같은 입력은 같은 좌표이며 ±500 범위를 유지한다."""
     from raven.api.server import _forceatlas_layout

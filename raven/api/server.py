@@ -507,16 +507,19 @@ def _forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
     weights: dict[str, int] | None = None,
-    iterations: int = 220,
+    iterations: int = 320,
 ) -> dict[str, tuple[float, float]]:
-    """ForceAtlas2/LinLog-style deterministic relax over constellation seed.
+    """ForceAtlas2 / LinLog hybrid v2 — PKM 문서 그래프 가독성 우선.
 
-    목적은 "예쁜 물리 배치" 자체보다 PKM graph의 군집 가독성:
-    - constellation layout을 deterministic seed로 사용한다.
-    - 연결된 노드는 LinLog-style attraction으로 같은 군집 안에 묶는다.
-    - 모든 노드는 degree/weight mass 기반 repulsion으로 겹침과 군집 간 섞임을 줄인다.
-    - 약한 gravity로 전체가 과도하게 흩어지지 않게 한다.
-    - 최종 좌표는 기존 graph contract처럼 center=0, scale=±500.
+    v1 (0b71e5e) 대비 개선점 (v2):
+      - attraction: log1p(d)·d → d (선형) — 같은 군집이 더 강하게 뭉친다.
+      - per-node mass = 1 + degree + 0.6·sqrt(weight) — hub가 너무 커지지 않게 cap.
+      - repulsion: mass-스케일 + 1/r (degenerate 막기 위해 +1 jitter) — 큰 hub 주변이 비좁지 않게.
+      - per-component seed offset: connected component별로 ±R 떨어뜨려서 seed에서도
+        군집 간 분리가 시작되게 한다. 그 후 force로 다듬는다.
+      - iterations 220 → 320 (deterministic, 출력 안정).
+      - output은 기존 graph contract: center=0, scale=±500.
+    결정론: random 없음. 입력과 시드가 같으면 같은 좌표.
     """
     import math
 
@@ -530,39 +533,72 @@ def _forceatlas_layout(
     idx = {s: i for i, s in enumerate(ids)}
     valid_edges = [(s, t) for s, t in edges if s in idx and t in idx and s != t]
 
-    # Constellation seed keeps Raven-specific semantics (hub/ring/leaf) and avoids
-    # random starts. Atlas then refines local geometry.
+    # Seed: 기존 constellation 결과를 사용하되, 연결 컴포넌트별 중심을 멀리 떨어뜨려
+    # force가 시작부터 군집을 분리할 수 있게 한다. → LinLog의 핵심.
     seed = _constellation_layout(ids, valid_edges, weights=weights)
     pos_x = [seed.get(s, (0.0, 0.0))[0] for s in ids]
     pos_y = [seed.get(s, (0.0, 0.0))[1] for s in ids]
+
+    # Connected components — 각 컴포넌트의 centroid를 0 주변에서 ring으로 배치.
+    from collections import deque
+    seen = [False] * n
+    components: list[list[int]] = []
+    for start in range(n):
+        if seen[start]:
+            continue
+        seen[start] = True
+        comp: list[int] = [start]
+        dq = deque([start])
+        while dq:
+            u = dq.popleft()
+            for s, t in valid_edges:
+                su, tu = idx[s], idx[t]
+                for v in (su, tu):
+                    if v == u or seen[v]:
+                        continue
+                    seen[v] = True
+                    comp.append(v)
+                    dq.append(v)
+        components.append(comp)
+    if len(components) > 1:
+        ring_r = 180.0 + 30.0 * (len(components) - 1)
+        for k, comp in enumerate(components):
+            ang = (2 * math.pi * k) / max(len(components), 1)
+            cx = ring_r * math.cos(ang)
+            cy = ring_r * math.sin(ang)
+            for v in comp:
+                pos_x[v] += cx
+                pos_y[v] += cy
 
     degree = [0] * n
     for s, t in valid_edges:
         degree[idx[s]] += 1
         degree[idx[t]] += 1
-    mass = [1.0 + degree[i] * 0.75 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.35 for i in range(n)]
+    mass = [
+        1.0 + min(degree[i], 6) * 0.55 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.6
+        for i in range(n)
+    ]
 
-    steps = max(20, min(iterations, 500))
-    repulsion = 2600.0
-    attraction = 0.045
-    gravity = 0.012
-    max_step0 = 24.0
+    steps = max(40, min(iterations, 500))
+    repulsion = 4200.0
+    attraction = 0.075
+    gravity = 0.022
+    max_step0 = 28.0
 
     edge_indices = [(idx[s], idx[t]) for s, t in valid_edges]
 
     for it in range(steps):
-        # 점진적으로 안정화. 마지막에는 거의 안 움직이게 해서 deterministic rounding 안정.
-        temp = max_step0 * (1.0 - (it / max(steps - 1, 1))) + 1.2
+        temp = max_step0 * (1.0 - (it / max(steps - 1, 1))) + 1.0
         dx = [0.0] * n
         dy = [0.0] * n
 
-        # ForceAtlas2-style repulsion: degree/weight mass가 큰 노드가 군집 중심에서
-        # 주변을 더 밀어내서 hub 주변 뭉침을 줄인다.
+        # Repulsion (mass-scaled). 모든 노드쌍 — 큰 vault는 O(n^2)이지만
+        # 200 노드 이내에선 충분히 빠르고, 더 큰 vault는 v3에서 Barnes-Hut 검토.
         for i in range(n):
             for j in range(i + 1, n):
                 vx = pos_x[i] - pos_x[j]
                 vy = pos_y[i] - pos_y[j]
-                d2 = vx * vx + vy * vy + 16.0
+                d2 = vx * vx + vy * vy + 1.0
                 d = math.sqrt(d2)
                 f = repulsion * mass[i] * mass[j] / d2
                 fx = (vx / d) * f
@@ -572,13 +608,13 @@ def _forceatlas_layout(
                 dx[j] -= fx
                 dy[j] -= fy
 
-        # LinLog-style attraction: 긴 edge는 당기되, 거리 증가에 선형 폭주하지 않게
-        # log로 완화한다. 그래서 같은 커뮤니티는 모이고 다른 커뮤니티는 repulsion으로 분리.
+        # Linear attraction: 거리 비례 — 짧은 edge는 강하게, 긴 edge는 약하게.
+        # LinLog와 다른 선택이지만 PKM 위키처럼 군집이 응집되어 있을 때 더 예쁘게 모임.
         for i, j in edge_indices:
             vx = pos_x[i] - pos_x[j]
             vy = pos_y[i] - pos_y[j]
             d = math.sqrt(vx * vx + vy * vy) + 0.001
-            f = attraction * math.log1p(d) * d
+            f = attraction * d
             fx = (vx / d) * f
             fy = (vy / d) * f
             dx[i] -= fx
@@ -586,7 +622,7 @@ def _forceatlas_layout(
             dx[j] += fx
             dy[j] += fy
 
-        # 약한 gravity: disconnected component가 무한히 튀지 않게만 한다.
+        # Gravity: center 방향으로 약한 인력 — disconnected 군집이 무한히 멀리 안 가게.
         for i in range(n):
             dx[i] -= pos_x[i] * gravity
             dy[i] -= pos_y[i] * gravity
