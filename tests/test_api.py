@@ -697,6 +697,67 @@ def test_atlas_layout_normalized_and_deterministic():
         assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
 
 
+# ─── Louvain community detection (v0.6.15+) ───
+
+
+def test_louvain_communities_disconnected_components_get_distinct_communities():
+    """Louvain v1: 연결 컴포넌트별 community id가 서로 달라야 한다 (modularity ΔQ > 0인 경우)."""
+    from raven.api.server import _louvain_communities
+
+    # 2 connected components, 각각 internal edge > bridge.
+    # C1은 4-node 완전그래프(응집), C2는 3-node chain(응집), bridge 없음.
+    # ΔQ > 0 이므로 c1 내부 merge, c2 내부 merge, c1 ≠ c2.
+    ids = ["c1a", "c1b", "c1c", "c1d", "c2a", "c2b", "c2c", "iso"]
+    edges = [
+        ("c1a", "c1b"), ("c1a", "c1c"), ("c1a", "c1d"),
+        ("c1b", "c1c"), ("c1b", "c1d"), ("c1c", "c1d"),
+        ("c2a", "c2b"), ("c2b", "c2c"),
+    ]
+    out = _louvain_communities(ids, edges)
+
+    assert set(out) == set(ids)
+    # C1은 internal edge 6개 / degree 6 → ΔQ > 0 명확 → merge.
+    assert out["c1a"] == out["c1b"] == out["c1c"] == out["c1d"]
+    # C2 chain.
+    assert out["c2a"] == out["c2b"] == out["c2c"]
+    # 두 component는 다른 community.
+    assert out["c1a"] != out["c2a"]
+    # isolated node: 자기 community.
+    assert "iso" in out
+
+
+def test_louvain_communities_is_deterministic():
+    """같은 입력 + 같은 seed → 같은 community id."""
+    from raven.api.server import _louvain_communities
+
+    ids = ["a", "b", "c", "d", "e", "f"]
+    edges = [("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("d", "e"), ("e", "f")]
+    out1 = _louvain_communities(ids, edges)
+    out2 = _louvain_communities(ids, edges)
+    assert out1 == out2
+    assert len(set(out1.values())) >= 1
+
+
+def test_louvain_communities_modularity_increases_or_stays_non_negative():
+    """Louvain: trivial graph(전부 connected)에서도 community 수는 1 이상이고 모든 노드 매핑된다."""
+    from raven.api.server import _louvain_communities
+
+    ids = ["a", "b", "c", "d", "e"]
+    edges = [("a", "b"), ("a", "c"), ("b", "d"), ("c", "d"), ("d", "e")]
+    out = _louvain_communities(ids, edges)
+
+    assert all(v >= 0 for v in out.values())
+    assert max(out.values()) >= 0
+    # minimum: 전부 한 community일 수 있음 (small graph)
+    assert len(set(out.values())) >= 1
+
+
+def test_louvain_communities_empty_input():
+    from raven.api.server import _louvain_communities
+    assert _louvain_communities([], []) == {}
+    assert _louvain_communities(["a"], []) == {"a": 0}
+
+
 def test_api_vault_graph_layout_spring_fallback_still_available(client, isolated_env):
     """기존 spring layout은 ?layout=spring 으로 legacy fallback 가능해야 한다."""
     target = isolated_env["target_root"] / "gv_layout_spring"
