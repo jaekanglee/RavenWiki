@@ -6,6 +6,7 @@ import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { EditButton } from "../components/EditButton";
 import { DeleteButton } from "../components/DeleteButton";
+import { PageMetaRow } from "../components/PageMetaRow";
 import { fetchPage, getActiveVault } from "../lib/api";
 import type { Graph, Page } from "../types";
 
@@ -222,32 +223,13 @@ export function PageView() {
         {/* Title row — only the title now. The local graph is a floating overlay. */}
         <h1 className="page-header-title">{page.title}</h1>
 
-        {/* Meta row — type badge + tags as ink pills */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginBottom: 32,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <span className="chip-strong">{page.type}</span>
-          {page.updated && (
-            <span style={{ fontSize: 13, color: "var(--color-muted)" }}>
-              updated {String(page.updated).slice(0, 10)}
-            </span>
-          )}
-          {(page.tags || "")
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-            .map((t) => (
-              <span key={t} className="chip">
-                #{t}
-              </span>
-            ))}
-        </div>
+        {/* Meta row — type chip + 📑 Index marker + tags (v0.6.21+) */}
+        <PageMetaRow
+          type={page.type}
+          slug={page.slug || page.path}
+          tags={page.tags || ""}
+          updated={page.updated}
+        />
 
         {/* Body */}
         <MarkdownView content={related.body || page.content} vault={vault} />
