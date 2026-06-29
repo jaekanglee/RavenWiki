@@ -40,10 +40,11 @@ export function EditButton({
           setBody(content);
           setOpen(true);
         }}
-        className="btn-secondary"
-        style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
+        className="btn-secondary page-action-icon"
+        aria-label="편집"
+        title="편집"
       >
-        ✏️ 편집
+        <span aria-hidden>✏️</span>
       </button>
 
       {open && (

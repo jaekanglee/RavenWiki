@@ -39,16 +39,15 @@ export function DeleteButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="btn-secondary"
+        className="btn-secondary page-action-icon"
         style={{
-          height: 36,
-          padding: "8px 16px",
-          fontSize: 13,
           borderColor: "var(--color-error-text)",
           color: "var(--color-error-text)",
         }}
+        aria-label="삭제"
+        title="삭제"
       >
-        🗑 삭제
+        <span aria-hidden>🗑</span>
       </button>
 
       {open && (
