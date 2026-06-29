@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { createFolder } from "../lib/api";
 
 interface NewFolderButtonProps {
@@ -68,7 +69,7 @@ export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: N
         ＋
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           onClick={() => !busy && setOpen(false)}
           style={{
@@ -164,7 +165,8 @@ export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: N
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { createPage, getActiveVault } from "../lib/api";
 
@@ -78,7 +79,7 @@ export function NewPageButton({
         {variant === "icon" ? "＋" : `➕ ${label}`}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           onClick={() => !busy && setOpen(false)}
           style={{
@@ -292,7 +293,8 @@ export function NewPageButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
