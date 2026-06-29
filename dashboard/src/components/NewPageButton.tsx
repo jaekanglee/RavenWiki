@@ -24,13 +24,14 @@ export function NewPageButton({
   const [type, setType] = useState("concept");
   const [tags, setTags] = useState("");
   const [content, setContent] = useState("# 새 페이지\n\n");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
     setErr(null);
     if (!slug || !title) {
-      setErr("slug + title 필수");
+      setErr("파일 경로와 제목을 입력해 주세요.");
       return;
     }
     setBusy(true);
@@ -81,7 +82,7 @@ export function NewPageButton({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 50,
+            zIndex: 80,
             padding: 16,
           }}
         >
@@ -97,13 +98,13 @@ export function NewPageButton({
             }}
           >
             <h2 style={{ marginBottom: 8 }}>
-              새 페이지{" "}
+              새 페이지 만들기{" "}
               <span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-muted)" }}>
                 in {vault}
               </span>
             </h2>
             <p className="text-muted" style={{ fontSize: 13, marginBottom: 24 }}>
-              slug와 title은 필수 항목입니다.
+              제목과 저장 위치만 정하면 바로 만들 수 있습니다.
             </p>
 
             <label style={{ display: "block", marginBottom: 16 }}>
@@ -116,7 +117,7 @@ export function NewPageButton({
                   color: "var(--color-ink)",
                 }}
               >
-                slug *
+                저장 위치 *
               </span>
               <input
                 className="input-base"
@@ -126,7 +127,7 @@ export function NewPageButton({
                 placeholder={initialSlug || "content/my-concept"}
               />
               <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                vault-relative path
+                예: content/concept/my-note — 파일명은 영어/숫자/하이픈을 권장합니다.
               </span>
             </label>
 
@@ -140,7 +141,7 @@ export function NewPageButton({
                   color: "var(--color-ink)",
                 }}
               >
-                title *
+                제목 *
               </span>
               <input
                 className="input-base"
@@ -151,63 +152,74 @@ export function NewPageButton({
               />
             </label>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 16,
-                marginBottom: 16,
-              }}
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowAdvanced((v) => !v)}
+              style={{ height: 34, padding: "6px 12px", fontSize: 13, marginBottom: 16 }}
             >
-              <label style={{ display: "block" }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    marginBottom: 6,
-                    color: "var(--color-ink)",
-                  }}
-                >
-                  type
-                </span>
-                <select
-                  className="input-base"
-                  style={{ height: 48 }}
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                >
-                  <option value="concept">concept</option>
-                  <option value="person">person</option>
-                  <option value="comparison">comparison</option>
-                  <option value="project">project</option>
-                  <option value="tool">tool</option>
-                  <option value="rule">rule</option>
-                  <option value="query">query</option>
-                  <option value="journal">journal</option>
-                </select>
-              </label>
-              <label style={{ display: "block" }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    marginBottom: 6,
-                    color: "var(--color-ink)",
-                  }}
-                >
-                  tags (쉼표 구분)
-                </span>
-                <input
-                  className="input-base"
-                  style={{ height: 48 }}
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  placeholder="ai, llm"
-                />
-              </label>
-            </div>
+              {showAdvanced ? "세부 옵션 숨기기" : "세부 옵션"}
+            </button>
+
+            {showAdvanced && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <label style={{ display: "block" }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 6,
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    문서 분류
+                  </span>
+                  <select
+                    className="input-base"
+                    style={{ height: 48 }}
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                  >
+                    <option value="concept">일반 노트</option>
+                    <option value="person">사람</option>
+                    <option value="comparison">비교</option>
+                    <option value="project">프로젝트</option>
+                    <option value="tool">도구</option>
+                    <option value="rule">규칙</option>
+                    <option value="query">질문/검색</option>
+                    <option value="journal">기록</option>
+                  </select>
+                </label>
+                <label style={{ display: "block" }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 6,
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    태그 (쉼표 구분)
+                  </span>
+                  <input
+                    className="input-base"
+                    style={{ height: 48 }}
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="ai, llm"
+                  />
+                </label>
+              </div>
+            )}
 
             <label style={{ display: "block", marginBottom: 16 }}>
               <span
@@ -219,7 +231,7 @@ export function NewPageButton({
                   color: "var(--color-ink)",
                 }}
               >
-                본문 (markdown)
+                본문
               </span>
               <textarea
                 value={content}

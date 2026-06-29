@@ -153,6 +153,18 @@ export function Sidebar({
         flexShrink: 0,
       }}
     >
+      <div className="sidebar-top-actions">
+        <button
+          type="button"
+          className="sidebar-close-button"
+          onClick={onClose}
+          aria-label="사이드바 닫기"
+          title="사이드바 닫기"
+        >
+          ×
+        </button>
+      </div>
+
       {/*
         "Vaults (N)" label: 1개일 땐 의미 없어서 숨김. 2개+일 때만 카운트 표시.
         각 vault는 자체 row에서 vault name + mode badge로 충분히 식별 가능.
@@ -409,7 +421,6 @@ function TreeLeaf({
     return (
       <Link
         to={`/page/${vault}/${node.slug}`}
-        onClick={onClose}
         className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
         style={{ marginLeft: depth * 14 }}
       >

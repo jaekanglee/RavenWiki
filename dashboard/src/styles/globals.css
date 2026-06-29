@@ -652,6 +652,32 @@ mark {
    v0.6.15 sidebar cleanup: vault name 크기 ↑, chevron rotation transition,
    "Vaults (N)" label은 vault 2개+일 때만 표시 (1개일 땐 노이즈). */
 
+.sidebar-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px -4px 4px;
+}
+.sidebar-close-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+}
+.sidebar-close-button:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-hairline);
+  color: var(--color-ink);
+}
+
 .sidebar-vault-row {
   display: flex;
   align-items: center;

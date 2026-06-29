@@ -103,10 +103,8 @@ export function Layout() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // Close the drawer on route change.
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [location.pathname]);
+  // Drawer stays open across route changes. Users close it explicitly via dim area,
+  // Escape, or the sidebar close button. This keeps desktop explorer navigation stable.
 
   // Escape closes the drawer.
   useEffect(() => {
@@ -128,7 +126,6 @@ export function Layout() {
           setVault(name);
           setActiveVault(name);
           setRefreshKey((k) => k + 1);
-          setMobileNavOpen(false);
         }}
         onRefresh={() => setRefreshKey((k) => k + 1)}
         open={mobileNavOpen}
