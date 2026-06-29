@@ -716,6 +716,40 @@ mark {
   border-color: var(--color-hairline);
   color: var(--color-ink);
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sidebar-filter-label {
+  display: block;
+  margin: 0 0 8px;
+}
+.sidebar-filter-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 7px;
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 12px;
+  outline: none;
+}
+.sidebar-filter-input:focus {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.10);
+}
+.sidebar-filter-input::placeholder {
+  color: var(--color-muted);
+}
 .sidebar-vault-default {
   color: var(--color-primary);
   font-weight: 700;

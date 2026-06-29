@@ -91,6 +91,29 @@ function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean
   return false;
 }
 
+function filterTree(tree: TNode | null, query: string): TNode | null {
+  const q = query.trim().toLowerCase();
+  if (!tree || !q) return tree;
+
+  function matches(node: TNode): boolean {
+    return (
+      node.slug.toLowerCase().includes(q) ||
+      displayTitle(node.slug, node.title).toLowerCase().includes(q) ||
+      (node.type ?? "").toLowerCase().includes(q)
+    );
+  }
+
+  function visit(node: TNode): TNode | null {
+    if (matches(node)) return node;
+    const children = (node.children ?? []).map(visit).filter((x): x is TNode => Boolean(x));
+    if (children.length > 0) return { ...node, children };
+    return null;
+  }
+
+  const children = (tree.children ?? []).map(visit).filter((x): x is TNode => Boolean(x));
+  return { ...tree, children };
+}
+
 function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
   const match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
   if (!match) return null;
@@ -111,6 +134,7 @@ export function Sidebar({
 }: SidebarProps) {
   const location = useLocation();
   const activePage = activePageFromPath(location.pathname);
+  const [filter, setFilter] = useState("");
 
   return (
     <aside
@@ -163,14 +187,28 @@ export function Sidebar({
         </div>
       )}
 
+      {vaults.length > 0 && (
+        <label className="sidebar-filter-label">
+          <span className="sr-only">Explorer filter</span>
+          <input
+            className="sidebar-filter-input"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Explorer filter…"
+            aria-label="Explorer filter"
+          />
+        </label>
+      )}
+
       {vaults.map((v) => (
         <VaultTreeGroup
           key={v.name}
           vault={v}
-          tree={flattenCommonRoot(trees[v.name] ?? null)}
+          tree={filterTree(flattenCommonRoot(trees[v.name] ?? null), filter)}
           isActive={v.name === activeVault}
           showMeta={vaults.length > 1}
           activeSlug={activePage?.vault === v.name ? activePage.slug : null}
+          filterActive={filter.trim().length > 0}
           onSelect={() => onSelectVault(v.name)}
           onClose={onClose}
           onRefresh={onRefresh}
@@ -213,6 +251,7 @@ function VaultTreeGroup({
   isActive,
   showMeta,
   activeSlug,
+  filterActive,
   onSelect,
   onClose,
   onRefresh,
@@ -222,12 +261,13 @@ function VaultTreeGroup({
   isActive: boolean;
   showMeta: boolean;
   activeSlug: string | null;
+  filterActive: boolean;
   onSelect: () => void;
   onClose: () => void;
   onRefresh?: () => void;
 }) {
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => readOpenFolders(vault.name));
-  const open = openFolders.has(VAULT_OPEN_KEY);
+  const open = openFolders.has(VAULT_OPEN_KEY) || filterActive;
 
   function toggleFolder(key: string) {
     setOpenFolders((prev) => {
@@ -307,6 +347,7 @@ function VaultTreeGroup({
                   vault={vault.name}
                   onClose={onClose}
                   activeSlug={activeSlug}
+                  filterActive={filterActive}
                   openFolders={openFolders}
                   onToggleFolder={toggleFolder}
                 />
@@ -345,6 +386,7 @@ function TreeLeaf({
   vault,
   onClose,
   activeSlug,
+  filterActive,
   openFolders,
   onToggleFolder,
   depth = 0,
@@ -353,13 +395,14 @@ function TreeLeaf({
   vault: string;
   onClose: () => void;
   activeSlug: string | null;
+  filterActive: boolean;
   openFolders: Set<string>;
   onToggleFolder: (slug: string) => void;
   depth?: number;
 }) {
   const nodeSlug = decodeURIComponent(node.slug);
   const isActive = slugMatchesActive(nodeSlug, activeSlug);
-  const isOpen = openFolders.has(node.slug);
+  const isOpen = openFolders.has(node.slug) || filterActive;
 
   if (!node.children || node.children.length === 0) {
     // leaf page
@@ -420,6 +463,7 @@ function TreeLeaf({
             vault={vault}
             onClose={onClose}
             activeSlug={activeSlug}
+            filterActive={filterActive}
             openFolders={openFolders}
             onToggleFolder={onToggleFolder}
             depth={depth + 1}
