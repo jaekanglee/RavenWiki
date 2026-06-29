@@ -318,6 +318,90 @@ def list_pages(
     return {"ok": True, "vault": name, "pages": rows}
 
 
+@app.get("/api/vaults/{name}/graph")
+def vault_graph(name: str):
+    """vault 페이지 + wikilink edges를 반환. Dashboard /graph 페이지용.
+
+    nodes: [{id: slug, title, type}]
+    edges: [{source: src_slug, target: tgt_slug}]
+
+    wiki.db의 links 테이블에서 source/target 직접 매칭 (정확성 우선).
+    wiki.db가 없으면 (구 vault) rglob fallback.
+    """
+    v = _vault_or_404(name)
+
+    # 1) wiki.db가 있으면 DB 사용 (정확)
+    wiki_db = v.root / "wiki.db"
+    if wiki_db.exists():
+        try:
+            import sqlite3
+            db = sqlite3.connect(str(wiki_db))
+            db.row_factory = sqlite3.Row
+            pages = db.execute("SELECT slug, title, type FROM pages").fetchall()
+            nodes = [{"id": p["slug"], "title": p["title"], "type": p["type"]} for p in pages]
+            # intent='auto' or 'broken' 만 edge로 (missing은 의도적 placeholder)
+            edges_raw = db.execute(
+                "SELECT source_slug, target_slug FROM links WHERE intent IN ('auto', 'broken')"
+            ).fetchall()
+            edges = [{"source": r["source_slug"], "target": r["target_slug"]} for r in edges_raw]
+            db.close()
+            return {
+                "ok": True,
+                "vault": name,
+                "nodes": nodes,
+                "edges": edges,
+                "stats": {"nodes": len(nodes), "edges": len(edges)},
+            }
+        except Exception:
+            pass  # fallback to rglob
+
+    # 2) wiki.db 없거나 실패 시 — rglob fallback (구 vault)
+    nodes = []
+    seen = set()
+    for fp in v.content_root.rglob("*.md"):
+        text = fp.read_text(errors="replace")
+        meta, _ = _split_fm(text)
+        slug = str(fp.relative_to(v.root))[:-3]
+        if slug in seen:
+            continue
+        seen.add(slug)
+        nodes.append({
+            "id": slug,
+            "title": meta.get("title", slug),
+            "type": meta.get("type", "?"),
+        })
+
+    import re
+    wikilink_re = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
+    edges = []
+    edge_set = set()
+    for fp in v.content_root.rglob("*.md"):
+        text = fp.read_text(errors="replace")
+        meta, body = _split_fm(text)
+        src = str(fp.relative_to(v.root))[:-3]
+        for m in wikilink_re.finditer(body):
+            tgt = m.group(1).strip()
+            if not tgt:
+                continue
+            if tgt.endswith(".md"):
+                tgt = tgt[:-3]
+            if tgt == src:
+                continue
+            key = (src, tgt)
+            if key in edge_set:
+                continue
+            edge_set.add(key)
+            edges.append({"source": src, "target": tgt})
+
+    return {
+        "ok": True,
+        "vault": name,
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {"nodes": len(nodes), "edges": len(edges)},
+    }
+
+
 @app.get("/api/vaults/{name}/pages/{slug:path}")
 def get_page(name: str, slug: str):
     v = _vault_or_404(name)

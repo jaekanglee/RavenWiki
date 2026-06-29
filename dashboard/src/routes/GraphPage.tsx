@@ -14,11 +14,12 @@ export function GraphPage() {
   const { vault } = useOutletContext<{ vault: string }>();
 
   useEffect(() => {
-    fetch("/api/graph.json")
+    if (!vault) return;
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
       .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
-      .then(setGraph)
+      .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .catch(() => setGraph({ nodes: [], edges: [] }));
-  }, []);
+  }, [vault]);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
