@@ -73,14 +73,7 @@ export function PageView() {
   }
 
   return (
-    <div
-      className="page-grid"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 240px",
-        gap: 32,
-      }}
-    >
+    <div className="page-grid">
       <article style={{ minWidth: 0 }}>
         {/* Header — title + actions */}
         <div
@@ -137,6 +130,11 @@ export function PageView() {
 
         {/* Body */}
         <MarkdownView content={page.content} vault={vault} />
+
+        {/* Patch 3 (v0.6.12): BacklinksPanel을 right rail이 아닌 본문 하단으로.
+            본문이 viewport 전체 폭을 쓰고, 백링크는 자연스럽게 아래로.
+            page-grid 그리드(grid-template-columns: minmax(0,1fr) 240px)는 그대로
+            두되, BacklinksPanel만 article 형제로 분리 → 그리드가 1열로 줄어듦. */}
       </article>
 
       <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} />

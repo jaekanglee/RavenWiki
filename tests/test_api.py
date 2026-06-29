@@ -537,3 +537,28 @@ def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
     assert avg >= threshold, (
         f"실 API 응답 평균 거리 {avg:.1f} < {threshold} — 튜닝이 API까지 반영 안 됨"
     )
+
+
+# ─── v0.6.12 Patch 1: graph 좌표 정규화 (±500) ─────
+
+
+def test_api_vault_graph_xy_normalized_to_pm500(client, isolated_env):
+    """v0.6.12+: 노드 좌표는 항상 ±500 범위로 정규화되어야 한다 (fitView viewport 매칭).
+
+    이전엔 min≥0 shift만 했고 스케일이 들쭉날쭉 → vault 크기에 따라 fitView가
+    viewport 밖에 있는 노드를 놓침. 이제 항상 center=0, scale=±500.
+    """
+    target = isolated_env["target_root"] / "gv_norm"
+    client.post("/api/vaults/create", json={"name": "gv_norm", "path": str(target), "bootstrap": False})
+    for slug in ["content/a", "content/b", "content/c", "content/d"]:
+        client.post(f"/api/vaults/gv_norm/pages", json={"slug": slug, "title": slug.split("/")[-1].upper()})
+    resp = client.get("/api/vaults/gv_norm/graph")
+    nodes = resp.json()["nodes"]
+    assert len(nodes) >= 2
+    for n in nodes:
+        # 모든 좌표가 ±500 + 약간의 rounding 오차 이내
+        assert -501.0 <= n["x"] <= 501.0, f"x out of ±500 range: {n['x']} (id={n['id']})"
+        assert -501.0 <= n["y"] <= 501.0, f"y out of ±500 range: {n['y']} (id={n['id']})"
+    # 그리고 가장 큰 |x| 또는 |y|가 정확히 500 (가장 먼 노드) — 정규화 보장.
+    max_abs = max(max(abs(n["x"]), abs(n["y"])) for n in nodes)
+    assert max_abs > 0, "노드가 모두 origin — 정규화 전력이 degenerate"

@@ -428,15 +428,31 @@ def _spring_layout(
             scale = min(disp_mag, temp) / max(disp_mag, 0.001)
             pos_x[i] += dx[i] * scale
             pos_y[i] += dy[i] * scale
-    # 정규화 — negative 좌표를 0으로 이동
-    min_x = min(pos_x)
-    min_y = min(pos_y)
-    if min_x < 0 or min_y < 0:
-        for i in range(n):
-            if min_x < 0:
-                pos_x[i] -= min_x
-            if min_y < 0:
-                pos_y[i] -= min_y
+    # 정규화 (v0.6.12 Patch 1): xyflow fitView가 viewport에 잡도록 좌표를
+    # 항상 center=0, scale=±500으로 transform. 이전 min≥0 정규화는 vault마다
+    # 스케일이 들쭉날쭉해서 fitView가 viewport 밖에 있는 노드를 놓쳤다.
+    # - center = (min + max) / 2 → 모든 좌표의 centroid를 origin으로
+    # - scale  = max(|min - center|, |max - center|) → 가장 먼 노드를 정확히 ±500
+    # - x_new  = (x - center) / scale * 500  (y 동일)
+    # 특수 케이스:
+    #   n == 1 → (0, 0)
+    #   모든 노드가 같은 좌표 (scale == 0) → (0, 0)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {ids[0]: (0.0, 0.0)}
+    min_x, max_x = min(pos_x), max(pos_x)
+    min_y, max_y = min(pos_y), max(pos_y)
+    cx = (min_x + max_x) / 2.0
+    cy = (min_y + max_y) / 2.0
+    span_x = max(abs(min_x - cx), abs(max_x - cx))
+    span_y = max(abs(min_y - cy), abs(max_y - cy))
+    # 둘 중 큰 span을 공통 스케일로 — 그래프 종횡비 유지 (XY 동시).
+    span = max(span_x, span_y) or 1.0
+    NORMALIZE_TARGET = 500.0  # 결과 좌표 범위: ±500
+    for i in range(n):
+        pos_x[i] = (pos_x[i] - cx) / span * NORMALIZE_TARGET
+        pos_y[i] = (pos_y[i] - cy) / span * NORMALIZE_TARGET
     return {ids[i]: (round(pos_x[i], 1), round(pos_y[i], 1)) for i in range(n)}
 
 

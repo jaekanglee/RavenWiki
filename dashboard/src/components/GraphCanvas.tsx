@@ -7,13 +7,16 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphNode, GraphEdge } from "../types";
 
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** single click — 데스크탑 전용 (페이지 이동), 모바일에서는 no-op (라벨 토글) */
   onNodeClick?: (slug: string) => void;
+  /** double click / double tap — 모바일+데스크탑 공통 페이지 이동 */
+  onNodeDoubleClick?: (slug: string) => void;
 }
 
 // SCHEMA 8종(확장 매핑) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -32,20 +35,29 @@ const TYPE_COLORS: Record<string, string> = {
 const DEFAULT_COLOR = "#9ca3af";
 
 // ───────────────────────────────────────────────────────────────────────────
-// v0.6.11+ Graph — pinch zoom 후 노드 사라짐 fix.
+// v0.6.12 Graph — UX 3개 fix.
 //
-// 변경 사항 (B 묶음 후속 패치):
-//   Patch 5: ReactFlowProvider + useReactFlow().fitView() programmatic 호출.
-//            - prop `fitView`는 mount 시 1회만 실행. 데이터 변경 후에는
-//              재fit 안 함 → orphan toggle / vault 변경 후 빈 화면.
-//            - useEffect([nodes, edges])에서 fitView({ duration: 300, padding: 0.2 })
-//              호출 → 데이터 변경 시 자동 재중심.
-//   Patch 6: zoom 범위 완화 (minZoom 0.1→0.05, maxZoom 3→4).
-//            - pinch zoom out 시 노드가 너무 작아져 화면 밖으로 사라지는 문제.
-//   Patch 7: translateExtent 확장 ([-10000,10000] → [-50000,50000]).
-//            - 서버 spring layout 결과는 vault 크기에 따라 ±10000까지 갈 수 있음.
-//              translateExtent가 너무 작으면 xyflow가 viewport를 clamp해서 노드가
-//              화면 밖으로 밀려남.
+// 이전 (v0.6.11+): Patch 5/6/7 — programmatic fitView, zoom 범위 완화, translateExtent 확장.
+//
+// 변경 사항 (v0.6.12, 3개 패치 묶음):
+//   Patch 1 (edge 가시화): edge stroke 옅어서 "선이 안 보인다"는 사용자 보고.
+//     → stroke를 mid gray(#6b7280)로 + strokeWidth 1.5 + opacity 0.6로 강화.
+//       dark 배경(#0a0e1a)에서 명확히 보이는 명도대. 모바일/데스크탑 공통.
+//
+//   Patch 2 (모바일 click vs double-click): 모바일에서 1회 탭 → label 표시,
+//     더블 탭 → 페이지 이동. 데스크탑은 기존 hover label + 1회 click → navigate 유지.
+//     → isCoarsePointer(pointer:coarse) 또는 matchMedia('(pointer:coarse)')로
+//       touch device 감지. 노드 클릭이 발생할 때 tap-count를 누적해 single/double 구분.
+//       라우팅은 onNodeDoubleClick → navigate, 라벨 토글은 onNodeClick.
+//     → GraphPage에 onNodeDoubleClick prop 추가 (navigate) + 기존 onNodeClick은
+//       모바일에서는 no-op (label은 이미 hover/tap으로 표시됨).
+//
+//   Patch 3 (노드 드래그): xyflow의 기본 nodesDraggable=true이지만 prop이 명시되지
+//     않아 default 토글이 헷갈릴 수 있음 + ObsidianNode wrapper에
+//     `nodrag` 클래스 지정이 없어 노드 wrapper 자체가 pan으로 잡힘.
+//     → ReactFlow에 `nodesDraggable={true}` 명시 + 노드 wrapper는 pointerEvents:
+//       'all'로 드래그 가능. 메모리상 이동만 — 백엔드 저장은 다음 라운드.
+//     → ObsidianNode 자체에 `data-no-restyle` 등 영향 없도록 pointer-events만 설정.
 // ───────────────────────────────────────────────────────────────────────────
 
 export function nodeColor(type: string | undefined): string {
@@ -70,6 +82,8 @@ export function nodeSize(weight: number | undefined): number {
 function ObsidianNode({ data }: { data: { color: string; size: number } }) {
   // xyflow v12는 node에 `data`만 custom으로 전달받음.
   // 좌표/타이틀은 onMouseEnter에서 GraphNode 인덱스로 조회 (아래 handle).
+  // Patch 3: pointerEvents: 'all' + cursor: 'grab' 으로 모바일에서 노드 잡기 신호.
+  //   onMouseEnter는 hover-only (데스크탑). 모바일에선 클릭으로 라벨 토글됨.
   return (
     <div
       className="obsidian-node"
@@ -80,7 +94,9 @@ function ObsidianNode({ data }: { data: { color: string; size: number } }) {
         background: data.color,
         border: "1px solid rgba(255,255,255,0.3)",
         boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
-        cursor: "pointer",
+        cursor: "grab",
+        pointerEvents: "all",
+        touchAction: "none",
         transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
       }}
       onMouseEnter={(e) => {
@@ -99,7 +115,7 @@ function ObsidianNode({ data }: { data: { color: string; size: number } }) {
 
 const nodeTypes = { obsidian: ObsidianNode };
 
-function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
+function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Props) {
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -110,9 +126,50 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
     y: number;
   } | null>(null);
 
+  // Patch 2: 모바일/터치 디바이스 감지.
+  // - matchMedia('(pointer:coarse)') → 터치스크린 (모바일/태블릿)
+  // - 1회 click → label 토글 (hoveredNode가 이미 있으면 clear, 없으면 set)
+  // - 더블 click → onNodeDoubleClick (navigate)
+  // 데스크탑은 1회 click → onNodeClick (navigate), hover로는 label 표시.
+  // 이 분기를 컴포넌트 안에서 결정한다 (consumer 단순화).
+  //
+  // 모바일 더블탭 디텍션: xyflow의 onNodeDoubleClick는 `dblclick` 이벤트에 바인딩
+  // 되어 있어 터치 디바이스에서는 안정적으로 발생하지 않는다 (브라우저 의존).
+  // → 자체 tap debouncer: 1회 click 발생 후 320ms 안에 같은 노드 click이
+  //   다시 들어오면 "double-tap"으로 판단 → onNodeDoubleClick 호출.
+  //   320ms 안에 두 번째 tap이 없으면 single-tap 확정 → label toggle.
+  const [isCoarse, setIsCoarse] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(pointer:coarse)").matches;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer:coarse)");
+    const handler = (e: MediaQueryListEvent) => setIsCoarse(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Patch 2: 모바일 tap 디바운서용 ref. 마지막 클릭 노드 + 타이머.
+  const tapStateRef = useRef<{ id: string | null; timer: number | null }>({
+    id: null,
+    timer: null,
+  });
+
   // Patch 5: useReactFlow hook — programmatic fitView 호출용.
   // ReactFlowProvider 안에서만 동작 → GraphCanvas를 Provider로 wrap (export 시).
-  const { fitView } = useReactFlow();
+  const { fitView, flowToScreenPosition } = useReactFlow();
+
+  // Patch 2: 모바일 tap 디바운서 타이머 cleanup.
+  useEffect(() => {
+    const tap = tapStateRef.current;
+    return () => {
+      if (tap.timer != null) {
+        window.clearTimeout(tap.timer);
+        tap.timer = null;
+      }
+    };
+  }, []);
 
   // 노드 ID → GraphNode 매핑 (overlay에 메타 표시)
   const nodeMap = useMemo(() => {
@@ -152,7 +209,17 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
         id: `e${i}`,
         source: (e as any).source ?? e.source_slug,
         target: (e as any).target ?? e.target_slug,
-        style: { stroke: "rgba(148, 163, 184, 0.35)", strokeWidth: 0.8 }, // 옅은 slate
+        // Patch 2 (v0.6.12): edge 가시화 추가 강화.
+        //   v0.6.12 1차(#94a3b8 / 2px / 0.8)에서도 모바일에서 흐릿 → slate-300으로
+        //   한 단계 더 밝게, stroke 2.5px, opacity 0.9.
+        //   dark navy(#0a0a1e~#0a0e1a) 배경에서 명확히 보이는 명도대.
+        style: {
+          stroke: "#cbd5e1",
+          strokeWidth: 2.5,
+          strokeOpacity: 0.9,
+        },
+        // xyflow marker 정의 (선택): 끝점 화살표는 일단 생략 — 점 노드 중심에
+        // 닿는 직선만으로도 관계 가시화에 충분.
       })),
     [edges]
   );
@@ -180,16 +247,22 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
       if (!meta) return;
       // 노드 중심 좌표 = server x/y + size/2
       const size = nodeSize(meta.weight);
+      // 화면 좌표로 변환 — overlay는 position: fixed로 그려진다.
+      // xyflow의 flowToScreenPosition이 viewport 변환/zoom/pan을 모두 반영한다.
+      const screen = flowToScreenPosition({
+        x: node.position.x + size / 2,
+        y: node.position.y + size / 2,
+      });
       setHoveredNode({
         id: node.id,
         title: meta.title,
         type: meta.type,
         weight: meta.weight ?? 0,
-        x: node.position.x + size / 2,
-        y: node.position.y + size / 2,
+        x: screen.x,
+        y: screen.y,
       });
     },
-    [nodeMap]
+    [nodeMap, flowToScreenPosition]
   );
 
   const handleNodeLeave = useCallback(() => {
@@ -198,10 +271,101 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, n: { id: string }) => {
+      // Patch 2: 모바일(coarse pointer)에서는 1회 click이 label 토글,
+      // 더블 tap(320ms 내 같은 노드 재클릭)은 navigate.
+      // 데스크탑은 1회 click → navigate (기존 동작).
+      if (isCoarse) {
+        const tap = tapStateRef.current;
+        // 같은 노드 & 타이머 살아있으면 → double-tap 확정.
+        if (tap.id === n.id && tap.timer != null) {
+          window.clearTimeout(tap.timer);
+          tap.id = null;
+          tap.timer = null;
+          // 라벨이 떠있으면 즉시 닫기 (탭 → 페이지 이동 흐름 자연스럽게).
+          setHoveredNode(null);
+          onNodeDoubleClick?.(n.id);
+          return;
+        }
+        // 첫 tap 또는 다른 노드 tap → 타이머 시작, label toggle.
+        if (tap.timer != null) {
+          window.clearTimeout(tap.timer);
+        }
+        const meta = nodeMap.get(n.id);
+        if (!meta) {
+          // meta 없으면 안전하게 단일 탭으로 처리.
+          tap.id = n.id;
+          tap.timer = window.setTimeout(() => {
+            tap.id = null;
+            tap.timer = null;
+          }, 320);
+          return;
+        }
+        // 같은 노드 재탭이 아니면 label은 즉시 토글 + 첫 탭 예약.
+        setHoveredNode((prev) => {
+          if (prev && prev.id === n.id) return null;
+          const size = nodeSize(meta.weight);
+          const baseX = typeof meta.x === "number" ? meta.x : 0;
+          const baseY = typeof meta.y === "number" ? meta.y : 0;
+          // 화면 좌표로 변환 — 모바일 1회 탭에서도 노드 위치에 정확히 라벨 표시.
+          // v0.6.12 1차에서 server coords 그대로 썼더니 zoom/pan 후 라벨이 어긋남.
+          const screen = flowToScreenPosition({
+            x: baseX + size / 2,
+            y: baseY + size / 2,
+          });
+          return {
+            id: n.id,
+            title: meta.title,
+            type: meta.type,
+            weight: meta.weight ?? 0,
+            x: screen.x,
+            y: screen.y,
+          };
+        });
+        tap.id = n.id;
+        tap.timer = window.setTimeout(() => {
+          tap.id = null;
+          tap.timer = null;
+        }, 320);
+        return;
+      }
       onNodeClick?.(n.id);
     },
-    [onNodeClick]
+    [isCoarse, nodeMap, onNodeClick, onNodeDoubleClick, flowToScreenPosition]
   );
+
+  const handleNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, n: { id: string }) => {
+      // Patch 2: 더블 click/tap → 페이지 이동 (모바일+데스크탑 공통).
+      // 모바일(coarse)인 경우 single click에서 onNodeClick이 navigate를 호출하지
+      // 않으므로 이 핸들러가 navigate의 단일 진입점.
+      onNodeDoubleClick?.(n.id);
+    },
+    [onNodeDoubleClick]
+  );
+
+  // Patch 2+: viewport(zoom/pan) 이동 시 표시 중인 라벨의 screen 좌표를
+  //   재계산해서 노드 위에 정확히 머무르게 한다.
+  //   화면 좌표 → 화면 좌표 함수라 server coords는 rfNodes에서 다시 읽는다.
+  const rfNodesById = useMemo(() => {
+    const m = new Map<string, { x: number; y: number }>();
+    for (const rn of rfNodes) {
+      m.set(rn.id, rn.position);
+    }
+    return m;
+  }, [rfNodes]);
+
+  const handleMove = useCallback(() => {
+    setHoveredNode((prev) => {
+      if (!prev) return prev;
+      const pos = rfNodesById.get(prev.id);
+      if (!pos) return prev;
+      const screen = flowToScreenPosition({
+        x: pos.x + nodeSize(prev.weight) / 2,
+        y: pos.y + nodeSize(prev.weight) / 2,
+      });
+      return { ...prev, x: screen.x, y: screen.y };
+    });
+  }, [rfNodesById, flowToScreenPosition]);
 
   return (
     <div
@@ -222,8 +386,16 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
         edges={rfEdges}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onNodeMouseEnter={handleNodeEnter}
         onNodeMouseLeave={handleNodeLeave}
+        // Patch 2+: viewport 이동 시 표시 중인 라벨의 screen 좌표 재계산.
+        onMove={handleMove}
+        // Patch 3: 노드 드래그 활성화 (xyflow v12 기본값 true이지만 명시).
+        //   모바일에서 노드를 잡고 캔버스 자유 이동 가능. 메모리상 이동 — 백엔드
+        //   저장은 다음 라운드(v0.6.13 후보).
+        nodesDraggable={true}
+        nodesConnectable={false}
         // Patch 5: programmatic fitView 사용 → prop `fitView` 제거 (중복 fit 방지).
         // Patch 3: 모바일/데스크탑 gesture 강화
         panOnDrag
@@ -263,13 +435,15 @@ function GraphCanvasInner({ nodes, edges, onNodeClick }: Props) {
         />
       </ReactFlow>
 
-      {/* Patch 2: hover overlay — xyflow 외부 absolute div로 label 표시.
-          xyflow 노드 자체에는 텍스트 0px → 텍스트 오버랩 0. */}
+      {/* Patch 2: hover/tap overlay — position: fixed로 화면 좌표에 정확히 표시.
+            v0.6.12 1차에서 absolute + server coords 썼더니 zoom/pan 후 라벨이
+            어긋나서 "안 보임" 증상. 화면 좌표 + fixed → 어느 viewport 상태에서든
+            노드 위에 정확히 표시. xyflow 노드 자체에는 텍스트 0px → 텍스트 오버랩 0. */}
       {hoveredNode && (
         <div
           data-testid="graph-hover-label"
           style={{
-            position: "absolute",
+            position: "fixed",
             left: hoveredNode.x,
             top: hoveredNode.y,
             transform: "translate(-50%, calc(-100% - 14px))",

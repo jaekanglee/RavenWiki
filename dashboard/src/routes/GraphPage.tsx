@@ -50,7 +50,7 @@ export function GraphPage() {
         <div style={{ flex: 1 }}>
           <h1>Graph</h1>
           <p className="text-muted" style={{ fontSize: 14, marginTop: 4 }}>
-            in <strong>{vault}</strong> · 노드를 클릭하면 페이지로 이동합니다 ·{" "}
+            in <strong>{vault}</strong> · 클릭하면 페이지로 이동 · 두 번 탭하면 페이지로 이동 (모바일) ·{" "}
             {visibleNodes.length} / {graph.nodes.length} nodes · {visibleEdges.length} edges
             {orphanCount > 0 && hideOrphans && ` · ${orphanCount} orphan 숨김`}
           </p>
@@ -86,7 +86,11 @@ export function GraphPage() {
         <GraphCanvas
           nodes={visibleNodes}
           edges={visibleEdges}
+          // 데스크탑: 1회 click → navigate
           onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
+          // 모바일/데스크탑 공통: 더블 click/tap → navigate
+          // (GraphCanvas 내부에서 coarse pointer 검출 + 320ms tap 디바운스로 처리)
+          onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
         />
       </div>
     </div>

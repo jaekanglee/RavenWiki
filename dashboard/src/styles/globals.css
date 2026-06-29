@@ -527,11 +527,29 @@ mark {
   }
 }
 
+/* Page layout (v0.6.12 Patch 3): BacklinksPanel moved from right rail to
+   bottom. Default = single column (article full-width, backlinks below).
+   `.page-grid` no longer needs a desktop 2-column grid.
+   Mobile collapses further (mobile off-canvas, not the panel — Panel is
+   already inline on narrow screens via the existing ≤1024px rule below). */
+.page-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.page-grid > aside {
+  /* BacklinksPanel aside — full-width on bottom, no left hairline (we're not
+     on a rail anymore). Top hairline + small label keeps the visual separation. */
+  border-left: none !important;
+  border-top: 1px solid var(--color-hairline);
+  padding-top: 20px !important;
+  position: static !important;
+}
+
 /* Page grid collapses to single column on narrow screens so Backlinks
    doesn't eat horizontal space from the body content. */
 @media (max-width: 1024px) {
   .page-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
     gap: 24px !important;
   }
 }
