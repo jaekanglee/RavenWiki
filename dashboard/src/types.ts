@@ -27,8 +27,12 @@ export interface VaultMeta {
 
 export interface GraphNode {
   slug: string;
+  id?: string;
   title: string;
-  type: string;
+  type?: string;
+  weight?: number;
+  x?: number;
+  y?: number;
 }
 
 export interface GraphEdge {

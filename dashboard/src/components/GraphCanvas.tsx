@@ -11,30 +11,23 @@ interface Props {
 
 // SCHEMA 8종(확장 매핑) — type별 노드 색상. 미분류/미인식 → default gray.
 const TYPE_COLORS: Record<string, string> = {
-  decision: "#a855f7",   // purple
-  concept: "#22c55e",    // green
-  manual: "#3b82f6",     // blue
-  pattern: "#f97316",    // orange
-  insight: "#eab308",    // yellow
-  journal: "#06b6d4",    // cyan
-  person: "#ec4899",     // pink
-  comparison: "#ef4444", // red
-  tool: "#6b7280",       // gray
-  rule: "#6366f1",       // indigo
+  decision: "#a855f7",
+  concept: "#22c55e",
+  manual: "#3b82f6",
+  pattern: "#f97316",
+  insight: "#eab308",
+  journal: "#06b6d4",
+  person: "#ec4899",
+  comparison: "#ef4444",
+  tool: "#6b7280",
+  rule: "#6366f1",
 };
-const DEFAULT_COLOR = "#9ca3af"; // 미분류 (type='?') 회색
+const DEFAULT_COLOR = "#9ca3af";
 
-// FNV-1a 32-bit hash — deterministic position용 (slug → 균등 분포 정수).
-// 같은 vault → 같은 노드 위치 보장 (재방문 시 layout 일관).
-function fnv1a(str: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
-  }
-  return h;
-}
-
+// v0.6.10 Patch A1/A2/A3 — dark theme + server-side force layout (x/y 사용).
+// - 백엔드가 nodes[i].x/y를 Fruchterman-Reingold spring algorithm으로 계산 후 반환.
+// - fnv1a 폴백 제거 (서버 결정성 보장).
+// - 컨테이너/노드/엣지 모두 dark navy 톤.
 function nodeColor(type: string | undefined): string {
   if (!type) return DEFAULT_COLOR;
   return TYPE_COLORS[type] ?? DEFAULT_COLOR;
@@ -45,25 +38,24 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
     () =>
       nodes.map((n) => {
         const id = (n as any).id ?? n.slug;
-        // Patch #1: deterministic position — slug 기반 fnv1a 해시.
-        const hx = fnv1a(id);
-        const hy = fnv1a(id + "y");
         const type = (n as any).type ?? n.type;
-        // Patch #3: in-degree(weight) 기반 노드 크기 — sqrt 스케일.
+        // weight = in-degree; size = sqrt scale.
         const weight = (n as any).weight ?? 1;
         const size = 16 + Math.sqrt(Math.max(weight, 1)) * 8;
+        // 서버 계산 좌표 사용. 없으면 0,0으로 fallback.
+        const x = typeof n.x === "number" ? n.x : 0;
+        const y = typeof n.y === "number" ? n.y : 0;
         return {
           id,
           data: { label: (n as any).title ?? n.title },
-          position: { x: (hx >>> 0) % 800, y: (hy >>> 0) % 600 },
-          // Patch #2: type별 색상 + Patch #3: 가변 크기.
+          position: { x, y },
           style: {
             background: nodeColor(type),
             width: size,
             height: size,
             fontSize: 11,
-            color: "#fff",
-            border: "1px solid rgba(0,0,0,0.15)",
+            color: "#e5e7eb", // light gray text on dark bg
+            border: "1px solid rgba(255,255,255,0.18)",
           },
         };
       }),
@@ -76,21 +68,39 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: Props) {
         id: `e${i}`,
         source: (e as any).source ?? e.source_slug,
         target: (e as any).target ?? e.target_slug,
+        style: { stroke: "#4a5568", strokeWidth: 1 }, // 어두운 회색 톤
       })),
     [edges]
   );
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        background: "#0a0e1a", // 어두운 navy 배경
+      }}
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         onNodeClick={(_, n) => onNodeClick?.(n.id)}
         fitView
       >
-        <Background />
-        <Controls />
-        <MiniMap />
+        {/* Patch A2: dark background — xyflow background color 오버라이드 */}
+        <Background color="#374151" bgColor="#0a0e1a" size={1} />
+        <Controls
+          style={{
+            background: "#1f2937",
+            borderColor: "#374151",
+            color: "#e5e7eb",
+          }}
+        />
+        <MiniMap
+          style={{ background: "#1f2937" }}
+          nodeColor={(n) => nodeColor((n.data as any)?.type)}
+          maskColor="rgba(10, 14, 26, 0.7)"
+        />
       </ReactFlow>
     </div>
   );

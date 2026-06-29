@@ -318,11 +318,122 @@ def list_pages(
     return {"ok": True, "vault": name, "pages": rows}
 
 
-@app.get("/api/vaults/{name}/graph")
-def vault_graph(name: str):
-    """vault 페이지 + wikilink edges를 반환. Dashboard /graph 페이지용.
+class GraphLayoutParams(BaseModel):
+    iterations: int = Field(120, ge=1, le=2000, description="spring iterations (FR-style)")
 
-    nodes: [{id: slug, title, type}]
+
+def _spring_layout(
+    ids: list[str], edges: list[tuple[str, str]], iterations: int = 120
+) -> dict[str, tuple[float, float]]:
+    """간단한 Fruchterman-Reingold 스타일의 force-directed layout.
+
+    의존성 최소화 (networkx/dagre ❌). 50 LoC 수준의 bare-bones 구현:
+    - 인접 노드간 인력 (attractive), 비인접 노드간 척력 (repulsive)
+    - 일정 간격 적용 후 클램핑
+    - 결정론: 시드 0 + 동일 slug 순서 → 같은 vault에서 같은 위치 재현
+
+    Returns: {slug: (x, y)} dict.
+    """
+    import math
+    import random as _r
+    rng = _r.Random(0)  # 결정론
+    idx = {s: i for i, s in enumerate(ids)}
+    n = len(ids)
+    if n == 0:
+        return {}
+    # 초기 위치 — 작은 격자 (너무 멀리 안 퍼지도록)
+    side = max(2, int(math.sqrt(n)) + 1)
+    pos_x = [0.0] * n
+    pos_y = [0.0] * n
+    for i in range(n):
+        pos_x[i] = (i % side) * 50.0 + rng.uniform(-10, 10)
+        pos_y[i] = (i // side) * 50.0 + rng.uniform(-10, 10)
+
+    # 인접 리스트 (인덱스 기반)
+    adj: list[set[int]] = [set() for _ in range(n)]
+    for s, t in edges:
+        si, ti = idx.get(s), idx.get(t)
+        if si is not None and ti is not None and si != ti:
+            adj[si].add(ti)
+            adj[ti].add(si)
+
+    area = 1200.0 * 800.0
+    k = math.sqrt(area / max(n, 1))
+    k2 = k * k
+
+    # 온도 스케줄
+    t0 = 100.0
+    t_min = 1.0
+
+    for it in range(iterations):
+        temp = t0 * ((t_min / t0) ** (it / max(iterations - 1, 1)))
+        # displacement 버퍼
+        dx = [0.0] * n
+        dy = [0.0] * n
+        # 1) 모든 쌍 척력 — O(n^2) (vault 페이지 수 ~ 수백 가정, 충분)
+        for i in range(n):
+            for j in range(i + 1, n):
+                d_x = pos_x[i] - pos_x[j]
+                d_y = pos_y[i] - pos_y[j]
+                d2 = d_x * d_x + d_y * d_y
+                if d2 < 0.01:
+                    d2 = 0.01
+                d = math.sqrt(d2)
+                # FR 척력 = k^2 / d
+                force = k2 / d
+                # 양쪽으로 분리
+                fx = (d_x / d) * force
+                fy = (d_y / d) * force
+                dx[i] += fx
+                dy[i] += fy
+                dx[j] -= fx
+                dy[j] -= fy
+        # 2) 인접 노드 인력 — d^2 / k
+        for i in range(n):
+            for j in adj[i]:
+                if j < i:
+                    continue  # 쌍 한 번만
+                d_x = pos_x[i] - pos_x[j]
+                d_y = pos_y[i] - pos_y[j]
+                d2 = d_x * d_x + d_y * d_y
+                if d2 < 0.01:
+                    d2 = 0.01
+                d = math.sqrt(d2)
+                force = (d * d) / k
+                fx = (d_x / d) * force
+                fy = (d_y / d) * force
+                dx[i] -= fx
+                dy[i] -= fy
+                dx[j] += fx
+                dy[j] += fy
+        # 적용 — 변위를 온도로 클램핑 후 누적 위치
+        for i in range(n):
+            disp_mag = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
+            scale = min(disp_mag, temp) / max(disp_mag, 0.001)
+            pos_x[i] += dx[i] * scale
+            pos_y[i] += dy[i] * scale
+    # 정규화 — negative 좌표를 0으로 이동
+    min_x = min(pos_x)
+    min_y = min(pos_y)
+    if min_x < 0 or min_y < 0:
+        for i in range(n):
+            if min_x < 0:
+                pos_x[i] -= min_x
+            if min_y < 0:
+                pos_y[i] -= min_y
+    return {ids[i]: (round(pos_x[i], 1), round(pos_y[i], 1)) for i in range(n)}
+
+
+@app.get("/api/vaults/{name}/graph")
+def vault_graph(
+    name: str,
+    iterations: int = Query(120, ge=1, le=2000, description="spring iterations"),
+):
+    """vault 페이지 + wikilink edges + force-directed 좌표를 반환.
+
+    v0.6.10+: nodes[i].x, nodes[i].y = 서버 계산 spring layout 좌표.
+
+    nodes: [{id: slug, title, type, weight, x, y}]
     edges: [{source: src_slug, target: tgt_slug}]
 
     wiki.db의 links 테이블에서 source/target 직접 매칭 (정확성 우선).
@@ -359,6 +470,14 @@ def vault_graph(name: str):
             ).fetchall()
             edges = [{"source": r["source_slug"], "target": r["target_slug"]} for r in edges_raw]
             db.close()
+            # Patch A1 (v0.6.10+): force-directed 좌표 부착 (서버 1회 계산, 결정론).
+            ids = [n["id"] for n in nodes]
+            edge_pairs = [(e["source"], e["target"]) for e in edges]
+            layout = _spring_layout(ids, edge_pairs, iterations=iterations)
+            for node in nodes:
+                xy = layout.get(node["id"], (0.0, 0.0))
+                node["x"] = xy[0]
+                node["y"] = xy[1]
             return {
                 "ok": True,
                 "vault": name,
@@ -413,6 +532,15 @@ def vault_graph(name: str):
     # nodes에 weight 부착
     for node in nodes:
         node["weight"] = in_degree.get(node["id"], 0)
+
+    # Patch A1 (v0.6.10+): force-directed 좌표 부착 (fallback 분기).
+    ids = [n["id"] for n in nodes]
+    edge_pairs = [(e["source"], e["target"]) for e in edges]
+    layout = _spring_layout(ids, edge_pairs, iterations=iterations)
+    for node in nodes:
+        xy = layout.get(node["id"], (0.0, 0.0))
+        node["x"] = xy[0]
+        node["y"] = xy[1]
 
     return {
         "ok": True,

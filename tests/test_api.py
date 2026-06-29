@@ -371,3 +371,77 @@ def test_api_vault_graph_weight_matches_in_degree(client, isolated_env):
     nodes = {n["id"]: n for n in resp.json()["nodes"]}
     assert "content/b" in nodes, "b가 노드에 존재해야 함"
     assert nodes["content/b"]["weight"] >= 1, f"b는 a로부터 incoming을 받아야 함, got {nodes['content/b']['weight']}"
+
+
+# ─── vault graph (v0.6.10+ — force-directed layout A1 / dark A2 / orphan hide A3) ───
+
+
+def test_api_vault_graph_nodes_carry_xy_coordinates(client, isolated_env):
+    """A1: 모든 노드는 서버 계산 spring layout x/y 좌표를 가져야 한다.
+
+    결정론 보장: seed=0 + 동일 slug 순서 → 같은 vault 항상 같은 좌표.
+    """
+    target = isolated_env["target_root"] / "gv3"
+    client.post("/api/vaults/create", json={"name": "gv3", "path": str(target), "bootstrap": False})
+    for slug in ["content/a", "content/b", "content/c"]:
+        client.post(f"/api/vaults/gv3/pages", json={"slug": slug, "title": slug.split("/")[-1].upper()})
+    # a → b, b → c 링크
+    client.post(
+        "/api/vaults/gv3/pages",
+        json={"slug": "content/a", "title": "A", "content": "see [[content/b]]"},
+    )
+    client.post(
+        "/api/vaults/gv3/pages",
+        json={"slug": "content/b", "title": "B", "content": "see [[content/c]]"},
+    )
+    resp = client.get("/api/vaults/gv3/graph")
+    assert resp.status_code == 200
+    nodes = resp.json()["nodes"]
+    assert len(nodes) >= 3
+    for n in nodes:
+        assert "x" in n, f"node missing x: {n}"
+        assert "y" in n, f"node missing y: {n}"
+        assert isinstance(n["x"], (int, float))
+        assert isinstance(n["y"], (int, float))
+    # 결정론 — 두 번 호출해서 같아야 함
+    resp2 = client.get("/api/vaults/gv3/graph")
+    nodes2 = resp2.json()["nodes"]
+    coords1 = {(n["id"], n["x"], n["y"]) for n in nodes}
+    coords2 = {(n["id"], n["x"], n["y"]) for n in nodes2}
+    assert coords1 == coords2, f"layout not deterministic: {coords1 ^ coords2}"
+
+
+def test_api_vault_graph_xy_distinct_for_connected_nodes(client, isolated_env):
+    """A1: 링크된 노드 a, b는 서로 다른 좌표에 있어야 한다 (force-directed가 의미있는 위치 배정)."""
+    target = isolated_env["target_root"] / "gv4"
+    client.post("/api/vaults/create", json={"name": "gv4", "path": str(target), "bootstrap": False})
+    client.post(
+        "/api/vaults/gv4/pages",
+        json={"slug": "content/a", "title": "A", "content": "[[content/b]]"},
+    )
+    client.post("/api/vaults/gv4/pages", json={"slug": "content/b", "title": "B"})
+    resp = client.get("/api/vaults/gv4/graph")
+    nodes = {n["id"]: n for n in resp.json()["nodes"]}
+    a, b = nodes["content/a"], nodes["content/b"]
+    dist = ((a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2) ** 0.5
+    assert dist > 1.0, f"a, b가 너무 가까이 (dist={dist:.2f}, 같을 수 없음)"
+
+
+def test_spring_layout_handles_small_graph():
+    """_spring_layout은 0/1/소형 그래프에서도 안정적으로 동작해야 한다."""
+    from raven.api.server import _spring_layout
+    # 빈 입력
+    assert _spring_layout([], []) == {}
+    # 단일 노드
+    out = _spring_layout(["a"], [])
+    assert "a" in out
+    assert len(out["a"]) == 2
+    # 10 노드 + 일부 링크
+    ids = [f"n{i}" for i in range(10)]
+    edges = [("n0", "n1"), ("n1", "n2"), ("n2", "n3"), ("n3", "n0")]
+    out = _spring_layout(ids, edges, iterations=50)
+    for i in ids:
+        assert i in out
+        x, y = out[i]
+        assert isinstance(x, float)
+        assert isinstance(y, float)
