@@ -47,8 +47,12 @@
   --radius-lg: 12px;
   --radius-full: 9999px;
 
-  /* typography stack — DM Sans (Google Fonts) replaces Airbnb Cereal VF / Inter */
-  --font-display: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* typography stack — IBM Plex Sans (display + body) + IBM Plex Mono (code).
+     IBM Plex: carbon design / data tooling 친화. 숫자 가독성 좋고 Raven의
+     dark + structured 톤에 맞음. 무료, self-host 가능, system fallback 안전. */
+  --font-display: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: var(--font-display);
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ── Carbon-style role tokens (alias BMW tone values) ──
      Architecture only — values remain BMW-tone; only the naming follows
@@ -644,6 +648,124 @@ mark {
   border: 1px solid rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
 }
+/* Sidebar — IBM Plex Sans + clean chevron + 16/24 sizing.
+   v0.6.15 sidebar cleanup: vault name 크기 ↑, chevron rotation transition,
+   "Vaults (N)" label은 vault 2개+일 때만 표시 (1개일 땐 노이즈). */
+
+.sidebar-vault-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px;
+  min-height: 36px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-family: var(--font-display);
+  border-radius: 4px;
+  letter-spacing: -0.1px;
+}
+.sidebar-vault-row:hover {
+  background: var(--color-surface-soft);
+}
+.sidebar-vault-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-vault-mode {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: 8px;
+  color: var(--color-muted);
+  font-family: var(--font-display);
+  letter-spacing: 0.2px;
+  text-transform: lowercase;
+  flex-shrink: 0;
+}
+.sidebar-vault-default {
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.sidebar-vault-active {
+  color: #198038;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* Chevron: 16px 컨테이너 + SVG 12px + 90° rotation transition. */
+.sidebar-chevron {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  opacity: 0.65;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: transform 0.18s ease, color 0.12s ease, opacity 0.12s ease;
+}
+.sidebar-chevron:hover {
+  color: var(--color-ink);
+  opacity: 1;
+}
+.sidebar-chevron-open {
+  transform: rotate(90deg);
+}
+.sidebar-chevron-sm {
+  width: 14px;
+  height: 14px;
+  opacity: 0.5;
+}
+.sidebar-tree-dir {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  min-height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: calc(100% - var(--tree-depth, 0px));
+  text-align: left;
+  font-family: var(--font-display);
+  border-radius: 3px;
+  letter-spacing: 0.1px;
+}
+.sidebar-tree-dir:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.sidebar-tree-leaf {
+  display: block;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-ink);
+  border-radius: 3px;
+  text-decoration: none;
+  font-family: var(--font-display);
+}
+.sidebar-tree-leaf:hover {
+  background: var(--color-surface-soft);
+}
+
 .graph-canvas-frame {
   flex: 1;
   min-height: 0;

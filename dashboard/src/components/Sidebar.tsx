@@ -21,6 +21,32 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+/**
+ * contentRoot (v0.6.15 sidebar cleanup)
+ * ─────────────────────────────────────────────────
+ * 모든 vault에 공통으로 있는 `content/` 같은 single-child 디렉토리는
+ * 사용자에게 노이즈다. TreeNode에서 이걸 자동 감지해서 그 자식들만 노출한다.
+ *
+ * 예: vault tree = {content/ → [concept/, decision/]}
+ *     → sidebar에 "content/" 자체를 숨기고 concept/, decision/가 root로 표시
+ *
+ * v1 heuristic: root.children 중 단일 child만 있고, 그 child의 slug가
+ * `content` (case-insensitive)이면 그 child의 children을 root로 올림.
+ * 다른 디렉토리(`notes/`, `wiki/`)는 vault에 따라 다르므로 압축 안 함.
+ */
+function flattenCommonRoot(tree: TNode | null): TNode | null {
+  if (!tree || !tree.children || tree.children.length === 0) return tree;
+  const SINGLE_CHILD_NAMES = new Set(["content"]);
+  if (
+    tree.children.length === 1 &&
+    SINGLE_CHILD_NAMES.has(tree.children[0].slug.toLowerCase())
+  ) {
+    const inner = tree.children[0];
+    return { ...inner, children: inner.children ?? [] };
+  }
+  return tree;
+}
+
 export function Sidebar({
   vaults,
   trees,
@@ -53,22 +79,36 @@ export function Sidebar({
         </div>
       </div>
 
-      <div
-        className="sidebar-label"
-        style={{
-          padding: "8px 0 4px",
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.32px",
-          textTransform: "uppercase",
-          color: "var(--color-muted)",
-        }}
-      >
-        Vaults ({vaults.length})
-      </div>
+      {/*
+        "Vaults (N)" label: 1개일 땐 의미 없어서 숨김. 2개+일 때만 카운트 표시.
+        각 vault는 자체 row에서 vault name + mode badge로 충분히 식별 가능.
+      */}
+      {vaults.length > 1 && (
+        <div
+          className="sidebar-label"
+          style={{
+            padding: "8px 0 4px",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.32px",
+            textTransform: "uppercase",
+            color: "var(--color-muted)",
+            fontFamily: "var(--font-display)",
+          }}
+        >
+          Vaults ({vaults.length})
+        </div>
+      )}
 
       {vaults.length === 0 && (
-        <div style={{ padding: 8, fontSize: 13, color: "var(--color-muted)" }}>
+        <div
+          style={{
+            padding: 8,
+            fontSize: 13,
+            color: "var(--color-muted)",
+            fontFamily: "var(--font-display)",
+          }}
+        >
           vault 없음
         </div>
       )}
@@ -77,7 +117,7 @@ export function Sidebar({
         <VaultTreeGroup
           key={v.name}
           vault={v}
-          tree={trees[v.name] ?? null}
+          tree={flattenCommonRoot(trees[v.name] ?? null)}
           isActive={v.name === activeVault}
           onSelect={() => onSelectVault(v.name)}
           onClose={onClose}
@@ -138,28 +178,11 @@ function VaultTreeGroup({
     >
       <button
         onClick={onSelect}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          width: "100%",
-          padding: "6px 8px",
-          minHeight: 32,
-          background: "transparent",
-          border: "none",
-          textAlign: "left",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "var(--color-ink)",
-          cursor: "pointer",
-          fontFamily: "inherit",
-          borderRadius: 4,
-        }}
+        className="sidebar-vault-row"
         aria-label={`switch to vault ${vault.name}`}
         title={`${vault.path}`}
       >
-        {/* arrow: 24px 컨테이너로 터치 영역 ↑ (모바일 32px 터치 타겟 충족).
-            클릭 = toggle. 부모 button과 stopPropagation으로 선택 액션 분리. */}
+        {/* arrow: 16px 컨테이너 + 12px chevron + 90° rotation transition. */}
         <span
           role="button"
           tabIndex={-1}
@@ -168,58 +191,31 @@ function VaultTreeGroup({
             toggleVault();
           }}
           aria-hidden
-          style={{
-            width: 24,
-            height: 24,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: 0.6,
-            cursor: "pointer",
-            flexShrink: 0,
-            fontSize: 11,
-            lineHeight: 1,
-          }}
+          className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}
         >
-          {open ? "▾" : "▸"}
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+            <path
+              d="M4 2 L8 6 L4 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
         {vault.default && (
-          <span
-            style={{
-              fontSize: 9,
-              color: "var(--color-primary)",
-              fontWeight: 700,
-            }}
-            aria-label="default"
-          >
+          <span className="sidebar-vault-default" aria-label="default">
             ★
           </span>
         )}
         {isActive && (
-          <span
-            style={{
-              fontSize: 9,
-              color: "var(--color-success, #198038)",
-              fontWeight: 700,
-            }}
-            aria-label="active"
-          >
+          <span className="sidebar-vault-active" aria-label="active">
             ●
           </span>
         )}
-        <span style={{ flex: 1 }}>{vault.name}</span>
-        <span
-          style={{
-            fontSize: 10,
-            padding: "1px 5px",
-            background: "var(--cds-background, #fff)",
-            border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
-            borderRadius: 8,
-            color: "var(--color-muted)",
-          }}
-        >
-          {vault.mode}
-        </span>
+        <span className="sidebar-vault-name">{vault.name}</span>
+        <span className="sidebar-vault-mode">{vault.mode}</span>
       </button>
 
       {open && (
@@ -277,67 +273,41 @@ function TreeLeaf({
   const [isOpen, setIsOpen] = useState(false);
 
   if (!node.children || node.children.length === 0) {
-    // leaf page (마진 압축: padding 3px 8px 유지, 들여쓰기 12px→14px grid 호환)
+    // leaf page
     return (
       <Link
         to={`/page/${vault}/${node.slug}`}
         onClick={onClose}
-        className="link-ink"
-        style={{
-          display: "block",
-          padding: "3px 8px",
-          fontSize: 13,
-          fontWeight: 400,
-          color: "var(--color-ink)",
-          marginLeft: depth * 14,
-          borderRadius: 3,
-        }}
+        className="link-ink sidebar-tree-leaf"
+        style={{ marginLeft: depth * 14 }}
       >
         {displayTitle(node.title || node.slug)}
       </Link>
     );
   }
 
-  // dir node (묶음 A, Task 3: arrow 24px 컨테이너 + 마진 압축)
+  // dir node — chevron + transition + IBM Plex Sans.
   return (
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={clsx("link-ink")}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "3px 8px",
-          minHeight: 28,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--color-muted)",
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-          width: "100%",
-          textAlign: "left",
-          fontFamily: "inherit",
-          marginLeft: depth * 14,
-          borderRadius: 3,
-        }}
+        className="link-ink sidebar-tree-dir"
+        style={{ marginLeft: depth * 14 }}
       >
         <span
           aria-hidden
-          style={{
-            width: 20,
-            height: 20,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: 0.6,
-            flexShrink: 0,
-            fontSize: 10,
-            lineHeight: 1,
-          }}
+          className={clsx("sidebar-chevron sidebar-chevron-sm", isOpen && "sidebar-chevron-open")}
         >
-          {isOpen ? "▾" : "▸"}
+          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+            <path
+              d="M4 2 L8 6 L4 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
         {displayTitle(node.title || node.slug)}
       </button>
