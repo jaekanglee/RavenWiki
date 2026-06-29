@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { deletePage } from "../lib/api";
 import { TextField } from "./ui/TextField";
 
@@ -51,7 +52,7 @@ export function DeleteButton({
         <span aria-hidden>🗑</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           onClick={() => !busy && setOpen(false)}
           style={{
@@ -131,7 +132,8 @@ export function DeleteButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

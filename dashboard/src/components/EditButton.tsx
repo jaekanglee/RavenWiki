@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { updatePage } from "../lib/api";
 
 export function EditButton({
@@ -47,7 +48,7 @@ export function EditButton({
         <span aria-hidden>✏️</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           onClick={() => !busy && setOpen(false)}
           style={{
@@ -126,7 +127,8 @@ export function EditButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
