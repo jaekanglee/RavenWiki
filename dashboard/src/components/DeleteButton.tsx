@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { deletePage } from "../lib/api";
 import { TextField } from "./ui/TextField";
+import { Modal } from "./ui/Modal";
 
 export function DeleteButton({
   vault,
@@ -52,89 +52,74 @@ export function DeleteButton({
         <span aria-hidden>🗑</span>
       </button>
 
-      {open && createPortal(
-        <div
-          onClick={() => !busy && setOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-            padding: 16,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card"
-            style={{ maxWidth: 480, width: "100%", padding: 32 }}
+      <Modal
+        open={open}
+        onClose={() => !busy && setOpen(false)}
+        maxWidth={480}
+        zIndex={50}
+        disableBackdropClose={busy}
+      >
+        <h2 style={{ marginBottom: 12, color: "var(--color-error-text)" }}>
+          페이지 삭제
+        </h2>
+        <p style={{ fontSize: 14, marginBottom: 16, color: "var(--color-body)" }}>
+          <code
+            style={{
+              background: "var(--color-surface-soft)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              fontSize: 13,
+            }}
           >
-            <h2 style={{ marginBottom: 12, color: "var(--color-error-text)" }}>
-              페이지 삭제
-            </h2>
-            <p style={{ fontSize: 14, marginBottom: 16, color: "var(--color-body)" }}>
-              <code
-                style={{
-                  background: "var(--color-surface-soft)",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  fontSize: 13,
-                }}
-              >
-                {slug}
-              </code>{" "}
-              을(를) vault <strong>{vault}</strong>에서 삭제합니다. _archive/ 로 백업됨.
-            </p>
-            <TextField
-              label="확인 — slug 입력"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder={slug}
-              style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
-            />
-            {msg && (
-              <div
-                style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  background: "var(--color-surface-soft)",
-                  fontSize: 13,
-                  borderRadius: "var(--radius-sm)",
-                  color: "var(--color-ink)",
-                }}
-              >
-                {msg}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setOpen(false)}
-                disabled={busy}
-                className="btn-secondary"
-                style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
-              >
-                취소
-              </button>
-              <button
-                onClick={del}
-                disabled={busy}
-                className="btn-primary"
-                style={{
-                  height: 40,
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  background: "var(--color-error-text)",
-                }}
-              >
-                {busy ? "삭제 중…" : "삭제"}
-              </button>
-            </div>
+            {slug}
+          </code>{" "}
+          을(를) vault <strong>{vault}</strong>에서 삭제합니다. _archive/ 로 백업됨.
+        </p>
+        <TextField
+          label="확인 — slug 입력"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder={slug}
+          style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
+        />
+        {msg && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              background: "var(--color-surface-soft)",
+              fontSize: 13,
+              borderRadius: "var(--radius-sm)",
+              color: "var(--color-ink)",
+            }}
+          >
+            {msg}
           </div>
-        </div>,
-        document.body
-      )}
+        )}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={() => setOpen(false)}
+            disabled={busy}
+            className="btn-secondary"
+            style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
+          >
+            취소
+          </button>
+          <button
+            onClick={del}
+            disabled={busy}
+            className="btn-primary"
+            style={{
+              height: 40,
+              padding: "10px 20px",
+              fontSize: 14,
+              background: "var(--color-error-text)",
+            }}
+          >
+            {busy ? "삭제 중…" : "삭제"}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
