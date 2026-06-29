@@ -2,7 +2,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   ReactFlowProvider,
   useReactFlow,
   Handle,
@@ -83,40 +82,56 @@ export function nodeSize(weight: number | undefined): number {
 //   - 자기 자신은 absolute <div>로 label 표시하지 않고, 부모의 hover overlay에 의존.
 //     → xyflow의 nodeWidth/Height가 작아도 텍스트가 노드 박스에 영향 없음.
 // ───────────────────────────────────────────────────────────────────────────
-function ObsidianNode({ data }: { data: { color: string; size: number; opacity?: number; highlighted?: boolean } }) {
+// ObsidianNode — xyflow custom renderer.
+//   - 외형: 둥근 점 + 그 아래에 작은 title 라벨 (Obsidian-style, 상시 표시).
+//   - hover/포커스 시 라벨 또렷, 비포커스 시 흐리게.
+function ObsidianNode({ data }: { data: { color: string; size: number; opacity?: number; highlighted?: boolean; title?: string; dim?: boolean } }) {
   // xyflow v12는 node에 `data`만 custom으로 전달받음.
   // 좌표/타이틀은 onMouseEnter에서 GraphNode 인덱스로 조회 (아래 handle).
   // Patch 3: pointerEvents: 'all' + cursor: 'grab' 으로 모바일에서 노드 잡기 신호.
   //   onMouseEnter는 hover-only (데스크탑). 모바일에선 클릭으로 라벨 토글됨.
+  const labelOpacity = data.highlighted ? 1 : data.dim ? 0.35 : 0.85;
+  const labelText = data.title ?? "";
   return (
     <div
-      className="obsidian-node"
+      className="obsidian-node-wrap"
       style={{
+        // 노드 wrapper는 dot + label 영역 전체를 잡되, xyflow node box는 dot 크기로 유지
+        // (라벨은 absolute로 띄움). pointerEvents는 dot만 받게.
+        position: "relative",
         width: data.size,
         height: data.size,
-        borderRadius: "50%",
-        background: data.color,
-        border: "1px solid rgba(255,255,255,0.22)",
-        boxShadow: data.highlighted
-          ? "0 0 0 1px rgba(226,232,240,0.75), 0 0 10px rgba(226,232,240,0.24)"
-          : "0 0 0 1px rgba(0,0,0,0.32)",
         opacity: data.opacity ?? 1,
-        cursor: "grab",
-        pointerEvents: "all",
-        touchAction: "none",
-        transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
-        (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 0 0 1px rgba(255,255,255,0.55), 0 0 8px rgba(255,255,255,0.25)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
-        (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 0 0 1px rgba(0,0,0,0.4)";
+        pointerEvents: "none",
       }}
     >
+      <div
+        className="obsidian-node"
+        style={{
+          width: data.size,
+          height: data.size,
+          borderRadius: "50%",
+          background: data.color,
+          border: "1px solid rgba(255,255,255,0.22)",
+          boxShadow: data.highlighted
+            ? "0 0 0 1px rgba(226,232,240,0.75), 0 0 10px rgba(226,232,240,0.24)"
+            : "0 0 0 1px rgba(0,0,0,0.32)",
+          cursor: "grab",
+          pointerEvents: "all",
+          touchAction: "none",
+          transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
+          (e.currentTarget as HTMLDivElement).style.boxShadow =
+            "0 0 0 1px rgba(255,255,255,0.55), 0 0 8px rgba(255,255,255,0.25)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
+          (e.currentTarget as HTMLDivElement).style.boxShadow =
+            "0 0 0 1px rgba(0,0,0,0.4)";
+        }}
+      >
       {/* React Flow custom nodes need explicit handles; otherwise edges are kept in
           data but no SVG edge path is created. Keep handles invisible so the node
           remains an Obsidian-style dot. */}
@@ -132,6 +147,38 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
         style={{ opacity: 0, width: 1, height: 1, pointerEvents: "none" }}
         isConnectable={false}
       />
+      </div>
+      {labelText && (
+        <div
+          className="obsidian-node-label"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            marginTop: 4,
+            fontSize: 11,
+            lineHeight: 1.25,
+            color: "rgba(226, 232, 240, 0.92)",
+            textShadow: "0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95)",
+            // 최대 2줄 + 폭 180px까지 줄바꿈 허용, 더 길면 잘림.
+            width: 180,
+            maxWidth: 180,
+            whiteSpace: "normal",
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            textAlign: "center",
+            opacity: labelOpacity,
+            pointerEvents: "none",
+            userSelect: "none",
+            transition: "opacity 120ms ease-out",
+          }}
+        >
+          {labelText}
+        </div>
+      )}
     </div>
   );
 }
@@ -226,16 +273,14 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         const size = nodeSize(weight);
         const x = typeof n.x === "number" ? n.x : 0;
         const y = typeof n.y === "number" ? n.y : 0;
+        const title = (n as any).title ?? n.slug ?? id;
         return {
           id,
-          // type 필수 — xyflow custom renderer 사용
-          type: "obsidian",
+          type: "obsidian" as const,
           position: { x, y },
-          // size/color는 data로 ObsidianNode에 전달
-          data: { color: nodeColor(type), size },
-          // xyflow 자체는 layout 자유: width/height 지정 안 함. nodeWidth/Height 기본 사용 안 함.
+          data: { color: nodeColor(type), size, title },
         };
-      }),
+      }) as any,
     [nodes]
   );
 
@@ -310,7 +355,9 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
           data: {
             color: (node.data as any).color,
             size: (node.data as any).size,
+            title: (node.data as any).title,
             highlighted,
+            dim: focus.active && !highlighted,
             opacity: !focus.active || highlighted ? 1 : 0.22,
           },
         };
@@ -505,10 +552,10 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
       }}
     >
       <ReactFlow
-        nodes={displayNodes}
+        nodes={displayNodes as any}
         edges={displayEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onNodesChange={onNodesChange as any}
+        onEdgesChange={onEdgesChange as any}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
@@ -552,15 +599,6 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
             color: "#e5e7eb",
           }}
           showInteractive={false}
-        />
-        <MiniMap
-          style={{ background: "#1f2937" }}
-          nodeColor={(n) => (n.data as any)?.color ?? DEFAULT_COLOR}
-          nodeStrokeColor="rgba(255,255,255,0.3)"
-          nodeBorderRadius={50}
-          maskColor="rgba(10, 14, 26, 0.75)"
-          pannable
-          zoomable
         />
         <div
           style={{

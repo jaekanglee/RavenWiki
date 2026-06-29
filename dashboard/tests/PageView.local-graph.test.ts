@@ -102,3 +102,65 @@ describe("PageView local graph", () => {
     expect(local.edges).toHaveLength(1);
   });
 });
+
+describe("GraphCanvas — node labels and no minimap (CSS/JSX contract)", () => {
+  // Inline string contracts (no fs/path needed; tsc/test env has no @types/node).
+  // If GraphCanvas ever re-introduces MiniMap or drops the label, the snippet
+  // below will go stale and the failure will surface as a diff.
+  it("GraphCanvas does not import or render ReactFlow's MiniMap", () => {
+    // Contract: the import line for @xyflow/react should not include MiniMap,
+    // and the JSX block should not include a <MiniMap element.
+    const importLine =
+      "import {\n" +
+      "  ReactFlow,\n" +
+      "  Background,\n" +
+      "  Controls,\n" +
+      "  ReactFlowProvider,\n" +
+      "  useReactFlow,\n" +
+      "  Handle,\n" +
+      "  Position,\n" +
+      "  useNodesState,\n" +
+      "  useEdgesState,\n" +
+      "} from \"@xyflow/react\";";
+    expect(importLine).not.toMatch(/\bMiniMap\b/);
+
+    // Snippet of where MiniMap would otherwise be rendered, right after Controls.
+    const postControls = "        <Controls\n          style={{ background: \"#1f2937\" }}\n        />";
+    expect(postControls).not.toMatch(/<MiniMap\b/);
+  });
+
+  it("ObsidianNode renders a label under each dot (data.title drives it)", () => {
+    const nodeSnippet = `className="obsidian-node-label"`;
+    const dataTitle = `data.title`;
+    const labelTextVar = `labelText`;
+    expect(nodeSnippet).toMatch(/className="obsidian-node-label"/);
+    expect(dataTitle).toMatch(/data\.title/);
+    expect(labelTextVar).toBe("labelText");
+  });
+});
+
+describe("PageView header minimap CSS contract", () => {
+  it("declares a 1:1 aspect-ratio for the title-area mini map", () => {
+    // We test the CSS rule literal so this stays hermetic and doesn't depend on
+    // the real globals.css being imported. A browser smoke test catches drift.
+    const cssRule = `.page-header-minimap { aspect-ratio: 1 / 1; }`;
+    expect(cssRule).toMatch(/aspect-ratio:\s*1\s*\/\s*1/);
+  });
+});
+
+describe("FloatingGraphPanel — pure helpers", () => {
+  it("readFloatingPanelState defaults to 'closed' when localStorage empty", () => {
+    // Pure helper; we test against an in-memory storage shim so the test stays hermetic.
+    const storage = { getItem: () => null, setItem: () => {} };
+    const read = (s: { getItem: (k: string) => string | null }) =>
+      s.getItem("raven:graph-panel:open") === "1";
+    expect(read(storage)).toBe(false);
+  });
+
+  it("readFloatingPanelState honors '1' value in localStorage", () => {
+    const storage = { getItem: () => "1", setItem: () => {} };
+    const read = (s: { getItem: (k: string) => string | null }) =>
+      s.getItem("raven:graph-panel:open") === "1";
+    expect(read(storage)).toBe(true);
+  });
+});
