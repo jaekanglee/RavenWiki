@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { createPage, getActiveVault } from "../lib/api";
+import { createPage, fetchTree, getActiveVault } from "../lib/api";
+import type { TreeNode } from "../types";
 
 interface NewPageButtonProps {
   vault?: string;
@@ -33,6 +34,34 @@ export function NewPageButton({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // v0.6.19+: 경로 피커 — modal 열릴 때 vault 트리 fetch, 폴더 클릭 시 slug prefix 주입
+  const [tree, setTree] = useState<TreeNode | null>(null);
+  const [treeErr, setTreeErr] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchTree(vault)
+      .then((t) => {
+        if (!cancelled) setTree(t);
+      })
+      .catch(() => {
+        if (!cancelled) setTreeErr(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, vault]);
+
+  function pickFolder(folderPath: string) {
+    // 기존 slug에 다른 prefix가 있으면 제거하고 새 prefix 적용
+    // 사용자가 파일명을 이어서 입력할 수 있도록 trailing slash 유지
+    setSlug((prev) => {
+      const trimmed = prev.replace(/^content\//, "").replace(/\/[^/]*$/, "");
+      if (folderPath === "content") return trimmed ? `content/${trimmed}` : "content/";
+      return `${folderPath}/${trimmed}`.replace(/\/+$/, "/");
+    });
+  }
 
   async function submit() {
     setErr(null);
@@ -97,11 +126,13 @@ export function NewPageButton({
             onClick={(e) => e.stopPropagation()}
             className="card"
             style={{
-              maxWidth: 720,
+              maxWidth: 880,
               width: "100%",
               maxHeight: "90vh",
-              overflowY: "auto",
+              overflow: "hidden", // 2-column scroll 처리
               padding: 32,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <h2 style={{ marginBottom: 8 }}>
@@ -114,50 +145,93 @@ export function NewPageButton({
               제목과 저장 위치만 정하면 바로 만들 수 있습니다.
             </p>
 
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  marginBottom: 6,
-                  color: "var(--color-ink)",
-                }}
-              >
-                저장 위치 *
-              </span>
-              <input
-                className="input-base"
-                style={{ height: 48 }}
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder={initialSlug || "content/my-concept"}
-              />
-              <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                예: content/concept/my-note — 파일명은 영어/숫자/하이픈을 권장합니다.
-              </span>
-            </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(180px, 240px) 1fr",
+                gap: 24,
+                overflowY: "auto",
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
+              {/* 좌측: 경로 피커 (vault 트리) */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    marginBottom: 8,
+                    color: "var(--color-ink)",
+                  }}
+                >
+                  저장 위치
+                </div>
+                {treeErr ? (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-muted)",
+                      padding: "12px 8px",
+                      border: "1px solid var(--color-hairline)",
+                      borderRadius: "var(--radius-sm)",
+                    }}
+                  >
+                    트리를 불러올 수 없습니다. 우측에서 직접 입력해 주세요.
+                  </div>
+                ) : tree ? (
+                  <PathPicker tree={tree} currentPrefix={slug} onPick={pickFolder} />
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--color-muted)" }}>트리 불러오는 중…</div>
+                )}
+              </div>
 
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  marginBottom: 6,
-                  color: "var(--color-ink)",
-                }}
-              >
-                제목 *
-              </span>
-              <input
-                className="input-base"
-                style={{ height: 48 }}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="내 컨셉"
-              />
-            </label>
+              {/* 우측: 폼 */}
+              <div>
+                <label style={{ display: "block", marginBottom: 16 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 6,
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    경로 *
+                  </span>
+                  <input
+                    className="input-base"
+                    style={{ height: 48 }}
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="content/my-concept"
+                  />
+                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                    좌측에서 폴더를 클릭하거나 직접 입력하세요. 마지막 segment가 파일명입니다.
+                  </span>
+                </label>
+
+                <label style={{ display: "block", marginBottom: 16 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 6,
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    제목 *
+                  </span>
+                  <input
+                    className="input-base"
+                    style={{ height: 48 }}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="내 컨셉"
+                  />
+                </label>
 
             <button
               type="button"
@@ -292,10 +366,93 @@ export function NewPageButton({
                 {busy ? "저장 중…" : "저장"}
               </button>
             </div>
+              </div>{/* 우측 폼 닫기 */}
+            </div>{/* grid 닫기 */}
           </div>
         </div>,
         document.body
       )}
     </>
+  );
+}
+
+// ─── PathPicker — vault 트리에서 폴더 클릭 → slug prefix 주입 ────────
+// v0.6.19+: 페이지 생성 모달 좌측에 표시. 빈 폴더도 포함 (ADR 05311e0).
+function PathPicker({
+  tree,
+  currentPrefix,
+  onPick,
+}: {
+  tree: TreeNode;
+  currentPrefix: string;
+  onPick: (folderPath: string) => void;
+}) {
+  // 현재 slug의 prefix가 어떤 폴더에 해당하는지 하이라이트용
+  const activePrefix = currentPrefix.replace(/\/[^/]*$/, "").replace(/\/+$/, "");
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-hairline)",
+        borderRadius: "var(--radius-sm)",
+        padding: 8,
+        maxHeight: 360,
+        overflowY: "auto",
+        background: "var(--color-canvas)",
+        fontSize: 13,
+      }}
+    >
+      <PickerNode node={tree} depth={0} activePrefix={activePrefix} onPick={onPick} />
+    </div>
+  );
+}
+
+function PickerNode({
+  node,
+  depth,
+  activePrefix,
+  onPick,
+}: {
+  node: TreeNode;
+  depth: number;
+  activePrefix: string;
+  onPick: (folderPath: string) => void;
+}) {
+  if (node.type === "page") return null;
+  const isActive = activePrefix === node.path;
+  const label = node.path.split("/").pop() || node.path;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => onPick(node.path)}
+        data-path={node.path}
+        style={{
+          display: "block",
+          width: "100%",
+          textAlign: "left",
+          background: isActive ? "var(--color-surface-soft)" : "transparent",
+          border: "none",
+          padding: `6px 8px 6px ${8 + depth * 12}px`,
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          fontSize: 13,
+          color: "var(--color-ink)",
+          fontFamily: "var(--font-display)",
+        }}
+      >
+        📁 {label}
+      </button>
+      {(node.children ?? [])
+        .filter((c) => c.type === "dir")
+        .map((c) => (
+          <PickerNode
+            key={c.path}
+            node={c}
+            depth={depth + 1}
+            activePrefix={activePrefix}
+            onPick={onPick}
+          />
+        ))}
+    </div>
   );
 }
