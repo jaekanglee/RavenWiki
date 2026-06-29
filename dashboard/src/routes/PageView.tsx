@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { MarkdownView } from "../components/MarkdownView";
-import { GraphCanvas } from "../components/GraphCanvas";
+import { FloatingGraphPanel } from "../components/FloatingGraphPanel";
+import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { EditButton } from "../components/EditButton";
 import { DeleteButton } from "../components/DeleteButton";
@@ -132,6 +133,7 @@ export function PageView() {
   const [page, setPage] = useState<Page | null | undefined>(undefined);
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [err, setErr] = useState<string | null>(null);
+  const [showFullGraph, setShowFullGraph] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -202,31 +204,23 @@ export function PageView() {
   return (
     <div className="page-grid">
       <article style={{ minWidth: 0 }}>
-        {/* Header — title + actions */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 16,
-            gap: 16,
-          }}
-        >
-          <h1>{page.title}</h1>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <EditButton
-              vault={vault}
-              slug={page.slug}
-              content={page.content}
-              onSaved={ctx?.refresh}
-            />
-            <DeleteButton
-              vault={vault}
-              slug={page.slug}
-              onDeleted={() => location.assign("/")}
-            />
-          </div>
+        {/* Action row sits above the title (compact icon-only). */}
+        <div className="page-header-actions" aria-label="문서 작업">
+          <EditButton
+            vault={vault}
+            slug={page.slug}
+            content={page.content}
+            onSaved={ctx?.refresh}
+          />
+          <DeleteButton
+            vault={vault}
+            slug={page.slug}
+            onDeleted={() => location.assign("/")}
+          />
         </div>
+
+        {/* Title row — only the title now. The local graph is a floating overlay. */}
+        <h1 className="page-header-title">{page.title}</h1>
 
         {/* Meta row — type badge + tags as ink pills */}
         <div
@@ -258,84 +252,45 @@ export function PageView() {
         {/* Body */}
         <MarkdownView content={related.body || page.content} vault={vault} />
 
-        {localGraph.nodes.length > 0 && (
-          <section className="page-local-graph page-local-graph-bottom" aria-label="문서 그래프">
-            <div className="page-local-graph-header">
-              <h2>관련 그래프</h2>
-              <span>
-                {localGraph.nodes.length} nodes · {localGraph.edges.length} edges
-              </span>
-            </div>
-            <div className="page-local-graph-frame">
-              <GraphCanvas
-                nodes={localGraph.nodes}
-                edges={localGraph.edges}
-                onNodeClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
-                onNodeDoubleClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
-              />
-            </div>
-            {related.links.length > 0 && (
-              <div className="page-related-links" aria-label="관련 문서">
-                {related.links.map((link) => {
-                  const resolved = resolveGraphId(graph, link) ?? link;
-                  const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
-                  return (
-                    <button
-                      key={link}
-                      type="button"
-                      className="page-related-chip"
-                      onClick={() => location.assign(`/page/${vault}/${resolved}`)}
-                    >
-                      {node?.title ?? link}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+        {related.links.length > 0 && (
+          <div className="page-related-links" aria-label="관련 문서">
+            {related.links.map((link) => {
+              const resolved = resolveGraphId(graph, link) ?? link;
+              const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
+              return (
+                <button
+                  key={link}
+                  type="button"
+                  className="page-related-chip"
+                  onClick={() => window.location.assign(`/page/${vault}/${resolved}`)}
+                >
+                  {node?.title ?? link}
+                </button>
+              );
+            })}
+          </div>
         )}
       </article>
 
-      {/* Right-rail mini map (desktop ≥1280px via CSS). Falls back to bottom block via
-          page-local-graph-bottom above on narrow viewports. */}
-      {localGraph.nodes.length > 0 && (
-        <aside className="page-local-graph-rail" aria-label="문서 그래프">
-          <div className="page-local-graph-header">
-            <h2>관련 그래프</h2>
-            <span>
-              {localGraph.nodes.length} nodes · {localGraph.edges.length} edges
-            </span>
-          </div>
-          <div className="page-local-graph-frame">
-            <GraphCanvas
-              nodes={localGraph.nodes}
-              edges={localGraph.edges}
-              onNodeClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
-              onNodeDoubleClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
-            />
-          </div>
-          {related.links.length > 0 && (
-            <div className="page-related-links" aria-label="관련 문서">
-              {related.links.map((link) => {
-                const resolved = resolveGraphId(graph, link) ?? link;
-                const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
-                return (
-                  <button
-                    key={link}
-                    type="button"
-                    className="page-related-chip"
-                    onClick={() => location.assign(`/page/${vault}/${resolved}`)}
-                  >
-                    {node?.title ?? link}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </aside>
-      )}
-
       <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} />
+
+      {/* Floating overlay panel — bottom-right. Hidden automatically on /graph. */}
+      <FloatingGraphPanel
+        vault={vault}
+        nodes={localGraph.nodes}
+        edges={localGraph.edges}
+        onOpenFullGraph={() => setShowFullGraph(true)}
+      />
+
+      {showFullGraph && localGraph.nodes.length > 0 && (
+        <FullscreenGraphModal
+          vault={vault}
+          nodes={localGraph.nodes}
+          edges={localGraph.edges}
+          centerTitle={page?.title ?? slug ?? "관련 그래프"}
+          onClose={() => setShowFullGraph(false)}
+        />
+      )}
     </div>
   );
 }

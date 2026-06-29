@@ -650,57 +650,232 @@ mark {
   }
 }
 
-/* Page layout — article + right-rail graph on desktop, single column on narrow.
-   On desktop ≥1280px the local graph minimap lives on the right rail; on narrower
-   viewports it falls back to the bottom of the article. Backlinks stay bottom. */
+/* FullscreenGraphModal — large overlay showing the related graph at viewport scale.
+   The user stays on the same page; only this modal opens on top. */
+.fullscreen-graph-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 32px;
+  animation: fullscreen-graph-modal-fade-in 0.15s ease-out;
+}
+@keyframes fullscreen-graph-modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fullscreen-graph-modal-card {
+  width: min(100%, 1100px);
+  height: min(100%, 720px);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fullscreen-graph-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.fullscreen-graph-modal-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.fullscreen-graph-modal-title strong {
+  font-size: 16px;
+  color: var(--color-ink);
+}
+.fullscreen-graph-modal-title span {
+  color: var(--color-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.fullscreen-graph-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fullscreen-graph-modal-close:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-hairline);
+  color: var(--color-ink);
+}
+.fullscreen-graph-modal-frame {
+  flex: 1;
+  min-height: 0;
+  background: var(--color-surface-soft);
+}
+.fullscreen-graph-modal-frame .react-flow {
+  width: 100%;
+  height: 100%;
+}
+.fullscreen-graph-modal-footer {
+  padding: 8px 18px;
+  border-top: 1px solid var(--color-hairline);
+  font-size: 12px;
+}
+
+@media (max-width: 744px) {
+  .fullscreen-graph-modal {
+    padding: 12px;
+  }
+  .fullscreen-graph-modal-card {
+    height: 100%;
+  }
+}
+
+/* FloatingGraphPanel — bottom-right overlay. The page owns the article space; the
+   panel lives outside the document flow so the title row is no longer cramped. */
+.floating-graph-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.floating-graph-panel-card {
+  width: 240px;
+  max-width: calc(100vw - 32px);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+}
+.floating-graph-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 12px;
+}
+.floating-graph-panel-header strong {
+  font-size: 13px;
+  color: var(--color-ink);
+  margin-right: auto;
+}
+.floating-graph-panel-header span {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.floating-graph-panel-close {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.floating-graph-panel-close:hover {
+  color: var(--color-ink);
+}
+.floating-graph-panel-frame {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--color-surface-soft);
+}
+.floating-graph-panel-frame .react-flow {
+  width: 100%;
+  height: 100%;
+}
+.floating-graph-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-hairline);
+}
+.floating-graph-panel-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: var(--shadow-overlay);
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.floating-graph-panel-toggle:hover {
+  transform: scale(1.05);
+  background: var(--color-body);
+}
+.floating-graph-panel-toggle:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 744px) {
+  .floating-graph-panel {
+    right: 12px;
+    bottom: 12px;
+  }
+  .floating-graph-panel-card {
+    width: 200px;
+  }
+}
+
+/* Page layout — article column, the graph panel is now a floating overlay. */
 .page-grid {
   display: flex;
   flex-direction: column;
   gap: 32px;
 }
 .page-grid > aside {
-  /* BacklinksPanel aside — full-width on bottom, no left hairline. */
   border-left: none !important;
 }
 
-@media (min-width: 1280px) {
-  .page-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    align-items: start;
-    column-gap: 32px;
-  }
-  .page-grid > article {
-    grid-column: 1;
-    min-width: 0;
-  }
-  .page-grid > aside:not(.page-local-graph-rail):not(.page-local-graph-rail *) {
-    grid-column: 1 / -1;
-  }
-  /* Right rail local graph — fixed second column on desktop. */
-  .page-local-graph-rail {
-    grid-column: 2;
-    grid-row: 1;
-    display: block;
-    position: sticky;
-    top: 96px;
-    max-height: calc(100vh - 120px);
-    width: 340px;
-    max-width: 340px;
-  }
-  .page-local-graph-rail .page-local-graph-frame {
-    height: 360px;
-  }
-  /* Hide the bottom graph variant when the rail is showing. */
-  .page-local-graph-bottom {
-    display: none;
-  }
+.page-header-title {
+  margin: 0 0 8px 0;
 }
-
-@media (max-width: 1279px) {
-  .page-local-graph-rail {
-    display: none;
-  }
+.page-header-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.page-action-icon {
+  height: 24px !important;
+  min-width: 24px !important;
+  width: 24px !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  border-radius: var(--radius-sm) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Below 1024px tighten column gap; sidebar drawer is already off-canvas. */
