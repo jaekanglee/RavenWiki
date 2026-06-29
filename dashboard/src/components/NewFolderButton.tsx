@@ -5,6 +5,10 @@ interface NewFolderButtonProps {
   vault: string;
   parentPath?: string;
   onCreated?: () => void;
+  /** Called once when the trigger button is clicked, before the modal opens.
+   *  Used by mobile sidebar to auto-close the drawer so the modal isn't
+   *  covered by it. Optional — omit to keep old behavior (regression safe). */
+  onOpen?: () => void;
 }
 
 /**
@@ -14,7 +18,7 @@ interface NewFolderButtonProps {
  * - 클릭 시 화면 중앙 모달 (페이지 모달과 분리).
  * - 폴더 경로 1개 입력. depth 무제한. 부수 파일 생성 안 함.
  */
-export function NewFolderButton({ vault, parentPath = "", onCreated }: NewFolderButtonProps) {
+export function NewFolderButton({ vault, parentPath = "", onCreated, onOpen }: NewFolderButtonProps) {
   const [open, setOpen] = useState(false);
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,6 +59,7 @@ export function NewFolderButton({ vault, parentPath = "", onCreated }: NewFolder
         className="sidebar-icon-action"
         onClick={(e) => {
           e.stopPropagation();
+          onOpen?.();
           setOpen(true);
         }}
         aria-label={`${vault}에 폴더 만들기`}

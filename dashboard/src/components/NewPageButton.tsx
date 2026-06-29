@@ -7,6 +7,10 @@ interface NewPageButtonProps {
   variant?: "pill" | "icon";
   label?: string;
   initialSlug?: string;
+  /** Called once when the trigger button is clicked, before the modal opens.
+   *  Used by mobile sidebar to auto-close the drawer so the modal isn't
+   *  covered by it. Optional — omit to keep old behavior (regression safe). */
+  onOpen?: () => void;
 }
 
 export function NewPageButton({
@@ -14,6 +18,7 @@ export function NewPageButton({
   variant = "pill",
   label = "새 페이지",
   initialSlug = "",
+  onOpen,
 }: NewPageButtonProps) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
@@ -62,6 +67,7 @@ export function NewPageButton({
         onClick={(e) => {
           e.stopPropagation();
           if (initialSlug && !slug) setSlug(initialSlug);
+          onOpen?.();
           setOpen(true);
         }}
         className={variant === "icon" ? "sidebar-icon-action" : "btn-pill-primary"}

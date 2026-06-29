@@ -268,7 +268,7 @@ function VaultTreeGroup({
           </svg>
         </span>
         <span className="sidebar-vault-name">{vault.name}</span>
-        <NewPageButton vault={vault.name} variant="icon" label="페이지" />
+        <NewPageButton vault={vault.name} variant="icon" label="페이지" onOpen={onClose} />
         {showMeta && vault.default && (
           <span className="sidebar-vault-default" aria-label="default">
             ★
@@ -379,6 +379,7 @@ function TreeLeaf({
           vault={vault}
           parentPath={node.path}
           onCreated={() => onRefresh?.()}
+          onOpen={onClose}
         />
       </div>
       {isOpen &&
