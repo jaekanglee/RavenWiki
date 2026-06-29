@@ -48,6 +48,32 @@ function flattenCommonRoot(tree: TNode | null): TNode | null {
   return tree;
 }
 
+const VAULT_OPEN_KEY = "__vault__";
+
+function openFoldersStorageKey(vault: string): string {
+  return `raven.sidebar.openFolders.${vault}`;
+}
+
+function readOpenFolders(vault: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(openFoldersStorageKey(vault));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeOpenFolders(vault: string, folders: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(openFoldersStorageKey(vault), JSON.stringify([...folders].sort()));
+  } catch {
+    // localStorage can be unavailable in private mode; sidebar still works in-memory.
+  }
+}
+
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
@@ -194,13 +220,23 @@ function VaultTreeGroup({
   onClose: () => void;
   onRefresh?: () => void;
 }) {
-  // 기본 닫힘 (v0.6.10 UX 강화).
-  const [open, setOpen] = useState(false);
+  const [openFolders, setOpenFolders] = useState<Set<string>>(() => readOpenFolders(vault.name));
+  const open = openFolders.has(VAULT_OPEN_KEY);
+
+  function toggleFolder(key: string) {
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      writeOpenFolders(vault.name, next);
+      return next;
+    });
+  }
 
   // 묶음 A (Plan v1, Tasks 2-3): title 영역 클릭 = toggle, arrow 클릭 = toggle.
   // 둘 다 동일한 toggle 동작. 단, vault 선택(setActive)은 별도 액션.
   // 모바일(<744px) 터치 영역 32px 유지를 위해 min-height 적용.
-  const toggleVault = () => setOpen(!open);
+  const toggleVault = () => toggleFolder(VAULT_OPEN_KEY);
 
   return (
     <div
@@ -265,6 +301,8 @@ function VaultTreeGroup({
                   vault={vault.name}
                   onClose={onClose}
                   activeSlug={activeSlug}
+                  openFolders={openFolders}
+                  onToggleFolder={toggleFolder}
                 />
               ))
             ) : (
@@ -301,17 +339,21 @@ function TreeLeaf({
   vault,
   onClose,
   activeSlug,
+  openFolders,
+  onToggleFolder,
   depth = 0,
 }: {
   node: TNode;
   vault: string;
   onClose: () => void;
   activeSlug: string | null;
+  openFolders: Set<string>;
+  onToggleFolder: (slug: string) => void;
   depth?: number;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
   const nodeSlug = decodeURIComponent(node.slug);
   const isActive = slugMatchesActive(nodeSlug, activeSlug);
+  const isOpen = openFolders.has(node.slug);
 
   if (!node.children || node.children.length === 0) {
     // leaf page
@@ -336,7 +378,7 @@ function TreeLeaf({
   return (
     <div>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => onToggleFolder(node.slug)}
         className="link-ink sidebar-tree-dir"
         style={{ marginLeft: depth * 14 }}
       >
@@ -365,6 +407,8 @@ function TreeLeaf({
             vault={vault}
             onClose={onClose}
             activeSlug={activeSlug}
+            openFolders={openFolders}
+            onToggleFolder={onToggleFolder}
             depth={depth + 1}
           />
         ))}
