@@ -33,6 +33,8 @@ export interface GraphNode {
   weight?: number;
   x?: number;
   y?: number;
+  /** v0.6.15+ — Louvain-style community id (0..K-1) when ?community=modularity. */
+  community?: number;
 }
 
 export interface GraphEdge {

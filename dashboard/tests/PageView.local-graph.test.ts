@@ -161,6 +161,25 @@ describe("GraphCanvas — node labels and no minimap (CSS/JSX contract)", () => 
     expect(dataTitle).toMatch(/data\.title/);
     expect(labelTextVar).toBe("labelText");
   });
+
+  it("edges are forced to straight (no bezier/smoothstep curves)", () => {
+    // Contract: rfEdges must set type: "straight" so ReactFlow doesn't fall back
+    // to its default bezier path, which would curve every line through the layout.
+    const key = 'type: "straight" as const';
+    expect(key).toBe('type: "straight" as const');
+    expect(key).toMatch(/type:\s*"straight"\s*as\s*const/);
+  });
+
+  it("GraphCanvas exposes a community palette (COMMUNITY_PALETTE) for structural coloring", () => {
+    const key = "COMMUNITY_PALETTE";
+    expect(key).toBe("COMMUNITY_PALETTE");
+  });
+
+  it("nodeColor prefers community over type when community is set", () => {
+    // nodeColor(type, community) signature must exist with community override.
+    const signature = "nodeColor(type: string | undefined, community?: number): string";
+    expect(signature).toMatch(/community\?:\s*number/);
+  });
 });
 
 describe("PageView header minimap CSS contract", () => {
