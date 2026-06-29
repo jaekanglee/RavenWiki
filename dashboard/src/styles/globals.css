@@ -515,6 +515,56 @@ mark {
   }
 }
 
+/* Page-local graph — Obsidian-style context minimap embedded below documents. */
+.page-local-graph {
+  margin-top: 36px;
+  border-top: 1px solid var(--color-hairline);
+  padding-top: 20px;
+}
+.page-local-graph-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.page-local-graph-header h2 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+.page-local-graph-header span {
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.page-local-graph-frame {
+  height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+}
+
+.page-related-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.page-related-chip {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: var(--radius-full);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 10px;
+}
+.page-related-chip:hover {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.08);
+}
+
 /* Graph page — maximize canvas area and restyle xyflow controls for dark canvas. */
 .graph-page-shell {
   height: calc(100vh - 128px);
@@ -600,46 +650,77 @@ mark {
   }
 }
 
-/* Page layout (v0.6.12 Patch 3): BacklinksPanel moved from right rail to
-   bottom. Default = single column (article full-width, backlinks below).
-   `.page-grid` no longer needs a desktop 2-column grid.
-   Mobile collapses further (mobile off-canvas, not the panel — Panel is
-   already inline on narrow screens via the existing ≤1024px rule below). */
+/* Page layout — article + right-rail graph on desktop, single column on narrow.
+   On desktop ≥1280px the local graph minimap lives on the right rail; on narrower
+   viewports it falls back to the bottom of the article. Backlinks stay bottom. */
 .page-grid {
   display: flex;
   flex-direction: column;
   gap: 32px;
 }
 .page-grid > aside {
-  /* BacklinksPanel aside — full-width on bottom, no left hairline (we're not
-     on a rail anymore). Top hairline + small label keeps the visual separation. */
+  /* BacklinksPanel aside — full-width on bottom, no left hairline. */
   border-left: none !important;
-  border-top: 1px solid var(--color-hairline);
-  padding-top: 20px !important;
-  position: static !important;
 }
 
-/* Page grid collapses to single column on narrow screens so Backlinks
-   doesn't eat horizontal space from the body content. */
+@media (min-width: 1280px) {
+  .page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+    column-gap: 32px;
+  }
+  .page-grid > article {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .page-grid > aside:not(.page-local-graph-rail):not(.page-local-graph-rail *) {
+    grid-column: 1 / -1;
+  }
+  /* Right rail local graph — fixed second column on desktop. */
+  .page-local-graph-rail {
+    grid-column: 2;
+    grid-row: 1;
+    display: block;
+    position: sticky;
+    top: 96px;
+    max-height: calc(100vh - 120px);
+    width: 340px;
+    max-width: 340px;
+  }
+  .page-local-graph-rail .page-local-graph-frame {
+    height: 360px;
+  }
+  /* Hide the bottom graph variant when the rail is showing. */
+  .page-local-graph-bottom {
+    display: none;
+  }
+}
+
+@media (max-width: 1279px) {
+  .page-local-graph-rail {
+    display: none;
+  }
+}
+
+/* Below 1024px tighten column gap; sidebar drawer is already off-canvas. */
 @media (max-width: 1024px) {
   .page-grid {
     gap: 24px !important;
   }
 }
 
-/* Mobile off-canvas drawer (≤744px).
-   On desktop the sidebar stays in-flow at 288px (set via inline style); the
-   off-canvas transform/fixed positioning below is inert above the breakpoint
-   because the rules are scoped to @media (max-width: 744px). */
-
+/* Sidebar drawer (always overlay — desktop + mobile).
+   Desktop users keep the full content width; the hamburger opens the drawer on demand.
+   Mobile keeps the same drawer behavior (no separate breakpoint needed). */
 .header-hamburger {
-  display: none; /* hidden by default; mobile media query below enables it */
+  display: inline-flex; /* always visible — drawer is now desktop-first too */
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
@@ -658,39 +739,36 @@ mark {
   border-color: var(--color-ink);
 }
 
+.sidebar-offcanvas {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 320px !important;
+  max-width: 90vw;
+  z-index: 50;
+  transform: translateX(-100%);
+  transition: transform 0.22s ease-out;
+  border-right: 1px solid var(--color-hairline);
+  box-shadow: none;
+}
+.sidebar-offcanvas-open {
+  transform: translateX(0);
+  box-shadow: var(--shadow-overlay);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.36);
+  z-index: 40;
+  animation: sidebar-backdrop-fade-in 0.15s ease-out forwards;
+}
+
 @media (max-width: 744px) {
-  .header-hamburger {
-    display: inline-flex;
-  }
-
-  /* Off-canvas sidebar — fixed to the left edge, full viewport height.
-     `open` adds the modifier class which slides it back in. */
   .sidebar-offcanvas {
-    position: fixed !important;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    width: 280px !important;
-    z-index: 50;
-    transform: translateX(-100%);
-    transition: transform 0.2s ease-out;
-    /* The sidebar's own borderRight still paints on the open edge for
-       separation, plus we add a soft shadow when the drawer is open. */
-    border-right: 1px solid var(--color-hairline);
-  }
-  .sidebar-offcanvas-open {
-    transform: translateX(0);
-    box-shadow: var(--shadow-overlay);
-  }
-
-  /* Backdrop covers the rest of the screen while the drawer is open.
-     Tap (or Escape, handled in Layout) closes it. */
-  .sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 40;
-    animation: sidebar-backdrop-fade-in 0.15s ease-out forwards;
+    width: 84vw !important;
+    max-width: 360px;
   }
 }
 

@@ -1,15 +1,122 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { MarkdownView } from "../components/MarkdownView";
+import { GraphCanvas } from "../components/GraphCanvas";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { EditButton } from "../components/EditButton";
 import { DeleteButton } from "../components/DeleteButton";
 import { fetchPage, getActiveVault } from "../lib/api";
-import type { Page } from "../types";
+import type { Graph, Page } from "../types";
 
 interface Ctx {
   vault: string;
   refresh: () => void;
+}
+
+export function buildLocalGraph(graph: Graph, centerSlug: string): Graph {
+  const center = resolveGraphId(graph, centerSlug);
+  if (!center) return { nodes: [], edges: [] };
+
+  const localIds = new Set<string>([center]);
+  const localEdges = graph.edges.filter((edge) => {
+    const source = (edge as any).source ?? edge.source_slug;
+    const target = (edge as any).target ?? edge.target_slug;
+    const connected = source === center || target === center;
+    if (connected) {
+      localIds.add(source);
+      localIds.add(target);
+    }
+    return connected;
+  });
+
+  return {
+    nodes: graph.nodes.filter((node) => localIds.has(node.id ?? node.slug)),
+    edges: localEdges,
+  };
+}
+
+
+export function splitRelatedSection(content: string): { body: string; links: string[] } {
+  const extractLinks = (text: string): string[] => {
+    const links: string[] = [];
+    const seen = new Set<string>();
+    const re = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+    for (const match of text.matchAll(re)) {
+      let slug = match[1].trim();
+      if (slug.endsWith(".md")) slug = slug.slice(0, -3);
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      links.push(slug);
+    }
+    return links;
+  };
+
+  const lines = content.split(/\r?\n/);
+  const idx = lines.findIndex((line) => line.trim().replace(/^#+\s*/, "") === "관련");
+  if (idx >= 0) {
+    const body = lines.slice(0, idx).join("\n").trimEnd();
+    return { body, links: extractLinks(lines.slice(idx + 1).join("\n")) };
+  }
+
+  // Some Raven pages end with a wikilink-only paragraph instead of an explicit
+  // "관련" heading. Treat that trailing paragraph as structured related data.
+  const paragraphs = content.trimEnd().split(/\n\s*\n/);
+  const tail = paragraphs[paragraphs.length - 1] ?? "";
+  const tailLinks = extractLinks(tail);
+  const tailWithoutLinks = tail
+    .replace(/\[\[[^\]]+\]\]/g, "")
+    .replace(/[·,|\-–—\s]/g, "")
+    .trim();
+  if (tailLinks.length > 0 && tailWithoutLinks.length === 0) {
+    return {
+      body: paragraphs.slice(0, -1).join("\n\n").trimEnd(),
+      links: tailLinks,
+    };
+  }
+
+  return { body: content, links: [] };
+}
+
+// Match a graph node id by suffix of path segments. Both "users" and
+// "concept/users" should resolve to id "concept/users" so URL slugs that
+// carry an extra prefix (e.g. "content/concept/users") still find a node.
+export function resolveGraphId(graph: Graph, slug: string): string | null {
+  const ids = graph.nodes.map((n) => n.id ?? n.slug);
+  if (ids.includes(slug)) return slug;
+  const segments = slug.split("/");
+  const matches = ids.filter((id) => {
+    const idSegs = id.split("/");
+    // id is a suffix of slug: idSegs == last N segments of slug
+    if (idSegs.length <= segments.length) {
+      return segments.slice(-idSegs.length).every((s, i) => s === idSegs[i]);
+    }
+    // slug is a suffix of id: slug == last N segments of id
+    return idSegs.slice(-segments.length).every((s, i) => s === segments[i]);
+  });
+  if (matches.length === 0) return null;
+  return matches.sort((a, b) => a.length - b.length)[0];
+}
+
+export function buildRelatedGraph(graph: Graph, centerSlug: string, relatedLinks: string[]): Graph {
+  const center = resolveGraphId(graph, centerSlug);
+  if (!center) return { nodes: [], edges: [] };
+
+  const ids = new Set<string>([center]);
+  for (const link of relatedLinks) {
+    const resolved = resolveGraphId(graph, link);
+    if (resolved) ids.add(resolved);
+  }
+
+  const edges = graph.edges.filter((edge) => {
+    const source = (edge as any).source ?? edge.source_slug;
+    const target = (edge as any).target ?? edge.target_slug;
+    return ids.has(source) && ids.has(target);
+  });
+
+  return {
+    nodes: graph.nodes.filter((node) => ids.has(node.id ?? node.slug)),
+    edges,
+  };
 }
 
 export function PageView() {
@@ -23,6 +130,7 @@ export function PageView() {
   const vault = vaultFromUrl || ctx?.vault || getActiveVault() || "default";
   console.log("[Raven-Debug] PageView vault=", vault, "slug=", slug);
   const [page, setPage] = useState<Page | null | undefined>(undefined);
+  const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,6 +165,25 @@ export function PageView() {
         setPage(null);
       });
   }, [slug, vault]);
+
+  useEffect(() => {
+    if (!vault) return;
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
+      .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
+      .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
+      .catch(() => setGraph({ nodes: [], edges: [] }));
+  }, [vault]);
+
+  const related = useMemo(
+    () => (page ? splitRelatedSection(page.content) : { body: "", links: [] }),
+    [page]
+  );
+
+  const localGraph = useMemo(() => {
+    if (!page) return { nodes: [], edges: [] };
+    const relatedGraph = buildRelatedGraph(graph, page.slug, related.links);
+    return relatedGraph.nodes.length > 1 ? relatedGraph : buildLocalGraph(graph, page.slug);
+  }, [graph, page, related.links]);
 
   if (page === undefined) {
     return <div className="text-muted">Loading…</div>;
@@ -129,13 +256,84 @@ export function PageView() {
         </div>
 
         {/* Body */}
-        <MarkdownView content={page.content} vault={vault} />
+        <MarkdownView content={related.body || page.content} vault={vault} />
 
-        {/* Patch 3 (v0.6.12): BacklinksPanel을 right rail이 아닌 본문 하단으로.
-            본문이 viewport 전체 폭을 쓰고, 백링크는 자연스럽게 아래로.
-            page-grid 그리드(grid-template-columns: minmax(0,1fr) 240px)는 그대로
-            두되, BacklinksPanel만 article 형제로 분리 → 그리드가 1열로 줄어듦. */}
+        {localGraph.nodes.length > 0 && (
+          <section className="page-local-graph page-local-graph-bottom" aria-label="문서 그래프">
+            <div className="page-local-graph-header">
+              <h2>관련 그래프</h2>
+              <span>
+                {localGraph.nodes.length} nodes · {localGraph.edges.length} edges
+              </span>
+            </div>
+            <div className="page-local-graph-frame">
+              <GraphCanvas
+                nodes={localGraph.nodes}
+                edges={localGraph.edges}
+                onNodeClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
+                onNodeDoubleClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
+              />
+            </div>
+            {related.links.length > 0 && (
+              <div className="page-related-links" aria-label="관련 문서">
+                {related.links.map((link) => {
+                  const resolved = resolveGraphId(graph, link) ?? link;
+                  const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
+                  return (
+                    <button
+                      key={link}
+                      type="button"
+                      className="page-related-chip"
+                      onClick={() => location.assign(`/page/${vault}/${resolved}`)}
+                    >
+                      {node?.title ?? link}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </article>
+
+      {/* Right-rail mini map (desktop ≥1280px via CSS). Falls back to bottom block via
+          page-local-graph-bottom above on narrow viewports. */}
+      {localGraph.nodes.length > 0 && (
+        <aside className="page-local-graph-rail" aria-label="문서 그래프">
+          <div className="page-local-graph-header">
+            <h2>관련 그래프</h2>
+            <span>
+              {localGraph.nodes.length} nodes · {localGraph.edges.length} edges
+            </span>
+          </div>
+          <div className="page-local-graph-frame">
+            <GraphCanvas
+              nodes={localGraph.nodes}
+              edges={localGraph.edges}
+              onNodeClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
+              onNodeDoubleClick={(nextSlug) => location.assign(`/page/${vault}/${nextSlug}`)}
+            />
+          </div>
+          {related.links.length > 0 && (
+            <div className="page-related-links" aria-label="관련 문서">
+              {related.links.map((link) => {
+                const resolved = resolveGraphId(graph, link) ?? link;
+                const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
+                return (
+                  <button
+                    key={link}
+                    type="button"
+                    className="page-related-chip"
+                    onClick={() => location.assign(`/page/${vault}/${resolved}`)}
+                  >
+                    {node?.title ?? link}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+      )}
 
       <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} />
     </div>

@@ -93,15 +93,11 @@ export function Layout() {
     });
   }, [vaults, refreshKey]);
 
-  // Track narrow viewport so the drawer state is only meaningful on mobile.
+  // Track narrow viewport so the drawer width adapts on small screens.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 744px)");
-    const onChange = () => {
-      const next = mql.matches;
-      setIsMobile(next);
-      if (!next) setMobileNavOpen(false);
-    };
+    const onChange = () => setIsMobile(mql.matches);
     onChange();
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
@@ -132,14 +128,15 @@ export function Layout() {
           setVault(name);
           setActiveVault(name);
           setRefreshKey((k) => k + 1);
+          setMobileNavOpen(false);
         }}
         onRefresh={() => setRefreshKey((k) => k + 1)}
-        open={isMobile && mobileNavOpen}
+        open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
       />
 
       {/* Drawer backdrop */}
-      {isMobile && mobileNavOpen && (
+      {mobileNavOpen && (
         <div
           className="sidebar-backdrop"
           onClick={() => setMobileNavOpen(false)}
