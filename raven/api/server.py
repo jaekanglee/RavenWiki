@@ -428,7 +428,21 @@ def get_page(name: str, slug: str):
     v = _vault_or_404(name)
     fp = _safe_slug_or_400(slug, v).with_suffix(".md")
     if not fp.exists():
-        raise HTTPException(status_code=404, detail=f"page {slug!r} not found in vault {name!r}")
+        # fuzzy fallback (옛 빌드 slug 호환): 짧은 slug로 호출 시 모든 pages 중
+        # slug의 마지막 segment로 끝나는 것 찾기. 예: 'vault-structure' → 'concept/vault-structure'
+        base = slug.rsplit("/", 1)[-1]  # 마지막 segment만
+        candidates = []
+        for fp_md in v.content_root.rglob("*.md"):
+            cand_slug = str(fp_md.relative_to(v.root))[:-3]
+            if cand_slug == base or cand_slug.endswith("/" + base):
+                candidates.append(fp_md)
+        if len(candidates) == 1:
+            fp = candidates[0]
+        elif len(candidates) > 1:
+            # ambiguous — 가장 짧은 slug 우선 (root에 가까운 게 더 canonical)
+            fp = min(candidates, key=lambda p: len(p.relative_to(v.root).parts))
+        else:
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found in vault {name!r}")
     text = fp.read_text()
     meta, body = _split_fm(text)
     return {
