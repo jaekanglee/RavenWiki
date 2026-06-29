@@ -5,6 +5,10 @@ import {
   MiniMap,
   ReactFlowProvider,
   useReactFlow,
+  Handle,
+  Position,
+  useNodesState,
+  useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -65,9 +69,9 @@ export function nodeColor(type: string | undefined): string {
   return TYPE_COLORS[type] ?? DEFAULT_COLOR;
 }
 
-// 노드 크기: 8px base + sqrt(weight)×6 — weight=1→14, weight=4→20, weight=9→26
+// 노드 크기: Obsidian Graph처럼 작은 점. weight=1→6.5, weight=4→9, weight=9→11.5
 export function nodeSize(weight: number | undefined): number {
-  return 8 + Math.sqrt(Math.max(weight ?? 1, 1)) * 6;
+  return 4 + Math.sqrt(Math.max(weight ?? 1, 1)) * 2.5;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -92,28 +96,56 @@ function ObsidianNode({ data }: { data: { color: string; size: number } }) {
         height: data.size,
         borderRadius: "50%",
         background: data.color,
-        border: "1px solid rgba(255,255,255,0.3)",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
+        border: "1px solid rgba(255,255,255,0.22)",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.32)",
         cursor: "grab",
         pointerEvents: "all",
         touchAction: "none",
         transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.transform = "scale(1.6)";
+        (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
         (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 0 0 2px rgba(255,255,255,0.6), 0 0 8px rgba(255,255,255,0.25)";
+          "0 0 0 1px rgba(255,255,255,0.55), 0 0 8px rgba(255,255,255,0.25)";
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
         (e.currentTarget as HTMLDivElement).style.boxShadow =
           "0 0 0 1px rgba(0,0,0,0.4)";
       }}
-    />
+    >
+      {/* React Flow custom nodes need explicit handles; otherwise edges are kept in
+          data but no SVG edge path is created. Keep handles invisible so the node
+          remains an Obsidian-style dot. */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{ opacity: 0, width: 1, height: 1, pointerEvents: "none" }}
+        isConnectable={false}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ opacity: 0, width: 1, height: 1, pointerEvents: "none" }}
+        isConnectable={false}
+      />
+    </div>
   );
 }
 
 const nodeTypes = { obsidian: ObsidianNode };
+
+const graphButtonStyle = {
+  border: "1px solid rgba(148, 163, 184, 0.45)",
+  background: "rgba(15, 23, 42, 0.72)",
+  color: "#cbd5e1",
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  backdropFilter: "blur(8px)",
+} as const;
 
 function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Props) {
   // hover된 노드 ID — label overlay 표시용
@@ -209,14 +241,12 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         id: `e${i}`,
         source: (e as any).source ?? e.source_slug,
         target: (e as any).target ?? e.target_slug,
-        // Patch 2 (v0.6.12): edge 가시화 추가 강화.
-        //   v0.6.12 1차(#94a3b8 / 2px / 0.8)에서도 모바일에서 흐릿 → slate-300으로
-        //   한 단계 더 밝게, stroke 2.5px, opacity 0.9.
-        //   dark navy(#0a0a1e~#0a0e1a) 배경에서 명확히 보이는 명도대.
+        // Obsidian-style: relationship lines should be present but quiet.
+        // Keep them thin and translucent so the graph reads like a synapse map.
         style: {
-          stroke: "#cbd5e1",
-          strokeWidth: 2.5,
-          strokeOpacity: 0.9,
+          stroke: "#94a3b8",
+          strokeWidth: 1,
+          strokeOpacity: 0.45,
         },
         // xyflow marker 정의 (선택): 끝점 화살표는 일단 생략 — 점 노드 중심에
         // 닿는 직선만으로도 관계 가시화에 충분.
@@ -224,18 +254,42 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
     [edges]
   );
 
+  // React Flow controlled state. Without this, dragging changes are discarded because
+  // every render reuses the memoized server layout nodes.
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(rfNodes);
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(rfEdges);
+
+  useEffect(() => {
+    setFlowNodes(rfNodes);
+  }, [rfNodes, setFlowNodes]);
+
+  useEffect(() => {
+    setFlowEdges(rfEdges);
+  }, [rfEdges, setFlowEdges]);
+
+  const fitGraph = useCallback(() => {
+    window.setTimeout(() => {
+      fitView({ duration: 360, padding: 0.32, minZoom: 0.01, maxZoom: 1.2 });
+    }, 20);
+  }, [fitView]);
+
+  const resetLayout = useCallback(() => {
+    setFlowNodes(rfNodes);
+    fitGraph();
+  }, [rfNodes, setFlowNodes, fitGraph]);
+
   // Patch 5: 데이터 변경 시 fitView 재호출.
   // - mount 시 (rfNodes[0] 한 번 fit)
   // - orphan toggle / vault 변경 / force-directed 재계산 후 자동 재중심.
   // - 이전 mount 1회 한정 → 빈 화면.
   useEffect(() => {
-    if (rfNodes.length === 0) return;
+    if (flowNodes.length === 0) return;
     // 다음 tick에 호출 — xyflow가 viewport 측정을 끝낸 후 fitView가 동작.
     const id = window.setTimeout(() => {
-      fitView({ duration: 300, padding: 0.2 });
+      fitView({ duration: 300, padding: 0.32, minZoom: 0.01, maxZoom: 1.2 });
     }, 50);
     return () => window.clearTimeout(id);
-  }, [rfNodes, rfEdges, fitView]);
+  }, [flowNodes.length, flowEdges.length, fitView]);
 
   // hover 시 GraphNode 메타 + screen 좌표 계산
   const handleNodeEnter = useCallback(
@@ -348,11 +402,11 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
   //   화면 좌표 → 화면 좌표 함수라 server coords는 rfNodes에서 다시 읽는다.
   const rfNodesById = useMemo(() => {
     const m = new Map<string, { x: number; y: number }>();
-    for (const rn of rfNodes) {
+    for (const rn of flowNodes) {
       m.set(rn.id, rn.position);
     }
     return m;
-  }, [rfNodes]);
+  }, [flowNodes]);
 
   const handleMove = useCallback(() => {
     setHoveredNode((prev) => {
@@ -382,8 +436,10 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
       }}
     >
       <ReactFlow
-        nodes={rfNodes}
-        edges={rfEdges}
+        nodes={flowNodes}
+        edges={flowEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
@@ -404,14 +460,14 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         zoomOnPinch
         selectionOnDrag={false} // drag = pan, click = select (텍스트 선택 방지)
         // Patch 6: zoom 범위 완화 — pinch zoom out 시 노드 사라짐 방지.
-        minZoom={0.05}
-        maxZoom={4}
+        minZoom={0.005}
+        maxZoom={8}
         // Patch 7: translateExtent 확장 — 서버 spring layout 결과 (±10000)에 여유.
         //   xyflow v12는 viewport를 translateExtent로 clamp하므로 너무 작으면
         //   노드가 viewport 밖으로 밀려나 사라짐.
         translateExtent={[
-          [-50000, -50000],
-          [50000, 50000],
+          [-100000, -100000],
+          [100000, 100000],
         ]}
         proOptions={{ hideAttribution: true }}
       >
@@ -433,6 +489,33 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
           pannable
           zoomable
         />
+        <div
+          style={{
+            position: "absolute",
+            right: 12,
+            top: 12,
+            zIndex: 5,
+            display: "flex",
+            gap: 8,
+          }}
+        >
+          <button
+            type="button"
+            onClick={fitGraph}
+            style={graphButtonStyle}
+            aria-label="그래프 전체 보기"
+          >
+            전체 보기
+          </button>
+          <button
+            type="button"
+            onClick={resetLayout}
+            style={graphButtonStyle}
+            aria-label="그래프 배치 초기화"
+          >
+            배치 초기화
+          </button>
+        </div>
       </ReactFlow>
 
       {/* Patch 2: hover/tap overlay — position: fixed로 화면 좌표에 정확히 표시.

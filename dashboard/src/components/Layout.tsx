@@ -15,6 +15,12 @@ const NAV_TABS = [
   { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
 ];
 
+export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: string): string {
+  if (current && vaults.some((v) => v.name === current)) return current;
+  if (stored && vaults.some((v) => v.name === stored)) return stored;
+  return vaults.find((v) => v.default)?.name || vaults[0]?.name || "";
+}
+
 export function Layout() {
   const [vault, setVault] = useState<string>(() => getActiveVault() || "");
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
@@ -29,6 +35,17 @@ export function Layout() {
       .then((vs) => setVaults(vs))
       .catch(() => setVaults([]));
   }, []);
+
+  // Graph/Search/Log/Lint rely on Layout outlet context. If localStorage is empty
+  // (fresh browser / cleared PWA state), keep the UI on the API default vault instead
+  // of passing an empty string that makes routes skip their fetches.
+  useEffect(() => {
+    if (vaults.length === 0) return;
+    const next = chooseLayoutVault(vaults, vault, getActiveVault());
+    if (!next || next === vault) return;
+    setVault(next);
+    setActiveVault(next);
+  }, [vaults, vault]);
 
   // ─── build tree per vault (in parallel) ─────────────────────
   useEffect(() => {

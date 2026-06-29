@@ -14,34 +14,32 @@ import { nodeColor, nodeSize } from "../src/components/GraphCanvas";
  */
 describe("GraphCanvas v0.6.11 Obsidian-style", () => {
   describe("nodeSize (Patch 1 — small dots)", () => {
-    it("weight=0 → 8px (orphan, dots size never zero)", () => {
-      // 8 + sqrt(max(0,1))*6 = 8 + 6 = 14... 잠깐, max(0,1)=1. 8+sqrt(1)*6 = 14.
-      // 다시: max(weight ?? 1, 1) → weight=0이면 0 ?? 1 = 1. sqrt(1) = 1. 8+6=14.
-      // 따라서 weight=0/undefined/음수는 모두 14px.
-      expect(nodeSize(0)).toBeCloseTo(14, 5);
+    it("weight=0 → 6.5px (orphan, dots size never zero)", () => {
+      // 4 + sqrt(1)*2.5 = 6.5.
+      expect(nodeSize(0)).toBeCloseTo(6.5, 5);
     });
 
-    it("weight=1 → 14px (가장 작은 정상 사이즈)", () => {
-      // 8 + sqrt(1)*6 = 14
-      expect(nodeSize(1)).toBeCloseTo(14, 5);
+    it("weight=1 → 6.5px (가장 작은 정상 사이즈)", () => {
+      // 4 + sqrt(1)*2.5 = 6.5
+      expect(nodeSize(1)).toBeCloseTo(6.5, 5);
     });
 
-    it("weight=4 → 20px (적당한 중간 크기 점)", () => {
-      // 8 + sqrt(4)*6 = 8 + 12 = 20
-      expect(nodeSize(4)).toBeCloseTo(20, 5);
+    it("weight=4 → 9px (적당한 중간 크기 점)", () => {
+      // 4 + sqrt(4)*2.5 = 9
+      expect(nodeSize(4)).toBeCloseTo(9, 5);
     });
 
-    it("weight=9 → 26px (큰 허브 노드)", () => {
-      // 8 + sqrt(9)*6 = 8 + 18 = 26
-      expect(nodeSize(9)).toBeCloseTo(26, 5);
+    it("weight=9 → 11.5px (큰 허브 노드)", () => {
+      // 4 + sqrt(9)*2.5 = 11.5
+      expect(nodeSize(9)).toBeCloseTo(11.5, 5);
     });
 
     it("undefined → 14px (안전한 fallback, weight=1과 동일)", () => {
-      expect(nodeSize(undefined)).toBeCloseTo(14, 5);
+      expect(nodeSize(undefined)).toBeCloseTo(6.5, 5);
     });
 
     it("음수 → 14px (clamp 보호)", () => {
-      expect(nodeSize(-3)).toBeCloseTo(14, 5);
+      expect(nodeSize(-3)).toBeCloseTo(6.5, 5);
     });
 
     it("이전 16px+ 박스 사이즈 대비 점 사이즈 범위 검증", () => {
@@ -51,10 +49,10 @@ describe("GraphCanvas v0.6.11 Obsidian-style", () => {
       const oldBoxWeight9 = 16 + Math.sqrt(9) * 8;
       const newDotWeight9 = nodeSize(9);
       expect(newDotWeight9).toBeLessThan(oldBoxWeight9);
-      // 점은 8px 이상 보장 (작아서 안 보이는 문제 방지)
-      expect(nodeSize(0)).toBeGreaterThanOrEqual(8);
-      // weight=9에서 26px = Obsidian 점의 적정 상한 (~26)
-      expect(nodeSize(9)).toBeLessThanOrEqual(30);
+      // 점은 6px 이상 보장 — Obsidian-style 별점처럼 작게 유지
+      expect(nodeSize(0)).toBeGreaterThanOrEqual(6);
+      // weight=9에서도 12px 미만 — 텍스트 없는 별점 형태 유지
+      expect(nodeSize(9)).toBeLessThanOrEqual(12);
     });
   });
 
