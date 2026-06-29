@@ -37,6 +37,20 @@ const TYPE_COLORS: Record<string, string> = {
 };
 const DEFAULT_COLOR = "#9ca3af";
 
+// Community palette (v0.6.15+ Louvain). 같은 community id → 같은 색.
+// palette는 type 색과 다르도록 의도적으로 선택 — 구조 vs metadata 시각 구분.
+// GraphPage가 import해서 toolbar 옆에 palette dot 15개로 시각화한다.
+export const COMMUNITY_PALETTE: string[] = [
+  "#22c55e", "#3b82f6", "#f97316", "#a855f7", "#ec4899",
+  "#eab308", "#06b6d4", "#ef4444", "#6366f1", "#84cc16",
+  "#14b8a6", "#f43f5e", "#a3a3a3", "#facc15", "#8b5cf6",
+];
+
+export function communityColor(community: number | undefined): string {
+  if (community === undefined || community < 0) return DEFAULT_COLOR;
+  return COMMUNITY_PALETTE[community % COMMUNITY_PALETTE.length];
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // v0.6.12 Graph — UX 3개 fix.
 //
@@ -63,7 +77,11 @@ const DEFAULT_COLOR = "#9ca3af";
 //     → ObsidianNode 자체에 `data-no-restyle` 등 영향 없도록 pointer-events만 설정.
 // ───────────────────────────────────────────────────────────────────────────
 
-export function nodeColor(type: string | undefined): string {
+export function nodeColor(type: string | undefined, community?: number): string {
+  // v0.6.15+: community 색상이 우선 (구조 기반 색). community=-1 또는 없으면 type 색 fallback.
+  if (community !== undefined && community >= 0) {
+    return communityColor(community);
+  }
   if (!type) return DEFAULT_COLOR;
   return TYPE_COLORS[type] ?? DEFAULT_COLOR;
 }
@@ -274,11 +292,13 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         const x = typeof n.x === "number" ? n.x : 0;
         const y = typeof n.y === "number" ? n.y : 0;
         const title = (n as any).title ?? n.slug ?? id;
+        const community = (n as any).community as number | undefined;
         return {
           id,
           type: "obsidian" as const,
           position: { x, y },
-          data: { color: nodeColor(type), size, title },
+          // v0.6.15+: pass community to nodeColor — community palette overrides type color.
+          data: { color: nodeColor(type, community), size, title, community },
         };
       }) as any,
     [nodes]
@@ -290,6 +310,9 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         id: `e${i}`,
         source: (e as any).source ?? e.source_slug,
         target: (e as any).target ?? e.target_slug,
+        // 직선 edge (xyflow default bezier/smoothstep을 우회). 점 노드 사이의
+        // 별자리 느낌을 위해 곡선 ❌ — 직선만 허용.
+        type: "straight" as const,
         // Obsidian-style: relationship lines are quiet by default; hover reveals structure.
         style: {
           stroke: "#94a3b8",
@@ -330,11 +353,24 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
 
     if (hoveredNode) {
       nodeIds.add(hoveredNode.id);
+      const hoveredCommunity = (hoveredNode as any).community as number | undefined;
       for (const edge of flowEdges) {
         if (edge.source === hoveredNode.id || edge.target === hoveredNode.id) {
           edgeIds.add(edge.id);
           nodeIds.add(String(edge.source));
           nodeIds.add(String(edge.target));
+        }
+      }
+      // v0.6.15+: 같은 community에 속한 노드도 함께 highlight. structural grouping
+      // 가 가장 큰 차별점 — hover가 "이 문서랑 같은 community"를 보여준다.
+      if (hoveredCommunity !== undefined && hoveredCommunity >= 0) {
+        for (const fn of flowNodes) {
+          if (
+            (fn as any).data?.community === hoveredCommunity &&
+            !nodeIds.has(fn.id)
+          ) {
+            nodeIds.add(fn.id);
+          }
         }
       }
     }

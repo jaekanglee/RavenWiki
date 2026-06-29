@@ -618,6 +618,32 @@ mark {
   user-select: none;
   white-space: nowrap;
 }
+.graph-page-toggle-community {
+  /* Toggle 옆에 palette 15색 dot가 따라붙어 살짝 더 두꺼움. */
+  padding: 2px 4px 2px 0;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
+}
+.graph-page-toggle-community-off {
+  /* OFF일 때 dot는 흐릿하게 — 이 옵션이 비활성임을 한눈에 인지. */
+  opacity: 0.55;
+}
+.graph-page-toggle-palette {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  /* ON/OFF 전환 시 dot들도 같이 페이드. */
+  transition: opacity 0.15s ease;
+}
+.graph-page-toggle-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
 .graph-canvas-frame {
   flex: 1;
   min-height: 0;
