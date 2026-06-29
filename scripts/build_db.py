@@ -202,6 +202,27 @@ def extract_links(content: str) -> Iterable[tuple[str, str, Optional[str]]]:
         yield target, intent, context
 
 
+# v0.6.10: slug normalize helpers — 옛 빌드 wikilink 짧은 slug 호환
+def _slug_exists(conn, slug: str) -> bool:
+    row = conn.execute("SELECT 1 FROM pages WHERE slug = ? LIMIT 1", (slug,)).fetchone()
+    return row is not None
+
+
+def _resolve_short_slug(conn, short_slug: str) -> Optional[str]:
+    """pages 중 마지막 segment 매치로 짧은 slug 보정. 예: 'vault-structure' → 'concept/vault-structure'."""
+    base = short_slug.rsplit("/", 1)[-1]
+    rows = conn.execute(
+        "SELECT slug FROM pages WHERE slug = ? OR slug LIKE ?",
+        (base, "%/" + base),
+    ).fetchall()
+    if len(rows) == 1:
+        return rows[0][0]
+    if len(rows) > 1:
+        # ambiguous — 가장 짧은 path 우선 (root 가까울수록 canonical)
+        return min(rows, key=lambda r: len(r[0]))[0]
+    return None
+
+
 # ─────────────────────────── vault walking ─────────────────────────
 
 def iter_markdown(vault: Path):
@@ -253,14 +274,51 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
                 n_tags += 1
 
             for target, intent, context in extract_links(page["content"]):
+                # v0.6.10: target slug normalize — 옛 wikilink `[[vault-structure]]` (짧은 형태)
+                # 가 pages에 `concept/vault-structure` (긴 형태)로 존재할 때 자동 매칭.
+                # 1) 정확 매치: 그대로
+                # 2) 마지막 segment 매치 (prefix 보정)
+                # 3) 매치 없으면 intent = 'broken' 유지
+                normalized = target
+                if target and not _slug_exists(conn, target):
+                    candidate = _resolve_short_slug(conn, target)
+                    if candidate:
+                        normalized = candidate
                 conn.execute(
                     """INSERT OR REPLACE INTO links (source_slug, target_slug, context, intent)
                        VALUES (?, ?, ?, ?)""",
-                    (page["slug"], target, context, intent),
+                    (page["slug"], normalized, context, intent),
                 )
                 n_links += 1
 
         conn.commit()
+
+        # v0.6.10 post-processing pass: 옛 빌드 wikilink 짧은 slug → pages에 매칭되는 긴 slug로 보정.
+        # 첫 번째 pass에서 자기 자신의 wikilink가 아직 INSERT되지 않은 다른 페이지를 가리키면
+        # _resolve_short_slug가 None 반환. build_db 전체 끝난 후 다시 시도.
+        # v0.6.10 post-processing pass: 옛 빌드 wikilink 짧은 slug → pages에 매칭되는 긴 slug로 보정.
+        # 첫 번째 pass에서 self-reference race 발생 시 _resolve_short_slug가 None 반환.
+        # build_db 전체 끝난 후 모든 links 다시 시도.
+        # SQLite에는 id 컬럼 없음 → PRIMARY KEY (source_slug, target_slug)로 UPDATE.
+        try:
+            rows = conn.execute(
+                "SELECT source_slug, target_slug, context, intent FROM links"
+            ).fetchall()
+            n_fixed = 0
+            for src, tgt, ctx, intent in rows:
+                if _slug_exists(conn, tgt):
+                    continue  # 이미 정확
+                cand = _resolve_short_slug(conn, tgt)
+                if cand:
+                    conn.execute(
+                        "UPDATE links SET target_slug = ? WHERE source_slug = ? AND target_slug = ?",
+                        (cand, src, tgt),
+                    )
+                    n_fixed += 1
+            conn.commit()
+        except Exception:
+            pass
+
         return n_pages, n_links, n_tags
     finally:
         conn.close()
