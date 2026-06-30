@@ -41,6 +41,7 @@ from typing import Iterable, Optional
 from . import frontmatter as frontmatter_module
 from . import log as log_module
 from . import slug as slug_module
+from .lock import lock_for_file
 from .vault import Vault
 
 
@@ -135,83 +136,92 @@ def write_page(
 
     fp = safe_path.with_suffix(".md")
 
-    # ── 2. existence check
-    if fp.exists() and not overwrite:
-        return WriteResult(ok=False, slug=raw_slug, error="exists")
-
-    # ── 3. parse existing frontmatter (preserve `created`, `agents`)
-    existing_meta: dict = {}
-    if fp.exists():
-        try:
-            existing_text = fp.read_text(encoding="utf-8")
-            existing_meta, _ = frontmatter_module.parse(existing_text)
-        except Exception:
-            # Corrupt frontmatter: treat as empty so the write still
-            # succeeds (matches pre-v0.6.2 AgentVault.write behavior).
-            existing_meta = {}
-
-    today = _dt.date.today().isoformat()
-    updates: dict = {"updated": today}
-    if title is not None:
-        updates["title"] = title
-    if type is not None:
-        updates["type"] = type
-    if tags is not None:
-        updates["tags"] = list(tags)
-
-    # `created` only set on first write (matches API create_page pre-v0.6.2)
-    if "created" not in existing_meta:
-        updates["created"] = today
-
-    merged = frontmatter_module.merge(existing_meta, updates, today=today)
-
-    # Optional agent provenance — matches AgentVault.write pre-v0.6.2 shape.
-    # Stored as list-of-dict so frontmatter_module.render serializes it as
-    # a YAML list (matches the YAML format pre-v0.6.2 produced).
-    if actor is not None:
-        provenance_list = list(merged.get("agents") or [])
-        # Normalize input: dict → as-is; object → to_dict via attrs;
-        # str → wrap in {"name": str}.
-        if isinstance(actor, dict):
-            entry = dict(actor)
-        elif hasattr(actor, "__dict__"):
-            entry = {k: v for k, v in vars(actor).items() if not k.startswith("_")}
-        else:
-            entry = {"name": str(actor)}
-        provenance_list.append(entry)
-        merged["agents"] = provenance_list
-
-    # ── 4. render + write
-    # `frontmatter.render` expects `agents` as a separate kwarg (rendered
-    # as a YAML list block), not as a meta dict entry (which would be
-    # serialized via Python repr).
-    agents_list: Optional[list[dict]] = None
-    if actor is not None:
-        # We've already appended into merged["agents"] above — extract it
-        # back out for the dedicated render path.
-        agents_list = merged.pop("agents", None)
-    rendered = frontmatter_module.render(merged, content or "", agents=agents_list)
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    fp.write_text(rendered, encoding="utf-8")
-
-    is_create = not existing_meta  # empty parsed meta ⇒ new file
-
-    # ── 5. log.md append (best-effort; matches pre-v0.6.2 try/except wrap)
     try:
-        actor_name = ""
-        if isinstance(actor, dict):
-            name_val = actor.get("name")
-            if isinstance(name_val, str):
-                actor_name = name_val
-        log_module.append(
-            vault,
-            action="create" if is_create else "update",
-            subject=raw_slug,
-            files=[raw_slug],
-            note=f"actor={actor_name}" if actor_name else "",
+        with lock_for_file(vault.root, fp):
+            # ── 2. existence check
+            if fp.exists() and not overwrite:
+                return WriteResult(ok=False, slug=raw_slug, error="exists")
+
+            # ── 3. parse existing frontmatter (preserve `created`, `agents`)
+            existing_meta: dict = {}
+            if fp.exists():
+                try:
+                    existing_text = fp.read_text(encoding="utf-8")
+                    existing_meta, _ = frontmatter_module.parse(existing_text)
+                except Exception:
+                    # Corrupt frontmatter: treat as empty so the write still
+                    # succeeds (matches pre-v0.6.2 AgentVault.write behavior).
+                    existing_meta = {}
+
+            today = _dt.date.today().isoformat()
+            updates: dict = {"updated": today}
+            if title is not None:
+                updates["title"] = title
+            if type is not None:
+                updates["type"] = type
+            if tags is not None:
+                updates["tags"] = list(tags)
+
+            # `created` only set on first write (matches API create_page pre-v0.6.2)
+            if "created" not in existing_meta:
+                updates["created"] = today
+
+            merged = frontmatter_module.merge(existing_meta, updates, today=today)
+
+            # Optional agent provenance — matches AgentVault.write pre-v0.6.2 shape.
+            # Stored as list-of-dict so frontmatter_module.render serializes it as
+            # a YAML list (matches the YAML format pre-v0.6.2 produced).
+            if actor is not None:
+                provenance_list = list(merged.get("agents") or [])
+                # Normalize input: dict → as-is; object → to_dict via attrs;
+                # str → wrap in {"name": str}.
+                if isinstance(actor, dict):
+                    entry = dict(actor)
+                elif hasattr(actor, "__dict__"):
+                    entry = {k: v for k, v in vars(actor).items() if not k.startswith("_")}
+                else:
+                    entry = {"name": str(actor)}
+                provenance_list.append(entry)
+                merged["agents"] = provenance_list
+
+            # ── 4. render + write
+            # `frontmatter.render` expects `agents` as a separate kwarg (rendered
+            # as a YAML list block), not as a meta dict entry (which would be
+            # serialized via Python repr).
+            agents_list: Optional[list[dict]] = None
+            if actor is not None:
+                # We've already appended into merged["agents"] above — extract it
+                # back out for the dedicated render path.
+                agents_list = merged.pop("agents", None)
+            rendered = frontmatter_module.render(merged, content or "", agents=agents_list)
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_text(rendered, encoding="utf-8")
+
+            is_create = not existing_meta  # empty parsed meta ⇒ new file
+
+            # ── 5. log.md append (best-effort; matches pre-v0.6.2 try/except wrap)
+            try:
+                actor_name = ""
+                if isinstance(actor, dict):
+                    name_val = actor.get("name")
+                    if isinstance(name_val, str):
+                        actor_name = name_val
+                log_module.append(
+                    vault,
+                    action="create" if is_create else "update",
+                    subject=raw_slug,
+                    files=[raw_slug],
+                    note=f"actor={actor_name}" if actor_name else "",
+                )
+            except Exception:
+                pass
+    except TimeoutError as exc:
+        return WriteResult(
+            ok=False,
+            slug=raw_slug,
+            error=f"concurrency lock timeout: {exc}",
+            message=f"failed to write {raw_slug} due to lock timeout",
         )
-    except Exception:
-        pass
 
     return WriteResult(
         ok=True,

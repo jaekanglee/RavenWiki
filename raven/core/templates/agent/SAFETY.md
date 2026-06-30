@@ -1,7 +1,7 @@
 ---
 title: Raven Agent Safety — 절대 금지 행동
-created: 2026-06-25
-updated: 2026-06-25
+created: 2026-06-30
+updated: 2026-06-30
 type: rule
 tags: [system, meta, raven, agent, safety, hard-prohibition]
 audience: agent
@@ -10,88 +10,59 @@ confidence: high
 
 # Raven Agent Safety — 절대 금지 행동
 
-> **이 문서는 hard prohibition입니다.**
-> 어기면 사용자 컨펌 없이 즉시 작업 중단 + 사용자에게 보고.
+> **이 문서는 Hard Prohibition(강한 금지령)입니다.**
+> 이를 위반할 시 즉시 에이전트의 작업이 중단되며 사용자에게 보고됩니다.
 
 ---
 
-## 1. 절대 안 되는 것 (10가지)
+## 1. 절대 금지 항목 (10가지)
 
 ### 🚫 데이터 무결성
 
-| # | ❌ 안됨 | 이유 |
+| # | ❌ 절대 금지 | 이유 |
 |---|---|---|
-| 1 | `wiki.db` 직접 수정 (SQLite 핸들) | regenerable 인덱스 — `raven build`로 재생성 |
-| 2 | `_meta/log.md` 수동 편집 | 자동 append — 직접 쓰면 lint 실패 |
-| 3 | vault 외부 위치에 write (`/tmp/foo.md` 등) | SoT = vault 내부, 외부 = scope 밖 |
-| 4 | `wiki.db`를 git에 commit | `.gitignore` 필수 — 사용자 정책 |
+| 1 | `wiki.db` 직접 수정 (SQLite 직접 조작) | DB는 파생 인덱스입니다. 무조건 `wiki_update` MCP 툴이나 `raven build`로 자동 갱신해야 합니다. |
+| 2 | `log.md` 수동 편집 | `log.md`는 엔진이 자동 기록(append)합니다. 직접 쓰면 린트 에러가 발생합니다. |
+| 3 | Vault 외부 위치에 파일 생성/수정 (`/tmp/` 등) | 지식의 모든 소스(SoT)는 오직 Vault 내부에 격리되어야 합니다. |
+| 4 | `wiki.db`를 git에 commit 시도 | 로컬 캐시 인덱스이므로 반드시 `.gitignore` 처리되어야 합니다. |
 
-### 🚫 권한 / scope
+### 🚫 권한 / Scope
 
-| # | ❌ 안됨 | 이유 |
+| # | ❌ 절대 금지 | 이유 |
 |---|---|---|
-| 5 | `scope.allows()` 우회 — 직접 path 구성 | P0 패치로 read 경로도 slug 검증됨. 우회 시도 = 사용자 탐지 |
-| 6 | scope 외 vault의 `vault(name)` 호출 | `PermissionError` 자동 발생 — 무시 ❌ |
-| 7 | `allow_create=False` 인데 새 slug write | 미집행 발견됨 (codex audit). 시도 = 사용자 알림 |
-| 8 | 다른 팀 vault 결정 위임 | 팀 경계 침범 = wiki-orchestrator 정책 위반 |
+| 5 | Path Scope 검증 우회 시도 | `wiki_update` 호출 시 내부적으로 `allowed_paths` 및 `deny_paths`가 엄격히 작동합니다. |
+| 6 | 허용되지 않은 Vault를 대상으로 MCP 툴 호출 | 권한 없는 Vault 접근 시 `PermissionError`가 발생하며 즉시 경고 처리됩니다. |
+| 7 | 쓰기 권한이 비활성화된 상태에서 write 시도 | `--mode read` 상태에서 `wiki_update`, `wiki_ingest` 호출은 거부됩니다. |
+| 8 | 다른 프로젝트/팀의 중요 결정을 동의 없이 수정 | 팀 간의 협업 바운더리를 무단 침범해서는 안 됩니다. |
 
 ### 🚫 시스템 결정
 
-| # | ❌ 안됨 | 이유 |
+| # | ❌ 절대 금지 | 이유 |
 |---|---|---|
-| 9 | 사용자 동의 없는 schema/네이밍 변경 | `_meta/system/SCHEMA.md` 영역 — architect 결정 |
-| 10 | `_meta/system/*` 자동 수정 | agent 영역은 `_meta/agent/*` 만 |
+| 9 | 사용자 동의 없는 Schema/네이밍 변경 | `_meta/system/SCHEMA.md`는 시스템 아키텍처 규칙이므로 수동 편집할 수 없습니다. |
+| 10 | `_meta/system/*` 문서 임의 수정 | 에이전트가 관리하는 설정은 오직 `_meta/agents/*` 뿐입니다. |
 
 ---
 
-## 2. 절대 안 되는 패턴 (vault 운영)
+## 2. 절대 안 되는 패턴 (Vault 운영)
 
 | ❌ 안됨 | ✅ 대안 |
 |---|---|
-| 결정 전 brainstorm을 vault에 쓰기 (raw는 메모장에) | 결정 확정 후 write |
-| vault를 영구 저장소처럼 사용 | git 추적이 SoT, vault는 인덱스 |
-| wiki-orchestrator에게 자기 팀 결정 위임 | 오케 자신이 결정 + write |
-| vault 외부 송신 (외부 API 업로드) | vault 내부 + 사용자 read |
-| 사용자 동의 없는 schema/네이밍 변경 | architect 위임 |
-| 메모리에만 결과 보관 (휘발) | vault에 결정/lesson write (영구) |
-| Phase 끝났는데 vault write 0건으로 보고 | 결정 1건 + lesson 1건이라도 write 후 보고 |
+| 결정이 확정되지 않은 브레인스톰/메모를 Vault에 직접 쓰기 | 생각 정리는 임시 메모(raw)에서 하고, 확정된 결정 사항만 작성 |
+| Vault를 일시적인 임시 보관함처럼 다루기 | Git으로 버전 관리되는 영구적인 compounding 지식 창고로 취급 |
+| 작업을 완료했으나 Vault에 아무런 기록도 남기지 않기 | 결정, 배운 점, 혹은 일지(journal) 중 최소 1건 이상 기록 후 보고 |
+| 외부 네트워크나 API로 Vault의 지식을 무단 반출하기 | 모든 데이터는 로컬 Vault 내부에서만 처리 및 관리 |
 
 ---
 
-## 3. Path Traversal — P0 패치 이후 자동 차단
+## 3. Path Traversal — 자동 차단
 
-`server.py:210` GET, `agent.py:244` read/exists 모두 `_safe_path()` 통과.
+모든 MCP 툴 호출 및 API 호출은 내부적으로 `_safe_path()` 함수에 의한 엄격한 검증을 거칩니다.
 
-**그래도 시도하지 말 것**:
+**절대 시도하지 마십시오:**
 
 | 입력 | 결과 |
 |---|---|
-| `get_page("wiki", "../escape")` | HTTP 400 (`invalid slug`) |
-| `get_page("wiki", "~/.ssh-test")` | HTTP 400 |
-| `Agent.read("../escape")` | `None` 반환 (예외 swallow) |
-| `Agent.exists("~/.ssh-target")` | `False` 반환 |
-
-**시도 자체가 사용자 알림 대상** — 정상 slug만 사용.
-
----
-
-## 4. 시스템 vs agent 영역 침범 ❌
-
-| 영역 | 당신이 read OK | 당신이 write OK |
-|---|---|---|
-| `content/<team>/*` | ✅ (scope 안) | ✅ (scope 안, 트리거 시점만) |
-| `_meta/system/*` | ✅ (참조만) | ❌ 사용자 컨펌 필요 |
-| `_meta/agent/*` | ✅ (당신의 가이드) | ⚠️ 본인 가이드 갱신은 사용자 컨펌 |
-| `_meta/log.md` | ✅ | ❌ 자동 append만 |
-| `_archive/` | ✅ (read) | ❌ archive 로직은 core만 |
-| `wiki.db` | ❌ (직접 SQL ❌) | ❌ |
-| vault 외부 | ❌ | ❌ |
-
----
-
-## 5. 외부 위임 (codex / claude code) 시
-
-당신이 다른 LLM을 위임 호출할 때 첨부할 system prompt 위치:
 
 ```
 ~/.hermes/profiles/wiki-orchestrator/prompts/raven-delegate.md

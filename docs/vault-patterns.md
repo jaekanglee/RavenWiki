@@ -142,11 +142,17 @@ vault/
 - vault 안 `log.md` 없으면 → Lite bootstrap 또는 v0.6.38+ `llm-wiki` profile에서 자동 생성
 
 **Agent 어댑터**:
-```python
-# log.md는 자동 append되므로 에이전트가 직접 작성 안 함
-# 대신 자신의 결정/관찰은 journal로 작성
-av.write("journal/2026-06-30-finding", body, type="journal")
-# → log.md는 raven이 자동 관리, journal은 사용자/에이전트가 직접 작성
+```json
+// log.md는 자동 append되므로 에이전트가 직접 작성 안 함
+// 대신 자신의 결정/관찰은 wiki_update MCP 툴을 통해 journal로 작성
+{
+  "name": "wiki_update",
+  "arguments": {
+    "slug": "content/journal/2026-06-30-finding",
+    "content": "...",
+    "frontmatter": {"title": "Finding Note", "type": "journal"}
+  }
+}
 ```
 
 ---

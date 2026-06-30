@@ -489,14 +489,31 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
     면제:
       - type ∈ {rule, journal, query} (SCHEMA §X)
       - _meta/ 안 페이지 (운영 문서)
+      - .vault.json 내 disable_cognitive_governance=True 인 경우 (글로벌 비활성화)
+      - wip/, scratch/ 하위 경로 페이지 (임시 작성 영역)
+      - tags 내 wip, draft, scratch, memo, quick 단어가 포함된 경우 (초안 면제)
 
     v0.5.3: info 등급 — 페이지 lint 통과에 영향 ❌. v0.6.x에서 warning 격상 후보.
     """
+    # 글로벌 비활성화 체크
+    vf = vault.root / ".vault.json"
+    if vf.exists():
+        try:
+            data = json.loads(vf.read_text(encoding="utf-8"))
+            if data.get("disable_cognitive_governance") or data.get("features", {}).get("cognitive_governance") is False:
+                return []
+        except Exception:
+            pass
+
     out: list[dict] = []
+    exempt_tags = {"wip", "draft", "scratch", "memo", "quick"}
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
         # 면제: _meta/ 안 페이지 (운영 문서)
         if slug.startswith("_meta/"):
+            continue
+        # 면제: wip/, scratch/ 하위 (임시 작업)
+        if slug.startswith("content/wip/") or slug.startswith("content/scratch/") or slug.startswith("wip/") or slug.startswith("scratch/"):
             continue
         try:
             text = fp.read_text(errors="replace")
@@ -507,6 +524,13 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
         ptype = (meta.get("type") or "").strip().lower()
         if ptype in COG_GOV_EXEMPT_TYPES:
             continue
+        # 면제: 초안/임시 태그 면제
+        tags = meta.get("tags") or []
+        if isinstance(tags, list):
+            tags_set = {t.strip().lower() for t in tags if isinstance(t, str)}
+            if tags_set & exempt_tags:
+                continue
+
         missing: list[str] = []
 
         # 1) Why it matters — 헤딩 또는 본문 첫 문단

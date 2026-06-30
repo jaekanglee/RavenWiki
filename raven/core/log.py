@@ -35,6 +35,7 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+from .lock import lock_for_file
 from .vault import Vault
 
 
@@ -233,14 +234,18 @@ def append(
         details=details,
     )
 
-    # atomic append: read → 맨 끝 빈 줄 확인 → write
-    existing = path.read_text(encoding="utf-8")
-    if existing and not existing.endswith("\n"):
-        existing += "\n"
-    if existing and not existing.endswith("\n\n"):
-        existing += "\n"  # entry 간 빈 줄 보장
-    new_content = existing + entry.to_md() + "\n"
-    path.write_text(new_content, encoding="utf-8")
+    # lock log.md path during read-modify-write cycle
+    try:
+        with lock_for_file(vault.root, path):
+            existing = path.read_text(encoding="utf-8")
+            if existing and not existing.endswith("\n"):
+                existing += "\n"
+            if existing and not existing.endswith("\n\n"):
+                existing += "\n"  # entry 간 빈 줄 보장
+            new_content = existing + entry.to_md() + "\n"
+            path.write_text(new_content, encoding="utf-8")
+    except TimeoutError as exc:
+        raise RuntimeError(f"Failed to append to log.md due to lock timeout: {exc}")
     return entry
 
 
