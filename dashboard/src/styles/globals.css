@@ -113,7 +113,65 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode — v0.6.10: 미구현. 추후 dark theme 지원 시 재추가. */
+/* ── Dark mode support (v0.7.20+) ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #3b82f6;          /* brighter blue for visibility */
+    --color-primary-active: #2563eb;
+    --color-primary-disabled: #1d4ed8;
+    --color-error-text: #f87171;
+
+    --color-ink: #f3f4f6;              /* near white */
+    --color-body: #d1d5db;             /* soft gray */
+    --color-muted: #9ca3af;            /* gray */
+    --color-muted-soft: #6b7280;       /* dark gray */
+
+    --color-canvas: #0f172a;           /* Slate 900 background */
+    --color-surface-soft: #1e293b;     /* Slate 800 */
+    --color-surface-strong: #334155;   /* Slate 700 */
+    --color-hairline: #1e293b;
+    --color-hairline-strong: #475569;  /* Slate 600 */
+    --color-on-primary: #ffffff;
+    
+    --color-mark-bg: rgba(59, 130, 246, 0.25);
+  }
+}
+
+html.dark {
+  --color-primary: #3b82f6;
+  --color-primary-active: #2563eb;
+  --color-primary-disabled: #1d4ed8;
+  --color-error-text: #f87171;
+
+  --color-ink: #f3f4f6;
+  --color-body: #d1d5db;
+  --color-muted: #9ca3af;
+  --color-muted-soft: #6b7280;
+
+  --color-canvas: #0f172a;
+  --color-surface-soft: #1e293b;
+  --color-surface-strong: #334155;
+  --color-hairline: #1e293b;
+  --color-hairline-strong: #475569;
+  --color-on-primary: #ffffff;
+  
+  --color-mark-bg: rgba(59, 130, 246, 0.25);
+}
+
+/* Global transitions for premium feel */
+a, button, select, input, .nav-link, .card-flat, .btn-secondary, .btn-primary {
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover lift effect for cards */
+.card-flat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-raised);
+}
 
 /* ── Headings — modest display sizes ───────────────────────── */
 h1 {

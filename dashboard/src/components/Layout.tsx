@@ -29,6 +29,26 @@ export function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
 
+  // ─── load theme ─────────────────────────────────────────────
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("theme");
+      if (stored === "dark" || stored === "light") return stored;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "light";
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
+
   // ─── load all vaults ────────────────────────────────────────
   useEffect(() => {
     fetchVaults()
@@ -97,6 +117,8 @@ export function Layout() {
         onRefresh={() => setRefreshKey((k) => k + 1)}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
       />
 
       {/* Drawer backdrop */}

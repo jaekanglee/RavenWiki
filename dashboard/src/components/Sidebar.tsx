@@ -18,6 +18,8 @@ interface SidebarProps {
   open: boolean;
   /** Called by the X button, dim area, and Escape. */
   onClose: () => void;
+  theme?: "light" | "dark";
+  onToggleTheme?: () => void;
 }
 
 const VAULT_OPEN_KEY = "__vault__";
@@ -100,6 +102,8 @@ export function Sidebar({
   onRefresh,
   open,
   onClose,
+  theme = "light",
+  onToggleTheme = () => {},
 }: SidebarProps) {
   const location = useLocation();
   const activePage = activePageFromPath(location.pathname);
@@ -111,15 +115,18 @@ export function Sidebar({
       className={clsx(
         "layout-sidebar",
         "sidebar-offcanvas",
-        open && "sidebar-offcanvas-open"
+        open && "sidebar-offcanvas-open",
+        "flex flex-col"
       )}
       style={{
         borderRight: "1px solid var(--color-hairline)",
         width: 288,
-        overflowY: "auto",
         padding: "24px 20px",
         background: "var(--color-canvas)",
         flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
       }}
     >
       <div className="sidebar-top-actions">
@@ -177,20 +184,46 @@ export function Sidebar({
         </label>
       )}
 
-      {vaults.map((v) => (
-        <VaultTreeGroup
-          key={v.name}
-          vault={v}
-          tree={filterTree(trees[v.name] ?? null, filter)}
-          isActive={v.name === activeVault}
-          showMeta={vaults.length > 1}
-          activeSlug={activePage?.vault === v.name ? activePage.slug : null}
-          filterActive={filter.trim().length > 0}
-          onSelect={() => onSelectVault(v.name)}
-          onClose={onClose}
-          onRefresh={onRefresh}
-        />
-      ))}
+      <div style={{ flex: 1, overflowY: "auto", marginTop: 12 }}>
+        {vaults.map((v) => (
+          <VaultTreeGroup
+            key={v.name}
+            vault={v}
+            tree={filterTree(trees[v.name] ?? null, filter)}
+            isActive={v.name === activeVault}
+            showMeta={vaults.length > 1}
+            activeSlug={activePage?.vault === v.name ? activePage.slug : null}
+            filterActive={filter.trim().length > 0}
+            onSelect={() => onSelectVault(v.name)}
+            onClose={onClose}
+            onRefresh={onRefresh}
+          />
+        ))}
+      </div>
+
+      <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            background: "var(--color-surface-soft)",
+            border: "1px solid var(--color-hairline)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--color-ink)",
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 500,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          {theme === "light" ? "🌙 다크 모드로" : "☀️ 라이트 모드로"}
+        </button>
+      </div>
     </aside>
   );
 }

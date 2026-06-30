@@ -8,6 +8,7 @@ import {
   type LintSummary,
   type LintResult,
 } from "../lib/api";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * LintPage — vault lint 12개 viewer.
@@ -28,6 +29,8 @@ const CHECK_NAMES: Record<string, string> = {
   "#10": "frontmatter 완전성",
   "#11": "index 완전성 (FS↔DB)",
   "#12": "log size ≥ 500",
+  "#13": "cognitive governance",
+  "#14": "tier integrity (leak)",
 };
 
 export function LintPage() {
@@ -70,7 +73,7 @@ export function LintPage() {
     <div style={{ maxWidth: 1120 }}>
       <h1 style={{ marginBottom: 8 }}>Vault Lint</h1>
       <p className="text-muted" style={{ fontSize: 14, marginBottom: 32 }}>
-        12개 lint check 결과 요약입니다.
+        14개 lint check 결과 요약입니다.
       </p>
 
       {/* Counts header */}
@@ -107,8 +110,8 @@ export function LintPage() {
       {/* By-check bar chart */}
       {summary && (
         <div className="card-flat" style={{ marginBottom: 24, padding: 24 }}>
-          <h3 style={{ marginBottom: 16, fontSize: 18 }}>12 check by-count</h3>
-          {Array.from({ length: 12 }, (_, i) => `#${i + 1}`).map((cid) => {
+          <h3 style={{ marginBottom: 16, fontSize: 18 }}>14 check by-count</h3>
+          {Array.from({ length: 14 }, (_, i) => `#${i + 1}`).map((cid) => {
             const n = summary.by_check[cid] || 0;
             const max = Math.max(...Object.values(summary.by_check), 1);
             const width = `${(n / max) * 100}%`;
@@ -210,7 +213,7 @@ export function LintPage() {
             }}
           >
             <option value="">전체</option>
-            {Array.from({ length: 12 }, (_, i) => `#${i + 1}`).map((cid) => (
+            {Array.from({ length: 14 }, (_, i) => `#${i + 1}`).map((cid) => (
               <option key={cid} value={cid}>
                 {cid} {CHECK_NAMES[cid]}
               </option>
@@ -276,7 +279,11 @@ export function LintPage() {
       ) : !result ? (
         <p style={{ color: "var(--color-error-text)" }}>API 응답 실패</p>
       ) : result.issues.length === 0 ? (
-        <p className="text-muted">✓ 이슈 없음</p>
+        <EmptyState
+          icon="🎉"
+          title="이슈 없음"
+          description="현재 Vault에 등록된 마크다운 문서들 중 어떠한 무결성 린트 오류도 검출되지 않았습니다."
+        />
       ) : (
         <div style={{ border: "1px solid var(--color-hairline)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
           {result.issues.slice(0, 200).map((iss, i) => (
