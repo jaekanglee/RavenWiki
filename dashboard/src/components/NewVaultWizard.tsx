@@ -481,7 +481,7 @@ function Step2({
           Bootstrap
         </dt>
         <dd style={{ margin: 0 }}>
-          Lite 4종 자동 복사
+          Lite 5종 자동 복사
           <div
             style={{
               fontSize: 11,
@@ -491,7 +491,7 @@ function Step2({
             }}
           >
             _meta/system/SCHEMA.md, _meta/system/RULES.md,
-            _meta/system/AGENTS.md, log.md
+            _meta/system/AGENTS.md, _meta/agents/PROJECT-WORKFLOW.md, log.md
           </div>
         </dd>
       </dl>
