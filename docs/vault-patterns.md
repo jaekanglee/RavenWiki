@@ -50,14 +50,17 @@ tags: [system, patterns, llm-wiki, optional]
 Raven은 `llm_wiki: true` 감지 시 raw/ log.md _meta/agents/ 패턴을 인식합니다.
 **다른 raven 기능 (build/lint/search) 동작은 동일**.
 
-### 방법 B — 폴더/파일 존재 (자동 감지, v0.7.0+ 예정)
+### 방법 B — 구조 신호 존재 (자동 감지)
 
-`vault/raw/`, `vault/log.md`, `vault/_meta/agents/` 중 하나라도 존재하면
-Raven이 LLM Wiki 패턴 활성화로 간주. 사용자가 자연스럽게 켜는 방식.
+`vault/_meta/agents/` 가 존재하면 Raven이 LLM Wiki 패턴 활성화로
+간주합니다. 사용자가 자연스럽게 켜는 방식입니다.
+
+`raw/` 와 `log.md` 단독 존재는 자동 감지 신호로 쓰지 않습니다. 일부
+non-wiki 흐름에서도 source 저장소나 운영 로그가 생성될 수 있기 때문입니다.
 
 ### 방법 C — 안 켜기 (기본)
 
-`features` flag 없음 + raw/ log.md _meta/agents/ 폴더 없음 → vault는 그냥
+`features` flag 없음 + _meta/agents/ 폴더 없음 → vault는 그냥
 Obsidian-style 자유 vault. Raven은 어떤 패턴도 강제하지 않음.
 
 ---
@@ -97,17 +100,15 @@ from mcp import Client
 
 async def harumoa_compiler():
     client = Client("http://127.0.0.1:8766/mcp")  # Raven MCP server
-    tools = await client.list_tools()  # 자동 발견 (build, search, page_*, link_check)
-    # → 예: write_page (slug, content, title, type, tags, sources)
+    tools = await client.list_tools()  # 자동 발견 (wiki_search, wiki_get_page, wiki_update, wiki_lint)
+    # → 예: wiki_update (slug, content, frontmatter_data)
 
     # compiled/만 write 허용 (raw/는 deny)
     result = await client.call_tool(
-        "write_page",
-        vault="harumoa-vault",
+        "wiki_update",
         slug="content/compiled/foo",
-        title="...",
         content="...",
-        type="concept",
+        frontmatter_data={"title": "...", "type": "concept", "tags": ["compiled"]},
     )
     # raw/ write 시도 시 Result(ok=False) — path scope 강제
 ```
@@ -171,7 +172,7 @@ vault/
 **완전히 다름**. `_meta/agents/`는 vault 사용자 정의.
 
 **기본 vs 사용자 정의**:
-- 기본 — raven packages에 내장된 에이전트 동작 (AgentScope, provenance 등)
+- 기본 — Raven MCP 도구가 강제하는 공통 안전 규칙 (provenance, immutable path guard 등)
 - 사용자 정의 — vault마다 다른 정책 (어떤 type만 쓸지, 어떤 wikilink 패턴 등)
 
 **Tier 1 leak과의 관계**:
@@ -240,15 +241,15 @@ raven vault create draft ~/Raven/draft --profile basic
 ```
 # MCP client 설정 (Claude Desktop / Cursor / Hermes)
 # → Raven MCP server (port 8766) 연결
-# → tools 자동 발견: write_page, read_page, search, build, lint, link_check
-# → write_page 호출 시 path scope 자동 강제
-#   (allowed_paths 외 / deny_paths 매치 시 거부)
+# → tools 자동 발견: wiki_update, wiki_get_page, wiki_search, wiki_lint, wiki_log
+# → write 도구는 raw/, _meta/, log.md 보호 규칙을 자동 강제
 ```
 
-**path scope 규약** (MCP client가 `tools/call write_page` 시 자동 적용):
-- `deny_paths=("raw/**", "_meta/system/**")` — raw/ 자동 수정 ❌
-- `allowed_paths=("content/compiled/**", "content/claims/**")` — 명시 경로만 write 허용
-- 두 옵션 모두 비어있으면 자유 (현재 동작 100% 호환)
+**내장 보호 규약**:
+- `raw/**` — 에이전트 수정 ❌
+- `_meta/**` — 에이전트 수정 ❌
+- `log.md` — 직접 수정 ❌ (엔진 자동 append only)
+- 세부 path allowlist/denylist 확장은 향후 후보이며, 현재는 vault 규약과 MCP mode가 경계를 이룸
 
 ## 7. 비활성화 / 다시 켜기
 
@@ -287,8 +288,8 @@ echo '{}' > ~/Raven/my-vault/.vault.json
 
 | Karpathy 원본 | Raven +α 구현 | 비고 |
 |---|---|---|
-| raw/ immutable | ✅ 그대로 | vault에 raw/ 만들면 자동 인식 |
-| LLM이 wiki 쓰기 | ✅ Agent adapter | scope 격리 (v0.6.40) |
+| raw/ immutable | ✅ 그대로 | 패턴 활성화 후 source layer로 사용 |
+| LLM이 wiki 쓰기 | ✅ MCP write tools | immutable path guard + provenance |
 | 사람이 source curate | ✅ 사용자 자유 | Raven 강제 ❌ |
 | log.md append-only | ✅ raven 자동 | action=create/build/lint |
 | CLAUDE.md / AGENTS.md | ✅ _meta/agents/ | Tier 1 leak과 분리 (v0.6.39) |

@@ -30,7 +30,7 @@ confidence: high
 
 | # | ❌ 절대 금지 | 이유 |
 |---|---|---|
-| 5 | Path Scope 검증 우회 시도 | `wiki_update` 호출 시 내부적으로 `allowed_paths` 및 `deny_paths`가 엄격히 작동합니다. |
+| 5 | 보호 경로 검증 우회 시도 | `wiki_update` 는 `raw/`, `_meta/`, `log.md` 보호 규칙과 safe-path 검증을 강제합니다. |
 | 6 | 허용되지 않은 Vault를 대상으로 MCP 툴 호출 | 권한 없는 Vault 접근 시 `PermissionError`가 발생하며 즉시 경고 처리됩니다. |
 | 7 | 쓰기 권한이 비활성화된 상태에서 write 시도 | `--mode read` 상태에서 `wiki_update`, `wiki_ingest` 호출은 거부됩니다. |
 | 8 | 다른 프로젝트/팀의 중요 결정을 동의 없이 수정 | 팀 간의 협업 바운더리를 무단 침범해서는 안 됩니다. |

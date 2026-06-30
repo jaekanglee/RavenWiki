@@ -81,6 +81,11 @@ class Vault:
                     return True
             except Exception:
                 pass
+        # Structural opt-in: agent workflow docs indicate the user
+        # intentionally enabled the LLM Wiki layer. `raw/` and `log.md` are
+        # excluded because some non-wiki flows may still create them.
+        if (self.root / "_meta" / "agents").exists():
+            return True
         return False
 
     @classmethod

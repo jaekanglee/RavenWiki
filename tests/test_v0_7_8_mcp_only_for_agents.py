@@ -39,6 +39,9 @@ def test_readme_agent_mcp_only() -> None:
     assert "MCP :8766" in content or "MCP가 표준" in content, (
         "README.md must indicate MCP as the agent entry point"
     )
+    assert "raven/agents/" not in content, (
+        "README.md must not mention removed raven/agents/ path"
+    )
 
 
 def test_agents_md_agent_mcp_only() -> None:

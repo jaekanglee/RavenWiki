@@ -163,6 +163,50 @@ def test_wiki_update_unknown_file(wiki_db: Path):
     assert "does not exist" in result["message"]
 
 
+def test_wiki_update_blocks_raw_path_even_when_file_exists(tmp_path: Path):
+    """Karpathy-style raw sources remain immutable on the MCP write path."""
+    root = tmp_path / "vault"
+    (root / "raw").mkdir(parents=True)
+    (root / ".vault.json").write_text(
+        '{"name":"v","path":"' + str(root) + '","features":{"llm_wiki":true}}',
+        encoding="utf-8",
+    )
+    (root / "raw" / "x.md").write_text(
+        "---\ntitle: Raw\ntype: concept\nconfidence: medium\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    ctx = VaultContext(vault=root, mode=WRITE)
+    result = wiki_update(
+        slug="raw/x",
+        content="mutated",
+        frontmatter_data={"title": "Raw", "type": "concept", "confidence": "medium"},
+        ctx=ctx,
+        actor="tester",
+    )
+    assert result["ok"] is False
+    assert result.get("error") == "permission_denied"
+
+
+def test_wiki_update_blocks_meta_system_path(tmp_path: Path):
+    """Agent writes must not mutate _meta docs through MCP."""
+    root = tmp_path / "vault"
+    (root / "_meta" / "system").mkdir(parents=True)
+    (root / ".vault.json").write_text(
+        '{"name":"v","path":"' + str(root) + '","features":{"llm_wiki":true}}',
+        encoding="utf-8",
+    )
+    (root / "_meta" / "system" / "SCHEMA.md").write_text("# schema\n", encoding="utf-8")
+    ctx = VaultContext(vault=root, mode=WRITE)
+    result = wiki_update(
+        slug="_meta/system/SCHEMA",
+        content="mutated",
+        ctx=ctx,
+        actor="tester",
+    )
+    assert result["ok"] is False
+    assert result.get("error") == "permission_denied"
+
+
 def test_wiki_ingest_allowed_in_write_mode(wiki_db: Path, tmp_path: Path):
     """Stage a fake raw source, ingest it, verify it lands under raw/."""
     src_name = f"ingest_test_{tmp_path.name}.md"

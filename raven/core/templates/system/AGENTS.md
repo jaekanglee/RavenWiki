@@ -21,7 +21,7 @@ confidence: high
 매 세션 시작 시:
 
 1. `log.md` — 최근 작업 5-10줄 (`grep "^## \[" log.md | tail -10`)
-2. (있다면) `index.md` — vault 전체 구조 (가장 최상단에 정렬된 인덱스 파일)
+2. (있다면) `content/index.md` — vault 전체 구조 카탈로그
 
 → 이 두 파일을 안 읽고 컨텍스트를 가정하지 마세요.
 

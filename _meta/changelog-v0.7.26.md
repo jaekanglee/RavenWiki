@@ -40,5 +40,22 @@
 
 ---
 
+## 2026-07-01 추가 패치 — Karpathy contract alignment
+
+* **MCP immutable write guard 복구**:
+  * `raven/mcp/tools/write.py`의 `wiki_update`에 `raw/`, `_meta/`, `log.md` 보호 경계를 추가했습니다.
+  * 이제 에이전트는 Karpathy LLM Wiki의 raw 불변성과 Raven의 메타/로그 보호 계약을 MCP 표면에서도 우회할 수 없습니다.
+* **LLM Wiki 구조 신호 감지 보강**:
+  * `raven/core/vault.py`의 `is_llm_wiki`가 `features.llm_wiki=true` 외에도 `_meta/agents/` 존재를 structural opt-in 신호로 인식하도록 보강했습니다.
+  * `raw/` 와 `log.md` 단독 존재는 운영/수집 노이즈일 수 있어 감지 신호에서 제외했습니다.
+* **문서 표면 정합성 복구**:
+  * `README.md`에서 제거된 `raven/agents/` 경로 흔적을 제거했습니다.
+  * `docs/vault-patterns.md`와 vault 사용자 가이드에서 실제 구현과 맞지 않던 auto-detect / path-scope / index 위치 설명을 현행 구현 기준으로 재정렬했습니다.
+* **회귀 테스트 추가**:
+  * MCP `wiki_update`가 `raw/`와 `_meta/system/` 경로를 거부하는지 검증하는 테스트 2건을 추가했습니다.
+  * `is_llm_wiki`가 `_meta/agents/`는 감지하고 `raw/`, `log.md` 단독 존재는 감지하지 않는지 검증하는 테스트 3건을 추가했습니다.
+
+---
+
 ## 3. 다음 단계
 * **v0.7.27**: 대시보드 내 Gardening Center UI 구현 (웹 페이지에서 일괄 아카이빙 및 링크 매핑)

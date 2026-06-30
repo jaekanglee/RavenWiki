@@ -236,6 +236,29 @@ def test_create_registers_with_first_default(isolated_vaults_root, isolated_targ
     assert registry()._data.get("default") == "first"
 
 
+def test_is_llm_wiki_does_not_use_raw_folder_alone_as_signal(isolated_vaults_root, isolated_target):
+    """raw/ alone is not enough to force strict LLM Wiki mode."""
+    v = Vault.create("rawopt", isolated_target / "rawopt", bootstrap=False, profile="basic")
+    assert v.is_llm_wiki is False
+    (v.root / "raw").mkdir()
+    assert v.is_llm_wiki is False
+
+
+def test_is_llm_wiki_detects_agents_folder_without_feature_flag(isolated_vaults_root, isolated_target):
+    """_meta/agents presence is also a structural opt-in signal."""
+    v = Vault.create("agentopt", isolated_target / "agentopt", bootstrap=False, profile="basic")
+    assert v.is_llm_wiki is False
+    (v.root / "_meta" / "agents").mkdir(parents=True)
+    assert v.is_llm_wiki is True
+
+
+def test_is_llm_wiki_does_not_use_log_md_alone_as_signal(isolated_vaults_root, isolated_target):
+    """log.md alone is operational noise, not enough to force LLM Wiki mode."""
+    v = Vault.create("logonly", isolated_target / "logonly", bootstrap=False, profile="basic")
+    (v.root / "log.md").write_text("# log\n", encoding="utf-8")
+    assert v.is_llm_wiki is False
+
+
 # ─── clone (data_only option) ───────────────────────────────
 
 

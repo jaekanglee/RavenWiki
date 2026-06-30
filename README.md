@@ -25,7 +25,6 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
 | **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
-| **Adapter** (Python, 사람/스크립트용) | scope-based API | `raven/agents/` |
 
 **SoT = 마크다운**. DB/API/GUI/MCP는 **모두 재생성 가능**한 파생 산출물.
 
@@ -180,11 +179,11 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 ## 에이전트 인터페이스 (MCP, v0.7.8+)
 
 > **에이전트(LLM client) ↔ Raven = MCP 단일 표준**.
-> Python adapter (`raven.agents`)는 v0.7.9+ 제거. 사람/스크립트용 도구로 격하 ❌.
+> Python adapter(`raven.agents`)는 v0.7.9+ 제거됨.
 
 MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 - `tools/list` — 자동 도구 발견
-- `tools/call` — 도구 호출 (write_page, read_page, search, build, lint, link_check)
+- `tools/call` — 도구 호출 (`wiki_update`, `wiki_get_page`, `wiki_search`, `wiki_lint` 등)
 - 표준 protocol (stdio 또는 HTTP)
 
 ```json

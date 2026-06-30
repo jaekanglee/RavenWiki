@@ -47,6 +47,19 @@ def _resolve_md_path(vault: Path, slug: str) -> Path:
     return vault / p
 
 
+def _is_immutable_agent_path(slug: str) -> bool:
+    """Return True when the slug points at a protected agent read-only area."""
+    normalized = slug.strip().lower()
+    if normalized.endswith(".md"):
+        normalized = normalized[:-3]
+    return (
+        normalized == "log" or
+        normalized.startswith("raw/") or
+        normalized.startswith("content/raw/") or
+        normalized.startswith("_meta/")
+    )
+
+
 def _rebuild_db(vault: Path) -> None:
     """Re-run scripts/build_db.py so wiki.db reflects on-disk changes.
 
@@ -318,6 +331,20 @@ def wiki_update(
     # if the file was deleted between calls the cache should not hide the
     # "does not exist" error.
     abs_path = _resolve_md_path(vault_path, slug)
+    if _is_immutable_agent_path(slug):
+        rel = abs_path.relative_to(vault_path)
+        return {
+            "ok": False,
+            "message": (
+                f"{rel} is read-only for agents. "
+                "raw/, _meta/, and log.md must not be updated via wiki_update."
+            ),
+            "path": str(rel),
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "permission_denied",
+        }
     if idempotency_key and abs_path.exists():
         cached, _ = _resolve_idempotency(
             tool="wiki_update", vault=vault_path,

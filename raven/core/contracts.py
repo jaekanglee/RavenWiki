@@ -10,7 +10,7 @@ Before v0.6.2, the same 4-step write recipe was duplicated in 4 places:
   - raven/cli/__main__.py:page_new   (slug validate → FM merge → write → log)
   - raven/api/server.py:create_page  (same recipe + extra HTTP exception types)
   - raven/api/server.py:update_page  (same recipe with `created` preservation)
-  - raven/agents/agent.py:AgentVault.write  (same recipe + agent provenance)
+  - a legacy agent adapter write path         (same recipe + agent provenance)
 
 That meant every change to the recipe (e.g. add `confidence` field, change
 log format, add telemetry) had to be applied in 4 places — and each one
@@ -168,22 +168,24 @@ def write_page(
 
             merged = frontmatter_module.merge(existing_meta, updates, today=today)
 
-            # Strict Schema & WIP guardrail check for agents
-            if vault.is_llm_wiki and actor is not None:
-                # raw/ 및 _meta/system/ 등 불변(Immutable) 영역에 대한 에이전트 쓰기 원천 차단
+            # Immutable areas are always read-only for agent-style callers.
+            if actor is not None:
                 slug_lower = raw_slug.lower()
                 if (
                     slug_lower.startswith("raw/") or
                     slug_lower.startswith("content/raw/") or
-                    slug_lower.startswith("_meta/system/")
+                    slug_lower.startswith("_meta/") or
+                    slug_lower == "log" or
+                    slug_lower == "log.md"
                 ):
                     return WriteResult(
                         ok=False,
                         slug=raw_slug,
                         error="permission_denied",
-                        message="Raw sources 및 시스템 메타 영역은 불변(Immutable)이므로 에이전트가 수정할 수 없습니다."
+                        message="raw/, _meta/, log.md 는 불변/보호 영역이므로 에이전트가 수정할 수 없습니다."
                     )
-
+            # Strict Schema & WIP guardrail check for agents in LLM Wiki vaults.
+            if vault.is_llm_wiki and actor is not None:
                 missing = validate_gardening_schema(vault, raw_slug, content or "", merged)
                 if missing:
                     return WriteResult(
