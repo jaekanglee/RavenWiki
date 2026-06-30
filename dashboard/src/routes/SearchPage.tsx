@@ -25,8 +25,11 @@ export function SearchPage() {
 
   return (
     <div style={{ maxWidth: 880 }}>
-      <h1 style={{ marginBottom: 8 }}>Search</h1>
-      <p className="text-muted" style={{ fontSize: 14, marginBottom: 24 }}>
+      <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
+        <h1 style={{ margin: 0 }}>Search</h1>
+        <span style={{ color: "var(--color-muted)", fontSize: 14 }}>in {vault}</span>
+      </div>
+      <p className="text-muted" style={{ fontSize: 14, marginTop: 8, marginBottom: 24 }}>
         모든 페이지를 전문 검색합니다.
       </p>
 

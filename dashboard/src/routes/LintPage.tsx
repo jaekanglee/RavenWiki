@@ -71,8 +71,11 @@ export function LintPage() {
 
   return (
     <div style={{ maxWidth: 1120 }}>
-      <h1 style={{ marginBottom: 8 }}>Vault Lint</h1>
-      <p className="text-muted" style={{ fontSize: 14, marginBottom: 32 }}>
+      <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
+        <h1 style={{ margin: 0 }}>Vault Lint</h1>
+        <span style={{ color: "var(--color-muted)", fontSize: 14 }}>in {vault}</span>
+      </div>
+      <p className="text-muted" style={{ fontSize: 14, marginTop: 8, marginBottom: 32 }}>
         14개 lint check 결과 요약입니다.
       </p>
 

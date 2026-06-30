@@ -56,9 +56,11 @@ export function GraphPage() {
   return (
     <div className="graph-page-shell">
       <div className="graph-page-toolbar">
-        <h1>Graph</h1>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+          <h1 style={{ margin: 0 }}>Graph</h1>
+          <span style={{ color: "var(--color-muted)", fontSize: 14 }}>in {vault}</span>
+        </div>
         <div className="graph-page-meta" aria-label="그래프 상태">
-          <strong>{vault}</strong>
           <span>{visibleNodes.length}/{graph.nodes.length} nodes</span>
           <span>{visibleEdges.length} edges</span>
           {useCommunity && communityCount > 0 && (
