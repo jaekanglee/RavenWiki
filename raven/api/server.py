@@ -1,4 +1,4 @@
-"""server.py — FastAPI surface over raven.core + raven.agents.
+"""server.py — FastAPI surface over raven.core.
 
 Single source of truth for the GUI's HTTP calls. The dashboard used to read
 static JSON (page-<slug>.json etc.); it now calls this server, which keeps
@@ -222,8 +222,8 @@ class VaultCreate(BaseModel):
     bootstrap: bool = Field(
         True,
         description=(
-            "Lite bootstrap policy (v2026-06-26, 2-tier model): if True, copy ONLY "
-            "user-facing essentials (SCHEMA, RULES, log.md). Tier 1 raven-internal "
+            "Lite bootstrap policy: if True, copy ONLY user-facing essentials "
+            "(SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW, log.md). Tier 1 raven-internal "
             "docs (OPERATIONS, agent/*, raven-policy) are NEVER auto-copied. "
             "Use `raven docs` command to read raven-internal docs."
         ),
@@ -279,7 +279,7 @@ def verify_vault_bootstrap(name: str):
     M4 F3 — Bootstrap Self-Test. Mirrors `raven vault verify <name>`.
 
     Returns:
-        ok=True if all 4 Lite bootstrap files match the source templates.
+        ok=True if all Lite bootstrap files match the source templates.
         ok=False with per-file checks otherwise.
     """
     v = _vault_or_404(name)

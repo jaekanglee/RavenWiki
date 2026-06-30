@@ -1,10 +1,13 @@
-"""raven — Multi-vault wiki engine + CLI + API + GUI.
+"""raven — Multi-vault wiki engine + CLI + API + MCP.
 
-Layered architecture:
+Layered architecture (v0.7.9+):
     raven.core      — pure engine (registry, vault, db, lint, link, export)
-    raven.agents    — agent adapters (LLM workers with scope + provenance, vendor-neutral)
     raven.cli       — Typer-based CLI (vault ls/use/crud/lint)
-    raven.api       — FastAPI HTTP server (GUI backend)
+    raven.api       — FastAPI HTTP server (Dashboard backend / external automation)
     dashboard/        — React 19 SPA (read + write UI)
+    raven.mcp       — FastMCP server (LLM agent standard protocol, v0.7.8+)
+
+에이전트(LLM client) ↔ Raven 인터페이스 = MCP only (단일 표준).
+사람/스크립트용: CLI / API / Dashboard 자유.
 """
 __version__ = "0.5.7"

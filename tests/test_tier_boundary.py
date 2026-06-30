@@ -9,6 +9,7 @@ Tier 2 (user vault — Lite bootstrap):
     _meta/system/SCHEMA.md
     _meta/system/RULES.md
     _meta/system/AGENTS.md
+    _meta/agents/PROJECT-WORKFLOW.md
     log.md
 
 These tests guarantee:
@@ -17,7 +18,7 @@ These tests guarantee:
   - `Vault.sync_meta(lite=True)` never lists Tier 1 paths.
   - `Vault.create()` never leaks Tier 1 files even if source vault has them.
   - The Tier 1 `agent/` directory is never created during bootstrap.
-  - Bootstrap target paths use `_meta/system/` (the canonical Tier 2 location).
+  - Bootstrap target paths use approved Tier 2 locations.
 """
 from __future__ import annotations
 
@@ -83,23 +84,12 @@ def test_lite_bootstrap_files_excludes_tier1():
 
 
 def test_lite_bootstrap_files_size_matches_documented_whitelist():
-    """Sanity: the whitelist must be a subset of the canonical 4-file Lite
-    bootstrap (v0.5.6 합의: SCHEMA, RULES, AGENTS, log).
-
-    NOTE: As of M4 F10, `_LITE_BOOTSTRAP_FILES` has only 3 entries (it
-    pre-dates the AGENTS.md bootstrap policy that added AGENTS.md).
-    `_bootstrap_lite()` itself does copy 4 files including AGENTS.md
-    via its `template_map`. This test enforces the *upper bound* — the
-    whitelist must not contain anything outside the 4-file canonical
-    Lite set — and explicitly excludes Tier 1 (covered by the prior test).
-    The whitelist ↔ template_map drift is a separate concern tracked in
-    the verify.py bootstrap self-test (M4 F3) and surfaced via the
-    `vault verify` CLI command.
-    """
+    """Sanity: the whitelist must be the canonical user-facing Lite set."""
     canonical_lite = {
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
         "_meta/system/AGENTS.md",
+        "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
     # Every entry in the whitelist must be in the canonical Lite set
@@ -216,29 +206,18 @@ def test_tier1_dir_not_in_bootstrap(isolated_vaults_root, isolated_target):
     )
 
 
-def test_bootstrap_path_constants_use_system_dir():
-    """All Lite bootstrap paths MUST live under `_meta/system/` (or vault root
-    for log.md).
-
-    This is the canonical Tier 2 location. If a future change moves a
-    bootstrap file outside `_meta/system/`, this test fails — forcing an
-    explicit decision rather than a silent Tier drift.
-    """
-    system_files = {
+def test_bootstrap_path_constants_use_user_surface_dirs():
+    """All Lite bootstrap paths MUST live under approved Tier 2 locations."""
+    allowed_files = {
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
         "_meta/system/AGENTS.md",
+        "_meta/agents/PROJECT-WORKFLOW.md",
+        "log.md",
     }
     for path in _LITE_BOOTSTRAP_FILES:
-        if path == "log.md":
-            # log.md is the documented exception (vault root, not _meta/system/)
-            continue
-        assert path in system_files, (
-            f"Bootstrap path {path!r} not under `_meta/system/`. "
-            f"All Tier 2 docs must live under _meta/system/."
-        )
-        assert path.startswith("_meta/system/"), (
-            f"Bootstrap path {path!r} violates `_meta/system/` prefix convention"
+        assert path in allowed_files, (
+            f"Bootstrap path {path!r} is not an approved Tier 2 user-surface file."
         )
 
 

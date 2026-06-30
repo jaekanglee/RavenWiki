@@ -140,13 +140,13 @@ def vault_create(
     owner: str = typer.Option("user"),
     description: str = typer.Option(""),
     bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="apply profile bootstrap (use --no-bootstrap for existing folders)"),
-    profile: str = typer.Option("llm-wiki", "--profile", help="v0.6.38+ profile: 'basic' (WELCOME.md only) | 'llm-wiki' (4-file Lite bootstrap)"),
+    profile: str = typer.Option("llm-wiki", "--profile", help="profile: 'basic' (WELCOME.md only) | 'llm-wiki' (5-file Lite bootstrap)"),
 ) -> None:
     """Create new vault on disk and register it.
 
     Profiles (v0.6.38+):
       - basic: Obsidian-style human-first vault, only WELCOME.md
-      - llm-wiki: LLM Wiki pattern vault, SCHEMA+RULES+AGENTS+log.md
+      - llm-wiki: project/agent-ready vault, SCHEMA+RULES+AGENTS+PROJECT-WORKFLOW+log.md
 
     For new users, --profile basic is recommended.
     """
@@ -168,7 +168,7 @@ def vault_create(
             typer.echo(f"   profile: basic (WELCOME.md only, human-first Obsidian-style)")
         else:
             typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md, AGENTS.md}})")
+            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/system, _meta/agents, log.md)")
     else:
         typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 
@@ -180,13 +180,13 @@ def vault_verify(
 ) -> None:
     """Verify Lite bootstrap files match source templates (SHA256).
 
-    M4 F3 — Bootstrap Self-Test. Checks the 4 Lite bootstrap files
+    M4 F3 — Bootstrap Self-Test. Checks the Lite bootstrap files
     (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/AGENTS.md,
-    log.md) for existence + content match against the raven package's
-    source templates.
+    _meta/agents/PROJECT-WORKFLOW.md, log.md) for existence + content match
+    against the raven package's source templates.
 
     Exit codes:
-      0 = all 4 files OK
+      0 = all files OK
       1 = at least one file missing or hash mismatch
     """
     v = _resolve_vault_or_die(name)
@@ -869,7 +869,7 @@ def meta_sync(
         help="기존 파일 덮어쓰기 (user-edited 보호 해제). --full과 함께 사용 권장.",
     ),
 ) -> None:
-    """Re-copy SCHEMA.md / RULES.md from raven templates into _meta/.
+    """Re-copy Lite user-facing templates into the vault.
 
     Tier boundary policy (v2026-06-26, 2-tier model):
         Default = Lite 모드 (Tier 1 ↔ Tier 2 경계 존중).
@@ -877,7 +877,7 @@ def meta_sync(
                  기존 파일 있으면 --force 없이는 거부됨.
 
     Examples:
-        raven meta sync                    # Lite (SCHEMA, RULES, log.md)
+        raven meta sync                    # Lite user-facing templates
         raven meta sync --full --force     # Full + 덮어쓰기 (주의)
         raven meta sync --full             # Full, 기존 파일 있으면 에러
     """

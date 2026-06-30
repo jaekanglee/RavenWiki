@@ -194,9 +194,10 @@ Codex 1라운드 critique 결과 (한국 원티드 사이트 레퍼런스 분석
 | `dashboard/` | **read / write** | React UI (변경 시 사용자 승인) |
 
 → 위 4 영역을 벗어나는 경로:
-- `raven/mcp/` — 변경 시 import path 검증 필수 (v0.6.0+ namespace)
+- `raven/mcp/` — 변경 시 import path 검증 필수 (v0.6.0+ namespace). **에이전트 표준 프로토콜 (v0.7.8+).**
 - `scripts/.venv/` — 생성/삭제 ❌ (가상환경, 재생성 가능)
 - `_deprecated/` — read only (B안으로 archive됨, 복원 시 사용자 결정)
+- **`raven/agents/` — v0.7.9+ 제거됨. Python adapter = deprecated. 에이전트는 MCP only.**
 
 ### 격리 — worktree 트리거 (v0.6.9+)
 

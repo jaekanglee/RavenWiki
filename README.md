@@ -177,46 +177,37 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 
 ---
 
-## Python 어댑터 (에이전트)
+## 에이전트 인터페이스 (MCP, v0.7.8+)
 
-```python
-from raven.agents import Agent, AgentScope
+> **에이전트(LLM client) ↔ Raven = MCP 단일 표준**.
+> Python adapter (`raven.agents`)는 v0.7.9+ 제거. 사람/스크립트용 도구로 격하 ❌.
 
-# 1. scope 정의 (단일 vault, delete 권한 없음)
-hermes = Agent.named(
-    "hermes-writer",
-    scope="agent-output",
-    run_id="run-2026-06-25-001",
-    intent="사용자 요청 정리",
-)
+MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
+- `tools/list` — 자동 도구 발견
+- `tools/call` — 도구 호출 (write_page, read_page, search, build, lint, link_check)
+- 표준 protocol (stdio 또는 HTTP)
 
-# 2. vault 핸들
-av = hermes.vault("agent-output")
-
-# 3. write (자동 frontmatter + provenance)
-result = av.write(
-    "content/llm-wiki-pattern",
-    body,
-    title="LLM Wiki 패턴",
-    type="concept",
-    tags=["agent-output", "llm-wiki"],
-)
-# → 파일 frontmatter에 자동 삽입:
-#   agents:
-#     - name: hermes-writer
-#       timestamp: 2026-06-25T13:12:35
-#       run_id: run-2026-06-25-001
-#       intent: 사용자 요청 정리
-
-# 4. read / search / list
-av.read("content/llm-wiki-pattern")
-av.search("karpathy", top_k=5)
-av.list(type="concept")
-av.exists("content/foo")
-
-# 5. permission
-hermes.vault("default")         # ❌ PermissionError (scope 밖)
+```json
+// MCP client 설정 (예: Claude Desktop)
+// ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "raven": {
+      "url": "http://127.0.0.1:8766/mcp"
+    }
+  }
+}
 ```
+
+```bash
+# Raven MCP server 띄우기
+make dev              # API :8765 + MCP :8766 + Dashboard :5173
+# 또는 stdio client용
+make mcp
+```
+
+> **자세한 도식**: `_meta/diagrams/three-flows.png`
+> **정책**: AGENTS.md §5.5 "MCP = 에이전트 표준 프로토콜"
 
 ---
 

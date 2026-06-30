@@ -85,20 +85,32 @@ vault/
 - content/ 페이지는 `sources:` frontmatter로 raw 파일 참조
 - lint는 raw/ 안 파일을 wikilink로 backref 추적
 
-**Agent 어댑터 (v0.6.40+)**:
-```python
-Agent.named(
-    "raw-reader",
-    scope=AgentScope(
-        vault_names=("my-vault",),
-        deny_paths=("raw/**",),  # raw/ 절대 수정 금지
-        allowed_paths=("content/compiled/**",),
-    ),
-)
-# → raw/는 읽기만, content/compiled/만 write 가능
-```
+**Agent 표준 인터페이스 (MCP, v0.7.8+)**:
 
----
+> **에이전트 ↔ Raven = MCP 단일**. Python adapter (`raven.agents`)는 v0.7.9+ 제거됨.
+
+에이전트(MCP client: 표준 protocol 지원하는 어떤 agent든)는 **MCP 표준 protocol**로 Raven과 통신. `tools/list`로 도구 자동 발견, `tools/call`로 호출.
+
+```python
+# MCP client 측 (Python 예시 — using `mcp` SDK)
+from mcp import Client
+
+async def harumoa_compiler():
+    client = Client("http://127.0.0.1:8766/mcp")  # Raven MCP server
+    tools = await client.list_tools()  # 자동 발견 (build, search, page_*, link_check)
+    # → 예: write_page (slug, content, title, type, tags, sources)
+
+    # compiled/만 write 허용 (raw/는 deny)
+    result = await client.call_tool(
+        "write_page",
+        vault="harumoa-vault",
+        slug="content/compiled/foo",
+        title="...",
+        content="...",
+        type="concept",
+    )
+    # raw/ write 시도 시 Result(ok=False) — path scope 강제
+```
 
 ## 3. log.md 패턴 (append-only work log)
 
@@ -202,9 +214,9 @@ vault/
 ### 시나리오 B — 일반 LLM Wiki 사용자 (3 패턴 다 켜기)
 ```bash
 raven vault create my-vault ~/Raven/my-vault --profile llm-wiki
-# → Lite bootstrap 4종 자동 복사 (v0.6.38+ profile)
+# → Lite bootstrap 5종 자동 복사 (v0.7.3+ profile)
 # → log.md는 raven이 자동 관리
-# → _meta/agents/는 사용자 자유 (없어도 OK)
+# → _meta/agents/PROJECT-WORKFLOW.md는 프로젝트 작업 에이전트 공통 지시 템플릿
 ```
 
 ### 시나리오 C — 고급 사용자 (custom)
@@ -216,21 +228,21 @@ raven vault create draft ~/Raven/draft --profile basic
 ```
 
 ### 시나리오 D — 에이전트 협업 (raw/ 보호)
-```python
-# harumoa 팀 vault — 에이전트가 compiled/만 write, raw/는 읽기만
-from raven.agents import Agent, AgentScope
-harumoa = Agent.named(
-    "harumoa-compiler",
-    scope=AgentScope(
-        vault_names=("harumoa-vault",),
-        allowed_paths=("content/compiled/**", "content/claims/**"),
-        deny_paths=("raw/**", "_meta/system/**"),
-    ),
-)
-# → raw/ 수정 시도 → Result(ok=False) 즉시 거부
+
+> **에이전트는 MCP client로만 Raven과 통신** (v0.7.8+). Python adapter ❌.
+
+```
+# MCP client 설정 (Claude Desktop / Cursor / Hermes)
+# → Raven MCP server (port 8766) 연결
+# → tools 자동 발견: write_page, read_page, search, build, lint, link_check
+# → write_page 호출 시 path scope 자동 강제
+#   (allowed_paths 외 / deny_paths 매치 시 거부)
 ```
 
----
+**path scope 규약** (MCP client가 `tools/call write_page` 시 자동 적용):
+- `deny_paths=("raw/**", "_meta/system/**")` — raw/ 자동 수정 ❌
+- `allowed_paths=("content/compiled/**", "content/claims/**")` — 명시 경로만 write 허용
+- 두 옵션 모두 비어있으면 자유 (현재 동작 100% 호환)
 
 ## 7. 비활성화 / 다시 켜기
 

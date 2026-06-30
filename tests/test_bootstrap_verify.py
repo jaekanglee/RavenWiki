@@ -58,8 +58,8 @@ def fresh_vault(isolated_vaults_root, isolated_target):
 # ─── constants & structure ─────────────────────────────────────────
 
 
-def test_lite_bootstrap_files_constant_lists_4_files():
-    """`LITE_BOOTSTRAP_FILES` (verify.py side) MUST list all 4 canonical
+def test_lite_bootstrap_files_constant_lists_5_files():
+    """`LITE_BOOTSTRAP_FILES` (verify.py side) MUST list all 5 canonical
     Lite bootstrap files. This is the read-side mirror of the
     write-side `_bootstrap_lite` template_map.
     """
@@ -67,6 +67,7 @@ def test_lite_bootstrap_files_constant_lists_4_files():
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
         "_meta/system/AGENTS.md",
+        "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
 
@@ -105,7 +106,7 @@ def test_verify_bootstrap_fresh_vault_is_ok(fresh_vault):
     result = verify_bootstrap(fresh_vault.root)
     assert isinstance(result, BootstrapVerifyResult)
     assert result.ok is True
-    assert len(result.checks) == 4
+    assert len(result.checks) == 5
     static_checks = [c for c in result.checks if c.rel_path != "log.md"]
     append_checks = [c for c in result.checks if c.rel_path == "log.md"]
     # Static templates (SCHEMA, RULES, AGENTS): byte-identical to source
@@ -172,13 +173,13 @@ def test_verify_bootstrap_detects_corrupt_file(fresh_vault):
 
 
 def test_verify_bootstrap_handles_missing_directory():
-    """If the vault path doesn't exist, all 4 files report `missing`."""
+    """If the vault path doesn't exist, all Lite bootstrap files report `missing`."""
     bogus = Path("/tmp/raven-verify-bogus-nonexistent-xyz-12345")
     if bogus.exists():
         shutil.rmtree(bogus)
     result = verify_bootstrap(bogus)
     assert result.ok is False
-    assert len(result.checks) == 4
+    assert len(result.checks) == 5
     assert all(c.status == "missing" for c in result.checks)
     assert result.missing == list(LITE_BOOTSTRAP_FILES)
 
@@ -300,7 +301,7 @@ def test_cli_vault_verify_json_output(isolated_vaults_root, isolated_target):
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["ok"] is True
-    assert len(data["checks"]) == 4
+    assert len(data["checks"]) == 5
 
 
 # ─── API: POST /api/vaults/{name}/verify ───────────────────────────
@@ -317,7 +318,7 @@ def test_api_verify_vault_bootstrap_endpoint(isolated_vaults_root, isolated_targ
     assert r.status_code == 200, r.text
     payload = r.json()
     assert payload["ok"] is True
-    assert len(payload["checks"]) == 4
+    assert len(payload["checks"]) == 5
 
 
 def test_api_verify_returns_409_on_mismatch(isolated_vaults_root, isolated_target):
