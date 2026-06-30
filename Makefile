@@ -44,7 +44,21 @@ docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runti
 		echo "📋 .env 없음. .env.example → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
 		cp .env.example .env; \
 	fi
-	docker compose build
+	# v0.7.17+: 순차 빌드 강제 (병렬 image 빌드 시 같은 tag 충돌 ❌)
+	$(MAKE) --no-print-directory docker-build-api
+	$(MAKE) --no-print-directory docker-build-mcp-http
+	$(MAKE) --no-print-directory docker-build-dashboard
+	@echo ""
+	@echo "✅ raven:latest built (3 services: api, mcp-http, dashboard)"
+
+docker-build-api: ## Build api service image only
+	docker compose build api
+
+docker-build-mcp-http: ## Build mcp-http service image only
+	docker compose build mcp-http
+
+docker-build-dashboard: ## Build dashboard service image only
+	docker compose build dashboard
 
 docker-up: ## Start 4 services (API + MCP HTTP + Dashboard, stdio is docker exec)
 	@if [ ! -f .env ]; then \
