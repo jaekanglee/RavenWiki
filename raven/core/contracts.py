@@ -168,19 +168,34 @@ def write_page(
 
             merged = frontmatter_module.merge(existing_meta, updates, today=today)
 
+            # Strict Schema & WIP guardrail check for agents
+            if vault.is_llm_wiki and actor is not None:
+                missing = validate_gardening_schema(vault, raw_slug, content or "", merged)
+                if missing:
+                    return WriteResult(
+                        ok=False,
+                        slug=raw_slug,
+                        error="strict_schema_violated",
+                        message=(
+                            "WIP가 아닌 메인 content/ 페이지는 Frontmatter와 규약을 완전히 갖춰야 합니다. "
+                            f"누락된 항목: {', '.join(missing)}. "
+                            "임시 작업은 content/wip/ 아래에 작성해 주세요."
+                        )
+                    )
+
             # Optional agent provenance — matches AgentVault.write pre-v0.6.2 shape.
             # Stored as list-of-dict so frontmatter_module.render serializes it as
             # a YAML list (matches the YAML format pre-v0.6.2 produced).
             if actor is not None:
                 provenance_list = list(merged.get("agents") or [])
-                # Normalize input: dict → as-is; object → to_dict via attrs;
-                # str → wrap in {"name": str}.
                 if isinstance(actor, dict):
                     entry = dict(actor)
                 elif hasattr(actor, "__dict__"):
                     entry = {k: v for k, v in vars(actor).items() if not k.startswith("_")}
                 else:
                     entry = {"name": str(actor)}
+                if "timestamp" not in entry:
+                    entry["timestamp"] = _dt.datetime.now().isoformat()
                 provenance_list.append(entry)
                 merged["agents"] = provenance_list
 
@@ -232,3 +247,53 @@ def write_page(
         created_date=merged.get("created"),
         message=f"wrote {raw_slug}",
     )
+
+
+def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> list[str]:
+    """Validate that the document has required llm_wiki metadata and sections.
+    Returns a list of missing items (empty if valid).
+    """
+    slug_lower = slug.lower()
+    if (
+        slug_lower.startswith("content/wip/") or 
+        slug_lower.startswith("content/scratch/") or 
+        slug_lower.startswith("wip/") or 
+        slug_lower.startswith("scratch/") or
+        slug_lower.startswith("_meta/")
+    ):
+        return []
+
+    from raven.core.lint import (
+        _has_why_it_matters,
+        _has_oppose_heading,
+        COG_GOV_CONFIDENCE_LEVELS,
+        COG_GOV_EXEMPT_TYPES,
+    )
+    
+    missing = []
+    
+    # 1. Check type
+    ptype = (meta.get("type") or "").strip().lower()
+    valid_types = {"concept", "person", "tool", "comparison", "project", "rule", "query", "journal"}
+    if not ptype or ptype not in valid_types:
+        missing.append("올바른 type (frontmatter)")
+        return missing
+
+    # If it is an exempt type, we skip confidence, why it matters, and opposing views checks
+    if ptype in COG_GOV_EXEMPT_TYPES:
+        return []
+
+    # 2. Check confidence
+    conf = meta.get("confidence")
+    if not isinstance(conf, str) or conf.strip().lower() not in COG_GOV_CONFIDENCE_LEVELS:
+        missing.append("confidence (frontmatter)")
+        
+    # 3. Check why it matters
+    if not _has_why_it_matters(content):
+        missing.append("Why it matters 섹션/패턴")
+        
+    # 4. Check opposing heading
+    if not _has_oppose_heading(content):
+        missing.append("반대 입장/한계/대안 섹션")
+        
+    return missing

@@ -67,6 +67,22 @@ class Vault:
             raise FileNotFoundError(f"vault path missing: {root}")
         return cls(meta=meta, root=root)
 
+    @property
+    def is_llm_wiki(self) -> bool:
+        """Check if LLM Wiki patterns are enabled for this vault."""
+        if hasattr(self.meta, "features") and dict(self.meta.features).get("llm_wiki") is True:
+            return True
+        vf = self.root / ".vault.json"
+        if vf.exists():
+            try:
+                import json
+                data = json.loads(vf.read_text(encoding="utf-8"))
+                if data.get("features", {}).get("llm_wiki") is True:
+                    return True
+            except Exception:
+                pass
+        return False
+
     @classmethod
     def create(
         cls,

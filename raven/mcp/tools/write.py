@@ -350,6 +350,30 @@ def wiki_update(
     # M4/F1: actor provenance on the page itself.
     meta["actor"] = actor_norm
 
+    # Validate gardening schema if llm_wiki is enabled
+    from raven.core.vault import Vault
+    from raven.core.registry import VaultMeta
+    from raven.core.contracts import validate_gardening_schema
+    
+    v_meta = VaultMeta(name=vault_path.name, path=vault_path)
+    vault = Vault(meta=v_meta, root=vault_path)
+    
+    if vault.is_llm_wiki:
+        missing = validate_gardening_schema(vault, slug, content or "", meta)
+        if missing:
+            return {
+                "ok": False,
+                "message": (
+                    "WIP가 아닌 메인 content/ 페이지는 Frontmatter와 규약을 완전히 갖춰야 합니다. "
+                    f"누락된 항목: {', '.join(missing)}. "
+                    "임시 작업은 content/wip/ 아래에 작성해 주세요."
+                ),
+                "path": str(abs_path.relative_to(vault_path)),
+                "actor": actor_norm,
+                "idempotency_key": idempotency_key,
+                "timestamp": now_iso(),
+            }
+
     post = frontmatter.Post(content, **meta)
     abs_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
     rel = abs_path.relative_to(vault_path)

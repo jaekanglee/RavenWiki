@@ -55,6 +55,8 @@ confidence: high
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.25]] — Knowledge Gardening 및 Write Guardrail
+- [[changelog-v0.7.24]] — Dashboard Wizard 및 Portal
 - [[changelog-v0.7.3]] — Lite bootstrap PROJECT-WORKFLOW 템플릿
 - [[changelog-v0.7.2]] — Lite bootstrap 사용자 표면 일관성
 - [[changelog-v0.7.1]] — Lite bootstrap AGENTS.md 도구 표면 재작성

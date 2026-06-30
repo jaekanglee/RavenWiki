@@ -25,6 +25,7 @@ from . import archive as archive_module
 from . import log as log_module
 from . import digest as digest_module
 from . import contracts as contracts_module
+from . import garden as garden_module
 
 __all__ = [
     "VaultRegistry",
@@ -43,4 +44,5 @@ __all__ = [
     "log_module",
     "digest_module",
     "contracts_module",
+    "garden_module",
 ]

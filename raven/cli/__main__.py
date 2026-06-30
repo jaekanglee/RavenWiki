@@ -1453,6 +1453,131 @@ def migrate_categories(json_out: bool = typer.Option(False, "--json")) -> None:
     typer.echo(f"   apply:    raven migrate plan --vault <name> --apply")
 
 
+@app.command("garden")
+def raven_garden(
+    vault: Optional[str] = typer.Option(None, "--vault", "-v", help="대상 vault 이름"),
+    stale: bool = typer.Option(False, "--stale", help="Stale 문서 정리만 실행"),
+    orphan: bool = typer.Option(False, "--orphan", help="Orphan 문서 정리만 실행"),
+) -> None:
+    """지식 정원 가꾸기 (Knowledge Gardening) — Stale 및 Orphan 문서 정리."""
+    v = _resolve_vault_or_die(vault)
+    
+    run_all = not stale and not orphan
+    run_stale = stale or run_all
+    run_orphan = orphan or run_all
+    
+    from raven.core.garden import get_stale_pages, get_orphan_pages, find_link_candidates
+    from raven.core import contracts as contracts_module
+    from raven.core import archive as archive_module
+    import sys
+
+    # 1. Stale Pages Gardening
+    if run_stale:
+        stale_list = get_stale_pages(v)
+        if not stale_list:
+            typer.echo("✨ Stale (90일+ 미갱신) 문서가 없습니다.")
+        else:
+            typer.echo(f"📊 Stale 문서 목록 ({len(stale_list)}개):")
+            for idx, item in enumerate(stale_list):
+                typer.echo(f"  [{idx + 1}] {item['slug']} (updated: {item['updated']}, {item['age_days']}일 경과)")
+            
+            for item in stale_list:
+                slug = item["slug"]
+                typer.echo(f"\n🌱 문서 정원 관리 대상: {slug} ({item['age_days']}일 경과)")
+                ans = typer.prompt(
+                    "액션을 선택하세요. [u]pdate(보완), [a]rchive(아카이브), [s]kip(건너뛰기), [q]uit(종료)",
+                    default="s"
+                ).lower().strip()
+                
+                if ans == "q":
+                    typer.echo("👋 Gardening을 종료합니다.")
+                    sys.exit(0)
+                elif ans == "u":
+                    typer.echo(f"✏️  문서 '{slug}'를 업데이트합니다. 내용을 입력하세요 (종료하려면 Ctrl+D):")
+                    lines = []
+                    try:
+                        while True:
+                            line = input()
+                            lines.append(line)
+                    except EOFError:
+                        pass
+                    new_content = "\n".join(lines)
+                    if new_content.strip():
+                        res = contracts_module.write_page(v, slug, new_content, overwrite=True)
+                        if res.ok:
+                            typer.echo(f"✅ 업데이트 완료: {slug}")
+                        else:
+                            typer.echo(f"❌ 업데이트 실패: {res.error}")
+                    else:
+                        typer.echo("⚠️ 내용이 없어 업데이트를 취소합니다.")
+                elif ans == "a":
+                    if typer.confirm(f"정말 '{slug}' 문서를 아카이브 폴더로 이동할까요?", default=False):
+                        res = archive_module.archive_page(v, slug)
+                        if res.get("ok"):
+                            typer.echo(f"✅ 아카이브 완료: {slug}")
+                        else:
+                            typer.echo(f"❌ 아카이브 실패: {res.get('error')}")
+                elif ans == "s":
+                    typer.echo("건너뜁니다.")
+
+    # 2. Orphan Pages Gardening
+    if run_orphan:
+        orphan_list = get_orphan_pages(v)
+        if not orphan_list:
+            typer.echo("✨ Orphan (인바운드 0) 문서가 없습니다.")
+        else:
+            typer.echo(f"\n📊 Orphan 문서 목록 ({len(orphan_list)}개):")
+            for idx, item in enumerate(orphan_list):
+                typer.echo(f"  [{idx + 1}] {item['slug']} (created: {item['created']}, {item['age_days']}일 경과)")
+            
+            for item in orphan_list:
+                slug = item["slug"]
+                typer.echo(f"\n🌱 외톨이 문서 연결 대상: {slug} ({item['age_days']}일 경과)")
+                
+                candidates = find_link_candidates(v, slug)
+                if candidates:
+                    typer.echo("💡 연결 가능한 추천 문서:")
+                    for idx, cand in enumerate(candidates):
+                        typer.echo(f"  ({idx + 1}) {cand['slug']} [{cand['title']}] ({cand['reason']})")
+                else:
+                    typer.echo("💡 추천 문서가 없습니다.")
+                
+                ans = typer.prompt(
+                    "액션을 선택하세요. [l]ink(링크 맺기), [a]rchive(아카이브), [s]kip(건너뛰기), [q]uit(종료)",
+                    default="s"
+                ).lower().strip()
+                
+                if ans == "q":
+                    typer.echo("👋 Gardening을 종료합니다.")
+                    sys.exit(0)
+                elif ans == "l":
+                    target = typer.prompt("연결할 대상 문서의 slug를 입력하세요").strip()
+                    if target:
+                        target_path = v.content_root / f"{target}.md"
+                        if not target_path.exists():
+                            target_path = v.root / f"{target}.md"
+                        
+                        if target_path.exists():
+                            orig_text = target_path.read_text(encoding="utf-8")
+                            updated_text = orig_text.rstrip() + f"\n\n관련 연결:\n- [[{slug}]]\n"
+                            res = contracts_module.write_page(v, target, updated_text, overwrite=True)
+                            if res.ok:
+                                typer.echo(f"✅ 연결 완료! '{target}' 문서에 [[{slug}]] 링크를 추가했습니다.")
+                            else:
+                                typer.echo(f"❌ 연결 실패: {res.error}")
+                        else:
+                            typer.echo(f"❌ 대상 문서가 존재하지 않습니다: {target}")
+                elif ans == "a":
+                    if typer.confirm(f"정말 '{slug}' 문서를 아카이브 폴더로 이동할까요?", default=False):
+                        res = archive_module.archive_page(v, slug)
+                        if res.get("ok"):
+                            typer.echo(f"✅ 아카이브 완료: {slug}")
+                        else:
+                            typer.echo(f"❌ 아카이브 실패: {res.get('error')}")
+                elif ans == "s":
+                    typer.echo("건너뜁니다.")
+
+
 # ────────────────────────── entrypoint ──────────────────────────
 
 
