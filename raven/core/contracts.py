@@ -170,6 +170,20 @@ def write_page(
 
             # Strict Schema & WIP guardrail check for agents
             if vault.is_llm_wiki and actor is not None:
+                # raw/ 및 _meta/system/ 등 불변(Immutable) 영역에 대한 에이전트 쓰기 원천 차단
+                slug_lower = raw_slug.lower()
+                if (
+                    slug_lower.startswith("raw/") or
+                    slug_lower.startswith("content/raw/") or
+                    slug_lower.startswith("_meta/system/")
+                ):
+                    return WriteResult(
+                        ok=False,
+                        slug=raw_slug,
+                        error="permission_denied",
+                        message="Raw sources 및 시스템 메타 영역은 불변(Immutable)이므로 에이전트가 수정할 수 없습니다."
+                    )
+
                 missing = validate_gardening_schema(vault, raw_slug, content or "", merged)
                 if missing:
                     return WriteResult(

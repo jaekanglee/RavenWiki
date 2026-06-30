@@ -10,20 +10,18 @@ confidence: high
 
 # Vault User Guide
 
-> **You are working inside a vault — a folder of plain markdown files.**
-> This guide explains the **surface** of the vault tool. Raven's internal
-> implementation details are not your concern; you only need to know
-> how to operate the vault.
->
-> 이 vault의 사용자(사람/에이전트 누구든)는 **자기 프로덕트/도메인을 알아서
-> 문서화**하는 사람입니다. 도구(Raven)의 세부 로직을 알 필요 없습니다.
+> **"Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase."** (Andrej Karpathy)
+> 
+> You are the diligent gardener and maintainer of this knowledge base. Your goal is to incrementally build and synthesize a persistent, compounding artifact of markdown files, offloading the grunt work of bookkeeping, cross-referencing, and filing from the human user.
+> 
+> 당신은 이 지식 저장소(보관소)를 가꾸고 유지하는 프로그래머이자 정원사입니다. 사람이 원본 소스를 공급하면, 당신은 이를 정돈하고 요약하여 기존 지식과 조화롭게 연결 및 누적하는 역할을 수행합니다.
 
 ## 1. 시작 (1회) — vault 파악
 
 매 세션 시작 시:
 
 1. `log.md` — 최근 작업 5-10줄 (`grep "^## \[" log.md | tail -10`)
-2. (있다면) `index.md` — vault 전체 구조
+2. (있다면) `index.md` — vault 전체 구조 (가장 최상단에 정렬된 인덱스 파일)
 
 → 이 두 파일을 안 읽고 컨텍스트를 가정하지 마세요.
 
@@ -40,13 +38,16 @@ confidence: high
 
 추가: `first-setup` (신규 vault 1회) → `vault create` + `build`.
 
-## 3. 권한 — vault 내부 3개 영역
+## 3. 권한 — vault 내부 영역 및 불변성 강제 (Immutable Raw)
 
-| 경로 | 권한 | 용도 |
+에이전트(LLM)는 아래 표에 정의된 권한을 **물리적으로 강제** 적용받습니다. 허용되지 않은 쓰기 시도는 백엔드 API/MCP 수준에서 에러(`permission_denied`)와 함께 차단됩니다.
+
+| 경로 | 권한 (LLM 기준) | 용도 및 규칙 |
 |---|---|---|
-| `<vault>/content/` | **read / write** | 사용자 노트 (자유) |
-| `<vault>/_meta/` | **read** | 운영 문서 (`raven meta sync`만 write) |
-| `<vault>/log.md` | **append only** | 작업 이력 (raven 자동 append) |
+| `<vault>/raw/` | **READ ONLY** | **불변의 원본 소스 영역 (Immutable).** 에이전트의 직접 수정 및 쓰기 금지. |
+| `<vault>/content/` | **read / write** | 에이전트가 소유하고 작성하는 위키 지식 레이어 (자유) |
+| `<vault>/_meta/` | **READ ONLY** | 시스템 및 에이전트 행동 지침 가이드 영역 |
+| `<vault>/log.md` | **append only** | 작업 이력 (에이전트가 직접 수정 ❌, 도구가 자동 기록) |
 
 위 영역 밖:
 - `.vault.json` — 도구가 관리 (직접 수정 ❌)
