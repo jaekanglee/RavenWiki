@@ -1,6 +1,8 @@
 # raven v0.6.31 — North Star 한 줄 선언 (README + wikisys-policy.md)
 
 > **핵심**: Karpathy LLM Wiki 본질을 Raven README + wikisys-policy.md에 정면으로 박음. 모든 운영 결정의 자석. 사용자가 의도한 "LLM Wiki에 입각한 Raven 발전"의 첫 단계.
+>
+> ⚠️ **v0.6.37 재정렬 노트**: 본 changelog은 역사 보존을 위해 v0.6.31 톤("LLM Wiki self-host 구현체")을 그대로 유지하지만, 라이브 north star는 **v0.6.37에서 재정렬됨** — "사람 1차 Obsidian 대체체 + LLM Wiki +α 옵션". README/AGENTS.md/wikisys-policy.md/test_north_star_contract.py는 v0.6.37 박힘. **LLM Wiki는 영감/출발점**.
 
 릴리스 일자: 2026-06-30
 이전: v0.6.30 (Button pill)

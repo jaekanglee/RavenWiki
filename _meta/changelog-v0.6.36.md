@@ -2,6 +2,8 @@
 
 > **핵심**: 사용자 정정 (2026-06-30) — "에이전트는 Codex/Antigravity/Claude/Hermes 어느 것이든 동일하게 다룬다. vendor 이름 자체를 정책 문서에 박지 말고, LLM Wiki 개념을 베이스로 추상화."
 >
+> ⚠️ **v0.6.37 재정렬 노트**: 본 changelog은 역사 보존을 위해 v0.6.36 톤("Karpathy LLM Wiki north star")을 그대로 유지하지만, 라이브 north star는 **v0.6.37에서 재정렬됨** — LLM Wiki는 **영감/출발점**이며 Raven은 **Obsidian 대체 자체 구현체**. vendor-neutral 정책은 그대로 유지.
+>
 > 본 릴리스는 north star "LLM Wiki 패턴"의 1차 실현 중 하나 — **에이전트 vendor-agnostic**. 향후 어떤 LLM이 와도 raven 정책은 그대로 유지.
 
 릴리스 일자: 2026-06-30

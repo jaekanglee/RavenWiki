@@ -23,11 +23,13 @@ confidence: high
 - 모든 변경은 PR/커밋 단위로 추적되고 `_meta/changelog-*.md`에 기록됩니다.
 - 작업 후 사용자에게 무엇을 했는지 보고합니다.
 
-### 0.5 North Star (v0.6.31+, 사용자 원칙 확립)
+### 0.5 North Star (v0.6.37 재정렬, 사용자 원칙 확립)
 
-> **"LLM의 휘발성 메모리를 git-tracked 영속 markdown으로 변환해, 매 세션 재구성하지 않고 compounding knowledge를 누적한다."**
+> **"Raven은 사람을 1차 사용자로 하는 local-first markdown PKM vault이며, 원하는 vault 영역에만 LLM Wiki 패턴을 +α로 켜 compounding knowledge를 누적한다."**
 >
-> — **이 레포는 Karpathy LLM Wiki (2026) 패턴의 self-host 구현체.** 분업: 사람은 source curate + 방향 결정, 에이전트는 compile / cross-reference / lint / consistency 유지. **컴파일 후 reuse, 매번 재구성 ❌.**
+> — **Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.**
+>
+> ⚠️ **v0.6.31~v0.6.36 호환 노트**: v0.6.31~36은 "LLM Wiki self-host 구현체" 톤으로 박혀 있었음. v0.6.37에서 사용자 north star 재정렬 — LLM Wiki는 영감/출발점이며 Raven은 Obsidian 대체 자체 구현체. **changelog 원문은 역사 보존**.
 
 ---
 

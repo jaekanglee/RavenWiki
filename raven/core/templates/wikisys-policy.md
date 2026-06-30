@@ -18,11 +18,11 @@ confidence: high
 > 이 vault가 **어떻게 운영되는가** 한 페이지 요약.
 > 출처: [[SCHEMA]] (규약) · [[RULES]] (편집) · [[log]] (이력) · 카파시 LLM Wiki gist (2026-04).
 
-## North Star (v0.6.31+, 사용자 원칙 확립)
+## North Star (v0.6.37 재정렬, 사용자 원칙 확립)
 
-> **"LLM 휘발성 메모리 → git-tracked 영속 markdown. 컴파일 후 reuse, 매번 재구성 ❌."**
+> **"Raven은 사람을 1차 사용자로 하는 local-first markdown PKM vault이며, 원하는 vault 영역에만 LLM Wiki 패턴을 +α로 켜 compounding knowledge를 누적한다."**
 >
-> — 카파시 LLM Wiki (2026) 패턴의 self-host 구현체. **분업**: 사람은 source curate + 방향 결정, 에이전트는 compile / cross-reference / lint / consistency 유지. 모든 운영 결정은 이 한 줄로 수렴.
+> — **Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.** 모든 운영 결정은 이 한 줄로 수렴.
 
 ## 3-Layer 구조 (카파시)
 

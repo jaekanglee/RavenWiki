@@ -1,24 +1,24 @@
-# Raven — local-first agent-aware markdown vault
+# Raven — local-first Obsidian-style markdown vault
 
-> **markdown SoT + agent-native + multi-vault.** 사람 + AI 에이전트가 같은 vault를 CLI / HTTP API / Dashboard / MCP 4개 진입점으로 동시 사용.
+> **markdown SoT + 사람 1차 + 에이전트 옵션 + multi-vault.** Obsidian 모티브 + 자유 구조 + 자체 Dashboard. LLM Wiki 패턴은 vault 안에서 +α로 선택적 도입.
 >
-> 옵시디언의 모티브를 빌려왔지만, **에이전트 1급 시민 + 프로그래머블 진입점**이 차별점. Obsidian clone이 아님.
+> 옵시디언의 모티브를 빌려왔지만, **에이전트 옵션 + 프로그래머블 진입점 + LLM Wiki +α**가 차별점. Obsidian clone이 아님.
 
-## North Star (v0.6.31+)
+## North Star (v0.6.37 재정렬)
 
-> **"LLM의 휘발성 메모리를 git-tracked 영속 markdown으로 변환해, 매 세션 재구성하지 않고 compounding knowledge를 누적한다."**
+> **"Raven은 사람을 1차 사용자로 하는 local-first markdown PKM vault이며, 원하는 vault 영역에만 LLM Wiki 패턴을 +α로 켜 compounding knowledge를 누적한다."**
 >
-> — Karpathy LLM Wiki (2026) 패턴의 self-host 구현체. 분업: 사람은 source curate + 방향 결정, 에이전트는 compile / cross-reference / lint / consistency 유지. **컴파일 후 reuse, 매번 재구성 ❌.**
+> — **Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.**
 
 ---
 
 ## 무엇인가
 
-raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한 **local-first 마크다운 지식 vault**.
+raven는 **사람 1차 Obsidian-style 마크다운 PKM 도구**. Karpathy LLM Wiki (2026) 패턴을 영감으로 받아 vault 안에서 선택적 +α로 도입 가능. **local-first 마크다운 지식 vault**.
 
 | 계층 | 구현 | 위치 |
 |---|---|---|
-| **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/vaults/<name>/` |
+| **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/Raven/<name>/` (v0.6.3+) |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
 | **CLI** (사람/자동화) | Typer 9 commands | `raven/cli/` |
@@ -48,9 +48,9 @@ raven는 **LLM Wiki 패턴** (Karpathy 2026)을 자기 호스팅으로 구현한
 | Obsidian | raven |
 |---|---|
 | vault = 사용자가 폴더 지정 ✅ | 동일 ✅ |
-| GUI만 있음 | **GUI + CLI + Python + HTTP + MCP 5개 진입점** |
-| 사람이 1차 사용자 | **사람 + 단일 에이전트 동시 1차, 멀티 에이전트 experimental** |
-| 플러그인 = UI 확장 | **에이전트 = vault 1급 시민** (scope/provenance/AGENTS.md) |
+| GUI만 있음 | **CLI + HTTP API + Dashboard + MCP 4개 진입점** |
+| 사람이 1차 사용자 | **사람 1차, 에이전트 옵션** (LLM Wiki +α로 켤 수 있음) |
+| 플러그인 = UI 확장 | **에이전트 = vault 옵션 시민** (scope/provenance 강제는 opt-in) |
 | 단일 앱 | **multi-vault, multi-user 가능 (단, ACL은 non-goal)** |
 
 **대체하지 않는 범위** (정직):
@@ -77,7 +77,7 @@ source scripts/.venv/bin/activate   # venv
 raven where                       # 현재 설정 + vault 목록
 
 # 2. (선택) 새 vault 만들기
-raven vault create personal ~/vaults/personal
+raven vault create personal ~/Raven/personal
 raven vault use personal
 
 # 3. 빌드 (DB + lint)
@@ -222,10 +222,10 @@ hermes.vault("default")         # ❌ PermissionError (scope 밖)
 ## vault 구조
 
 ```
-~/vaults/
+~/Raven/
 ├── .registry.json              # vault 인덱스 (default + 목록)
 └── <vault-name>/
-    ├── .vault.json             # per-vault 메타 (name, mode, owner)
+    ├── .vault.json             # per-vault 메타 (name, path)
     ├── content/                # 사용자 마크다운 (Obsidian식 자유)
     │   ├── _template.md
     │   ├── llm-wiki.md
@@ -418,7 +418,7 @@ cd dashboard && npm install
 ## 관련 문서
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
-- `~/vaults/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사)
+- `~/Raven/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사, +α opt-in)
 - `_meta/changelog-v0.5*.md` — 변경 이력
 - `_meta/decisions-d1-d6.md` + `decisions-d7-d9-multivault.md` — 결정 내역
 - `_meta/SCHEMA-v0.2-multivault.md` — vault frontmatter 스키마
