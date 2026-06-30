@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
@@ -223,6 +223,9 @@ export function Sidebar({
       </div>
 
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
+        {/* Mini Stats Widget */}
+        <SidebarStatsWidget activeVault={activeVault} />
+
         <div className="sidebar-theme-switch-container">
           <button
             type="button"
@@ -471,6 +474,81 @@ function TreeLeaf({
             depth={depth + 1}
           />
         ))}
+    </div>
+  );
+}
+
+function SidebarStatsWidget({ activeVault }: { activeVault: string }) {
+  const [stats, setStats] = useState<{ pages: number; broken: number; locks: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeVault) return;
+    let active = true;
+    setLoading(true);
+
+    async function fetchWidgetData() {
+      try {
+        const [rStats, rLocks] = await Promise.all([
+          fetch(`/api/vaults/${encodeURIComponent(activeVault)}/stats`),
+          fetch(`/api/vaults/${encodeURIComponent(activeVault)}/locks`),
+        ]);
+        if (!active) return;
+        const dStats = await rStats.json();
+        const dLocks = await rLocks.json();
+        setStats({
+          pages: dStats.pages || 0,
+          broken: dStats.broken_links || 0,
+          locks: dLocks.locks ? Object.keys(dLocks.locks).length : 0,
+        });
+      } catch (e) {
+        console.error("Sidebar stats fetch fail", e);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    fetchWidgetData();
+    return () => {
+      active = false;
+    };
+  }, [activeVault]);
+
+  if (!activeVault) return null;
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--color-surface-soft, #f8f9fa)",
+        border: "1px solid var(--color-hairline, #e9ecef)",
+        marginBottom: 16,
+        fontSize: 12,
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--color-ink)", display: "flex", justifyContent: "space-between" }}>
+        <span>📊 보관소 건강도</span>
+        {loading && <span style={{ fontSize: 10, color: "var(--color-muted)" }}>...</span>}
+      </div>
+      {stats ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, textAlign: "center" }}>
+          <div>
+            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>페이지</div>
+            <div style={{ fontWeight: 700, color: "var(--color-ink)", marginTop: 2 }}>{stats.pages}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>깨진 링크</div>
+            <div style={{ fontWeight: 700, color: stats.broken > 0 ? "var(--color-danger, #ef4444)" : "var(--color-ink)", marginTop: 2 }}>{stats.broken}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>활성 락</div>
+            <div style={{ fontWeight: 700, color: stats.locks > 0 ? "var(--color-primary, #3b82f6)" : "var(--color-ink)", marginTop: 2 }}>{stats.locks}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ color: "var(--color-muted)", fontSize: 11 }}>데이터가 없습니다</div>
+      )}
     </div>
   );
 }
