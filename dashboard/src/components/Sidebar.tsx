@@ -109,6 +109,9 @@ export function Sidebar({
   const activePage = activePageFromPath(location.pathname);
   const [filter, setFilter] = useState("");
 
+  const activeVaultMeta = vaults.find((v) => v.name === activeVault);
+  const activeTree = trees[activeVault] ?? null;
+
   return (
     <aside
       id="primary-sidebar"
@@ -141,20 +144,33 @@ export function Sidebar({
         </button>
       </div>
 
-      {vaults.length > 1 && (
-        <div
-          className="sidebar-label"
-          style={{
-            padding: "8px 0 4px",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.32px",
-            textTransform: "uppercase",
-            color: "var(--color-muted)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
-          Vaults ({vaults.length})
+      {vaults.length > 0 && (
+        <div className="sidebar-vault-selector-container">
+          <div
+            className="sidebar-label"
+            style={{
+              padding: "0 0 6px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.32px",
+              color: "var(--color-muted)",
+              fontFamily: "var(--font-display)",
+            }}
+          >
+            보관소 선택 ({vaults.length})
+          </div>
+          <select
+            className="sidebar-vault-select-native"
+            value={activeVault}
+            onChange={(e) => onSelectVault(e.target.value)}
+            aria-label="보관소 선택"
+          >
+            {vaults.map((v) => (
+              <option key={v.name} value={v.name}>
+                📁 {v.name} {v.default ? "★" : ""}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -167,62 +183,62 @@ export function Sidebar({
             fontFamily: "var(--font-display)",
           }}
         >
-          vault 없음
+          보관소 없음
         </div>
       )}
 
       {vaults.length > 0 && (
         <label className="sidebar-filter-label">
-          <span className="sr-only">Explorer filter</span>
+          <span className="sr-only">파일 또는 폴더 필터</span>
           <input
             className="sidebar-filter-input"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Explorer filter…"
-            aria-label="Explorer filter"
+            placeholder="파일 또는 폴더 필터..."
+            aria-label="파일 또는 폴더 필터"
           />
         </label>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", marginTop: 12 }}>
-        {vaults.map((v) => (
+        {activeVaultMeta ? (
           <VaultTreeGroup
-            key={v.name}
-            vault={v}
-            tree={filterTree(trees[v.name] ?? null, filter)}
-            isActive={v.name === activeVault}
-            showMeta={vaults.length > 1}
-            activeSlug={activePage?.vault === v.name ? activePage.slug : null}
+            vault={activeVaultMeta}
+            tree={filterTree(activeTree, filter)}
+            isActive={true}
+            showMeta={false}
+            activeSlug={activePage?.vault === activeVault ? activePage.slug : null}
             filterActive={filter.trim().length > 0}
-            onSelect={() => onSelectVault(v.name)}
+            onSelect={() => {}}
             onClose={onClose}
             onRefresh={onRefresh}
           />
-        ))}
+        ) : (
+          vaults.length > 0 && (
+            <div style={{ padding: 8, fontSize: 13, color: "var(--color-muted)" }}>
+              보관소가 선택되지 않았습니다.
+            </div>
+          )
+        )}
       </div>
 
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            background: "var(--color-surface-soft)",
-            border: "1px solid var(--color-hairline)",
-            borderRadius: "var(--radius-md)",
-            color: "var(--color-ink)",
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-          }}
-        >
-          {theme === "light" ? "🌙 다크 모드로" : "☀️ 라이트 모드로"}
-        </button>
+        <div className="sidebar-theme-switch-container">
+          <button
+            type="button"
+            className={clsx("sidebar-theme-btn", theme === "light" && "sidebar-theme-btn-active")}
+            onClick={() => { if (theme !== "light") onToggleTheme(); }}
+          >
+            ☀️ 라이트
+          </button>
+          <button
+            type="button"
+            className={clsx("sidebar-theme-btn", theme === "dark" && "sidebar-theme-btn-active")}
+            onClick={() => { if (theme !== "dark") onToggleTheme(); }}
+          >
+            🌙 다크
+          </button>
+        </div>
       </div>
     </aside>
   );
@@ -360,30 +376,47 @@ function TreeLeaf({
 }) {
   const isOpen = openFolders.has(node.path) || filterActive;
 
+  // Render vertical indent lines for hierarchy visual support
+  const indentGuides = [];
+  for (let i = 1; i < depth; i++) {
+    indentGuides.push(
+      <span
+        key={i}
+        className="sidebar-indent-line"
+        style={{ left: i * 14 - 7 }}
+        aria-hidden
+      />
+    );
+  }
+
   // ─── page leaf ───
   if (node.type === "page") {
     const slug = node.slug ?? node.path;
     const isActive = slugMatchesActive(slug, activeSlug);
     return (
-      <Link
-        to={`/page/${vault}/${slug}`}
-        className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
-        style={{ marginLeft: depth * 14 }}
-      >
-        <span
-          className="sidebar-tree-leaf-dot"
-          style={{ background: nodeColor(node.pageType) }}
-          aria-hidden
-        />
-        {displayTitle(node)}
-      </Link>
+      <div className="sidebar-tree-leaf-wrapper">
+        {indentGuides}
+        <Link
+          to={`/page/${vault}/${slug}`}
+          className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
+          style={{ marginLeft: depth * 14 }}
+        >
+          <span
+            className="sidebar-tree-leaf-dot"
+            style={{ background: nodeColor(node.pageType) }}
+            aria-hidden
+          />
+          {displayTitle(node)}
+        </Link>
+      </div>
     );
   }
 
   // ─── dir row ───
   const children = node.children ?? [];
   return (
-    <div>
+    <div className="sidebar-tree-leaf-wrapper">
+      {indentGuides}
       <div className="sidebar-tree-dir-row" style={{ marginLeft: depth * 14 }}>
         <button
           type="button"

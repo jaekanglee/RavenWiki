@@ -295,6 +295,8 @@ def verify_vault_bootstrap(name: str):
 # v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.
 # _meta/, _archive/, _deprecated/ 같은 Raven 시스템 폴더는 sidebar에서 제외한다.
 RAVEN_SYSTEM_DIRS = {"_meta", "_archive", "_deprecated", "_templates"}
+# 보관소(Vault)의 대문/홈페이지 역할을 하는 파일명(stem) 후보군 (최상단 정렬 대상)
+INDEX_FILE_STEMS = {"index", "readme", "home"}
 
 
 def _build_tree_node(path: Path, v_root: Path) -> dict:
@@ -302,7 +304,15 @@ def _build_tree_node(path: Path, v_root: Path) -> dict:
     rel = str(path.relative_to(v_root))
     children: list[dict] = []
     try:
-        for entry in sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        # 인덱스 예약 파일(index, readme 등)을 최상단에 예외 배치하고, 그 아래로 폴더 -> 일반 파일 순으로 정렬합니다.
+        for entry in sorted(
+            path.iterdir(),
+            key=lambda p: (
+                not (p.is_file() and p.stem.lower() in INDEX_FILE_STEMS),
+                not p.is_dir(),
+                p.name.lower()
+            )
+        ):
             name = entry.name
             if entry.is_dir():
                 if name in RAVEN_SYSTEM_DIRS:
