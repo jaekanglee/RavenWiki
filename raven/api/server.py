@@ -1671,6 +1671,46 @@ def post_debug_log(entry: DebugLogEntry):
     }
 
 
+# ────────────────────────── garden endpoint (v0.7.27) ──────────────────────────
+
+
+@app.get("/api/vaults/{name}/garden")
+def get_garden(name: str):
+    """지식 정원(Gardening) 데이터 (Stale & Orphan 문서) 조회."""
+    v = _vault_or_404(name)
+    from raven.core import garden as garden_module
+
+    # 1. Stale Pages (90일+ 미갱신)
+    stale_raw = garden_module.get_stale_pages(v)
+    stale_list = []
+    for item in stale_raw:
+        stale_list.append({
+            "slug": item["slug"],
+            "updated": item["updated"],
+            "age_days": item["age_days"],
+        })
+
+    # 2. Orphan Pages & Link Candidates
+    orphan_raw = garden_module.get_orphan_pages(v)
+    orphan_list = []
+    for item in orphan_raw:
+        # FTS 기반 링크 추천 후보 추출
+        candidates = garden_module.find_link_candidates(v, item["slug"])
+        orphan_list.append({
+            "slug": item["slug"],
+            "title": item["title"],
+            "type": item["type"],
+            "link_candidates": candidates,  # list of slugs
+        })
+
+    return {
+        "ok": True,
+        "vault": name,
+        "stale": stale_list,
+        "orphan": orphan_list,
+    }
+
+
 # ────────────────────────── lint endpoints (v0.5.1+) ──────────────────────────
 
 

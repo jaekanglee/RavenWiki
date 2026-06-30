@@ -58,6 +58,14 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
         # log append 실패는 무시 — build 자체엔 영향 ❌
         pass
 
+    # ─── index.md 마크다운 카탈로그 자동 컴파일 (v0.7.27) ───
+    if result.get("ok"):
+        try:
+            from .index_builder import build_index
+            build_index(vault)
+        except Exception as e:
+            result["index_error"] = f"{type(e).__name__}: {e}"
+
     # build 직후 lint 14개 자동 실행
     if run_lint:
         try:

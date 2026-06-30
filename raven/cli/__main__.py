@@ -1646,5 +1646,58 @@ def docs_show(
     typer.echo(src.read_text(encoding="utf-8"))
 
 
+@app.command("ingest")
+def raven_ingest(
+    source_path: str = typer.Argument(..., help="Ingest할 소스 파일 또는 디렉토리 경로"),
+    vault: Optional[str] = typer.Option(None, "--vault", "-v", help="대상 vault 이름"),
+) -> None:
+    """외부 자료를 raw/ 폴더로 Ingest하고 wiki.db 및 index.md를 빌드합니다."""
+    import shutil
+    from raven.core import log as log_module
+    from raven.core.db import build_db
+
+    v = _resolve_vault_or_die(vault)
+    
+    src = Path(source_path)
+    if not src.exists():
+        typer.echo(f"❌ 소스 파일이 존재하지 않습니다: {source_path}")
+        raise typer.Exit(code=1)
+
+    raw_dir = v.root / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    dest = raw_dir / src.name
+    try:
+        if src.is_dir():
+            shutil.copytree(src, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src, dest)
+        typer.echo(f"📥 소스 복사 완료: {src} -> {dest}")
+    except Exception as e:
+        typer.echo(f"❌ 소스 복사 실패: {e}")
+        raise typer.Exit(code=1)
+
+    # log.md에 ingest 기록
+    try:
+        log_module.append(
+            v,
+            action="ingest",
+            subject=f"ingested {src.name}",
+            files=[str(dest.relative_to(v.root))],
+            note=f"source={source_path}"
+        )
+    except Exception as le:
+        typer.echo(f"⚠️  log.md 갱신 실패: {le}")
+
+    # wiki.db 및 index.md 자동 갱신을 위해 build_db 호출
+    typer.echo("🔨 wiki.db 빌드 및 index.md 갱신을 시작합니다...")
+    build_result = build_db(v, run_lint=True)
+    if build_result.get("ok"):
+        typer.echo("✅ Ingest 및 빌드가 성공적으로 끝났습니다.")
+        typer.echo(f"💡 이제 에이전트(MCP)에게 '{src.name}'에 기반한 위키 정제(Curation)를 요청하십시오.")
+    else:
+        typer.echo("⚠️  빌드 중 오류가 발생했습니다. log.md를 확인하십시오.")
+
+
 if __name__ == "__main__":
     sys.exit(main())

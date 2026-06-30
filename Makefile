@@ -122,7 +122,7 @@ down: docker-down ## Stop Raven via Docker compose
 restart: down up ## Restart Raven via Docker compose
 
 .PHONY: run-local stop-local restart-local
-run-local: install ## Start Raven locally in the background (API + Dashboard dev server)
+run-local: venv-check ## Start Raven locally in the background (API + Dashboard dev server)
 	@mkdir -p tmp
 	@if [ -f tmp/api.pid ] || [ -f tmp/dashboard.pid ]; then \
 		echo "⚠️  Already running? Run 'make stop-local' first."; \
