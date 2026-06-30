@@ -116,11 +116,12 @@ nuke: ## ⚠️ Remove venv + ALL build artifacts (asks for confirmation)
 
 # ────────────────────────── run / stop shortcuts ──────────────────────────
 
-.PHONY: run stop
+.PHONY: run stop restart
 run: docker-up ## Start Raven via Docker compose (all services including Dashboard)
 stop: docker-down ## Stop Raven via Docker compose
+restart: stop run ## Restart Raven via Docker compose
 
-.PHONY: run-local stop-local
+.PHONY: run-local stop-local restart-local
 run-local: install ## Start Raven locally in the background (API + Dashboard dev server)
 	@mkdir -p tmp
 	@if [ -f tmp/api.pid ] || [ -f tmp/dashboard.pid ]; then \
@@ -150,3 +151,5 @@ stop-local: ## Stop local background processes (API + Dashboard)
 		rm -f tmp/dashboard.pid; \
 	fi
 	@echo "🔴 Stopped."
+
+restart-local: stop-local run-local ## Restart local background processes
