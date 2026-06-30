@@ -419,6 +419,8 @@ cd dashboard && npm install
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
 - `~/Raven/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사, +α opt-in)
+- `docs/vault-patterns.md` — **Karpathy LLM Wiki +α 가이드** (v0.7.0+) — raw/ log.md _meta/agents/ opt-in 패턴, 사용자 자유
+- `_meta/decisions/adr-2026-06-30-llm-wiki-plus-alpha.md` — **+α 결정 ADR** (v0.7.0+)
 - `_meta/changelog-v0.5*.md` — 변경 이력
 - `_meta/decisions-d1-d6.md` + `decisions-d7-d9-multivault.md` — 결정 내역
 - `_meta/SCHEMA-v0.2-multivault.md` — vault frontmatter 스키마

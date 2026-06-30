@@ -300,6 +300,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 | `_meta/dr-runbook.md` | DR (disaster recovery) 절차 | ✅ |
 | `_meta/decisions/adr-*.md` | 신규 결정 (v0.6.0+ ADR 정책) | ✅ |
 | `_meta/changelog-v0.6.34.md` 외 | 변경 이력 (append-only) | ✅ |
+| `docs/vault-patterns.md` | **Karpathy LLM Wiki +α 가이드** (v0.7.0+) | 신규 |
 | `_meta/raw/articles/karpathy-llm-wiki-2026.md` | Karpathy 원본 gist (불변) | ✅ |
 | `_meta/architecture-5layer.md` | M1 5-Layer (보존본) | 📦 archive |
 | `_meta/decisions-d*.md` (legacy) | M1 결정 (개별 파일) | ⚠️ `decisions/` 흡수 검토 |
