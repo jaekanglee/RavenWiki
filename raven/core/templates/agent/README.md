@@ -67,13 +67,14 @@ raven page ls --tag <team> --has-contradictions
 
 ---
 
-## 외부 위임 backend (선택, v0.6.34+)
+## 외부 LLM cross-check (선택, v0.6.36+)
 
-`agent/README.md` 만으로 부족하면 다른 LLM의 cross-check을 위해 외부 CLI에 위임 가능. **사용자 명시 또는 Gemini-family cross-check 시점에만**.
+`agent/README.md` 만으로 부족하면 다른 LLM의 cross-check을 위해 외부 CLI에 위임 가능. **어떤 vendor든 동일하게 다룬다 — vendor 이름 자체를 표기하지 않는다 (LLM Wiki 개념 추상화)**.
 
-| Backend | 특징 | 호출 예 |
+| Backend (추상) | 특징 | 호출 예 |
 |---|---|---|
-| **Codex CLI** (`codex`) | JSON envelope, --max-turns | `terminal(command="codex -p '...'", workdir=...)` |
-| **Antigravity CLI** (`agy`) | plain text only, --print-timeout 5m | `terminal(command="agy -p '...'", workdir=...)` |
+| **외부 LLM CLI** | vendor 무관. JSON envelope / plain text / markdown 모두 vendor 구현에 따름 | `terminal(command="<llm-cli> -p '...'", workdir=...)` |
 
-> 기본값은 직접 작업. **사용자 명시 / Gemini cross-check 시점에만** 다른 backend 시도. **wrap-up 단계 fix 침습 금지** — 분석만, 패치는 orchestrator에게 보고.
+> 기본값은 직접 작업. **사용자 명시 / cross-check 요청 시점에만** 외부 LLM 호출. **wrap-up 단계 fix 침습 금지** — 분석만, 패치는 orchestrator에게 보고.
+>
+> **north star 준수 (v0.6.36+)**: 어떤 vendor가 와도 동일하게 동작. vendor 이름 자체를 정책 문서에 박지 않는다 (LLM Wiki 개념 추상화).

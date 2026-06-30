@@ -14,7 +14,7 @@ pip install python-frontmatter    # already in scripts/pyproject.toml
 
 ## Usage
 
-### stdio (local Hermes / desktop MCP client)
+### stdio (local process / desktop MCP client)
 
 ```bash
 # Default — read-only

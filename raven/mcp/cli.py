@@ -2,7 +2,7 @@
 
 Default mode is read-only; pass --write for mutating tools, --admin for
 destructive tools (delete / rename). Supports both stdio transport (local
-Hermes) and streamable-http transport (Tailscale remote).
+in-process) and streamable-http transport (remote, e.g. Tailscale).
 
 Why this file can import `mcp.server.fastmcp` directly
 -----------------------------------------------------
@@ -228,7 +228,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--transport",
         choices=["stdio", "http"],
         default="stdio",
-        help="stdio (local Hermes) or http (Tailscale remote)",
+        help="stdio (local in-process) or http (remote, e.g. Tailscale)",
     )
     parser.add_argument("--host", default="127.0.0.1", help="HTTP bind host")
     parser.add_argument("--port", type=int, default=8765, help="HTTP bind port")
@@ -260,7 +260,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     register_resources(mcp, vault)
 
     if args.transport == "stdio":
-        # Default: local in-process transport for Hermes / desktop clients.
+        # Default: local in-process transport for desktop / local clients.
         mcp.run()
     else:
         # streamable-http for Tailscale-bound remote access.
