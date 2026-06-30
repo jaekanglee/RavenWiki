@@ -65,7 +65,8 @@ COPY --chown=raven:raven raven/ ./raven/
 COPY --chown=raven:raven dashboard/public ./dashboard/public
 COPY --chown=raven:raven dashboard/index.html ./dashboard/
 COPY --chown=raven:raven scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
+COPY --chown=raven:raven scripts/spa_server.py /usr/local/bin/
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/spa_server.py
 
 # 환경변수 기본값 (.env로 override 가능)
 ENV HOST=0.0.0.0 \

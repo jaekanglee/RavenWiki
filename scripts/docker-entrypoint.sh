@@ -27,17 +27,27 @@ case "$1" in
         exec python -m raven.api --host "$HOST" --port "$PORT_API"
         ;;
     mcp-http)
-        exec python -m raven.mcp.cli --transport http --host "$HOST" --port "$PORT_MCP_HTTP"
+        # v0.7.21+: --forwarded-allow-ips=* 로 프록시/Tailscale IP 신뢰
+        # - 421 Misdirected Request 회피 (uvicorn host validation)
+        # - 보안: 인증 안 함, read-only 도구만 노출하면 안전
+        exec python -m raven.mcp.cli --transport http --host "$HOST" --port "$PORT_MCP_HTTP" \
+            --forwarded-allow-ips='*' --proxy-headers
         ;;
     mcp-stdio)
         exec python -m raven.mcp.cli --transport stdio
         ;;
     dashboard)
-        # 정적 dashboard 서빙은 nginx 같은 reverse proxy가 더 적합하지만
-        # 단순화: Vite preview 또는 정적 http.server
-        # 컨테이너 환경에선 단순 python http.server 사용
-        cd /app/dashboard/dist
-        exec python -m http.server "$PORT_DASHBOARD" --bind "$HOST"
+        # v0.7.22+: python http.server → spa_server.py (SPA fallback + API proxy).
+        # python http.server는 /vault/new 같은 React Router 경로를 새로고침하면
+        # dist/vault/new 파일이 없어서 404 반환.
+        # spa_server.py: 파일 없으면 index.html fallback + /api/* → API 서버 프록시.
+        # 컨테이너 내부: api 서비스는 raven-net으로 "api" hostname 으로 접근 가능.
+        API_HOST="${API_HOST:-api}"
+        exec python /usr/local/bin/spa_server.py \
+            --port "$PORT_DASHBOARD" \
+            --bind "$HOST" \
+            --dir /app/dashboard/dist \
+            --api-url "http://${API_HOST}:${PORT_API:-8765}"
         ;;
     cli)
         # CLI는 대화형 — exec로 사용자에게 위임
