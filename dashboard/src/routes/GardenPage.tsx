@@ -5,6 +5,7 @@ import {
   deletePage,
   fetchPage,
   updatePage,
+  fetchPages,
   type StalePage,
   type OrphanPage,
 } from "../lib/api";
@@ -16,6 +17,9 @@ export function GardenPage() {
   const [stalePages, setStalePages] = useState<StalePage[]>([]);
   const [orphanPages, setOrphanPages] = useState<OrphanPage[]>([]);
   const [selectedStaleSlugs, setSelectedStaleSlugs] = useState<string[]>([]);
+  const [allPages, setAllPages] = useState<any[]>([]);
+  const [activeManualConnect, setActiveManualConnect] = useState<string | null>(null);
+  const [manualTargetSlug, setManualTargetSlug] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -29,6 +33,8 @@ export function GardenPage() {
         setOrphanPages(data.orphan || []);
         setSelectedStaleSlugs([]);
       }
+      const pagesData = await fetchPages(vault);
+      setAllPages(pagesData || []);
     } catch (e) {
       console.error(e);
       showToast("데이터를 불러오는 중 오류가 발생했습니다.", "error");
@@ -429,6 +435,94 @@ export function GardenPage() {
                           </div>
                         ))}
                       </div>
+                    )}
+                  </div>
+
+                  {/* 수동 연결 UI */}
+                  <div style={{ borderTop: "1px dashed var(--color-border)", marginTop: 12, paddingTop: 8 }}>
+                    {activeManualConnect === p.slug ? (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <select
+                          value={manualTargetSlug}
+                          onChange={(e) => setManualTargetSlug(e.target.value)}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            padding: "4px 8px",
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--color-border)",
+                            backgroundColor: "var(--color-canvas)",
+                            color: "var(--color-ink)",
+                          }}
+                        >
+                          <option value="">-- 연결 대상 문서 선택 --</option>
+                          {allPages
+                            .filter((page) => page.slug !== p.slug)
+                            .map((page) => (
+                              <option key={page.slug} value={page.slug}>
+                                {page.slug} ({page.title})
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          onClick={async () => {
+                            if (!manualTargetSlug) return;
+                            await handleConnectLink(p.slug, manualTargetSlug);
+                            setActiveManualConnect(null);
+                            setManualTargetSlug("");
+                          }}
+                          disabled={!manualTargetSlug}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: 11,
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            backgroundColor: "var(--color-primary)",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            opacity: !manualTargetSlug ? 0.6 : 1,
+                          }}
+                        >
+                          연결
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveManualConnect(null);
+                            setManualTargetSlug("");
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: 11,
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--color-border)",
+                            backgroundColor: "transparent",
+                            color: "var(--color-ink)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const candidates = allPages.filter((page) => page.slug !== p.slug);
+                          setActiveManualConnect(p.slug);
+                          setManualTargetSlug(candidates[0]?.slug || "");
+                        }}
+                        style={{
+                          padding: "2px 6px",
+                          fontSize: 11,
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--color-border)",
+                          backgroundColor: "transparent",
+                          color: "var(--color-ink)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        🔎 수동 연결...
+                      </button>
                     )}
                   </div>
                 </div>
