@@ -89,25 +89,29 @@ def test_lite_agents_starts_with_user_guide() -> None:
 
 
 def test_existing_vaults_synced() -> None:
-    """harumoa/raven-dev Lite bootstrap files가 새 템플릿과 일치."""
+    """raven-dev Lite bootstrap files가 새 템플릿과 일치.
+
+    v0.7.4+: harumoa는 운영자가 실제 사용 중이라 sync 테스트에서 제외
+    (운영자 자유 존중 — vault 데이터 write 정책). raven-dev만 검증.
+    """
     template_agents = LITE_AGENTS.read_text(encoding="utf-8")
     template_schema = LITE_SCHEMA.read_text(encoding="utf-8")
     template_log = LITE_LOG.read_text(encoding="utf-8")
     template_project_workflow = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
-    for vault_name in ("harumoa", "raven-dev"):
-        for label, template in (
-            ("_meta/system/AGENTS.md", template_agents),
-            ("_meta/system/SCHEMA.md", template_schema),
-            ("_meta/agents/PROJECT-WORKFLOW.md", template_project_workflow),
-            ("log.md", template_log),
-        ):
-            target = Path(f"/Users/jaekanglee/Raven/{vault_name}/{label}")
-            if not target.exists():
-                continue
-            target_content = target.read_text(encoding="utf-8")
-            assert target_content == template, (
-                f"{vault_name}/{label}가 새 템플릿과 다름 ❌"
-            )
+    # raven-dev만 검증 (harumoa는 운영 중이라 자유)
+    for label, template in (
+        ("_meta/system/AGENTS.md", template_agents),
+        ("_meta/system/SCHEMA.md", template_schema),
+        ("_meta/agents/PROJECT-WORKFLOW.md", template_project_workflow),
+        ("log.md", template_log),
+    ):
+        target = Path(f"/Users/jaekanglee/Raven/raven-dev/{label}")
+        if not target.exists():
+            continue
+        target_content = target.read_text(encoding="utf-8")
+        assert target_content == template, (
+            f"raven-dev/{label}가 새 템플릿과 다름 ❌"
+        )
 
 
 def test_lite_schema_no_internal_policy() -> None:

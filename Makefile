@@ -34,9 +34,14 @@ venv-check: ## Fail loudly if venv missing (so other targets work)
 
 # ────────────────────────── dev (api + dashboard) ──────────────────────────
 
+# v0.7.3+: Tailscale 등 원격 접속을 위한 host bind.
+# HOST=0.0.0.0 → 모든 인터페이스 (Tailscale 포함). HOST=127.0.0.1 → 로컬만.
+# 사용 예: make dev HOST=0.0.0.0
+HOST ?= 127.0.0.1
+
 .PHONY: api
-api: venv-check ## Run raven API on 127.0.0.1:8765 (foreground, Ctrl+C to stop)
-	PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765
+api: venv-check ## Run raven API (default: 127.0.0.1:8765, override: HOST=0.0.0.0 for Tailscale)
+	PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765
 
 .PHONY: dashboard
 dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
@@ -67,11 +72,11 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (one
 	@echo "   (one command → 4 진입점 ready for production prep)"
 	@echo ""
 	@echo "🔌 starting API in background (detached from this shell)..."
-	@nohup env PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
+	@nohup env PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
 		if lsof -ti :8765 >/dev/null 2>&1; then \
-			echo "✅ API ready on http://127.0.0.1:8765 (pid $$(lsof -ti :8765 | head -1))"; \
+			echo "✅ API ready on http://$(HOST):8765 (pid $$(lsof -ti :8765 | head -1))"; \
 			break; \
 		fi; \
 		if [ $$i -eq 5 ]; then \
@@ -85,7 +90,7 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (one
 	@echo "✅ MCP ready (pid $$(pgrep -f 'raven.mcp' | head -1), logs: /tmp/raven-mcp.log)"
 	@echo ""
 	@echo "🌐 starting Dashboard in background (detached)..."
-	@cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &
+	@(cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &)
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
 		if lsof -ti :5173 >/dev/null 2>&1 || lsof -ti :5174 >/dev/null 2>&1; then \
@@ -101,9 +106,13 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (one
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🟢 4 진입점 ready:"
 	@echo "   • CLI    → make raven ARGS=\"vault list\"  (또는 scripts/.venv/bin/python -m raven.cli)"
-	@echo "   • API    → http://127.0.0.1:8765         (POST /api/vaults/{n}/pages)"
+	@echo "   • API    → http://$(HOST):8765         (POST /api/vaults/{n}/pages)"
 	@echo "   • MCP    → stdio (default vault)         (logs: /tmp/raven-mcp.log)"
 	@echo "   • UI     → http://localhost:5173         (또는 :5174)"
+	@echo ""
+	@if [ "$(HOST)" = "0.0.0.0" ]; then \
+		echo "🔗 Tailscale/원격 접속: http://$(shell tailscale ip -4 2>/dev/null | head -1):8765"; \
+	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
