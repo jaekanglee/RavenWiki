@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createPage, fetchPages } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { SelectField } from "./ui/SelectField";
+import { Button } from "./ui/Button";
 
 /**
  * NewPageInline — Plan v1 묶음 B (Tasks 5-7).
@@ -207,21 +208,17 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
             in {vault}
           </span>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onClose}
           disabled={busy}
           aria-label="닫기"
           title="닫기 (Esc)"
-          className="btn-secondary"
-          style={{
-            height: 32,
-            padding: "4px 12px",
-            fontSize: 13,
-          }}
+          style={{ height: 32, padding: "4px 12px", fontSize: 13 }}
         >
           ✕
-        </button>
+        </Button>
       </div>
 
       <p
@@ -366,24 +363,19 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
       )}
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={onClose}
           disabled={busy}
-          className="btn-secondary"
-          style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
         >
           취소
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           onClick={submit}
           disabled={busy || !title.trim()}
-          className="btn-primary"
-          style={{ height: 40, padding: "10px 20px", fontSize: 14 }}
         >
           {busy ? "저장 중…" : "만들기"}
-        </button>
+        </Button>
       </div>
     </section>
   );
