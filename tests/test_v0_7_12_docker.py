@@ -3,11 +3,13 @@
 사용자 (2026-06-30):
   '도커로 하면 어때? 다른 피씨 환경에서도 할 건데 사실'
   '볼트는 외부경로에 있으니까 ~/Raven 잘 매핑해놓고'
+  '왜 이래' (Docker daemon 연결 ❌ + version 키 obsolete)
 
 v0.7.12 정책:
   - Dockerfile + docker-compose.yml + .env.example + .dockerignore + scripts/docker-entrypoint.sh
   - vault mount: ${RAVEN_VAULTS_DIR}:/vaults (사용자 외부 경로 ~/Raven)
   - 다른 PC에서도 동일하게 동작 (host path 동일하게 mount)
+v0.7.16+: 'version: "3.9"' 키 제거 (Docker Compose v2 deprecated)
 """
 from __future__ import annotations
 
@@ -34,15 +36,26 @@ def test_dockerfile_exists() -> None:
 def test_dockerfile_exposes_4_ports() -> None:
     """Dockerfile은 4 진입점 포트 노출."""
     content = DOCKERFILE.read_text(encoding="utf-8")
-    # EXPOSE 한 줄에 묶여있거나 각자 라인으로 분리 가능
     assert "EXPOSE" in content and "8765" in content and "8766" in content and "5173" in content, \
         "Dockerfile must expose ports 8765 + 8766 + 5173"
+
+
+def test_compose_no_version_key() -> None:
+    """v0.7.16+: 'version: "3.x"' 키 제거 (Docker Compose v2 deprecated)."""
+    content = COMPOSE.read_text(encoding="utf-8")
+    head_lines = content.splitlines()[:10]
+    for line in head_lines:
+        stripped = line.strip()
+        if not stripped.startswith("#") and stripped.startswith("version:"):
+            raise AssertionError(
+                "docker-compose.yml must NOT have 'version:' key "
+                "(Docker Compose v2 deprecated, v0.7.16+ removed)"
+            )
 
 
 def test_compose_has_3_services() -> None:
     """docker-compose.yml = 3 background 서비스 (API + MCP HTTP + Dashboard)."""
     content = COMPOSE.read_text(encoding="utf-8")
-    # 3 services (stdio는 docker exec, ❌ background)
     assert "services:" in content
     assert "api:" in content
     assert "mcp-http:" in content
@@ -59,7 +72,6 @@ def test_compose_mounts_user_vault_path() -> None:
 def test_env_example_default_vault_path() -> None:
     """.env.example = RAVEN_VAULTS_DIR 기본값 = 호스트 ~/Raven (외부 경로)."""
     content = ENV_EXAMPLE.read_text(encoding="utf-8")
-    # ~/.Raven (점 ❌) 또는 ~/Raven (점 없음) 검증
     assert "RAVEN_VAULTS_DIR=/Users/jaekanglee/Raven" in content or \
            "RAVEN_VAULTS_DIR=${HOME}/Raven" in content, \
         ".env.example must default to ~/Raven (외부 vault 경로)"
@@ -85,7 +97,6 @@ def test_entrypoint_supports_all_4_entries() -> None:
 def test_makefile_has_docker_targets() -> None:
     """Makefile = docker-build/up/down/logs/ps target."""
     content = (ROOT / "Makefile").read_text(encoding="utf-8")
-    # sibling subagent가 단일 .PHONY 라인에 묶음 — substring 검증
     for target in ("docker-build", "docker-up", "docker-down"):
         assert target in content, f"Makefile missing {target}"
 

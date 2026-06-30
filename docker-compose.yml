@@ -1,8 +1,8 @@
 # Raven — Docker Compose (4 진입점 일괄, one command).
-# v0.7.12+ — 다른 PC 환경에서 동일하게 동작.
+# v0.7.16+: 'version' 키 제거 (Docker Compose v2 deprecated).
 #
 # 사용법:
-#   docker compose up --build    # build + start 4 services
+#   docker compose up --build    # build + start 3 services
 #   docker compose down           # stop + remove containers
 #   docker compose logs -f api   # 로그 follow
 #
@@ -11,9 +11,7 @@
 #   http://<host>:8766/mcp  # MCP HTTP
 #   http://<host>:5173      # Dashboard
 #
-# MCP stdio는 docker exec -it raven-mcp-stdio / docker-entrypoint.sh mcp-stdio
-
-version: "3.9"
+# MCP stdio는 docker exec -it raven-api / docker-entrypoint.sh mcp-stdio
 
 services:
   api:
