@@ -70,7 +70,7 @@ def test_compose_mounts_user_vault_path() -> None:
 
 
 def test_env_example_default_vault_path() -> None:
-    """.env.example = RAVEN_VAULTS_DIR 기본값 = 호스트 ~/Raven (외부 경로)."""
+    """.env.example = RAVEN_VAULTS_DIR = 호스트 외부 경로 ~/Raven (외부 경로)."""
     content = ENV_EXAMPLE.read_text(encoding="utf-8")
     assert "RAVEN_VAULTS_DIR=/Users/jaekanglee/Raven" in content or \
            "RAVEN_VAULTS_DIR=${HOME}/Raven" in content, \
