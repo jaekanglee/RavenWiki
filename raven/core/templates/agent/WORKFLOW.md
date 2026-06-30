@@ -117,24 +117,17 @@ confidence: high
 
 ## 7. 부트스트랩 — 새 작업 시작 시 자동 read
 
-```bash
-# 1. 최근 활동 (무엇이 있었나)
-raven log list --tail 3
+에이전트는 새로운 작업 사이클을 시작할 때 반드시 아래 **MCP 툴**들을 호출하여 맥락을 동기화(부트스트랩)해야 합니다.
 
-# 2. 최근 결정/lesson (절대 반복 ❌)
-raven page ls --tag <team> --type rule
+1. **최근 로그 조회**: `wiki_log(tail_n=3)` 툴 호출
+2. **이전 결정 및 규칙 파악**: `wiki_search` 또는 `wiki_get_page`를 통한 최신 `rule` 수집
+3. **인수인계 확인**: `wiki_get_page`로 최근 작성된 `journal` 조회
+4. **품질/모순 검사**: `wiki_lint` 실행
 
-# 3. 관련 journal (handoff 어디까지 됐나)
-raven page get content/journal/<team>/<최근>
-
-# 4. contradictions (모순된 결정 있나)
-raven page ls --tag <team> --has-contradictions
-```
-
-→ 위 결과를 작업 컨텍스트에 포함시켜 시작. **vault = 외부 메모리**.
+→ 동기화된 지식 맥락을 컨텍스트에 주입한 뒤 태스크를 시작합니다. **Vault는 에이전트의 외부 메모리**입니다.
 
 **당신의 SOUL.md §0에 권장 한 줄**:
-> 새 작업 시작 시 `raven log list --tail 3` + 관련 rule 페이지 read (외부 메모리 동기화).
+> 새 작업 시작 시 `wiki_log(tail_n=3)` 및 `wiki_search`/`wiki_get_page`를 통한 지식 맥락 수집을 반드시 수행합니다.
 
 ---
 

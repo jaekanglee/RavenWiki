@@ -29,14 +29,14 @@ confidence: high
 
 ## 2. 4가지 명령 키워드
 
-사용자 요청을 다음 4개로 분류:
+사용자 요청을 다음 4개로 분류하여 대응합니다. (사람은 CLI/Dashboard, **에이전트는 MCP 툴**을 사용하여 조작)
 
-| 키워드 | 의미 | Raven 도구 호출 |
-|---|---|---|
-| `save` | 한 건의 노트 저장 | `raven page new` 또는 HTTP API `POST /api/vaults/{n}/pages` |
-| `ingest` | 외부 자료 일괄 정리 | 페이지 반복 + `raven build` |
-| `query` | 검색/조회 | `raven page get` / Dashboard search / HTTP API `GET /api/vaults/{n}/search` |
-| `lint` | 무결성 검사 | `raven lint run` / `raven link check` |
+| 키워드 | 의미 | Raven 도구 호출 (사람 / API) | 에이전트 호출 (MCP) |
+|---|---|---|---|
+| `save` | 한 건의 노트 저장 | `raven page new` / `POST /api/vaults/{n}/pages` | `wiki_update` |
+| `ingest` | 외부 자료 일괄 정리 | raw 복사 후 `raven build` | `wiki_ingest` |
+| `query` | 검색/조회 | `raven page get` / Dashboard / `/api/search` | `wiki_search`, `wiki_get_page` |
+| `lint` | 무결성 검사 | `raven lint run` / `raven link check` | `wiki_lint` |
 
 추가: `first-setup` (신규 vault 1회) → `vault create` + `build`.
 

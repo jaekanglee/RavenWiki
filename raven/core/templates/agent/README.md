@@ -41,21 +41,14 @@ raven vault는 **두 종류의 독자**를 위한 규칙이 분리되어 있습�
 
 ## 작업 시작 시 (매 세션) — 4-step orientation
 
-```bash
-# 1. 최근 활동 (무엇이 있었나)
-raven log list --tail 5
+에이전트는 작업을 개시할 때, 직접 CLI 서브프로세스를 띄우거나 파일에 접근하기보다 **MCP 툴을 호출**하여 Vault의 맥락을 동기화해야 합니다.
 
-# 2. 최근 결정/lesson (절대 반복 ❌)
-raven page ls --tag <team> --type rule
+1. **최근 활동 파악**: `wiki_log(tail_n=5)` 툴을 호출해 최근 변경 내역을 읽습니다.
+2. **최근 결정/Lesson 확인**: `wiki_search`를 사용해 해당 프로젝트/팀의 최신 `rule` (결정/교훈) 페이지들을 검색하고 핵심 내용을 파악합니다.
+3. **Journal 인수인계 확인**: `wiki_get_page` 툴로 최근 작성된 `journal` 페이지를 조회하여 이전 작업 현황을 파악합니다.
+4. **모순 검사**: `wiki_lint` 툴을 실행하여 contradictions(모순) 등으로 플래그된 린트 경고가 없는지 사전 검사합니다.
 
-# 3. 관련 journal (handoff 어디까지 됐나)
-raven page get content/journal/<team>/<최근>
-
-# 4. contradictions (모순된 결정 있나)
-raven page ls --tag <team> --has-contradictions
-```
-
-→ 위 결과를 작업 컨텍스트에 포함시켜 시작. **vault = 외부 메모리**.
+→ 위 동기화 결과를 작업 컨텍스트에 반드시 포함시켜 영구 지식(Vault)과 메모리를 일치시킵니다.
 
 ---
 
