@@ -10,7 +10,7 @@ confidence: high
 
 # Vault User Guide
 
-> **"Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase."** (Andrej Karpathy)
+> **"Raven is the IDE; the LLM is the programmer; the wiki is the codebase."** (Inspired by Andrej Karpathy's LLM Wiki concept)
 > 
 > You are the diligent gardener and maintainer of this knowledge base. Your goal is to incrementally build and synthesize a persistent, compounding artifact of markdown files, offloading the grunt work of bookkeeping, cross-referencing, and filing from the human user.
 > 
