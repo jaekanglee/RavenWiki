@@ -428,6 +428,9 @@ def check_log_size(vault: Vault) -> list[dict]:
 # Layer 1 (raven internal docs — OPERATIONS.md / agent/* / raven-policy.md) 이
 # vault에 복사되면 안 됨. 사람이 실수로 vault clone 시 Tier 1 문서가 누설되는
 # 것을 자동 검증.
+#
+# v0.6.39+: 옵션화. vault.meta.allow_tier1_leak = True인 vault는
+# critical 대신 warning으로 강등 (사용자 명시적 안전벨트 해제).
 TIER1_LEAK_PATTERNS = (
     "OPERATIONS.md",
     "agent/",
@@ -438,13 +441,20 @@ TIER1_LEAK_PATTERNS = (
 def check_tier_integrity(vault: Vault) -> list[dict]:
     """#14 tier_integrity — Tier 1 leak 감지.
 
-    vault.content/ 하위에 Tier 1 문서 패턴이 있으면 critical로 보고.
-    카파시 3-Layer 분리 (raw/wiki/schema)를 lint 레벨에서 강제.
+    vault.content/ 하위에 Tier 1 문서 패턴이 있으면 기본 critical 보고.
+    vault.meta.allow_tier1_leak = True이면 warning으로 강등 (사용자 옵트인).
+
+    카파시 3-Layer 분리 (raw/wiki/schema)를 lint 레벨에서 강제. 기본은
+    안전망. 사용자가 명시적으로 allow_tier1_leak = True 설정 시 강등.
     """
     out: list[dict] = []
     content_root = vault.content_root
     if not content_root.exists():
         return out
+    # v0.6.39+: 사용자가 옵트인하면 critical → warning 강등
+    severity = "warning" if getattr(vault.meta, "allow_tier1_leak", False) else "critical"
+    leak_label = "Tier 1 leak (warning, allow_tier1_leak=True)" if severity == "warning" \
+        else "Tier 1 leak"
     for fp in content_root.rglob("*"):
         if not fp.is_file():
             continue
@@ -454,8 +464,8 @@ def check_tier_integrity(vault: Vault) -> list[dict]:
             if pattern in rel_str:
                 slug = str(rel.with_suffix("")).replace("\\", "/")
                 out.append(_mk_issue(
-                    "#14", "critical", slug,
-                    f"Tier 1 leak detected: '{rel}' — "
+                    "#14", severity, slug,
+                    f"{leak_label}: '{rel}' — "
                     f"matches '{pattern}' (Karpathy 3-Layer 위반)",
                 ))
                 break

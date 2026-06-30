@@ -15,7 +15,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 # ─────────────── env-driven paths ───────────────
@@ -45,19 +45,34 @@ def REGISTRY_PATH() -> Path:
 
 @dataclass(frozen=True)
 class VaultMeta:
-    """Single vault entry — name + path + meta."""
+    """Single vault entry — name + path + meta.
+
+    v0.6.39+: `mode` (personal/agent/shared) is **display-only metadata**.
+    No code branches on mode. Write/lint policy is determined by `features`
+    and path scope, not mode.
+
+    v0.6.39+: `allow_tier1_leak: bool` lets users opt-in to importing
+    raven-internal docs (OPERATIONS.md, agent/*, raven-policy.md) into
+    their vault for customization. Default False (safe).
+
+    v0.6.39+: `features: dict` enables LLM Wiki patterns per-vault.
+    Empty by default; user adds `{"llm_wiki": true}` to opt in.
+    """
 
     name: str
     path: Path
-    mode: str = "personal"      # personal | shared | agent
+    mode: str = "personal"      # display-only metadata (v0.6.39+: no policy branches)
     owner: str = "user"
     created: str = ""
     description: str = ""
     default: bool = False
+    allow_tier1_leak: bool = False   # v0.6.39+: opt-in for Tier 1 doc customization
+    features: tuple = ()             # v0.6.39+: feature flags (e.g., {"llm_wiki": True})
 
     @classmethod
     def from_json(cls, name: str, data: dict, default_name: str = "") -> "VaultMeta":
         path = Path(data["path"]).expanduser().resolve()
+        features = tuple(sorted(data.get("features", {}).items()))
         return cls(
             name=name,
             path=path,
@@ -66,9 +81,11 @@ class VaultMeta:
             created=data.get("created", ""),
             description=data.get("description", ""),
             default=(name == default_name) or data.get("default", False),
+            allow_tier1_leak=data.get("allow_tier1_leak", False),
+            features=features,
         )
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, Any]:
         out = {
             "path": str(self.path),
             "mode": self.mode,
@@ -78,6 +95,10 @@ class VaultMeta:
             out["created"] = self.created
         if self.description:
             out["description"] = self.description
+        if self.allow_tier1_leak:
+            out["allow_tier1_leak"] = True
+        if self.features:
+            out["features"] = dict(self.features)
         return out
 
 
