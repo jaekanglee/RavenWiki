@@ -1,64 +1,73 @@
 import { describe, it, expect } from "vitest";
-import { wikilinkPlugin } from "../src/lib/wikilink";
+import { preprocessWikilinks } from "../src/lib/wikilink";
 
-// Minimal mdast text node shape — what the remark visitor gets.
-function textNode(value: string) {
-  return { type: "text", value };
-}
-
-function root(children: any[]) {
-  return { type: "root", children };
-}
-
-function run(input: string, vault = "develop") {
-  const tree = root([textNode(input)]);
-  wikilinkPlugin(vault)(tree);
-  return tree.children;
-}
-
-describe("wikilinkPlugin", () => {
-  it("rewrites a simple [[slug]] into a link (3-part: text + link + text)", () => {
-    // Input: "see [[concepts/wiki]] please"
-    // After wikilink: [text("see "), link, text(" please")] = 3 nodes
-    const out = run("see [[concepts/wiki]] please");
-    expect(out).toHaveLength(3);
-    const link = out.find((n: any) => n.type === "link");
-    expect(link).toMatchObject({
-      type: "link",
-      url: "/page/develop/concepts%2Fwiki",
+describe("preprocessWikilinks", () => {
+    it("rewrites simple [[slug]] into a markdown link", () => {
+        const out = preprocessWikilinks("see [[concepts/wiki]] please", "harumoa");
+        expect(out).toBe(
+            "see [concepts/wiki](/page/harumoa/concepts%2Fwiki) please"
+        );
     });
-  });
 
-  it("preserves intent char (?) and broken (!)", () => {
-    // Wikilinks with intent markers must not crash; links emit.
-    const out = run("see [[foo?]] and [[bar!]]");
-    const texts = out.map((n: any) => n.value || "").join("|");
-    // No leftover literal [[
-    expect(texts).not.toContain("[[");
-    // Both intent markers kept as link suffix (preserved or stripped — current impl strips)
-    const links = out.filter((n: any) => n.type === "link");
-    expect(links.length).toBeGreaterThanOrEqual(1);
-  });
+    it("preserves ? placeholder intent (inside wikilink brackets)", () => {
+        const out = preprocessWikilinks("see [[foo?]]", "harumoa");
+        expect(out).toBe(
+            "see [foo](/page/harumoa/foo?placeholder=true)"
+        );
+    });
 
-  it("handles aliased [[slug|display]]", () => {
-    const out = run("hello [[person/hermes|Hermes]]");
-    const link = out.find((n: any) => n.type === "link");
-    expect(link).toBeDefined();
-    expect(link.url).toContain("/page/");
-    // display text = slug "person/hermes", not "Hermes" (current impl uses slug as children text)
-    expect(link.children?.[0]?.value).toBe("person/hermes");
-  });
+    it("preserves ! broken intent (inside wikilink brackets)", () => {
+        const out = preprocessWikilinks("see [[bar!]]", "harumoa");
+        expect(out).toBe(
+            "see [bar](/page/harumoa/bar?broken=true)"
+        );
+    });
 
-  it("is a no-op when there are no wikilinks", () => {
-    const out = run("no links here at all");
-    expect(out).toHaveLength(1);
-    expect(out[0].value).toBe("no links here at all");
-  });
+    it("handles aliased [[slug|alias]] (alias dropped, slug as display)", () => {
+        const out = preprocessWikilinks(
+            "hello [[person/hermes|Hermes]]",
+            "harumoa"
+        );
+        expect(out).toBe(
+            "hello [person/hermes](/page/harumoa/person%2Fhermes)"
+        );
+    });
 
-  it("URL-encodes vault and slug separately", () => {
-    // Different vault, same slug
-    const out = run("see [[concepts/wiki]] please", "raven-dev");
-    const link = out.find((n: any) => n.type === "link");
-    expect(link.url).toBe("/page/raven-dev/concepts%2Fwiki");
-  });
+    it("handles anchor [[slug#heading]]", () => {
+        const out = preprocessWikilinks(
+            "see [[foo#section]]",
+            "harumoa"
+        );
+        // #section은 v0.7.5+에서 제거 (URL 충돌 방지, anchor는 다음 단계 후보)
+        expect(out).toBe("see [foo](/page/harumoa/foo)");
+    });
+
+    it("is a no-op when there are no wikilinks", () => {
+        const out = preprocessWikilinks("no links here at all", "harumoa");
+        expect(out).toBe("no links here at all");
+    });
+
+    it("URL-encodes vault and slug separately", () => {
+        const out = preprocessWikilinks(
+            "see [[concepts/wiki]] please",
+            "raven-dev"
+        );
+        expect(out).toBe(
+            "see [concepts/wiki](/page/raven-dev/concepts%2Fwiki) please"
+        );
+    });
+
+    it("handles empty content", () => {
+        expect(preprocessWikilinks("", "harumoa")).toBe("");
+    });
+
+    it("handles multiple wikilinks in one content", () => {
+        const out = preprocessWikilinks(
+            "[[a]] and [[b]] and [[c]]",
+            "harumoa"
+        );
+        expect(out).toBe(
+            "[a](/page/harumoa/a) and [b](/page/harumoa/b) and [c](/page/harumoa/c)"
+        );
+    });
 });
