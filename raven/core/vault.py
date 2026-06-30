@@ -3,7 +3,7 @@
 A vault is any folder on disk containing:
     .vault.json    — metadata (name, mode, owner, created, description)
     content/       — user markdown (Obsidian-style hierarchy)
-    _meta/         — system markdown (SCHEMA, RULES, scripts)
+    _meta/         — system markdown and optional agent-facing workflow guides
     _archive/      — archived pages (gitignored — see archive.py)
     wiki.db        — sqlite index (build artifact, gitignored)
 
@@ -16,8 +16,8 @@ Tier boundary policy (v2026-06-26, 2-tier model):
     Tier 1 = raven package (this codebase) — owns its own docs, build, lint
     Tier 2 = user vault (~/Raven/<name>/ by default) — user runtime data, NEVER receives
              raven-internal operational docs (OPERATIONS.md, agent/*, raven-policy.md).
-    Lite bootstrap policy: vault create() only copies the minimum a user needs
-    (SCHEMA + RULES + empty log). To read raven-internal docs, use `raven docs`.
+    Lite bootstrap policy: vault create() only copies user-facing essentials.
+    To read raven-internal docs, use `raven docs`.
 """
 from __future__ import annotations
 
@@ -36,11 +36,12 @@ if TYPE_CHECKING:
 
 # Lite bootstrap whitelist — only files every user needs.
 # These are user-facing schema/rules, NOT raven internals.
-# v0.5.5+: 4 entries (SCHEMA + RULES + AGENTS + log.md) — must match template_map in _bootstrap_lite().
+# v0.7.3+: 5 entries — must match template_map in _bootstrap_lite().
 _LITE_BOOTSTRAP_FILES = (
     "_meta/system/SCHEMA.md",
     "_meta/system/RULES.md",
     "_meta/system/AGENTS.md",
+    "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
 
@@ -87,8 +88,8 @@ class Vault:
             profile: v0.6.38+ bootstrap profile selector.
                 - "basic" (default for new users): Obsidian-style human-first
                   vault. Only copies WELCOME.md (1 file). No SCHEMA/RULES/AGENTS.
-                - "llm-wiki": LLM Wiki-pattern vault. Copies 4-file Lite
-                  bootstrap (SCHEMA + RULES + AGENTS + log.md).
+                - "llm-wiki": project/agent-ready vault. Copies 5-file Lite
+                  bootstrap (SCHEMA + RULES + AGENTS + PROJECT-WORKFLOW + log.md).
 
                 Default is "llm-wiki" for backward compatibility with v0.6.31~36.
                 New users are encouraged to pass --profile basic.
@@ -111,7 +112,7 @@ class Vault:
             else:
                 cls._bootstrap_lite(path)
             # M4 F3 — Bootstrap Self-Test (read-back verification).
-            # Lite bootstrap = 4 files. AGENTS.md §9 silent-failure policy:
+            # Lite bootstrap = user-facing files. AGENTS.md §9 silent-failure policy:
             # verify failure emits a warning, write itself succeeds.
             try:
                 from . import verify as _verify
@@ -162,7 +163,7 @@ class Vault:
             WELCOME.md                   (human-friendly welcome guide)
 
         Does NOT copy:
-            SCHEMA.md, RULES.md, AGENTS.md, log.md
+            SCHEMA.md, RULES.md, AGENTS.md, PROJECT-WORKFLOW.md, log.md
             → user enables LLM Wiki patterns manually if desired
         """
         from importlib import resources
@@ -197,9 +198,11 @@ class Vault:
 
         Creates:
             content/                     (empty)
-            _meta/system/SCHEMA.md       (frontmatter/type/tag/wikilink 규약)
-            _meta/system/RULES.md        (편집 5규칙)
-            log.md                       (빈 로그 헤더)
+            _meta/system/SCHEMA.md          (frontmatter/type/tag/wikilink 규약)
+            _meta/system/RULES.md           (편집 규칙)
+            _meta/system/AGENTS.md          (vault 사용자 가이드)
+            _meta/agents/PROJECT-WORKFLOW.md (프로젝트 작업 에이전트 공통 워크플로우)
+            log.md                          (빈 로그 헤더)
 
         Does NOT copy:
             OPERATIONS.md  → raven internal docs, use `raven docs operations`
@@ -221,10 +224,11 @@ class Vault:
 
         # Map: target relative path → template resource path
         template_map = {
-            "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
-            "_meta/system/RULES.md":  "templates/system/RULES.md",
-            "_meta/system/AGENTS.md": "templates/system/AGENTS.md",
-            "log.md":                  "templates/log.md",
+            "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
+            "_meta/system/RULES.md":           "templates/system/RULES.md",
+            "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+            "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
+            "log.md":                          "templates/log.md",
         }
 
         for rel_target, tmpl_path in template_map.items():
@@ -264,9 +268,11 @@ class Vault:
         # Determine target files based on lite flag
         if lite:
             file_map = {
-                "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
-                "_meta/system/RULES.md":  "templates/system/RULES.md",
-                "log.md":                  "templates/log.md",
+                "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
+                "_meta/system/RULES.md":           "templates/system/RULES.md",
+                "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agents/PROJECT-WORKFLOW.md",
+                "log.md":                          "templates/log.md",
             }
         else:
             # Full set — only for raven internal development, not user vaults

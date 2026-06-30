@@ -6,6 +6,7 @@
    없음. 알아야 할 건 명확히 Raven이 제공하는 도구로써의 표면일 뿐.'
 
 Lite bootstrap AGENTS.md = vault 사용자 표면 가이드.
+Lite bootstrap PROJECT-WORKFLOW.md = 프로젝트 작업 에이전트 공통 워크플로우.
 Raven 내부 구현 (Tier 1 leak 정책, vendor 예시, OPERATIONS/agent/raven-policy
 복사 금지 등) ❌. 도구 사용자가 알 필요 없음.
 
@@ -28,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LITE_AGENTS = ROOT / "raven" / "core" / "templates" / "system" / "AGENTS.md"
 LITE_SCHEMA = ROOT / "raven" / "core" / "templates" / "system" / "SCHEMA.md"
 LITE_LOG = ROOT / "raven" / "core" / "templates" / "log.md"
+LITE_PROJECT_WORKFLOW = ROOT / "raven" / "core" / "templates" / "agents" / "PROJECT-WORKFLOW.md"
 
 # vendor 예시 (Lite bootstrap에 박히면 안 됨)
 FORBIDDEN_VENDORS = ("Codex", "Claude Code", "Cursor", "Antigravity", "agy")
@@ -87,14 +89,16 @@ def test_lite_agents_starts_with_user_guide() -> None:
 
 
 def test_existing_vaults_synced() -> None:
-    """harumoa/raven-dev AGENTS.md, SCHEMA.md, log.md가 새 템플릿과 일치."""
+    """harumoa/raven-dev Lite bootstrap files가 새 템플릿과 일치."""
     template_agents = LITE_AGENTS.read_text(encoding="utf-8")
     template_schema = LITE_SCHEMA.read_text(encoding="utf-8")
     template_log = LITE_LOG.read_text(encoding="utf-8")
+    template_project_workflow = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
     for vault_name in ("harumoa", "raven-dev"):
         for label, template in (
             ("_meta/system/AGENTS.md", template_agents),
             ("_meta/system/SCHEMA.md", template_schema),
+            ("_meta/agents/PROJECT-WORKFLOW.md", template_project_workflow),
             ("log.md", template_log),
         ):
             target = Path(f"/Users/jaekanglee/Raven/{vault_name}/{label}")
@@ -122,3 +126,16 @@ def test_lite_log_no_domain_assumptions() -> None:
     """v0.7.1+: Lite bootstrap log.md에 도메인 가정 0회."""
     content = LITE_LOG.read_text(encoding="utf-8")
     _assert_no_terms(content, FORBIDDEN_DOMAIN_TERMS, "Lite bootstrap log.md")
+
+
+def test_lite_project_workflow_is_user_surface() -> None:
+    """v0.7.3+: PROJECT-WORKFLOW.md는 프로젝트명/path/task만 런타임 입력으로 둔다."""
+    content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
+    _assert_no_terms(content, FORBIDDEN_VENDORS, "Lite bootstrap PROJECT-WORKFLOW.md")
+    _assert_no_terms(content, FORBIDDEN_INTERNAL_TERMS, "Lite bootstrap PROJECT-WORKFLOW.md")
+    assert "project name" in content
+    assert "vault path" in content
+    assert "current task" in content
+    assert "_meta/system/AGENTS.md" in content
+    assert "_meta/system/SCHEMA.md" in content
+    assert "log.md" in content

@@ -3,8 +3,9 @@
 After `Vault.create()` copies the Lite bootstrap templates into a new vault,
 this module verifies that:
 
-  1. Each of the 4 Lite bootstrap files exists in the vault.
-  2. The 3 *template* files (SCHEMA.md, RULES.md, AGENTS.md) match the
+  1. Each of the 5 Lite bootstrap files exists in the vault.
+  2. The 4 *template* files (SCHEMA.md, RULES.md, AGENTS.md,
+     PROJECT-WORKFLOW.md) match the
      source templates byte-for-byte (SHA256 hash).
   3. `log.md` exists and is non-empty (it's an append-only working file,
      not a static template — so hash comparison would always fail once
@@ -32,7 +33,7 @@ from pathlib import Path
 from typing import Optional
 
 
-# Lite bootstrap 4종 — 검증 대상 (v0.5.6 합의).
+# Lite bootstrap files — 검증 대상.
 # This list MUST mirror the `template_map` in `vault._bootstrap_lite` (the
 # canonical write side). We keep it duplicated here (read-only) instead of
 # importing, so `verify` is independent of any side-effects in `vault.py`.
@@ -40,6 +41,7 @@ LITE_BOOTSTRAP_FILES: tuple[str, ...] = (
     "_meta/system/SCHEMA.md",
     "_meta/system/RULES.md",
     "_meta/system/AGENTS.md",
+    "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
 
@@ -48,7 +50,8 @@ TEMPLATE_MAP: dict[str, str] = {
     "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
     "_meta/system/RULES.md":  "templates/system/RULES.md",
     "_meta/system/AGENTS.md": "templates/system/AGENTS.md",
-    "log.md":                  "templates/log.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
+    "log.md": "templates/log.md",
 }
 
 # log.md is append-only — its content evolves with every vault action.
@@ -158,7 +161,7 @@ def verify_bootstrap(path: Path | str) -> BootstrapVerifyResult:
     (template resource missing, type errors).
 
     Verification rules per file:
-      - Static templates (SCHEMA, RULES, AGENTS): must exist AND be
+      - Static templates (SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW): must exist AND be
         byte-identical to the source template (SHA256 match).
       - Append-only working file (log.md): must exist AND be non-empty.
         (Its content will diverge from the template as soon as the first

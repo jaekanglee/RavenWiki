@@ -43,10 +43,10 @@ dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 	cd dashboard && npm run dev
 
 .PHONY: stop-dev
-stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite, best-effort)
+stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP, best-effort)
 	@pids="$$( { \
 		lsof -ti :8765 -ti :5173 -ti :5174 2>/dev/null; \
-		ps -ef | awk '/[r]aven\.api|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
+		ps -ef | awk '/[r]aven\.api|[r]aven\.mcp|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
 	} | sort -u )"; \
 	if [ -n "$$pids" ]; then \
 		echo "🧹 stopping existing dev servers: $$pids"; \
@@ -60,18 +60,18 @@ stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite, best-effort)
 	fi
 
 .PHONY: dev
-dev: venv-check ## Run exactly one API + dashboard instance (kills old dev servers first)
+dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (one command = production prep)
 	@$(MAKE) --no-print-directory stop-dev
-	@echo "🚀 raven API → http://127.0.0.1:8765"
-	@echo "🌐 dashboard  → http://localhost:5173/"
-	@echo "   (Ctrl+C stops dashboard; API can be stopped with \`make stop\`.)"
+	@echo ""
+	@echo "🚀 Raven product-ready dev stack"
+	@echo "   (one command → 4 진입점 ready for production prep)"
 	@echo ""
 	@echo "🔌 starting API in background (detached from this shell)..."
 	@nohup env PYTHONPATH=. $(PY) -m raven.api --host 127.0.0.1 --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
 		if lsof -ti :8765 >/dev/null 2>&1; then \
-			echo "✅ API ready (pid $$(lsof -ti :8765 | head -1))"; \
+			echo "✅ API ready on http://127.0.0.1:8765 (pid $$(lsof -ti :8765 | head -1))"; \
 			break; \
 		fi; \
 		if [ $$i -eq 5 ]; then \
@@ -79,23 +79,50 @@ dev: venv-check ## Run exactly one API + dashboard instance (kills old dev serve
 		fi; \
 	done
 	@echo ""
-	cd dashboard && npm run dev
+	@echo "🔌 starting MCP in background (stdio transport, default vault)..."
+	@nohup env PYTHONPATH=. $(PY) -m raven.mcp >/tmp/raven-mcp.log 2>&1 </dev/null &
+	@sleep 1
+	@echo "✅ MCP ready (pid $$(pgrep -f 'raven.mcp' | head -1), logs: /tmp/raven-mcp.log)"
+	@echo ""
+	@echo "🌐 starting Dashboard in background (detached)..."
+	@cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &
+	@for i in 1 2 3 4 5; do \
+		sleep 1; \
+		if lsof -ti :5173 >/dev/null 2>&1 || lsof -ti :5174 >/dev/null 2>&1; then \
+			port=$$(lsof -ti :5173 >/dev/null 2>&1 && echo 5173 || echo 5174); \
+			echo "✅ Dashboard ready on http://localhost:$$port (pid $$(lsof -ti :$$port | head -1))"; \
+			break; \
+		fi; \
+		if [ $$i -eq 5 ]; then \
+			echo "❌ Dashboard failed to start — see /tmp/raven-dashboard.log"; \
+		fi; \
+	done
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🟢 4 진입점 ready:"
+	@echo "   • CLI    → make raven ARGS=\"vault list\"  (또는 scripts/.venv/bin/python -m raven.cli)"
+	@echo "   • API    → http://127.0.0.1:8765         (POST /api/vaults/{n}/pages)"
+	@echo "   • MCP    → stdio (default vault)         (logs: /tmp/raven-mcp.log)"
+	@echo "   • UI     → http://localhost:5173         (또는 :5174)"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
 
 .PHONY: status
-status: ## Show whether API (8765) and dashboard (5173) are running
+status: ## Show whether API (8765), Dashboard (5173), MCP (stdio) are running
 	@echo "API (8765):"
 	@lsof -i :8765 2>/dev/null | tail -n +2 || echo "  (not listening)"
 	@echo "Dashboard (5173):"
 	@lsof -i :5173 2>/dev/null | tail -n +2 || echo "  (not listening)"
+	@echo "MCP (stdio):"
+	@pid=$$(pgrep -f 'raven.mcp' | head -1); \
+	if [ -n "$$pid" ]; then echo "  pid: $$pid (logs: /tmp/raven-mcp.log)"; else echo "  (not running)"; fi
+	@echo ""
+	@echo "Tip: make dev = CLI + API + Dashboard + MCP 4 진입점 ready (v0.7.3+)"
 
 .PHONY: stop
-stop: ## Kill any running API / dashboard / make dev processes (best-effort)
+stop: ## Kill any running API / dashboard / MCP processes (best-effort, never kills this make wrapper)
 	@$(MAKE) --no-print-directory stop-dev
-	@pids="$$(ps -ef | awk '/[m]ake dev/ {print $$2}' | sort -u)"; \
-	if [ -n "$$pids" ]; then \
-		echo "🧹 stopping make dev wrappers: $$pids"; \
-		kill $$pids 2>/dev/null || true; \
-	fi
 	@echo "✅ stopped (best-effort)"
 
 # ────────────────────────── test ──────────────────────────
