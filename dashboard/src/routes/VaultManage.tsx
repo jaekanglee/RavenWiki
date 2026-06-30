@@ -34,6 +34,7 @@ export function VaultManage() {
   const navigate = useNavigate();
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [stats, setStats] = useState<Record<string, VaultStats>>({});
+  const [locks, setLocks] = useState<Record<string, Record<string, any>>>({});
   const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -51,23 +52,30 @@ export function VaultManage() {
       const d = await r.json();
       const vs: VaultMeta[] = d.vaults || [];
       setVaults(vs);
-      // fetch stats for each in parallel
-      const statResults = await Promise.all(
+      // fetch stats and locks for each in parallel
+      const enrichedResults = await Promise.all(
         vs.map(async (v) => {
           try {
-            const sr = await fetch(`/api/vaults/${encodeURIComponent(v.name)}/stats`);
+            const [sr, lr] = await Promise.all([
+              fetch(`/api/vaults/${encodeURIComponent(v.name)}/stats`),
+              fetch(`/api/vaults/${encodeURIComponent(v.name)}/locks`),
+            ]);
             const sd = await sr.json();
-            return [v.name, sd] as const;
+            const ld = await lr.json();
+            return [v.name, sd, ld] as const;
           } catch {
-            return [v.name, null] as const;
+            return [v.name, null, null] as const;
           }
         })
       );
-      const map: Record<string, VaultStats> = {};
-      for (const [name, sd] of statResults) {
-        if (sd && sd.ok) map[name] = sd;
+      const statsMap: Record<string, VaultStats> = {};
+      const locksMap: Record<string, Record<string, any>> = {};
+      for (const [name, sd, ld] of enrichedResults) {
+        if (sd && sd.ok) statsMap[name] = sd;
+        if (ld && ld.ok) locksMap[name] = ld.locks || {};
       }
-      setStats(map);
+      setStats(statsMap);
+      setLocks(locksMap);
     } finally {
       setLoading(false);
     }
@@ -197,6 +205,7 @@ export function VaultManage() {
               <th style={{ textAlign: "right", padding: "10px 8px" }}>페이지</th>
               <th style={{ textAlign: "right", padding: "10px 8px" }}>log</th>
               <th style={{ textAlign: "right", padding: "10px 8px" }}>broken</th>
+              <th style={{ textAlign: "right", padding: "10px 8px" }}>락</th>
               <th style={{ textAlign: "right", padding: "10px 8px" }}>크기</th>
               <th style={{ textAlign: "right", padding: "10px 8px" }}>액션</th>
             </tr>
@@ -288,6 +297,9 @@ export function VaultManage() {
                     {s ? s.broken_links : "—"}
                   </td>
                   <td style={{ padding: "8px", textAlign: "right" }}>
+                    {locks[v.name] ? Object.keys(locks[v.name]).length : 0}
+                  </td>
+                  <td style={{ padding: "8px", textAlign: "right" }}>
                     {s ? formatBytes(s.size_bytes) : "—"}
                   </td>
                   <td style={{ padding: "8px", textAlign: "right" }}>
@@ -344,6 +356,58 @@ export function VaultManage() {
       <div style={{ marginTop: 16, fontSize: 12, color: "var(--color-muted)" }}>
         💡 새 vault는 <a href="/vault/new">/vault/new</a>에서 만드세요
       </div>
+
+      {/* ─── Active locks section ───────────────────── */}
+      {Object.values(locks).some((lMap) => Object.keys(lMap).length > 0) && (
+        <div style={{ marginTop: 40 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            🔒 활성 락 현황
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--color-muted)", marginBottom: 16 }}>
+            에이전트가 쓰기 작업을 진행하는 동안 충돌을 방지하기 위해 획득한 lock 목록입니다.
+          </p>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 13,
+              background: "var(--color-canvas)",
+            }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "2px solid var(--color-hairline)" }}>
+                <th style={{ textAlign: "left", padding: "10px 8px" }}>보관소</th>
+                <th style={{ textAlign: "left", padding: "10px 8px" }}>대상 문서 (slug)</th>
+                <th style={{ textAlign: "left", padding: "10px 8px" }}>소유자 (holder)</th>
+                <th style={{ textAlign: "left", padding: "10px 8px" }}>획득 시각</th>
+                <th style={{ textAlign: "left", padding: "10px 8px" }}>만료 예정</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vaults.flatMap((v) => {
+                const lMap = locks[v.name] || {};
+                return Object.entries(lMap).map(([slug, info]: [string, any]) => (
+                  <tr key={`${v.name}-${slug}`} style={{ borderBottom: "1px solid var(--color-hairline)" }}>
+                    <td style={{ padding: "8px", fontWeight: 600 }}>{v.name}</td>
+                    <td style={{ padding: "8px", fontFamily: "ui-monospace, SFMono-Regular, monospace" }}>
+                      <a href={`/page/${v.name}/${slug}`} style={{ color: "var(--color-ink)", textDecoration: "underline" }}>
+                        {slug}
+                      </a>
+                    </td>
+                    <td style={{ padding: "8px" }}>{info.holder || "unknown"}</td>
+                    <td style={{ padding: "8px", color: "var(--color-muted)" }}>
+                      {info.acquired_at ? new Date(info.acquired_at * 1000).toLocaleString() : "—"}
+                    </td>
+                    <td style={{ padding: "8px", color: "var(--color-muted)" }}>
+                      {info.expires_at ? new Date(info.expires_at * 1000).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ));
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* ─── delete confirm modal ───────────────────── */}
       {confirmDelete && (
