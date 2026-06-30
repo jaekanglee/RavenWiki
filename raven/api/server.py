@@ -1875,6 +1875,20 @@ def list_locks(name: str, slug: Optional[str] = Query(None, description="specifi
     }
 
 
+@app.delete("/api/vaults/{name}/locks")
+def release_lock(name: str, slug: str = Query(..., description="specific slug to release lock for")):
+    """Force release (unlock) an advisory lock for a specific slug (v0.7.28)."""
+    v = _vault_or_404(name)
+    from raven.mcp.tools import _load_locks_store, _save_locks_store
+
+    store = _load_locks_store(v.root)
+    if slug in store:
+        store.pop(slug)
+        persisted = _save_locks_store(v.root, store)
+        return {"ok": persisted, "released": slug}
+    return {"ok": True, "released": slug, "note": "lock not found"}
+
+
 # ────────────────────────── local helpers ──────────────────────────
 
 

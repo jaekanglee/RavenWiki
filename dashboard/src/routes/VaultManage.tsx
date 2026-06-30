@@ -156,6 +156,27 @@ export function VaultManage() {
     }
   }
 
+  async function handleUnlock(vaultName: string, slug: string) {
+    if (!window.confirm(`문서 '${slug}'의 락을 강제로 해제하시겠습니까?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/vaults/${encodeURIComponent(vaultName)}/locks?slug=${encodeURIComponent(slug)}`,
+        { method: "DELETE" }
+      );
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${r.status}`);
+      }
+      await loadVaults();
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 960 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
@@ -381,6 +402,7 @@ export function VaultManage() {
                 <th style={{ textAlign: "left", padding: "10px 8px" }}>소유자 (holder)</th>
                 <th style={{ textAlign: "left", padding: "10px 8px" }}>획득 시각</th>
                 <th style={{ textAlign: "left", padding: "10px 8px" }}>만료 예정</th>
+                <th style={{ textAlign: "right", padding: "10px 8px" }}>액션</th>
               </tr>
             </thead>
             <tbody>
@@ -394,12 +416,22 @@ export function VaultManage() {
                         {slug}
                       </a>
                     </td>
-                    <td style={{ padding: "8px" }}>{info.holder || "unknown"}</td>
+                    <td style={{ padding: "8px" }}>{info.actor || "unknown"}</td>
                     <td style={{ padding: "8px", color: "var(--color-muted)" }}>
-                      {info.acquired_at ? new Date(info.acquired_at * 1000).toLocaleString() : "—"}
+                      {info.since ? new Date(info.since).toLocaleString() : "—"}
                     </td>
                     <td style={{ padding: "8px", color: "var(--color-muted)" }}>
-                      {info.expires_at ? new Date(info.expires_at * 1000).toLocaleString() : "—"}
+                      {info.expires_at ? new Date(info.expires_at).toLocaleString() : "—"}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>
+                      <button
+                        onClick={() => handleUnlock(v.name, slug)}
+                        disabled={busy}
+                        style={{ ...btnGhost, color: "var(--cds-danger, #a2191f)", margin: 0 }}
+                        title="락 해제"
+                      >
+                        🔓 해제
+                      </button>
                     </td>
                   </tr>
                 ));

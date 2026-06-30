@@ -884,3 +884,35 @@ def test_get_page_includes_backlinks(client, isolated_env):
     assert data["backlinks"][0]["source_slug"] == "content/source"
     assert data["backlinks"][0]["source_title"] == "Source Page"
 
+
+def test_locks_api_list_and_delete(client, isolated_env):
+    """/api/vaults/{name}/locks GET & DELETE API 검증."""
+    from raven.mcp.tools import acquire_lock
+    target = isolated_env["target_root"] / "lk1"
+    client.post("/api/vaults/create", json={
+        "name": "lk1", "path": str(target), "bootstrap": False,
+    })
+    # 1. 락 획득
+    res = acquire_lock(target, slug="content/test-page", actor="pytest-tester")
+    assert res["ok"] is True
+
+    # 2. locks 조회
+    resp = client.get("/api/vaults/lk1/locks")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert "content/test-page" in data["locks"]
+    assert data["locks"]["content/test-page"]["actor"] == "pytest-tester"
+
+    # 3. locks 삭제 (release)
+    del_resp = client.delete("/api/vaults/lk1/locks?slug=content/test-page")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["ok"] is True
+    assert del_resp.json()["released"] == "content/test-page"
+
+    # 4. locks 다시 조회해서 락이 풀렸는지 검증
+    resp2 = client.get("/api/vaults/lk1/locks")
+    assert resp2.status_code == 200
+    assert resp2.json()["locks"] == {}
+
+
