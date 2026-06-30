@@ -25,12 +25,20 @@ ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = ROOT / "Makefile"
 
 
-def test_makefile_dev_does_not_start_mcp() -> None:
-    """make dev는 MCP 자동 띄우기 ❌ (stdio 부적합)."""
+def test_makefile_dev_starts_mcp_via_http() -> None:
+    """v0.7.8+: make dev는 MCP를 HTTP transport로 자동 띄움 (port 8766).
+
+    v0.7.7 이전: stdio라 background 불가 → make dev에서 MCP 빠짐.
+    v0.7.8+: HTTP transport (--transport http) → background 가능 → 4 진입점 ready.
+    """
     content = MAKEFILE.read_text(encoding="utf-8")
-    # dev target만 검사 (간단히 전체)
-    assert "nohup env PYTHONPATH=. $(PY) -m raven.mcp" not in content, (
-        "make dev must NOT auto-start MCP via nohup (stdio dies immediately)"
+    # make dev가 MCP를 HTTP로 띄움
+    assert "raven.mcp --transport http" in content, (
+        "make dev must start MCP via HTTP transport (background-safe)"
+    )
+    # stdio 형태로 띄우지 않음 (background 불가)
+    assert "nohup env PYTHONPATH=. $(PY) -m raven.mcp --transport stdio" not in content, (
+        "make dev must NOT start MCP via nohup stdio (stdio dies immediately)"
     )
 
 

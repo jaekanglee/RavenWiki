@@ -65,10 +65,11 @@ Raven은 **4개 진입점만** 제공합니다. **5번째 진입점 추가 ❌**
 
 | 사용자 | 진실 | 표현 강도 |
 |---|---|---|
-| **사람 (개발자)** | 안정적으로 동작 (CLI/Dashboard/API) | ✅ 지원 |
-| **단일 에이전트** | scope/provenance 안전장치 있음 (Python adapter) | ✅ 지원 |
+| **사람 (개발자)** | 안정적으로 동작 (Dashboard/CLI/API) | ✅ 지원 |
+| **단일 에이전트** | **MCP 표준 protocol** (사람/스크립트는 보조적으로 Python adapter 가능) | ✅ 지원 (MCP only) |
 | **멀티 에이전트 (MCP 등)** | 동시 쓰기 충돌 보호 없음, locks/queue/review 없음 | ⚠️ **experimental** |
 
+→ **에이전트 ↔ Raven 인터페이스 = MCP만 (단일 표준)**. Python adapter (`raven.agents`)는 사람/스크립트 보조 도구. 에이전트가 우리 API 직접 호출 ❌.
 → 멀티 에이전트 write는 **over-promise 금지**. "지원"이라 말하지 말고 "experimental / scope 명시 + 동시성 사용자 책임"으로.
 
 ---
@@ -85,16 +86,17 @@ raven-policy.md     → raven 내부 정책 (Lite/Full 동작 정의)
 
 접근: `raven docs show <topic>` (CLI 진입점)
 
-### Tier 2 — user vault (Lite bootstrap ✅, v0.7.1+: 4종 표면화)
+### Tier 2 — user vault (Lite bootstrap ✅, v0.7.3+: 5종 표면화)
 
 ```
 _meta/system/SCHEMA.md    → vault 데이터 구조 (frontmatter/type/tag/wikilink) — 사용자 표면
 _meta/system/RULES.md     → 편집 규칙 — 사용자 표면
 _meta/system/AGENTS.md    → "Vault User Guide" — 도구 표면 (v0.7.1+ 재작성)
+_meta/agents/PROJECT-WORKFLOW.md → 프로젝트 작업 에이전트 공통 워크플로우 — 도구 표면
 log.md                    → 작업 이력 (append-only) — 사용자 표면
 ```
 
-→ **v0.7.1+ Lite bootstrap 4종 모두 도구 표면만**. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지) ❌. 사용자가 vault에서 자기 프로덕트를 자유롭게 문서화.
+→ **v0.7.3+ Lite bootstrap 5종 모두 도구 표면만**. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지) ❌. 사용자가 vault에서 자기 프로덕트를 자유롭게 문서화.
 → Tier 1 ↔ Tier 2 경계: `vault clone` 기본 = content only (Tier 1 leak 방지, **이건 raven 도구 내부 안전망** — 사용자에겐 안 보임).
 
 ### 4.5 Audience 라우팅 표 (v0.6.35+)
@@ -117,10 +119,23 @@ Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진�
 
 1. **재사용 가능성** — 다른 에이전트/세션이 다시 참조할 만한가?
 2. **인수인계 필요성** — 다음 세션/사람에게 전달이 필요한가?
-3. **결정 추적 필요성** — 왜 그렇게 했는지 근거를 남겨야 하는가?
-4. **실패/리스크 기록** — 같은 실수 반복 방지를 위한가?
+- **scope/provenance 추적 필요성** — 왜 그렇게 했는지 근거를 남겨야 하는가?
+- **실패/리스크 기록** — 같은 실수 반복 방지를 위한가?
 
 모두 "아니오"면 **작성하지 마세요**. 저장 = 신호 대 잡음비가 높은 공간 유지.
+
+### 5.5 MCP = 에이전트 표준 프로토콜 (v0.7.8+)
+
+> **에이전트 ↔ Raven = MCP만 (단일).** Python adapter (`raven.agents`)는 사람/스크립트 보조 도구 (CLI에서 사용).
+>
+> **이유**:
+> 1. **표준화** — Claude/Cursor/Hermes 모두 MCP 표준 지원. 한 번 MCP server 만들면 모든 client 호환.
+> 2. **Discovery** — MCP는 `tools/list`로 도구 자동 발견. API는 호출자가 endpoints 알아야.
+> 3. **Tool schema** — MCP는 input/output schema 명시. LLM이 함수 호출 형식으로 자동 매핑.
+> 4. **권한/모드** — MCP `--mode read/write/admin` 3단계 (안전망). API는 단순 endpoint.
+>
+> → **에이전트 ↔ Raven은 MCP만**. `agent = Agent.named(...)` Python 코드 ❌ (사람/스크립트 보조용으로만).
+> → 자세한 도식: `_meta/diagrams/three-flows.png`.
 
 ---
 
@@ -214,7 +229,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 `bootstrap=True`인데 파일이 silent하게 누락되는 류의 버그 (v0.5.5에서 발견):
 
 - **detection**: 메시지/문서와 실제 동작 불일치 시 즉시 hotfix 대상
-- **verification**: `raven vault create /tmp/test-x`로 실제 4종 확인
+- **verification**: `raven vault create /tmp/test-x`로 실제 5종 확인
 - **fix 우선순위**: silent failure > 잘못된 메시지 > 메시지 누락
 
 → Codex/Claude 리뷰에서 "정책 문서 ≠ 코드" 지적 시 **P0 즉시 패치**.
@@ -232,7 +247,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)
 - ❌ `raven/mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌 회피를 위해 v0.6.0+ 고정)
 - ❌ SCHEMA.md 8종 외 type 정의 ❌
-- ❌ Lite bootstrap 4종 (사용자 표면 가이드)에 raven 내부 정책/Tier 1 leak/vendor 예시 ❌ — v0.7.1+
+- ❌ Lite bootstrap 5종 (사용자 표면 가이드)에 raven 내부 정책/Tier 1 leak/vendor 예시 ❌ — v0.7.3+
 - ❌ Tier 1 문서(OPERATIONS, agent/*, raven-policy)를 vault에 자동 복사 ❌ (raven 도구 내부 안전망)
 - ❌ 의존성 추가 without 사용자 승인 ❌
 

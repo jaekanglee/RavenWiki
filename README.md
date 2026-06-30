@@ -25,7 +25,7 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
 | **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
-| **Adapter** (에이전트) | Python scope-based API | `raven/agents/` |
+| **Adapter** (Python, 사람/스크립트용) | scope-based API | `raven/agents/` |
 
 **SoT = 마크다운**. DB/API/GUI/MCP는 **모두 재생성 가능**한 파생 산출물.
 
@@ -36,7 +36,7 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | 사용자 | 상태 | 진입점 |
 |---|---|---|
 | **사람 (개발자 1인)** | ✅ 안정 — CLI/Dashboard/API | 직접 |
-| **단일 에이전트** | ✅ 안정 — scope + provenance 강제 | Python adapter |
+| **단일 에이전트** | ⚠️ MCP가 표준 (Python adapter는 사람/스크립트 보조) | MCP :8766 |
 | **멀티 에이전트 (MCP 다중)** | ⚠️ **experimental** — 동시 쓰기 충돌 보호 없음 (locks/queue/review 미구현) | MCP |
 
 > 멀티 에이전트 write는 **scope 명시 + 동시성은 사용자 책임**. "안정 지원"이라고 표현하지 않음.
@@ -97,13 +97,14 @@ raven export                      # GUI 정적 JSON 재생성
 
 ### Lite bootstrap (v0.5.5+) — `raven vault create` 시 자동 복사
 
-새 vault를 만들면 다음 **4종**이 vault 폴더에 자동 복사됩니다 (사용자 vault = `_meta/system/` 표준):
+새 vault를 `--profile llm-wiki`로 만들면 다음 **5종**이 vault 폴더에 자동 복사됩니다:
 
 | 파일 | 용도 |
 |---|---|
 | `_meta/system/SCHEMA.md` | frontmatter / type / tag / wikilink 규약 |
 | `_meta/system/RULES.md` | 편집 5규칙 |
 | `_meta/system/AGENTS.md` | vault 운영자 규칙 (사람+에이전트 공통) |
+| `_meta/agents/PROJECT-WORKFLOW.md` | 프로젝트 작업 에이전트 공통 워크플로우 |
 | `log.md` | 작업 이력 (append-only) |
 
 **Tier 1 문서** (`OPERATIONS.md` / `agent/*` / `raven-policy.md`)는 raven 패키지 내부에 있으며 vault에 **복사되지 않습니다**. 접근은 `raven docs show <topic>`. `vault clone` 기본 = content only (Tier 1 leak 방지).
@@ -258,7 +259,7 @@ Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다
 | **Tier 2** (사용자 vault) | `<vault>/_meta/system/` | vault 직접 read | vault 데이터 운영 규칙 |
 
 - `vault clone` 기본 = **content only** (Tier 1 leak 방지)
-- Tier 2 Lite = **4종 고정** (`SCHEMA.md` / `RULES.md` / `AGENTS.md` / `log.md`)
+- Tier 2 Lite = **5종 고정** (`SCHEMA.md` / `RULES.md` / `AGENTS.md` / `PROJECT-WORKFLOW.md` / `log.md`)
 - Tier 1 ↔ Tier 2 혼동 시 `raven vault verify <name>`로 진단
 
 ---
@@ -419,6 +420,7 @@ cd dashboard && npm install
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
 - `~/Raven/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사, +α opt-in)
+- `~/Raven/<vault>/_meta/agents/PROJECT-WORKFLOW.md` — 프로젝트 에이전트 공통 작업 지시 템플릿
 - `docs/vault-patterns.md` — **Karpathy LLM Wiki +α 가이드** (v0.7.0+) — raw/ log.md _meta/agents/ opt-in 패턴, 사용자 자유
 - `_meta/decisions/adr-2026-06-30-llm-wiki-plus-alpha.md` — **+α 결정 ADR** (v0.7.0+)
 - `_meta/changelog-v0.5*.md` — 변경 이력
@@ -446,7 +448,7 @@ cd dashboard && npm install
 
 ## 라이선스 / 상태
 
-- v0.5.5 (Lite bootstrap 4종 with AGENTS.md, templates → _deprecated)
+- v0.5.5 (Lite bootstrap with AGENTS.md, templates → _deprecated)
 - 단일 사용자 가정 (auth 없음, 127.0.0.1 기본 바인딩)
 - 멀티 에이전트 write는 **experimental** (scope 명시 + 동시성 사용자 책임)
 - Not production-ready for multi-tenant (CORS open, no auth)
