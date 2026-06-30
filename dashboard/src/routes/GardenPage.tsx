@@ -15,6 +15,7 @@ export function GardenPage() {
   const navigate = useNavigate();
   const [stalePages, setStalePages] = useState<StalePage[]>([]);
   const [orphanPages, setOrphanPages] = useState<OrphanPage[]>([]);
+  const [selectedStaleSlugs, setSelectedStaleSlugs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -26,6 +27,7 @@ export function GardenPage() {
       if (data && data.ok) {
         setStalePages(data.stale || []);
         setOrphanPages(data.orphan || []);
+        setSelectedStaleSlugs([]);
       }
     } catch (e) {
       console.error(e);
@@ -54,6 +56,26 @@ export function GardenPage() {
     } catch (e) {
       console.error(e);
       showToast("아카이빙 중 오류가 발생했습니다.", "error");
+    }
+  };
+
+  const handleBatchArchive = async () => {
+    const count = selectedStaleSlugs.length;
+    if (count === 0) return;
+    if (!window.confirm(`선택한 ${count}개의 문서를 아카이브 폴더로 이동하시겠습니까?`)) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await Promise.all(selectedStaleSlugs.map((slug) => deletePage(vault, slug)));
+      showToast(`✅ 문서 ${count}개 일괄 아카이빙 완료`);
+      setSelectedStaleSlugs([]);
+      await loadGardenData();
+    } catch (e) {
+      console.error(e);
+      showToast("일괄 아카이빙 중 오류가 발생했습니다.", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -160,8 +182,61 @@ export function GardenPage() {
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {stalePages.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
+                    padding: "8px 12px",
+                    background: "var(--color-surface-soft)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", color: "var(--color-ink)", fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={stalePages.length > 0 && selectedStaleSlugs.length === stalePages.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedStaleSlugs(stalePages.map((p) => p.slug));
+                        } else {
+                          setSelectedStaleSlugs([]);
+                        }
+                      }}
+                      style={{ accentColor: "var(--color-primary)", cursor: "pointer" }}
+                    />
+                    전체 선택 ({selectedStaleSlugs.length}/{stalePages.length})
+                  </label>
+                  {selectedStaleSlugs.length > 0 && (
+                    <button
+                      onClick={handleBatchArchive}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        backgroundColor: "#fee2e2",
+                        color: "#991b1b",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    >
+                      선택 아카이브
+                    </button>
+                  )}
+                </div>
+              )}
               {stalePages.map((p) => {
                 const isVeryOld = p.age_days >= 120;
+                const isChecked = selectedStaleSlugs.includes(p.slug);
+                const toggleSelect = (slug: string) => {
+                  setSelectedStaleSlugs((prev) =>
+                    prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+                  );
+                };
                 return (
                   <div
                     key={p.slug}
@@ -169,71 +244,80 @@ export function GardenPage() {
                     style={{
                       padding: 16,
                       display: "flex",
-                      flexDirection: "column",
                       gap: 12,
                       borderLeft: isVeryOld ? "4px solid #ef4444" : "4px solid #eab308",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <Link
-                        to={`/page/${vault}/${p.slug}`}
-                        style={{
-                          fontWeight: 600,
-                          fontSize: 14,
-                          color: "var(--color-ink)",
-                          textDecoration: "none",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        {p.slug}
-                      </Link>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          backgroundColor: isVeryOld ? "#fef2f2" : "#fef9c3",
-                          color: isVeryOld ? "#991b1b" : "#854d0e",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {p.age_days}일 경과
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSelect(p.slug)}
+                        style={{ accentColor: "var(--color-primary)", cursor: "pointer", width: 15, height: 15 }}
+                      />
                     </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
-                      <span style={{ color: "var(--color-muted)" }}>마지막 갱신: {p.updated}</span>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          onClick={() => navigate(`/page/${vault}/${p.slug}`)}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <Link
+                          to={`/page/${vault}/${p.slug}`}
                           style={{
-                            padding: "4px 8px",
-                            fontSize: 12,
-                            borderRadius: "var(--radius-sm)",
-                            border: "1px solid var(--color-border)",
-                            backgroundColor: "transparent",
+                            fontWeight: 600,
+                            fontSize: 14,
                             color: "var(--color-ink)",
-                            cursor: "pointer",
+                            textDecoration: "none",
+                            wordBreak: "break-all",
                           }}
                         >
-                          편집
-                        </button>
-                        <button
-                          onClick={() => handleArchive(p.slug)}
+                          {p.slug}
+                        </Link>
+                        <span
                           style={{
-                            padding: "4px 8px",
-                            fontSize: 12,
-                            borderRadius: "var(--radius-sm)",
-                            border: "none",
-                            backgroundColor: "#fee2e2",
-                            color: "#991b1b",
-                            cursor: "pointer",
-                            fontWeight: 500,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            backgroundColor: isVeryOld ? "#fef2f2" : "#fef9c3",
+                            color: isVeryOld ? "#991b1b" : "#854d0e",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          아카이브
-                        </button>
+                          {p.age_days}일 경과
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                        <span style={{ color: "var(--color-muted)" }}>마지막 갱신: {p.updated}</span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            onClick={() => navigate(`/page/${vault}/${p.slug}`)}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: 12,
+                              borderRadius: "var(--radius-sm)",
+                              border: "1px solid var(--color-border)",
+                              backgroundColor: "transparent",
+                              color: "var(--color-ink)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            편집
+                          </button>
+                          <button
+                            onClick={() => handleArchive(p.slug)}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: 12,
+                              borderRadius: "var(--radius-sm)",
+                              border: "none",
+                              backgroundColor: "#fee2e2",
+                              color: "#991b1b",
+                              cursor: "pointer",
+                              fontWeight: 500,
+                            }}
+                          >
+                            아카이브
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
