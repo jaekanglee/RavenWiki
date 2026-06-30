@@ -55,6 +55,7 @@ raven vault는 **두 종류의 독자**를 위한 규칙이 분리되어 있습�
 ## 한 줄 요약
 
 > **당신의 기억은 휘발성, vault는 영구적.**
+> **새로운 지식을 정의(Write)하기 전에 이미 컴파일된 지식이 없는지 먼저 적극적으로 검색(Read)하여 재사용하십시오. (Read-heavy, Write-rare)**
 > **결정 / lesson / journal이 생기는 순간 = 당신이 vault에 write해야 하는 순간.**
 > **scope 밖 read/write 절대 ❌. 사용자에게 항상 "어디 저장됐는지" 보고.**
 
