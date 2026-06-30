@@ -1595,9 +1595,20 @@ def get_log(
     name: str,
     tail: Optional[int] = Query(None, description="최근 N개만"),
     action: Optional[str] = Query(None, description="액션 필터"),
+    raw: bool = Query(False, description="raw log.md 전체 텍스트 반환"),
 ):
     """log.md 작업 이력 조회."""
     v = _vault_or_404(name)
+    if raw:
+        path = log_module.log_path(v)
+        content = ""
+        if path.exists():
+            content = path.read_text(errors="replace")
+        return {
+            "ok": True,
+            "vault": name,
+            "raw": content,
+        }
     entries = log_module.list_entries(v, tail=tail, action=action)
     total = log_module.count(v)
     return {
