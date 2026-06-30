@@ -36,12 +36,20 @@ class AgentScope:
 
     Either a list of vault names, or `"<active>"` to bind to whatever vault
     is currently active at call time (useful for interactive agents).
+
+    v0.6.40+: path-level scope (resource scope).
+      - allowed_paths: glob patterns the agent may write to (e.g. "content/compiled/**")
+      - deny_paths: glob patterns the agent must NOT touch (e.g. "raw/**", "_meta/system/**")
+      - Both empty = no path restriction (current behavior, write anywhere in allowed vault)
+      - If both set, deny_paths takes precedence (deny wins)
     """
     vault_names: tuple[str, ...] = ()
     allow_create: bool = True
     allow_delete: bool = False       # default: agents can't delete
     default_type: str = "concept"
     default_tags: tuple[str, ...] = ("agent-output",)
+    allowed_paths: tuple[str, ...] = ()   # v0.6.40+: resource scope allowlist
+    deny_paths: tuple[str, ...] = ()      # v0.6.40+: resource scope denylist (wins over allow)
 
     @classmethod
     def single(cls, name: str, **kw) -> "AgentScope":
@@ -49,6 +57,31 @@ class AgentScope:
 
     def allows(self, vault_name: str) -> bool:
         return vault_name in self.vault_names
+
+    def allows_path(self, slug: str) -> bool:
+        """v0.6.40+: path-level scope check.
+
+        Returns True if the slug is allowed under this scope's path rules:
+          - If deny_paths matches → False (deny wins)
+          - If allowed_paths empty → True (no allowlist = anything allowed)
+          - If allowed_paths non-empty and matches → True
+          - Otherwise → False
+
+        Empty allowed_paths + empty deny_paths = current behavior (any path OK).
+        """
+        from fnmatch import fnmatch
+        # deny wins
+        for pat in self.deny_paths:
+            if fnmatch(slug, pat):
+                return False
+        # no allowlist = pass
+        if not self.allowed_paths:
+            return True
+        # allowlist check
+        for pat in self.allowed_paths:
+            if fnmatch(slug, pat):
+                return True
+        return False
 
 
 @dataclass(frozen=True)
@@ -223,6 +256,15 @@ class AgentVault:
             "timestamp": self.agent.provenance.timestamp,
             "intent": self.agent.provenance.intent,
         }
+        # v0.6.40+: path-level scope check (allowed_paths / deny_paths)
+        if not self.agent.scope.allows_path(slug):
+            return Result(
+                ok=False,
+                slug=slug,
+                error=f"agent {self.agent.name!r} not allowed at path '{slug}' "
+                      f"(allowed_paths={self.agent.scope.allowed_paths}, "
+                      f"deny_paths={self.agent.scope.deny_paths})",
+            )
         # Defaults chain: existing meta → caller arg → scope default.
         # (contracts.write_page only preserves *existing* meta when the
         # caller passes None — it doesn't know about scope defaults.)
