@@ -41,11 +41,11 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash raven
 
 WORKDIR /app
 
-# Python deps 먼저 복사 (cache)
-COPY pyproject.toml ./
+# Python deps 먼저 복사 (cache) — v0.7.17+: scripts/pyproject.toml 경로 정정
+COPY scripts/pyproject.toml ./scripts/pyproject.toml
 COPY scripts/ ./scripts/
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -e .
+    && pip install --no-cache-dir -e ./scripts
 
 # Dashboard 정적 빌드 (stage 1에서) 복사
 COPY --from=dashboard-build /app/dashboard/dist ./dashboard/dist
