@@ -41,7 +41,7 @@ from .vault import Vault
 # ── 경로 ─────────────────────────────────────────
 
 def log_path(vault: Vault) -> Path:
-    """log.md 경로. vault 루트 고정 (카파시 가이드)."""
+    """log.md 경로. vault 루트 고정."""
     return vault.root / "log.md"
 
 
@@ -158,7 +158,7 @@ def list_entries(
 def ensure_log(vault: Vault) -> Path:
     """log.md 없으면 템플릿에서 생성. 있으면 그대로 반환.
 
-    idempotent. 카파시 가이드: 위치는 vault 루트.
+    idempotent. 위치는 vault 루트.
     """
     from importlib import resources
 

@@ -1,20 +1,20 @@
-# Raven — local-first Obsidian-style markdown vault
+# Raven — local-first Zettelkasten-inspired markdown PKM
 
-> **markdown SoT + 사람 1차 + 에이전트 옵션 + multi-vault.** Obsidian 모티브 + 자유 구조 + 자체 Dashboard. LLM Wiki 패턴은 vault 안에서 +α로 선택적 도입.
+> **markdown SoT + 사람 1차 + 제텔카스텐식 연결 지식 + 에이전트 옵션 + multi-vault.** Obsidian 모티브 + 자유 구조 + 자체 Dashboard. LLM Wiki 패턴은 vault 안에서 +α로 선택적 도입.
 >
 > 옵시디언의 모티브를 빌려왔지만, **에이전트 옵션 + 프로그래머블 진입점 + LLM Wiki +α**가 차별점. Obsidian clone이 아님.
 
 ## North Star (v0.6.37 재정렬)
 
-> **"Raven은 사람을 1차 사용자로 하는 local-first markdown PKM vault이며, 원하는 vault 영역에만 LLM Wiki 패턴을 +α로 켜 compounding knowledge를 누적한다."**
+> **"Raven은 사람을 1차 사용자로 하는 local-first Zettelkasten-inspired markdown PKM이며, 원하는 vault 영역에만 LLM Wiki 패턴을 +α로 켜 AI 에이전트가 이해하고 재사용하기 좋은 compounding knowledge를 누적한다."**
 >
-> — **Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.**
+> — **Zettelkasten 원칙 (작은 생각 단위 + 링크 + 누적) + Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.**
 
 ---
 
 ## 무엇인가
 
-raven는 **사람 1차 Obsidian-style 마크다운 PKM 도구**. Karpathy LLM Wiki (2026) 패턴을 영감으로 받아 vault 안에서 선택적 +α로 도입 가능. **local-first 마크다운 지식 vault**.
+raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian-style 자유 vault와 자체 Dashboard를 제공하고, Karpathy LLM Wiki (2026) 패턴을 영감으로 받아 vault 안에서 선택적 +α로 도입 가능하다. **local-first 마크다운 지식 vault**.
 
 | 계층 | 구현 | 위치 |
 |---|---|---|
@@ -114,7 +114,7 @@ raven export                      # GUI 정적 JSON 재생성
 
 | 변수 | 기본 | 효과 |
 |---|---|---|
-| `WIKI_VAULTS_DIR` | `~/vaults` | vaults 루트 전체 변경 |
+| `WIKI_VAULTS_DIR` | `~/Raven` | vaults 루트 전체 변경 |
 | `WIKI_VAULT` | (registry default) | active vault 일시 변경 |
 
 ```bash
@@ -242,8 +242,8 @@ hermes.vault("default")         # ❌ PermissionError (scope 밖)
   "version": 1,
   "default": "default",
   "vaults": {
-    "default":      {"path": "/Users/jaekanglee/vaults/default",       "mode": "personal", "owner": "user"},
-    "agent-output": {"path": "/Users/jaekanglee/vaults/agent-output",  "mode": "agent",    "owner": "hermes"}
+    "default":      {"path": "/Users/jaekanglee/Raven/default",       "mode": "personal", "owner": "user"},
+    "agent-output": {"path": "/Users/jaekanglee/Raven/agent-output",  "mode": "agent",    "owner": "hermes"}
   }
 }
 ```

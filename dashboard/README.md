@@ -1,6 +1,6 @@
 # Wiki Dashboard
 
-React 19 SPA for browsing the Wiki vault.
+React 19 SPA for browsing and editing Raven vaults.
 
 ## Stack
 - **Vite 6** + **TypeScript 5.6** + **React 19**
@@ -12,20 +12,22 @@ React 19 SPA for browsing the Wiki vault.
 - **vite-plugin-pwa** — auto-update service worker
 
 ## Architecture
-Dashboard is a **static site**. It reads JSON files under `public/api/`:
-- `index.json` — list of all pages (sidebar tree source)
-- `graph.json` — nodes + edges for the graph view
-- `page-<slug>.json` — individual page payload (content, tags, backlinks)
-- `search.idx.json` — pre-built MiniSearch index (TODO: emit from export)
+Dashboard is an **API-backed read-write app**. It talks to `python -m raven.api`
+for vault selection, page CRUD, folders, graph, search, lint, log, and digest
+views.
 
-`scripts/export_static.py` reads `wiki.db` (SQLite) and emits all of the above
-to `dashboard/public/api/`.
+The older static JSON export path is legacy. `dashboard/dist/api/` and
+`dashboard/public/api/` may exist for deploy/static export compatibility, but
+the normal development loop uses `/api/vaults/...`.
 
 ## Routes
-- `/` — Home (recent edits, total page count)
-- `/page/:slug` — PageView (markdown + backlinks)
+- `/` — Home (vault cards, recent edits, stats)
+- `/page/:slug` — PageView (markdown, backlinks, edit/delete)
 - `/search` — full-page BM25 search
 - `/graph` — interactive node graph (click → page)
+- `/log` — work log
+- `/lint` — lint results
+- `/vaults` — vault management
 
 ## Wikilinks
 `[[some/page]]` is rewritten to `<a href="/page/some/page">` by a custom
@@ -33,12 +35,11 @@ remark plugin (`src/lib/wikilink.ts`). Intent chars `!` and `?` are preserved.
 
 ## Develop
 ```bash
-# 1. export vault data
-cd scripts
-.venv/bin/python export_static.py
-cd ../dashboard
+# 1. start API
+python -m raven.api
 
-# 2. install + dev server
+# 2. start Dashboard
+cd dashboard
 npm install
 npm run dev  # http://localhost:5173
 ```
@@ -54,7 +55,7 @@ npm run test
 ```
 
 ## Notes
-- This is a **read-only** client. Edits go through the MCP server
-  (`mcp/cli.py --write` / `--admin`).
+- This is the human-facing app surface, roughly the role Obsidian's desktop app
+  plays for a local vault.
+- Edits go through the Raven HTTP API and core write contracts.
 - Service worker is `autoUpdate` — refresh after deploy.
-- PWA icon is the emoji 📚 as inline SVG.

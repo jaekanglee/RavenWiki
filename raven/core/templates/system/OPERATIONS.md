@@ -24,7 +24,7 @@ confidence: high
        ↓
 [SQLite wiki.db]            ← Query Index (gitignore)
        ↓
-[raven lint run]            ← 12개 규칙 자동 검증
+[raven lint run]            ← 14개 규칙 자동 검증
        ↓
 [_meta/log.md]               ← build/lint 결과 자동 append
 ```
@@ -41,7 +41,7 @@ raven build
 - **atomic 보장**: temp DB 생성 → `os.replace`로 swap (P1 패치 예정)
 - 실패 시 기존 `wiki.db` 보존 (atomic 보장 후)
 
-### 1.2 lint (12개 규칙)
+### 1.2 lint (14개 규칙)
 
 | # | 규칙 | severity | 의미 |
 |---|---|---|---|
@@ -50,7 +50,7 @@ raven build
 | 3 | type 8개 taxonomy | 🟡 | R3 — SCHEMA 명시 8개만 |
 | 4 | tag core 분류 | 🟡 | R4 — core/custom 분리 |
 | 5 | contradictions | 🟡 | frontmatter.contradictions 미존재 경고 |
-| 6-12 | ... | ... | (`raven lint run` 출력 참조) |
+| 6-14 | ... | ... | (`raven lint run` 출력 참조) |
 
 ---
 
@@ -101,7 +101,7 @@ raven build
 | `raven vault list/create/clone` | vault 관리 |
 | `raven page new/get/ls/update/delete` | 페이지 CRUD |
 | `raven build` | wiki.db 재빌드 |
-| `raven lint run` | 12개 lint 검증 |
+| `raven lint run` | 14개 lint 검증 |
 | `raven log list/add` | 작업 이력 |
 
 → 4 인터페이스 (CLI / HTTP / Python / GUI) 모두 동일한 9개 명령어 대응.
@@ -154,7 +154,7 @@ rm wiki.db && raven build    # markdown에서 재생성
 | `core/vault.py` | vault lifecycle (create/load/clone) |
 | `core/frontmatter.py` | parse/render/merge (단일 소스) |
 | `core/slug.py` | slug validate (`_safe_path()` 핵심) |
-| `core/lint.py` | 12개 lint 규칙 |
+| `core/lint.py` | 14개 lint 규칙 |
 | `core/log.py` | log.md 자동 append |
 | `core/archive.py` | _archive/ 관리 |
 | `core/registry.py` | multi-vault registry |

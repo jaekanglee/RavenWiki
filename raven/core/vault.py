@@ -14,7 +14,7 @@ The CLI resolves the *active* vault via:
 
 Tier boundary policy (v2026-06-26, 2-tier model):
     Tier 1 = raven package (this codebase) — owns its own docs, build, lint
-    Tier 2 = user vault (~/vaults/<name>/) — user runtime data, NEVER receives
+    Tier 2 = user vault (~/Raven/<name>/ by default) — user runtime data, NEVER receives
              raven-internal operational docs (OPERATIONS.md, agent/*, raven-policy.md).
     Lite bootstrap policy: vault create() only copies the minimum a user needs
     (SCHEMA + RULES + empty log). To read raven-internal docs, use `raven docs`.

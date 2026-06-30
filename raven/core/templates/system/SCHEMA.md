@@ -120,7 +120,7 @@ aliases: [old-slug-1]     # 선택
 
 → `raven log list --tail 5` / `raven log append` / `raven log rotate`.
 
-## Lint 운영 (12개)
+## Lint 운영 (14개)
 
 `raven build` 또는 `raven lint run` 실행 시 자동 검증:
 
@@ -138,6 +138,8 @@ aliases: [old-slug-1]     # 선택
 | 10 | frontmatter 완전성 | 🔵 info |
 | 11 | index 완전성 (FS vs DB) | 🟡 warning |
 | 12 | log size > 500 entries | 🔵 info |
+| 13 | cognitive governance | 🔵 info |
+| 14 | tier integrity | 🔴 critical / 🟡 warning |
 
 ### 면제 규칙
 
@@ -145,6 +147,7 @@ aliases: [old-slug-1]     # 선택
 - **stale (90일+) 면제**: `type: rule` + `_meta/` 안
 - **orphan 면제**: `_meta/` 안 (운영 문서)
 - **#13 cognitive governance 면제**: `type: rule`, `journal`, `query`, `_meta/` 안
+- **#14 tier integrity 강등**: `allow_tier1_leak: true`면 critical → warning
 
 ### Cognitive Governance (#13)
 

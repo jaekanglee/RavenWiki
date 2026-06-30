@@ -1,6 +1,6 @@
 """Tests for raven.core.lint — v0.5.1+ 9 check 함수 (#4-#11).
 
-카파시 LLM Wiki 12개 lint 풀세트.
+Markdown PKM lint 기본 세트 (#1-#12) 회귀 테스트.
 """
 from __future__ import annotations
 

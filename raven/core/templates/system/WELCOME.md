@@ -24,7 +24,7 @@ anything goes. Raven indexes them automatically when you run `raven build`.
 python -m raven.api       # → http://127.0.0.1:8765
 cd dashboard && npm run dev  # → http://localhost:5173
 ```
-Or use the CLI: `raven page new`, `raven page ls`, `raven search "..."`.
+Or use the CLI: `raven page new`, `raven page ls`, `raven page get`.
 
 ### 3. (Optional) Enable LLM Wiki patterns
 By default, this is a human-first vault — no agent required. If you want

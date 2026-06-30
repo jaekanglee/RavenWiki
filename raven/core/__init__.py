@@ -10,7 +10,7 @@ Split:
     slug         — vault-relative path validation (v0.3+)
     frontmatter  — unified FM parse/render/merge (v0.3+)
     archive      — _archive/ cleanup + restore (v0.4+)
-    log          — log.md (작업 이력) 관리 (v0.5.0+, 카파시 가이드)
+    log          — log.md 작업 이력 관리
     contracts    — single write contract shared by all entrypoints (v0.6.2+)
 """
 from .registry import VaultRegistry, registry, REGISTRY_PATH, VAULTS_ROOT

@@ -118,3 +118,22 @@ v0.7.1에서 AGENTS.md만 했는데 **정직한 검증** (R1) 결과 SCHEMA.md�
 - ✅ **harumoa / raven-dev vault**: 8 파일 동기화 (.bak 백업 보존)
 - ✅ **Raven 레포 AGENTS.md**: §4 §10 명시 갱신 (회귀 가드 변경 없음 — 정책 강화)
 - ⚠️ **RULES.md**: 본 릴리스에서 미검증 — v0.7.3 후보
+
+---
+
+## 7. 후속 문서 정렬 (2026-06-30)
+
+사용자 피드백 기준으로 현재 제품 정의를 다시 명확히 반영:
+
+- `_meta/index.md`: `~/vaults/default` 잔여 설명 → `~/Raven/<name>` 기준으로 갱신
+- `_meta/index.md`: Raven = Zettelkasten-inspired PKM + Obsidian-style 앱 표면 + agent/LLM Wiki optional layer 명시
+- `dashboard/README.md`: static/read-only 설명 → API-backed read-write Dashboard로 정정
+- `README.md` / `docs/vault-patterns.md` / `wikisys-policy.md`: Zettelkasten 기반 + LLM Wiki optional layer 관점 반영
+- `raven/core/lint.py` / `SCHEMA.md` / CLI help: 실제 코드 기준 lint 14개(#13 cognitive governance, #14 tier integrity 포함)로 정정
+- 기존 vault `~/Raven/harumoa`, `~/Raven/raven-dev`: Lite bootstrap AGENTS/SCHEMA/log 템플릿 재동기화
+
+의도:
+- Dashboard는 Obsidian 전용 앱에 해당하는 사람용 탐색/편집 표면
+- 에이전트 없이도 사람이 Raven을 PKM으로 쓸 수 있어야 함
+- LLM Wiki 패턴은 어떤 AI 에이전트든 Raven vault를 활용하기 위한 optional layer
+- lint 계약은 문서 추정이 아니라 실제 실행 코드(`run_all`) 기준으로 유지

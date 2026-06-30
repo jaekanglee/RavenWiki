@@ -34,8 +34,8 @@ page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
-log_app = typer.Typer(help="log.md (작업 이력) 관리 — 카파시 LLM Wiki 패턴.")
-lint_app = typer.Typer(help="lint 12개 (카파시 가이드) — broken/orphan/contradictions/stale 등.")
+log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
+lint_app = typer.Typer(help="vault lint 14개 — broken/orphan/contradictions/stale/tier integrity 등.")
 migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
 note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
 collection_app = typer.Typer(help="collection sync — vault FS ↔ yaml diff (Stateless Curator 합의안 v3).")
@@ -1021,9 +1021,9 @@ def link_check(
 def build(
     vault: Optional[str] = typer.Option(None, "--vault"),
     db: Optional[Path] = typer.Option(None, "--db", help="output db path (default: <vault>/wiki.db)"),
-    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 12개 실행"),
+    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 14개 실행"),
 ) -> None:
-    """Rebuild wiki.db for the active vault. lint 12개 자동 실행 (v0.5.1+)."""
+    """Rebuild wiki.db for the active vault. lint 14개 자동 실행."""
     v = _resolve_vault_or_die(vault)
     result = db_module.build_db(v, db_path=db, run_lint=lint_after)
     if result["ok"]:
@@ -1199,7 +1199,7 @@ def lint_run(
     json_out: bool = typer.Option(False, "--json"),
     write_log: bool = typer.Option(False, "--log", help="log.md에 lint entry 자동 append"),
 ) -> None:
-    """vault에 대해 lint 12개 실행. v0.5.1+ 카파시 가이드 100% 자동화."""
+    """vault에 대해 lint 14개 실행."""
     v = _resolve_vault_or_die(vault)
     result = lint_module.run_all(v)
     issues = result["issues"]
@@ -1237,7 +1237,7 @@ def lint_run(
             log_module.append(
                 v,
                 action="lint",
-                subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                subject=f"lint 14개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
                 extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
             )
         except Exception:

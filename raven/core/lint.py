@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """raven.core.lint — vault-aware lint runner (v0.5.1+ 14 checks).
 
-카파시 LLM Wiki gist의 lint 항목 전체 자동화.
+Markdown PKM vault의 무결성을 확인한다. 일부 check는 Karpathy LLM Wiki
+패턴에서 영감을 받았지만, Raven 기본 vault에도 적용 가능한 일반 lint다.
 
-13 checks (severity: critical / warning / info):
+14 checks (severity: critical / warning / info):
     #1  broken wikilinks              (link_module.find_broken)
     #2  broken-intent false positive  (link_module: [[x]]! 인데 target 존재)
     #3  missing wikilinks              (link_module.find_missing)
@@ -16,11 +17,13 @@
     #10 frontmatter 완전성             (check_frontmatter_completeness)
     #11 index 완전성 (FS vs DB)        (check_index_completeness)
     #12 log size > 500 entries         (check_log_size)
-    #13 cognitive governance           (check_cognitive_governance, 🔵 info, v0.5.3+)
+    #13 cognitive governance           (check_cognitive_governance)
+    #14 tier integrity                 (check_tier_integrity)
 
 v0.5.0: #12 (log_size) + #1-3 (link_module) 선반영.
 v0.5.1: #4-#11 추가. 12/12 완성.
-v0.5.3: #13 cognitive governance 추가 (카파시 LLM Wiki 차용).
+v0.5.3: #13 cognitive governance 추가.
+v0.6.33: #14 tier integrity 추가.
 
 grace period (orphan): vault 메타의 .vault.json에 `lint_orphan_grace_days` 키로
 override 가능 (없으면 기본 7일).
@@ -40,14 +43,14 @@ from .vault import Vault
 from . import link as link_module
 
 
-# 카파시 가이드 상수
+# vault lint defaults
 LOG_ROTATE_THRESHOLD = 500
 ORPHAN_GRACE_DAYS_DEFAULT = 7
 STALE_DAYS = 90
 PAGE_SIZE_LINES = 200
 INDEX_COMPLETE_BUILD_REQUIRED = True  # build 후에만 검증
 
-# #13 cognitive governance (카파시 LLM Wiki 차용, v0.5.3+)
+# #13 cognitive governance (Zettelkasten/LLM Wiki quality signal, v0.5.3+)
 # 면제: type ∈ {rule, journal, query} 또는 _meta/ 안 페이지 (운영 문서).
 COG_GOV_EXEMPT_TYPES: frozenset[str] = frozenset({"rule", "journal", "query"})
 # 본문 wikilink가 cross-discipline 후보로 인정받으려면 다음 단어가 slug에 포함.
@@ -473,7 +476,7 @@ def check_tier_integrity(vault: Vault) -> list[dict]:
 
 
 def check_cognitive_governance(vault: Vault) -> list[dict]:
-    """#13 cognitive governance (카파시 LLM Wiki 차용, v0.5.3+).
+    """#13 cognitive governance (Zettelkasten/LLM Wiki quality signal, v0.5.3+).
 
     concept/comparison/page 타입에 다음 4 신호 중 누락 시 1 issue당 1 line 출력:
       1. **Why it matters** — 본문 첫 문단 또는 헤딩에 명시

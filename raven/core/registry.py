@@ -1,7 +1,7 @@
 """registry — vault discovery.
 
 Sources of truth (in priority order):
-  1. `WIKI_VAULTS_DIR` env var — root for vault lookup (default: `~/vaults`)
+  1. `WIKI_VAULTS_DIR` env var — root for vault lookup (default: `~/Raven`)
   2. `$WIKI_VAULTS_DIR/.registry.json` — vault index (name → meta)
   3. each `<vault>/.vault.json` — per-vault metadata
 

@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-06-30
 type: rule
 tags: [system, meta, index]
 sources: []
@@ -10,8 +10,27 @@ confidence: high
 
 # Wiki Index
 
-> 코드베이스 자기 자신의 카탈로그. vault = `~/vaults/default/` (분리됨, M2).
-> 마지막 업데이트: 2026-06-25 (M2 multi-vault 출시)
+> 코드베이스 자기 자신의 카탈로그. Raven은 사람 1차 local-first
+> Zettelkasten-inspired Markdown PKM이며, vault는 기본적으로 `~/Raven/<name>/`에 둔다.
+> 마지막 업데이트: 2026-06-30 (v0.7.x North Star + Lite bootstrap 표면 정렬)
+
+---
+
+## 현재 제품 정의
+
+> **Raven = Zettelkasten-inspired PKM + Obsidian-style 앱 표면 + agent/LLM Wiki optional layer.**
+> 에이전트 없이도 사람이 Dashboard/CLI로 Obsidian처럼 직접 쓰고,
+> 원할 때만 LLM Wiki 패턴(raw/log/agent rules)을 켜서 AI 에이전트가
+> Raven vault를 활용하게 한다.
+
+### 고정 진입점 4개
+
+| 진입점 | 역할 | 위치 |
+|---|---|---|
+| CLI | 운영자/자동화 control plane | `raven/cli/` |
+| HTTP API | Dashboard backend / 외부 자동화 | `raven/api/` |
+| Dashboard | 사람용 탐색/편집 UX, Obsidian 앱 역할 | `dashboard/` |
+| MCP | LLM 클라이언트 표준 진입점 | `raven/mcp/` |
 
 ---
 
@@ -52,17 +71,24 @@ confidence: high
 
 ## 코드베이스 위치
 
-> **중요**: vault 데이터는 `~/vaults/default/`에 있음. 코드베이스는 raven/dashboard/mcp/scripts 자산만.
+> **중요**: vault 데이터는 코드베이스 바깥 `~/Raven/<name>/`에 둔다.
+> 코드베이스는 raven/dashboard/mcp/scripts 자산만 가진다.
 
 - 코드베이스: `~/Desktop/Dev/Project/Raven/`
-- vault: `~/vaults/default/`
-- vault registry: `~/vaults/.registry.json`
+- vault root: `~/Raven/`
+- 예시 vault: `~/Raven/harumoa`, `~/Raven/raven-dev`
+- vault registry: Raven registry 설정 기준 (`raven where`로 확인)
 
-자세한 위치는 `raven-guide §vault 구조` 참조.
+자세한 위치는 `README.md` 빠른 시작과 `raven where` 출력 기준으로 확인.
 
 ---
 
 ## 마이그레이션 메모
+
+### v0.6.37 → v0.7.x (North Star 재정렬)
+- 강한 "LLM Wiki self-host" 톤 → **사람 1차 Zettelkasten-inspired PKM + Obsidian-style 앱 표면 + LLM Wiki +α 옵션**
+- Lite bootstrap 4종은 사용자 vault 표면만 설명
+- Dashboard는 사람이 직접 쓰는 앱 역할, MCP/Agent는 optional layer
 
 ### v0.1 (5-layer) → v0.2 (4-layer, multi-vault)
 - 단일 vault → **multi-vault** (`~/.registry.json` 중앙 인덱스)

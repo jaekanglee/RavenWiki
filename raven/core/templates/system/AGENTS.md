@@ -35,7 +35,7 @@ confidence: high
 |---|---|---|
 | `save` | 한 건의 노트 저장 | `raven page new` 또는 HTTP API `POST /api/vaults/{n}/pages` |
 | `ingest` | 외부 자료 일괄 정리 | 페이지 반복 + `raven build` |
-| `query` | 검색/조회 | `raven page get` / `raven search` |
+| `query` | 검색/조회 | `raven page get` / Dashboard search / HTTP API `GET /api/vaults/{n}/search` |
 | `lint` | 무결성 검사 | `raven lint run` / `raven link check` |
 
 추가: `first-setup` (신규 vault 1회) → `vault create` + `build`.

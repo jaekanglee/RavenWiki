@@ -10,7 +10,9 @@ tags: [system, patterns, llm-wiki, optional]
 
 # Vault Patterns — Karpathy LLM Wiki +α Guide
 
-> **Raven = Obsidian-style PKM 도구.** 기본은 사람 1차 자유 vault.
+> **Raven = Zettelkasten-inspired PKM 도구.** 기본은 사람 1차 자유 vault:
+> 작은 생각 단위, 자기 언어화, wikilink 연결, 누적/재조합.
+> Dashboard는 Obsidian-style 앱 표면이고,
 > 이 문서는 **선택적 +α 패턴** — Karpathy LLM Wiki (2026)의 3-Layer 구조를
 > vault 안에서 활성화하고 싶을 때 참조.
 >
