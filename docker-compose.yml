@@ -23,7 +23,9 @@ services:
     command: ["api"]
     env_file:
       - .env
-    # v0.7.18+: WIKI_VAULTS_DIR 환경변수 명시 (registry.py가 읽는 이름)
+    # v0.7.20+: WIKI_VAULTS_DIR 환경변수 명시 (registry.py가 읽는 이름)
+    # - 컨테이너 안에서는 mount target (/vaults) 사용해야 함
+    # - RAVEN_VAULTS_DIR은 호스트 경로 (mount source)
     environment:
       - WIKI_VAULTS_DIR=/vaults
     ports:
@@ -56,7 +58,7 @@ services:
     command: ["mcp-http"]
     env_file:
       - .env
-    # v0.7.18+: WIKI_VAULTS_DIR 명시
+    # v0.7.20+: WIKI_VAULTS_DIR 명시 (mount target /vaults)
     environment:
       - WIKI_VAULTS_DIR=/vaults
     ports:

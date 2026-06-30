@@ -63,10 +63,18 @@ def test_compose_has_3_services() -> None:
 
 
 def test_compose_mounts_user_vault_path() -> None:
-    """docker-compose.yml = ${RAVEN_VAULTS_DIR}:/vaults (사용자 외부 경로)."""
+    """docker-compose.yml = ${RAVEN_VAULTS_DIR}:/vaults (사용자 외부 경로).
+
+    v0.7.20+: WIKI_VAULTS_DIR=/vaults (mount target, 컨테이너 안).
+    컨테이너 안에서 registry.py가 /vaults/.registry.json 읽음.
+    """
     content = COMPOSE.read_text(encoding="utf-8")
+    # RAVEN_VAULTS_DIR은 호스트 경로 (mount source)
     assert "${RAVEN_VAULTS_DIR}:/vaults" in content, \
         "compose must mount ${RAVEN_VAULTS_DIR}:/vaults for cross-PC compatibility"
+    # WIKI_VAULTS_DIR은 mount target (/vaults, 컨테이너 안 path)
+    assert "WIKI_VAULTS_DIR=/vaults" in content, \
+        "compose must set WIKI_VAULTS_DIR=/vaults (mount target, container-internal)"
 
 
 def test_env_example_default_vault_path() -> None:
