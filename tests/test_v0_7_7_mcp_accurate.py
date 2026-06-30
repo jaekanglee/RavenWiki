@@ -30,15 +30,16 @@ def test_makefile_dev_starts_mcp_via_http() -> None:
 
     v0.7.7 이전: stdio라 background 불가 → make dev에서 MCP 빠짐.
     v0.7.8+: HTTP transport (--transport http) → background 가능 → 4 진입점 ready.
+    v0.7.9+: 정확한 진입점 = raven.mcp.cli (NOT raven.mcp — 패키지 직접 실행 ❌)
     """
     content = MAKEFILE.read_text(encoding="utf-8")
     # make dev가 MCP를 HTTP로 띄움
-    assert "raven.mcp --transport http" in content, (
-        "make dev must start MCP via HTTP transport (background-safe)"
+    assert "raven.mcp.cli --transport http" in content, (
+        "make dev must start MCP via 'python -m raven.mcp.cli --transport http' (correct module path)"
     )
-    # stdio 형태로 띄우지 않음 (background 불가)
-    assert "nohup env PYTHONPATH=. $(PY) -m raven.mcp --transport stdio" not in content, (
-        "make dev must NOT start MCP via nohup stdio (stdio dies immediately)"
+    # 옛 잘못된 진입점 (raven.mcp 직접) ❌ — 패키지 직접 실행 불가
+    assert "nohup env PYTHONPATH=. $(PY) -m raven.mcp --transport" not in content, (
+        "make dev must NOT use 'raven.mcp' (no __main__.py)"
     )
 
 

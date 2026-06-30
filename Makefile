@@ -49,7 +49,7 @@ dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 
 .PHONY: mcp
 mcp: venv-check ## Run raven MCP (stdio, foreground — for MCP clients like Claude/Cursor)
-	PYTHONPATH=. $(PY) -m raven.mcp
+	PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio
 
 .PHONY: stop-dev
 stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP, best-effort)
@@ -69,13 +69,13 @@ stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP, best-e
 	fi
 
 .PHONY: dev
-dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard (3 진입점 ready)
+dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 진입점 ready, HTTP transport for MCP)
 	@$(MAKE) --no-print-directory stop-dev
 	@echo ""
 	@echo "🚀 Raven product-ready dev stack"
-	@echo "   (one command → 3 진입점 ready for production prep)"
+	@echo "   (one command → 4 진입점 ready for production prep)"
 	@echo ""
-	@echo "🔌 starting API in background (detached from this shell)..."
+	@echo "🔌 starting API in background (port 8765)..."
 	@nohup env PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
@@ -88,7 +88,20 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard (3 진입�
 		fi; \
 	done
 	@echo ""
-	@echo "🌐 starting Dashboard in background (detached)..."
+	@echo "🔌 starting MCP (HTTP transport, port 8766)..."
+	@nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport http --host $(HOST) --port 8766 >/tmp/raven-mcp.log 2>&1 </dev/null &
+	@for i in 1 2 3 4 5; do \
+		sleep 1; \
+		if lsof -ti :8766 >/dev/null 2>&1; then \
+			echo "✅ MCP ready on http://$(HOST):8766/mcp (pid $$(lsof -ti :8766 | head -1))"; \
+			break; \
+		fi; \
+		if [ $$i -eq 5 ]; then \
+			echo "⚠️  MCP HTTP failed to start (stdio만 가능할 수 있음) — see /tmp/raven-mcp.log"; \
+		fi; \
+	done
+	@echo ""
+	@echo "🌐 starting Dashboard in background (port 5173)..."
 	@(cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &)
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
@@ -103,18 +116,20 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard (3 진입�
 	done
 	@echo ""
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🟢 3 진입점 ready:"
-	@echo "   • CLI    → make raven ARGS=\"vault list\"  (또는 scripts/.venv/bin/python -m raven.cli)"
+	@echo "🟢 4 진입점 ready:"
+	@echo "   • CLI    → make raven ARGS=\"vault list\""
 	@echo "   • API    → http://$(HOST):8765         (POST /api/vaults/{n}/pages)"
+	@echo "   • MCP    → http://$(HOST):8766/mcp     (HTTP transport — MCP client config)"
 	@echo "   • UI     → http://localhost:5173         (또는 :5174)"
-	@echo ""
-	@echo "⚠️  MCP는 별도: 'make mcp' (foreground/별도 terminal, stdio 기반)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@if [ "$(HOST)" = "0.0.0.0" ]; then \
-		echo "🔗 Tailscale/원격 접속: http://$(shell tailscale ip -4 2>/dev/null | head -1):8765"; \
+		echo "🔗 Tailscale/원격 접속:"; \
+		echo "   • API:      http://$(shell tailscale ip -4 2>/dev/null | head -1):8765"; \
+		echo "   • MCP HTTP:  http://$(shell tailscale ip -4 2>/dev/null | head -1):8766/mcp"; \
 	fi
-	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,dashboard}.log"
+	@echo ""
+	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
 	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
 
 .PHONY: status
