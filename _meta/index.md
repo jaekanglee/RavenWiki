@@ -55,6 +55,7 @@ confidence: high
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.28]] — 보관소 활성 락(Active Locks) 강제 해제 기능 구현
 - [[changelog-v0.7.27]] — 대시보드 완성도 제고 및 백링크·활성 락 연동 UI 개편
 - [[changelog-v0.7.26]] — Dashboard 사이드바 UI/UX 개편 및 리팩토링
 - [[changelog-v0.7.25]] — Knowledge Gardening 및 Write Guardrail
