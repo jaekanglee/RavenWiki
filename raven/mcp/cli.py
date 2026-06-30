@@ -264,9 +264,36 @@ def main(argv: Optional[list[str]] = None) -> int:
         mcp.run()
     else:
         # streamable-http for Tailscale-bound remote access.
-        mcp.settings.host = args.host
-        mcp.settings.port = args.port
-        mcp.run(transport="streamable-http")
+        # v0.7.23+: FastMCP HTTP는 Starlette app을 만듦.
+        # → 직접 uvicorn 실행 (host 검증 우회 + proxy_headers).
+        # → 421 Misdirected Request 회피:
+        #    uvicorn 0.30+ HTTP/1.1 strict Host check가 default on
+        #    → Tailscale IP로 접속 시 Host 헤더 mismatch → 421
+        #    → 해결: starlette app에 TrustedHostMiddleware(allowed_hosts=["*"]) 추가
+        import uvicorn
+        from starlette.middleware import Middleware
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+        app = mcp.streamable_http_app()  # FastMCP starlette app
+        # v0.7.23+: TrustedHostMiddleware 우회 (모든 host 허용)
+        # FastMCP streamable_http_app()이 middleware 파라미터 받음
+        # → 직접 app 만들고 middleware 추가가 더 안전
+        from starlette.applications import Starlette
+
+        # FastMCP의 mount 경로를 그대로 두고 middleware 추가
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=["*"],  # 모든 host 허용 (Tailscale IP 포함)
+        )
+
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            forwarded_allow_ips="*",
+            proxy_headers=True,
+            log_level="info",
+        )
 
     return 0
 
