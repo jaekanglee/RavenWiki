@@ -1,9 +1,11 @@
 # raven — top-level Makefile
+# v0.7.13+ — Docker 우선. 로컬 host 실행은 deprecated (Docker compose로 통일).
 # Self-documenting: `make` or `make help` lists targets.
 #
 # Conventions:
 #   - All commands run from project root.
-#   - Venv is scripts/.venv (auto-created by `make install`).
+#   - Docker compose 셋업: cp .env.example .env && make docker-up
+#   - 로컬 host 실행 (Docker 미사용, deprecated): make install && scripts/.venv/bin/python -m raven.cli ...
 #   - PYTHONPATH=. so `python -m raven.*` works without install.
 
 SHELL := /bin/bash
@@ -21,7 +23,7 @@ help: ## Show this help message
 # ────────────────────────── setup ──────────────────────────
 
 .PHONY: install
-install: ## Create venv + install raven + dev deps
+install: ## Create venv + install raven + dev deps (local dev only — prefer Docker)
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e .
@@ -32,24 +34,9 @@ install: ## Create venv + install raven + dev deps
 venv-check: ## Fail loudly if venv missing (so other targets work)
 	@test -d $(VENV) || (echo "❌ run 'make install' first"; exit 1)
 
-# ────────────────────────── dev (api + dashboard) ──────────────────────────
-
-# v0.7.3+: Tailscale 등 원격 접속을 위한 host bind.
-# HOST=0.0.0.0 → 모든 인터페이스 (Tailscale 포함). HOST=127.0.0.1 → 로컬만.
-# 사용 예: make dev HOST=0.0.0.0
-HOST ?= 127.0.0.1
-
-.PHONY: api
-api: venv-check ## Run raven API (default: 127.0.0.1:8765, override: HOST=0.0.0.0 for Tailscale)
-	PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765
-
-.PHONY: dashboard
-dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
-	cd dashboard && npm run dev
-
-.PHONY: mcp
-mcp: venv-check ## Run raven MCP (stdio, foreground — for MCP clients like Claude/Cursor)
-	PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio
+# ────────────────────────── Docker (v0.7.12+ 표준) ──────────────────────────
+# v0.7.13+: 로컬 host 실행 target (dev/status/stop/mcp/api/dashboard) 제거됨.
+# Docker compose로 통일. 호스트에서 직접 띄울 일 없음 (Docker만).
 
 .PHONY: docker-build docker-up docker-down docker-logs docker-ps
 docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runtime)
@@ -79,155 +66,19 @@ docker-logs: ## Follow logs from all Raven services
 docker-ps: ## Show Raven container status
 	docker compose ps
 
-.PHONY: stop-dev
-stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP HTTP + MCP stdio, best-effort)
-	@pids="$$( { \
-		lsof -ti :8765 -ti :5173 -ti :5174 -ti :8766 2>/dev/null; \
-		ps -ef | awk '/[r]aven\.api|[r]aven\.mcp\.cli|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
-	} | sort -u )"; \
-	if [ -n "$$pids" ]; then \
-		echo "🧹 stopping existing dev servers: $$pids"; \
-		kill $$pids 2>/dev/null || true; \
-		sleep 1; \
-		for pid in $$pids; do \
-			if kill -0 $$pid 2>/dev/null; then kill -9 $$pid 2>/dev/null || true; fi; \
-		done; \
-	else \
-		echo "✅ no existing dev servers"; \
-	fi
-
-.PHONY: dev
-dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 진입점 ready, one command = full set)
-	@$(MAKE) --no-print-directory stop-dev
-	@echo ""
-	@echo "🚀 Raven product-ready dev stack (one command = full set)"
-	@echo "   (CLI · API :8765 · MCP HTTP :8766 · Dashboard :5173 · MCP stdio)"
-	@echo ""
-	@echo "🔌 starting API in background (port 8765)..."
-	@nohup env PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
-	@for i in 1 2 3 4 5; do \
-		sleep 1; \
-		if lsof -ti :8765 >/dev/null 2>&1; then \
-			echo "✅ API ready on http://$(HOST):8765 (pid $$(lsof -ti :8765 | head -1))"; \
-			break; \
-		fi; \
-		if [ $$i -eq 5 ]; then \
-			echo "❌ API failed to start — see /tmp/raven-api.log"; exit 1; \
-		fi; \
-	done
-	@echo ""
-	@echo "🔌 starting MCP HTTP (port 8766)..."
-	@nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport http --host $(HOST) --port 8766 >/tmp/raven-mcp-http.log 2>&1 </dev/null &
-	@for i in 1 2 3 4 5; do \
-		sleep 1; \
-		if lsof -ti :8766 >/dev/null 2>&1; then \
-			echo "✅ MCP HTTP ready on http://$(HOST):8766/mcp (pid $$(lsof -ti :8766 | head -1))"; \
-			break; \
-		fi; \
-		if [ $$i -eq 5 ]; then \
-			echo "⚠️  MCP HTTP failed to start — see /tmp/raven-mcp-http.log"; \
-		fi; \
-	done
-	@echo ""
-	@echo "🔌 starting MCP stdio (for stdio MCP clients)..."
-	@( if command -v setsid >/dev/null 2>&1; then \
-	    setsid env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio </dev/null >/tmp/raven-mcp-stdio.log 2>&1; \
-	  else \
-	    nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio </dev/null >/tmp/raven-mcp-stdio.log 2>&1; \
-	  fi ) &
-	@sleep 2
-	@stdio_pid=$$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1); \
-	if [ -n "$$stdio_pid" ]; then \
-		echo "✅ MCP stdio ready (pid $$stdio_pid, logs: /tmp/raven-mcp-stdio.log)"; \
-	else \
-		echo "⚠️  MCP stdio failed to start — see /tmp/raven-mcp-stdio.log"; \
-	fi
-	@echo ""
-	@echo "🌐 starting Dashboard in background (port 5173)..."
-	@(cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &)
-	@for i in 1 2 3 4 5; do \
-		sleep 1; \
-		if lsof -ti :5173 >/dev/null 2>&1 || lsof -ti :5174 >/dev/null 2>&1; then \
-			port=$$(lsof -ti :5173 >/dev/null 2>&1 && echo 5173 || echo 5174); \
-			echo "✅ Dashboard ready on http://localhost:$$port (pid $$(lsof -ti :$$port | head -1))"; \
-			break; \
-		fi; \
-		if [ $$i -eq 5 ]; then \
-			echo "❌ Dashboard failed to start — see /tmp/raven-dashboard.log"; \
-		fi; \
-	done
-	@echo ""
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🟢 4 진입점 ready (one command = full set):"
-	@echo "   • CLI    → make raven ARGS=\"vault list\"  (지연 실행, 1회성)"
-	@echo "   • API    → http://$(HOST):8765         (background)"
-	@echo "   • MCP HTTP → http://$(HOST):8766/mcp   (background, for HTTP clients)"
-	@echo "   • MCP stdio → pid $$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1)"
-	@echo "   • UI     → http://localhost:5173         (background)"
-	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo ""
-	@if [ "$(HOST)" = "0.0.0.0" ]; then \
-		echo "🔗 Tailscale/원격 접속:"; \
-		echo "   • API:      http://$(shell tailscale ip -4 2>/dev/null | head -1):8765"; \
-		echo "   • MCP HTTP:  http://$(shell tailscale ip -4 2>/dev/null | head -1):8766/mcp"; \
-	fi
-	@echo ""
-	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp-http,mcp-stdio,dashboard}.log"
-	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
-
-.PHONY: status
-status: ## Show whether API (8765), Dashboard (5173), MCP HTTP (8766), MCP stdio are running
-	@echo "API (8765):"
-	@lsof -i :8765 2>/dev/null | tail -n +2 || echo "  (not listening)"
-	@echo "Dashboard (5173):"
-	@lsof -i :5173 2>/dev/null | tail -n +2 || echo "  (not listening)"
-	@echo "MCP HTTP (8766):"
-	@lsof -i :8766 2>/dev/null | tail -n +2 || echo "  (not listening)"
-	@echo "MCP stdio:"
-	@pid=$$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1); \
-	if [ -n "$$pid" ]; then echo "  pid: $$pid (logs: /tmp/raven-mcp-stdio.log)"; else echo "  (not running)"; fi
-	@echo ""
-	@echo "Tip: make dev = 4 진입점 (API + Dashboard + MCP HTTP + MCP stdio) one command."
-	@echo "      stop: make stop. CLI is on-demand (make raven ARGS=\"...\")."
-
-.PHONY: stop
-stop: ## Kill any running API / dashboard / MCP processes (best-effort, never kills this make wrapper)
-	@$(MAKE) --no-print-directory stop-dev
-	@echo "✅ stopped (best-effort)"
-
 # ────────────────────────── test ──────────────────────────
 
 .PHONY: test
-test: venv-check ## Run all tests
-	$(PY) -m pytest tests/ -v
-
-.PHONY: test-quick
-test-quick: venv-check ## Run tests with minimal output
+test: venv-check ## Run full pytest suite
 	$(PY) -m pytest tests/ -q
 
+.PHONY: test-quick
+test-quick: venv-check ## Run pytest with stop-on-first-failure
+	$(PY) -m pytest tests/ -q -x
+
 .PHONY: test-one
-test-one: venv-check ## Run a single test file (usage: make test-one F=tests/test_slug.py)
+test-one: venv-check ## Run a single pytest file (usage: make test-one F=tests/test_foo.py)
 	$(PY) -m pytest $(F) -v
-
-# ────────────────────────── raven cli shortcuts ──────────────────────────
-
-WIKI := PYTHONPATH=. $(PY) -m raven.cli
-
-.PHONY: raven
-raven: venv-check ## Run raven CLI (usage: make raven ARGS="vault list")
-	$(WIKI) $(ARGS)
-
-.PHONY: vault-list
-vault-list: venv-check ## Show registered vaults
-	$(WIKI) vault list
-
-.PHONY: where
-where: venv-check ## Show raven config (vaults root, active vault)
-	$(WIKI) where
-
-.PHONY: link-check
-link-check: venv-check ## Check wikilinks in default vault (override: make link-check V=default)
-	$(WIKI) link check --vault $(or $(V),default)
 
 # ────────────────────────── cleanup ──────────────────────────
 

@@ -1,12 +1,12 @@
-"""v0.7.11+ — `make dev` one-command = 풀세트 (4 진입점 일괄).
+"""v0.7.7+ — Makefile 회귀 가드 (Docker 우선 정책, v0.7.13+).
 
 사용자 (2026-06-30):
-  '하나의 패키지 처럼 세트로 올렸다 내렸다 하고싶거둔. 따로 관리하기 너무 복잡하잖아'
+  '도커로만 올리고내릴거니까 나머지 dev이런거 기존레거시는 make스크립트 청상해'
 
-v0.7.11 정책:
-  - make dev = backend 3개 + MCP stdio 모두 한 명령 (background + setsid for stdio)
-  - make stop = 4개 모두 종료
-  - CLI는 손대지 않음 (make raven ARGS="..." 또는 직접 python -m raven.cli)
+v0.7.13 정책:
+  - Makefile = docker-* / install / test / clean / nuke / help 만 (단순)
+  - 옛 dev/status/stop/mcp/api/dashboard target 제거
+  - 로컬 host 실행 = deprecated (Docker compose로 통일)
 """
 from __future__ import annotations
 
@@ -16,73 +16,53 @@ ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = ROOT / "Makefile"
 
 
-def test_make_dev_starts_all_4_entries() -> None:
-    """make dev = API + MCP HTTP + MCP stdio + Dashboard 모두 띄움."""
+def test_makefile_has_docker_targets() -> None:
+    """v0.7.13+: docker-build/up/down/logs/ps target 존재."""
     content = MAKEFILE.read_text(encoding="utf-8")
-    # 1. API
-    assert "raven.api --host $(HOST) --port 8765" in content, \
-        "make dev must start API"
-    # 2. MCP HTTP
-    assert "raven.mcp.cli --transport http --host $(HOST) --port 8766" in content, \
-        "make dev must start MCP HTTP"
-    # 3. MCP stdio (setsid + background)
-    assert "raven.mcp.cli --transport stdio" in content, \
-        "make dev must start MCP stdio"
-    assert "setsid" in content, \
-        "make dev must use setsid for stdio (detached from make wrapper)"
-    # 4. Dashboard
-    assert "cd dashboard && nohup npm run dev" in content, \
-        "make dev must start Dashboard"
+    for target in ("docker-build", "docker-up", "docker-down", "docker-logs", "docker-ps"):
+        assert target in content, f"Makefile missing {target}"
 
 
-def test_make_status_checks_all_4() -> None:
-    """make status = API/Dashboard/MCP HTTP/MCP stdio 모두 표시."""
+def test_makefile_legacy_removed() -> None:
+    """v0.7.13+: 옛 dev/status/stop/mcp/api/dashboard target ❌ (Docker 우선)."""
     content = MAKEFILE.read_text(encoding="utf-8")
-    # status target 추출 (대략 grep)
-    assert "API (8765)" in content
-    assert "Dashboard (5173)" in content
-    assert "MCP HTTP (8766)" in content, \
-        "make status must show MCP HTTP section"
-    assert "MCP stdio" in content, \
-        "make status must show MCP stdio section"
-
-
-def test_stop_dev_kills_all_4() -> None:
-    """make stop-dev = 4개 모두 종료."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    # stop-dev에 port 8766 (MCP HTTP) 포함
-    assert "lsof -ti :8766 2>/dev/null" in content or "ti :8766" in content, \
-        "stop-dev must include port 8766 (MCP HTTP)"
-    # stop-dev에 MCP stdio 패턴 포함
-    assert "raven.mcp.cli" in content, \
-        "stop-dev must include MCP process pattern (HTTP + stdio)"
-
-
-def test_make_dev_one_command_full_set() -> None:
-    """make dev = one command = full set (사용자 원안)."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    # 헤더 docstring에 "one command" 명시
-    assert "one command" in content.lower(), \
-        "Makefile dev header must indicate 'one command' semantics"
-    # "full set" 또는 "one command" 메시지 출력
-    assert "full set" in content or "one command" in content
-
-
-def test_cli_not_in_make_dev() -> None:
-    """CLI는 make dev에서 띄우지 않음 (on-demand)."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    # dev target이 'raven.cli' 또는 'make raven' 자동 실행 안 함
-    # 단, 안내 메시지("make raven ARGS=")는 OK
-    import re
-    # dev target 안의 자동 실행 패턴 검색
-    dev_match = re.search(r"^\.PHONY: dev\s*\n(.*?)(?=\n\.PHONY:|\Z)", content, re.DOTALL | re.MULTILINE)
-    assert dev_match is not None, "dev target not found"
-    dev_block = dev_match.group(1)
-    # 자동 실행 패턴 ❌ (안내 메시지 OK)
-    auto_patterns = [
-        r"@make raven ",
-        r"@\$\(PY\) -m raven\.cli",
+    # .PHONY 라인들 파싱
+    phony_lines = [
+        line.strip() for line in content.splitlines() if line.strip().startswith(".PHONY:")
     ]
-    for pat in auto_patterns:
-        assert not re.search(pat, dev_block), \
-            f"dev target must NOT auto-execute CLI (pattern: {pat})"
+    phony_targets = set()
+    for line in phony_lines:
+        for tok in line.replace(".PHONY:", "").strip().split():
+            phony_targets.add(tok)
+    # 레거시 target 검증 (대상 목록)
+    legacy_targets = ["api", "mcp", "dashboard", "stop-dev", "stop", "status"]
+    for legacy in legacy_targets:
+        assert legacy not in phony_targets, (
+            f"Makefile legacy target '{legacy}' must be REMOVED (Docker 우선, v0.7.13+)"
+        )
+
+
+def test_makefile_no_dev_target() -> None:
+    """v0.7.13+: 'dev' target ❌ (Docker 우선, deprecated)."""
+    content = MAKEFILE.read_text(encoding="utf-8")
+    # '.PHONY: dev' 단독 라인 검증 (.PHONY: dev '공백' 분리 패턴)
+    assert ".PHONY: dev" not in content or ".PHONY: dev " in content, (
+        "Makefile must NOT have standalone '.PHONY: dev' (Docker 우선)"
+    )
+    # 더 정확하게: dev가 단독 target이 아니어야 함
+    phony_lines = [
+        line.strip() for line in content.splitlines() if line.strip().startswith(".PHONY:")
+    ]
+    dev_in_phony = any(
+        "dev" in line.replace(".PHONY:", "").strip().split()
+        and "docker-" not in line  # docker-dev 변형 가능
+        for line in phony_lines
+    )
+    assert not dev_in_phony, "Makefile must NOT have standalone 'dev' target"
+
+
+def test_makefile_has_install_and_test() -> None:
+    """v0.7.13+: install/test/clean/nuke target 유지 (로컬 fallback)."""
+    content = MAKEFILE.read_text(encoding="utf-8")
+    for target in ("install", "test", "clean", "nuke"):
+        assert target in content, f"Makefile missing {target}"

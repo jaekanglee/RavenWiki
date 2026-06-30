@@ -1,77 +1,52 @@
-"""v0.7.7+ — make dev/status MCP 정확성 회귀 가드.
+"""v0.7.7+ — MCP 진입점 회귀 가드.
 
-사용자 (2026-06-30):
-  'make dev 했는데 왜 MCP가 살아있다고 하지? pid 89254는 Codex인데'
+v0.7.7: 'raven.mcp' 패키지 직접 실행 ❌ → 'raven.mcp.cli' 정정.
+v0.7.10: raven.mcp.cli 진입점 검증.
 
-근본 원인:
-1. v0.7.3+ Makefile의 MCP background 실행 → MCP는 stdio 기반이라 background 시 stdin 닫혀서 즉시 죽음
-2. make status의 `pgrep -f 'raven.mcp'`이 Codex Computer Use의 SkyComputerUseClient까지 매칭 (false positive)
-
-v0.7.7 수정:
-1. make dev에서 MCP 자동 띄우기 제거 (3 진입점만)
-2. make mcp 별도 target (stdio 명시, foreground 또는 별도 terminal)
-3. make status의 pgrep을 `python.*-m raven.mcp`로 정확히
-
-회귀 가드 (v0.7.7):
-  1. Makefile dev target은 MCP 자동 띄우기 ❌ (stdio 부적합)
-  2. Makefile mcp target 존재 (별도 실행)
-  3. Makefile status pgrep이 정확한 패턴 사용
+v0.7.13+: Makefile에 MCP target 없음 (Docker 우선). 검증은 Dockerfile + docker-entrypoint.sh에 위임.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MAKEFILE = ROOT / "Makefile"
+ENTRYPOINT = ROOT / "scripts" / "docker-entrypoint.sh"
+MCP_CLI = ROOT / "raven" / "mcp" / "cli.py"
 
 
-def test_makefile_dev_starts_mcp_via_http() -> None:
-    """v0.7.8+: make dev는 MCP를 HTTP transport로 자동 띄움 (port 8766).
-
-    v0.7.7 이전: stdio라 background 불가 → make dev에서 MCP 빠짐.
-    v0.7.8+: HTTP transport (--transport http) → background 가능 → 4 진입점 ready.
-    v0.7.9+: 정확한 진입점 = raven.mcp.cli (NOT raven.mcp — 패키지 직접 실행 ❌)
-    """
-    content = MAKEFILE.read_text(encoding="utf-8")
-    # make dev가 MCP를 HTTP로 띄움
-    assert "raven.mcp.cli --transport http" in content, (
-        "make dev must start MCP via 'python -m raven.mcp.cli --transport http' (correct module path)"
-    )
-    # 옛 잘못된 진입점 (raven.mcp 직접) ❌ — 패키지 직접 실행 불가
-    assert "nohup env PYTHONPATH=. $(PY) -m raven.mcp --transport" not in content, (
-        "make dev must NOT use 'raven.mcp' (no __main__.py)"
-    )
+def test_mcp_cli_entrypoint_exists() -> None:
+    """raven/mcp/cli.py = 정직한 MCP 진입점 (python -m raven.mcp.cli)."""
+    assert MCP_CLI.exists(), "raven/mcp/cli.py must exist (correct MCP entry point)"
 
 
-def test_makefile_has_mcp_target() -> None:
-    """make mcp 별도 target 존재 (사용자가 명시적으로 실행)."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    assert ".PHONY: mcp" in content, "Makefile must have '.PHONY: mcp' target"
-    assert "raven.mcp" in content, "make mcp must run raven.mcp"
-    # mcp는 foreground (stdio 기반)
-    assert "PYTHONPATH=. $(PY) -m raven.mcp" in content, (
-        "make mcp must use foreground execution (no nohup)"
-    )
+def test_docker_entrypoint_supports_mcp_transports() -> None:
+    """docker-entrypoint.sh = mcp-http / mcp-stdio 라우팅."""
+    assert ENTRYPOINT.exists(), "scripts/docker-entrypoint.sh must exist"
+    content = ENTRYPOINT.read_text(encoding="utf-8")
+    for transport in ("mcp-http", "mcp-stdio"):
+        assert transport in content, \
+            f"docker-entrypoint.sh must handle '{transport}' command"
 
 
-def test_makefile_status_pgrep_accurate() -> None:
-    """make status의 pgrep은 정확한 패턴 사용 (Codex false positive ❌)."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    # 정확한 패턴: python.*-m raven.mcp (Codex 매칭 안 됨)
-    assert "python.*-m raven\\.mcp" in content, (
-        "make status must use pgrep 'python.*-m raven.mcp' "
-        "(avoid Codex false positive)"
-    )
-    # 옛 단순 pgrep 'raven.mcp' ❌ (Codex와 매칭)
-    assert "pgrep -f 'raven.mcp'" not in content, (
-        "make status must NOT use bare 'pgrep -f raven.mcp' "
-        "(matches Codex Computer Use)"
-    )
-
-
-def test_makefile_status_handles_mcp_not_running() -> None:
-    """v0.7.11+: make dev가 4개 모두 띄움. status 메시지는 정확한 안내."""
-    content = MAKEFILE.read_text(encoding="utf-8")
-    assert "make dev" in content and "make stop" in content, (
-        "make status must suggest both 'make dev' and 'make stop'"
-    )
+def test_no_bare_raven_mcp_execution() -> None:
+    """v0.7.7 회귀 가드: 'python -m raven.mcp' (패키지 직접 실행) ❌."""
+    # 라이브러리 코드 + Dockerfile + Makefile + entrypoint 검색
+    import subprocess
+    bad_patterns = [
+        "raven.mcp --transport",       # Makefile v0.7.7~v0.7.9 옛
+        "python -m raven.mcp ",        # entrypoint v0.7.7~v0.7.9 옛
+    ]
+    for path in (ROOT / "Makefile", ENTRYPOINT, ROOT / "Dockerfile"):
+        if not path.exists():
+            continue
+        content = path.read_text(encoding="utf-8")
+        for pat in bad_patterns:
+            # 정확한 단어 매칭 (단어 경계)
+            import re
+            if re.search(re.escape(pat), content):
+                # 예외: docker-entrypoint에서 'raven.mcp.cli --transport' 사용은 OK
+                if "raven.mcp.cli" in content and pat == "python -m raven.mcp ":
+                    continue
+                raise AssertionError(
+                    f"{path.name}: bad pattern '{pat}' (use raven.mcp.cli instead)"
+                )

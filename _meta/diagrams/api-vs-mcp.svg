@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#37474f"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#263238">Raven: API vs MCP 진입점 비교</text>
+  <text x="450" y="52" text-anchor="middle" font-size="13" fill="#546e7a">write 경로: API. MCP는 API의 protocol adapter (write 안 함)</text>
+
+  <!-- 사람 인터페이스 (좌) -->
+  <rect x="30" y="90" width="280" height="160" rx="10" fill="#e1f5ff" stroke="#01579b" stroke-width="2"/>
+  <text x="170" y="115" text-anchor="middle" font-size="14" font-weight="bold" fill="#01579b">사람 인터페이스</text>
+
+  <rect x="50" y="135" width="110" height="90" rx="6" fill="#fff" stroke="#01579b"/>
+  <text x="105" y="158" text-anchor="middle" font-size="13" font-weight="bold">Dashboard</text>
+  <text x="105" y="180" text-anchor="middle" font-size="11" fill="#37474f">localhost:5173</text>
+  <text x="105" y="200" text-anchor="middle" font-size="10" fill="#546e7a">React 19 + Vite</text>
+
+  <rect x="180" y="135" width="110" height="90" rx="6" fill="#fff" stroke="#01579b"/>
+  <text x="235" y="158" text-anchor="middle" font-size="13" font-weight="bold">CLI</text>
+  <text x="235" y="180" text-anchor="middle" font-size="11" fill="#37474f">raven cli</text>
+  <text x="235" y="200" text-anchor="middle" font-size="10" fill="#546e7a">Typer 9 commands</text>
+
+  <!-- 에이전트 인터페이스 (우) -->
+  <rect x="590" y="90" width="280" height="160" rx="10" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <text x="730" y="115" text-anchor="middle" font-size="14" font-weight="bold" fill="#e65100">에이전트 인터페이스</text>
+
+  <rect x="610" y="135" width="240" height="90" rx="6" fill="#fff" stroke="#e65100"/>
+  <text x="730" y="158" text-anchor="middle" font-size="13" font-weight="bold">Cursor / Claude Desktop / Hermes</text>
+  <text x="730" y="178" text-anchor="middle" font-size="11" fill="#37474f">MCP client (stdio 또는 HTTP)</text>
+  <text x="730" y="200" text-anchor="middle" font-size="10" fill="#546e7a">Claude/Cursor/Hermes 등 LLM 도구</text>
+
+  <!-- 가운데: API = write 경로 -->
+  <rect x="220" y="290" width="460" height="100" rx="10" fill="#f3e5f5" stroke="#4a148c" stroke-width="3"/>
+  <text x="450" y="320" text-anchor="middle" font-size="16" font-weight="bold" fill="#4a148c">★ API :8765 ★</text>
+  <text x="450" y="345" text-anchor="middle" font-size="12" fill="#4a148c">raven/api/server.py — 진짜 write는 여기만</text>
+  <text x="450" y="365" text-anchor="middle" font-size="11" fill="#6a1b9a">POST /api/vaults/{n}/pages / GET ... / search / build / lint</text>
+
+  <!-- MCP Server (별도 박스 — write ❌) -->
+  <rect x="320" y="155" width="260" height="60" rx="8" fill="#ffe0b2" stroke="#e65100" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="450" y="178" text-anchor="middle" font-size="13" font-weight="bold" fill="#e65100">MCP Server :8766 (protocol adapter)</text>
+  <text x="450" y="198" text-anchor="middle" font-size="10" fill="#bf360c">write ❌ — API에 위임</text>
+
+  <!-- 화살표 -->
+  <line x1="160" y1="225" x2="300" y2="290" stroke="#37474f" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="220" y="260" font-size="11" fill="#37474f">HTTP</text>
+
+  <line x1="290" y1="225" x2="380" y2="290" stroke="#37474f" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="330" y="260" font-size="11" fill="#37474f">Python</text>
+
+  <line x1="730" y1="225" x2="630" y2="290" stroke="#37474f" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="4,2"/>
+  <text x="700" y="260" font-size="11" fill="#37474f">HTTP (MCP)</text>
+
+  <line x1="450" y1="215" x2="450" y2="285" stroke="#bf360c" stroke-width="2" stroke-dasharray="4,2" marker-end="url(#arrow)"/>
+  <text x="600" y="255" font-size="10" fill="#bf360c" text-anchor="end">MCP → API (위임)</text>
+
+  <!-- vault -->
+  <rect x="350" y="430" width="200" height="50" rx="8" fill="#cfd8dc" stroke="#37474f" stroke-width="2"/>
+  <text x="450" y="455" text-anchor="middle" font-size="14" font-weight="bold">vault filesystem</text>
+  <text x="450" y="472" text-anchor="middle" font-size="10" fill="#37474f">~/Raven/&lt;name&gt;/  ← write의 진짜 도착지</text>
+
+  <line x1="450" y1="390" x2="450" y2="430" stroke="#37474f" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="500" y="415" font-size="11" fill="#37474f">write</text>
+
+  <!-- Footer -->
+  <text x="450" y="505" text-anchor="middle" font-size="11" fill="#546e7a" font-style="italic">3개 진입점 (CLI/API/Dashboard) + 1개 protocol adapter (MCP) — write 경로는 모두 API</text>
+</svg>

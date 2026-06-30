@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Raven: API vs MCP 진입점 비교</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
+  h1 { color: #263238; border-bottom: 2px solid #01579b; padding-bottom: 12px; }
+  h2 { color: #01579b; margin-top: 32px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #cfd8dc; padding: 10px 14px; text-align: left; }
+  th { background: #f5f5f5; }
+  .verdict { background: #fff3e0; padding: 16px; border-left: 4px solid #e65100; margin: 24px 0; border-radius: 4px; }
+  .verdict strong { color: #bf360c; }
+  pre { background: #f5f5f5; padding: 16px; border-radius: 4px; overflow-x: auto; font-size: 13px; }
+  .key { background: #fff59d; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+  .files { background: #eceff1; padding: 12px 16px; border-radius: 4px; margin: 16px 0; }
+  .files a { color: #1565c0; text-decoration: none; font-family: monospace; }
+  .files a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Raven: API vs MCP — 어느 쪽이 write?</h1>
+
+<p><strong>한 줄 답:</strong> <span class="key">API</span>가 write. <span class="key">MCP</span>는 API의 protocol adapter일 뿐. write 안 함.</p>
+
+<div class="verdict">
+<strong>4개 진입점 ❌. 3개 진입점 (CLI / API / Dashboard) + 1개 protocol adapter (MCP).</strong>
+사람은 Dashboard나 CLI로 일하고, 에이전트는 MCP client (Cursor/Claude/Hermes)로 일함. 하지만 <strong>진짜 write는 모두 API</strong>로 흐름. MCP는 단지 protocol 변환 (JSON-RPC over stdio/HTTP) 일 뿐.
+</div>
+
+<h2>1. 데이터 흐름도</h2>
+
+<pre>
+┌─────────────────────────────────────────────────────────────────┐
+│ 사람 (UI / CLI)                                                 │
+│                                                                 │
+│   ┌──────────────┐         ┌──────────────┐                     │
+│   │  Dashboard   │         │     CLI      │                     │
+│   │  :5173       │         │  raven cli   │                     │
+│   └──────┬───────┘         └──────┬───────┘                     │
+│          │ HTTP                   │ Python                       │
+└──────────┼─────────────────────────┼───────────────────────────┘
+           │                         │
+           ▼                         ▼
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  API :8765  ←  ★ 진짜 write는 여기만 ★                  ║
+  ║  raven/api/server.py                                         ║
+  ╚════════════════════╤═════════════════════════════════════════╝
+                       ▲
+                       │ HTTP (MCP는 API 호출)
+                       │
+  ┌────────────────────────────────────────────────────────────────┐
+  │ 에이전트 (MCP client)                                          │
+  │                                                                │
+  │   ┌──────────────┐         ┌──────────────┐                    │
+  │   │  Cursor /    │ stdio   │  MCP Server  │                    │
+  │   │  Claude      │────────▶│  :8766/mcp   │                    │
+  │   │  Desktop     │         │  (protocol   │                    │
+  │   │  Hermes      │         │   adapter)   │                    │
+  │   └──────────────┘         └──────┬───────┘                    │
+  └───────────────────────────────────┼────────────────────────────┘
+                                       │
+                                       ▼ (MCP는 write 안 함, API에 위임)
+</pre>
+
+<h2>2. 코드 차이</h2>
+
+<h3>2.1 API — write 경로 (진짜)</h3>
+<pre>
+# raven/api/server.py (FastAPI)
+@app.post("/api/vaults/{vault_name}/pages")
+async def create_page(vault_name: str, payload: PageCreate):
+    vault = registry.get(vault_name)
+    contracts.write_page(  # ← 진짜 write
+        vault, payload.slug, payload.content,
+        title=payload.title, type=payload.type, tags=payload.tags,
+        actor=payload.actor, ...
+    )
+    return {"ok": True, "slug": ...}
+</pre>
+
+<h3>2.2 MCP — protocol adapter (write 위임)</h3>
+<pre>
+# raven/mcp/tools/write.py
+def mcp_create_page(slug: str, content: str, ...):
+    # MCP는 단순히 API endpoint를 호출
+    response = requests.post(
+        f"http://127.0.0.1:8765/api/vaults/{vault_name}/pages",
+        json={"slug": slug, "content": content, ...}
+    )
+    return response.json()
+</pre>
+
+<p>→ <strong>MCP의 write_page 함수는 내부적으로 API endpoint를 호출</strong>. write 로직 자체는 API에만 존재.</p>
+
+<h2>3. Write 경로 비교표</h2>
+
+<table>
+  <tr>
+    <th>인터페이스</th>
+    <th>사용자</th>
+    <th>Write 경로</th>
+    <th>구현체</th>
+  </tr>
+  <tr>
+    <td>Dashboard</td>
+    <td>사람</td>
+    <td>Dashboard → API → core.write</td>
+    <td>React 19 + Vite (read-write UI)</td>
+  </tr>
+  <tr>
+    <td>CLI</td>
+    <td>사람/스크립트</td>
+    <td>CLI → API 또는 직접 core.write</td>
+    <td>Typer 9 commands</td>
+  </tr>
+  <tr>
+    <td><strong>MCP</strong></td>
+    <td>에이전트</td>
+    <td><strong>MCP → API → core.write (위임)</strong></td>
+    <td>FastMCP (protocol adapter only)</td>
+  </tr>
+</table>
+
+<h2>4. 결론</h2>
+
+<ul>
+  <li><strong>API가 단일 write 경로</strong> — Dashboard/CLI/MCP 모두 API를 통해 write.</li>
+  <li><strong>MCP = API의 MCP-protocol 변환기</strong> — JSON-RPC over stdio/HTTP 받아서 API로 위임.</li>
+  <li><strong>사람용 vs 에이전트용 인터페이스가 다른 이유</strong> — 사람(브라우저/터미널)과 에이전트(MCP client) 도구 자체가 다름. write 경로는 동일.</li>
+  <li><strong>4개 진입점 표현이 부정확</strong> — 정직한 표현: <em>3개 진입점 + 1개 protocol adapter</em>.</li>
+</ul>
+
+<div class="files">
+<strong>📁 다이어그램 파일 위치:</strong><br>
+• <a href="api-vs-mcp.md">api-vs-mcp.md</a> (Mermaid — GitHub/Dashboard 렌더링)<br>
+• <a href="api-vs-mcp.svg">api-vs-mcp.svg</a> (SVG — 어디든 임베드 가능)<br>
+• <a href="api-vs-mcp-ascii.txt">api-vs-mcp-ascii.txt</a> (ASCII — terminal-friendly)
+</div>
+
+</body>
+</html>
