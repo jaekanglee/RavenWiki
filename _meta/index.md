@@ -55,6 +55,7 @@ confidence: high
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.32]] — 보관소 즐겨찾기(Favorite Vaults) 토글 기능 구현
 - [[changelog-v0.7.31]] — 사이드바 미니 건강 위젯(SidebarStatsWidget) 구현
 - [[changelog-v0.7.30]] — 지식 정원(Gardening) 고립 문서 수동 연결 기능 구현
 - [[changelog-v0.7.29]] — 지식 정원(Gardening) 일괄 아카이빙 기능 구현
