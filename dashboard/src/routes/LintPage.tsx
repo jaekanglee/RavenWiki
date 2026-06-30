@@ -3,6 +3,9 @@ import { useOutletContext } from "react-router-dom";
 import {
   fetchLint,
   fetchLintSummary,
+  createPage,
+  fetchPage,
+  updatePage,
   type LintIssue,
   type LintSeverity,
   type LintSummary,
@@ -42,6 +45,14 @@ export function LintPage() {
   const [severityFilter, setSeverityFilter] = useState<LintSeverity | "">("");
   const [writeLog, setWriteLog] = useState(false);
   const [lastWriteResult, setLastWriteResult] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 2400);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -314,7 +325,14 @@ export function LintPage() {
       ) : (
         <div style={{ border: "1px solid var(--color-hairline)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
           {result.issues.slice(0, 200).map((iss, i) => (
-            <IssueRow key={i} issue={iss} isLast={i === Math.min(199, result.issues.length - 1)} vault={vault} />
+            <IssueRow
+              key={i}
+              issue={iss}
+              isLast={i === Math.min(199, result.issues.length - 1)}
+              vault={vault}
+              onFixSuccess={load}
+              showToast={showToast}
+            />
           ))}
           {result.issues.length > 200 && (
             <p
@@ -328,6 +346,27 @@ export function LintPage() {
               … +{result.issues.length - 200} more (필터로 좁히세요)
             </p>
           )}
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`toast toast-${toast.type}`}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 1000,
+            padding: "12px 18px",
+            borderRadius: "var(--radius-md)",
+            background: toast.type === "success" ? "var(--color-primary)" : "#da1e28",
+            color: "#fff",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {toast.message}
         </div>
       )}
     </div>
@@ -376,7 +415,72 @@ function SeverityCard({
   );
 }
 
-function IssueRow({ issue, isLast, vault }: { issue: LintIssue; isLast: boolean; vault: string }) {
+function IssueRow({
+  issue,
+  isLast,
+  vault,
+  onFixSuccess,
+  showToast,
+}: {
+  issue: LintIssue;
+  isLast: boolean;
+  vault: string;
+  onFixSuccess: () => void;
+  showToast: (msg: string, type?: "success" | "error") => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function handleFixBrokenLink() {
+    if (!issue.target) return;
+    setBusy(true);
+    try {
+      const basename = issue.target.split("/").pop() || issue.target;
+      await createPage(vault, {
+        slug: issue.target,
+        title: basename,
+        type: "concept",
+        tags: ["stub"],
+        content: `# ${basename}\n\n> *이 문서는 깨진 링크 복구용 stub 문서입니다. 내용을 채워 넣어 완성해 주세요.*\n`,
+      });
+      showToast(`⚡ 빈 문서 '${issue.target}' 생성 및 복구 완료`);
+      onFixSuccess();
+    } catch (e) {
+      console.error(e);
+      showToast("복구 문서 생성 중 오류가 발생했습니다.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFixFrontmatter() {
+    setBusy(true);
+    try {
+      const page = await fetchPage(vault, issue.slug);
+      if (!page || !page.ok) {
+        throw new Error("페이지 로드 실패");
+      }
+      let newContent = page.content;
+      const basename = issue.slug.split("/").pop() || issue.slug;
+      const today = new Date().toISOString().split("T")[0];
+      const fmHeader = `---\ntitle: ${basename}\ntype: concept\ncreated: ${today}\ntags: []\n---\n\n`;
+
+      if (!newContent.startsWith("---")) {
+        newContent = fmHeader + newContent;
+      } else {
+        newContent = fmHeader + newContent;
+      }
+
+      await updatePage(vault, issue.slug, { content: newContent });
+      showToast(`⚡ '${issue.slug}' 기본 Frontmatter 삽입 완료`);
+      onFixSuccess();
+    } catch (e) {
+      console.error(e);
+      showToast("Frontmatter 수정 중 오류가 발생했습니다.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       style={{
@@ -425,6 +529,30 @@ function IssueRow({ issue, isLast, vault }: { issue: LintIssue; isLast: boolean;
         {issue.slug}
       </a>
       <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)" }}>{issue.message}</span>
+      
+      {/* Quick Fix Button (only show for #1 with target or #10) */}
+      {issue.id === "#1" && issue.target && (
+        <button
+          onClick={handleFixBrokenLink}
+          disabled={busy}
+          className="btn-secondary"
+          style={{ padding: "2px 8px", fontSize: 11, height: 24, alignSelf: "center", whiteSpace: "nowrap" }}
+          title="깨진 링크 대상 빈 페이지 자동 생성"
+        >
+          {busy ? "복구 중..." : "⚡ 퀵픽스 (stub 생성)"}
+        </button>
+      )}
+      {issue.id === "#10" && (
+        <button
+          onClick={handleFixFrontmatter}
+          disabled={busy}
+          className="btn-secondary"
+          style={{ padding: "2px 8px", fontSize: 11, height: 24, alignSelf: "center", whiteSpace: "nowrap" }}
+          title="누락된 frontmatter 기본값 자동 생성 삽입"
+        >
+          {busy ? "수정 중..." : "⚡ 퀵픽스 (헤더 생성)"}
+        </button>
+      )}
     </div>
   );
 }
