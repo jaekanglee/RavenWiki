@@ -103,9 +103,24 @@ export function LintPage() {
               gap: 12,
             }}
           >
-            <SeverityCard label="critical" count={summary.counts.critical} />
-            <SeverityCard label="warning" count={summary.counts.warning} />
-            <SeverityCard label="info" count={summary.counts.info} />
+            <SeverityCard
+              label="critical"
+              count={summary.counts.critical}
+              isActive={severityFilter === "critical"}
+              onClick={() => setSeverityFilter(severityFilter === "critical" ? "" : "critical")}
+            />
+            <SeverityCard
+              label="warning"
+              count={summary.counts.warning}
+              isActive={severityFilter === "warning"}
+              onClick={() => setSeverityFilter(severityFilter === "warning" ? "" : "warning")}
+            />
+            <SeverityCard
+              label="info"
+              count={summary.counts.info}
+              isActive={severityFilter === "info"}
+              onClick={() => setSeverityFilter(severityFilter === "info" ? "" : "info")}
+            />
           </div>
         </div>
       )}
@@ -120,16 +135,25 @@ export function LintPage() {
             const width = `${(n / max) * 100}%`;
             // ink + rausch two-tier, no yellow
             const isAccent = cid === "#1" || cid === "#2" || cid === "#11";
+            const isActive = checkFilter === cid;
             return (
               <div
                 key={cid}
+                onClick={() => setCheckFilter(isActive ? "" : cid)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
                   marginBottom: 6,
                   fontSize: 13,
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  borderRadius: "var(--radius-sm)",
+                  backgroundColor: isActive ? "var(--color-surface-soft, #f4f4f4)" : "transparent",
+                  transition: "background-color 0.15s ease",
                 }}
+                className="hover-bg-soft"
+                title={`${CHECK_NAMES[cid]} 필터링 토글 (${n}개)`}
               >
                 <span
                   style={{
@@ -310,15 +334,29 @@ export function LintPage() {
   );
 }
 
-function SeverityCard({ label, count }: { label: string; count: number }) {
+function SeverityCard({
+  label,
+  count,
+  isActive,
+  onClick,
+}: {
+  label: LintSeverity;
+  count: number;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   return (
     <div
+      onClick={onClick}
       style={{
-        border: "1px solid var(--color-hairline)",
+        border: isActive ? "2px solid var(--color-primary)" : "1px solid var(--color-hairline)",
         borderRadius: "var(--radius-md)",
-        padding: 16,
-        background: "var(--color-surface-soft)",
+        padding: isActive ? "15px" : "16px",
+        background: isActive ? "var(--color-surface-soft, #f8f9fa)" : "var(--color-surface-soft)",
+        cursor: "pointer",
+        transition: "border-color 0.15s ease",
       }}
+      title={`${label} 등급 필터 토글`}
     >
       <div
         style={{
@@ -326,7 +364,7 @@ function SeverityCard({ label, count }: { label: string; count: number }) {
           fontWeight: 700,
           letterSpacing: "0.32px",
           textTransform: "uppercase",
-          color: "var(--color-muted)",
+          color: isActive ? "var(--color-primary)" : "var(--color-muted)",
         }}
       >
         {label}
