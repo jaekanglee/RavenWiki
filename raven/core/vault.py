@@ -271,21 +271,21 @@ class Vault:
                 "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
                 "_meta/system/RULES.md":           "templates/system/RULES.md",
                 "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
-                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agents/PROJECT-WORKFLOW.md",
+                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
                 "log.md":                          "templates/log.md",
             }
         else:
-            # Full set — only for raven internal development, not user vaults
+            # v0.7.6+: full set = lite 5종 + Tier 1 internal docs.
+            # ⚠️ Tier 1 문서 (OPERATIONS, raven-policy, agent/*) 복사 시
+            # Tier 1 leak 발생 → v0.6.39+ allow_tier1_leak=False면 critical.
+            # 현재 정책 (v0.7.1+): 사용자 vault는 도구 표면만, Tier 1 leak ❌.
+            # → full 옵션은 deprecated, lite와 동일하게 처리.
             file_map = {
-                "_meta/system/SCHEMA.md":     "templates/system/SCHEMA.md",
-                "_meta/system/RULES.md":      "templates/system/RULES.md",
-                "_meta/system/OPERATIONS.md": "templates/system/OPERATIONS.md",
-                "_meta/agent/README.md":      "templates/agent/README.md",
-                "_meta/agent/TOOLS.md":       "templates/agent/TOOLS.md",
-                "_meta/agent/WORKFLOW.md":    "templates/agent/WORKFLOW.md",
-                "_meta/agent/SAFETY.md":      "templates/agent/SAFETY.md",
-                "log.md":                      "templates/log.md",
-                "raven-policy.md":             "templates/wikisys-policy.md",
+                "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
+                "_meta/system/RULES.md":           "templates/system/RULES.md",
+                "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
+                "log.md":                          "templates/log.md",
             }
             if not force:
                 # Safety: full set without force could overwrite user-edited

@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LITE_AGENTS = ROOT / "raven" / "core" / "templates" / "system" / "AGENTS.md"
 LITE_SCHEMA = ROOT / "raven" / "core" / "templates" / "system" / "SCHEMA.md"
 LITE_LOG = ROOT / "raven" / "core" / "templates" / "log.md"
-LITE_PROJECT_WORKFLOW = ROOT / "raven" / "core" / "templates" / "agents" / "PROJECT-WORKFLOW.md"
+LITE_PROJECT_WORKFLOW = ROOT / "raven" / "core" / "templates" / "agent" / "PROJECT-WORKFLOW.md"
 
 # vendor 예시 (Lite bootstrap에 박히면 안 됨)
 FORBIDDEN_VENDORS = ("Codex", "Claude Code", "Cursor", "Antigravity", "agy")
@@ -133,13 +133,74 @@ def test_lite_log_no_domain_assumptions() -> None:
 
 
 def test_lite_project_workflow_is_user_surface() -> None:
-    """v0.7.3+: PROJECT-WORKFLOW.md는 프로젝트명/path/task만 런타임 입력으로 둔다."""
+    """v0.7.6+: PROJECT-WORKFLOW.md는 도구 표면 (vendor-neutral, 도구 내부 정책 ❌).
+
+    옛 의도 (v0.7.3+): "project name" / "vault path" / "current task" Runtime Inputs 검증.
+    v0.7.6+: PROJECT-WORKFLOW.md 본문 강화 — 사람/에이전트 이중 헤더 + BLUF + type 8종 템플릿.
+    옛 Runtime Inputs 단어 검증은 v0.7.6+ 새 본문에서 제거 (의미 변동).
+    """
     content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
     _assert_no_terms(content, FORBIDDEN_VENDORS, "Lite bootstrap PROJECT-WORKFLOW.md")
     _assert_no_terms(content, FORBIDDEN_INTERNAL_TERMS, "Lite bootstrap PROJECT-WORKFLOW.md")
-    assert "project name" in content
-    assert "vault path" in content
-    assert "current task" in content
-    assert "_meta/system/AGENTS.md" in content
-    assert "_meta/system/SCHEMA.md" in content
-    assert "log.md" in content
+    # v0.7.6+: 새 키워드 (BLUF, type 8종, 사람/에이전트 이중 헤더)
+    assert "BLUF" in content
+    assert "concept" in content and "decision" in content
+    assert "🤖" in content or "Agent" in content
+    assert "📝" in content or "사람" in content
+
+
+def test_lite_project_workflow_has_bluf_guidance() -> None:
+    """v0.7.6+: PROJECT-WORKFLOW.md는 BLUF/템플릿 가이드 포함 (type 8종 일관성)."""
+    content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
+    # BLUF 강조
+    assert "BLUF" in content, "PROJECT-WORKFLOW.md must include BLUF guidance"
+    # 4가지 결정 (결론/분업/트리거/금지)
+    assert "결론" in content and "분업" in content
+    assert "트리거" in content and "금지" in content
+    # type 8종 가이드
+    assert "concept" in content and "decision" in content and "journal" in content
+    assert "rule" in content and "person" in content and "tool" in content
+    assert "comparison" in content and "query" in content and "project" in content
+    # 일관성 체크리스트
+    assert "체크리스트" in content, "PROJECT-WORKFLOW.md must include consistency checklist"
+    # 저장 신호 4가지
+    assert "재사용 가능성" in content
+    assert "인수인계 필요성" in content
+    assert "결정 근거" in content
+    assert "실패/리스크" in content or "실패" in content
+
+
+def test_lite_project_workflow_has_dual_audience_headings() -> None:
+    """v0.7.6+: PROJECT-WORKFLOW.md는 사람/에이전트 이중 헤더 정책 적용.
+
+    사용자 정정 (2026-06-30):
+      '문서 내부 섹션 타이틀은 사람이 읽을 수 있는 네이밍 + 에이전트가 읽는
+       네이밍 둘 다 해야 할 것 같아. 너무 에이전트 위주만 ❌'
+
+    패턴: '## {이모지} {한글 제목} ({English ID})' 형식
+    """
+    content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
+    # 이중 헤더 최소 3개 이상
+    import re
+    pattern = re.compile(r"^## .+ \(.+\)$", re.MULTILINE)
+    matches = pattern.findall(content)
+    assert len(matches) >= 3, (
+        f"PROJECT-WORKFLOW.md must have ≥3 dual-audience headings "
+        f"(이모지 한글 + 영문 ID 형식). 발견: {len(matches)}"
+    )
+    # 사람 친화 이모지 사용
+    assert "📌" in content or "📝" in content, \
+        "PROJECT-WORKFLOW.md must use 사람 친화 이모지 (📌/📝)"
+    # 에이전트용 메타 설명
+    assert "🤖" in content or "Agent:" in content, \
+        "PROJECT-WORKFLOW.md must have agent-readable 메타 설명"
+
+
+def test_lite_project_workflow_is_only_in_agent_template() -> None:
+    """v0.7.6+: PROJECT-WORKFLOW.md는 templates/agent/ 한 곳에만 박힘 (정합성)."""
+    agent_dir = ROOT / "raven" / "core" / "templates" / "agent" / "PROJECT-WORKFLOW.md"
+    agents_dir = ROOT / "raven" / "core" / "templates" / "agents"  # 옛 path (s)
+    assert agent_dir.exists(), f"{agent_dir} not found"
+    assert not agents_dir.exists(), (
+        f"{agents_dir} should NOT exist (path consolidation)"
+    )

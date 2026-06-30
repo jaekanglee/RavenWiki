@@ -50,11 +50,13 @@ def test_bootstrap_creates_content_and_meta_dirs(isolated_vaults_root, isolated_
 
 
 def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
-    """Lite bootstrap: SCHEMA.md, RULES.md, AGENTS.md, log.md are copied (v0.5.5+)."""
+    """Lite bootstrap: user-facing schema/rules/guides/log are copied."""
     v = Vault.create("smoke2", isolated_target / "smoke2", bootstrap=True)
     # Must exist (Lite whitelist)
     assert (v.root / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (v.root / "_meta" / "system" / "RULES.md").is_file()
+    assert (v.root / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     assert (v.root / "log.md").is_file()
     # content sanity
     schema = (v.root / "_meta" / "system" / "SCHEMA.md").read_text()
@@ -125,10 +127,10 @@ def test_no_bootstrap_does_not_delete_existing(isolated_vaults_root, isolated_ta
 
 
 def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
-    """sync_meta(lite=True) default — copies 3 Lite files when missing.
+    """sync_meta(lite=True) default — copies missing Lite user-facing files.
 
     v0.5.5+ silent-write fix: Vault.create() 가 log.md 를 보장하므로 sync_meta() 가
-    다시 복사하지 않고 skipped 에 들어간다. SCHEMA/RULES 는 bootstrap=False 라 미존재
+    다시 복사하지 않고 skipped 에 들어간다. 나머지 Lite 파일은 bootstrap=False 라 미존재
     → copied.
     """
     # bootstrap=False so SCHEMA/RULES don't exist yet
@@ -136,6 +138,8 @@ def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
     result = v.sync_meta()  # lite=True default
     assert "_meta/system/SCHEMA.md" in result["copied"]
     assert "_meta/system/RULES.md" in result["copied"]
+    assert "_meta/system/AGENTS.md" in result["copied"]
+    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
     # log.md already exists (silent-write by Vault.create) → skipped, not copied
     assert "log.md" not in result["copied"]
     assert "log.md" in result["skipped"]
@@ -154,6 +158,8 @@ def test_sync_meta_lite_no_op_when_already_bootstrapped(
     # All Lite files in 'skipped' (because they exist)
     assert "_meta/system/SCHEMA.md" in result["skipped"]
     assert "_meta/system/RULES.md" in result["skipped"]
+    assert "_meta/system/AGENTS.md" in result["skipped"]
+    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["skipped"]
     assert "log.md" in result["skipped"]
 
 
@@ -170,23 +176,37 @@ def test_sync_meta_does_not_overwrite_by_default(isolated_vaults_root, isolated_
 
 
 def test_sync_meta_full_copies_raven_internals(isolated_vaults_root, isolated_target):
-    """sync_meta(full=True, force=True) copies all 9 files including internals."""
+    """v0.7.6+: sync_meta(full=True, force=True) = lite 5종 only (Tier 1 leak ❌).
+
+    v0.7.1+ Lite bootstrap 정책: 사용자 vault는 도구 표면만.
+    full 옵션은 deprecated (lite와 동일) — Tier 1 internal sync 거부.
+    옛 테스트의 의도 (Tier 1 internal sync)는 v0.6.39+ Tier 1 leak 정책과 충돌.
+    """
     v = Vault.create("sync3", isolated_target / "sync3", bootstrap=True)
-    # With force=True, full mode overwrites existing files
+    # With force=True, full mode now overwrites lite 5종 (Tier 1 internal ❌)
     result = v.sync_meta(lite=False, force=True)
-    # Full set includes OPERATIONS, agent/*, raven-policy
-    assert "_meta/system/OPERATIONS.md" in result["copied"]
-    assert "_meta/agent/README.md" in result["copied"]
-    assert "_meta/agent/TOOLS.md" in result["copied"]
-    assert "_meta/agent/WORKFLOW.md" in result["copied"]
-    assert "_meta/agent/SAFETY.md" in result["copied"]
-    assert "raven-policy.md" in result["copied"]
+    # Lite 5종만 복사
+    assert "_meta/system/SCHEMA.md" in result["copied"]
+    assert "_meta/system/RULES.md" in result["copied"]
+    assert "_meta/system/AGENTS.md" in result["copied"]
+    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
+    assert "log.md" in result["copied"]
+    # Tier 1 internal ❌ (v0.7.1+ Lite bootstrap 정책)
+    assert "_meta/system/OPERATIONS.md" not in result["copied"]
+    assert "_meta/agent/README.md" not in result["copied"]
+    assert "_meta/agent/TOOLS.md" not in result["copied"]
+    assert "_meta/agent/WORKFLOW.md" not in result["copied"]
+    assert "_meta/agent/SAFETY.md" not in result["copied"]
+    assert "raven-policy.md" not in result["copied"]
 
 
 def test_sync_meta_full_refuses_to_overwrite_without_force(
     isolated_vaults_root, isolated_target
 ):
-    """sync_meta(full=True) without --force must refuse if any target exists."""
+    """sync_meta(full=True) without --force must refuse if any target exists.
+
+    v0.7.6+: lite와 동일 5종 기준. Tier 1 internal은 sync 대상 ❌.
+    """
     v = Vault.create("sync4", isolated_target / "sync4", bootstrap=True)
     # Lite creates _meta/system/RULES.md
     assert (v.root / "_meta" / "system" / "RULES.md").is_file()

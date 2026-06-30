@@ -226,12 +226,14 @@ def test_cli_page_delete_validates_slug(fresh_env):
 def test_cli_meta_sync_copies_when_missing(fresh_env):
     target = fresh_env["target_root"] / "v12"
     runner.invoke(app, ["vault", "create", "v12", str(target), "--no-bootstrap"])
-    # Lite sync_meta default copies SCHEMA, RULES, log.md
+    # Lite sync_meta default copies user-facing bootstrap files.
     result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
     assert result.exit_code == 0, result.stderr
     assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "system" / "RULES.md").is_file()
-    # No agent/ subdir created (Lite policy)
+    assert (target / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
+    # No internal agent/ subdir created (Lite policy)
     assert not (target / "_meta" / "agent").exists()
     # No OPERATIONS.md
     assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()
@@ -256,10 +258,12 @@ def test_cli_meta_sync_json_out(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    # Lite: only SCHEMA/RULES copied (no agent/, no OPERATIONS, no raven-policy)
+    # Lite: user-facing files copied (no internal agent/, no OPERATIONS, no raven-policy)
     # v0.5.5+ silent-write fix: log.md already exists from Vault.create() → skipped, not copied
     assert "_meta/system/SCHEMA.md" in data["copied"]
     assert "_meta/system/RULES.md" in data["copied"]
+    assert "_meta/system/AGENTS.md" in data["copied"]
+    assert "_meta/agents/PROJECT-WORKFLOW.md" in data["copied"]
     assert "log.md" not in data["copied"]
     assert "log.md" in data["skipped"]
     assert "_meta/agent/README.md" not in data["copied"]
@@ -267,15 +271,25 @@ def test_cli_meta_sync_json_out(fresh_env):
 
 
 def test_cli_meta_sync_full_with_force(fresh_env):
-    """--full --force copies all raven-internal docs (for raven developers)."""
+    """v0.7.6+: --full is now equivalent to --lite (Tier 1 internal sync ❌).
+
+    v0.7.1+ Lite bootstrap 정책: 사용자 vault는 도구 표면만, Tier 1 leak 방지.
+    full 옵션은 deprecated (lite와 동일하게 처리) — Tier 1 internal sync 거부.
+    """
     target = fresh_env["target_root"] / "vfull"
     runner.invoke(app, ["vault", "create", "vfull", str(target), "--no-bootstrap"])
     result = runner.invoke(app, ["meta", "sync", "--full", "--force", "--vault", "vfull"])
     assert result.exit_code == 0, result.stderr
-    # Full set present
-    assert (target / "_meta" / "system" / "OPERATIONS.md").is_file()
-    assert (target / "_meta" / "agent" / "README.md").is_file()
-    assert (target / "raven-policy.md").is_file()
+    # Lite 5종만 복사
+    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
+    assert (target / "_meta" / "system" / "RULES.md").is_file()
+    assert (target / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
+    assert (target / "log.md").is_file()
+    # Tier 1 internal ❌ (Tier 1 leak 방지)
+    assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()
+    assert not (target / "_meta" / "agent" / "README.md").exists()
+    assert not (target / "raven-policy.md").exists()
 
 
 # ─── vault clone ────────────────────────────────────────────
