@@ -9,6 +9,7 @@ import { LintPage } from "./routes/LintPage";
 import { NewVaultPage } from "./routes/NewVaultPage";
 import { DashboardDigest } from "./routes/DashboardDigest";
 import { VaultManage } from "./routes/VaultManage";
+import { GardenPage } from "./routes/GardenPage";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/log" element={<LogPage />} />
           <Route path="/lint" element={<LintPage />} />
+          <Route path="/garden" element={<GardenPage />} />
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
           <Route path="/digest" element={<DashboardDigest />} />

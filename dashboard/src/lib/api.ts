@@ -332,3 +332,32 @@ export async function fetchDigest(vault: string, days: number = 7): Promise<Dige
   if (!r.ok) return null;
   return r.json();
 }
+
+
+// ────────────────────────── garden (v0.7.27) ──────────────────────────
+
+export interface StalePage {
+  slug: string;
+  updated: string;
+  age_days: number;
+}
+
+export interface OrphanPage {
+  slug: string;
+  title: string;
+  type: string;
+  link_candidates: string[];
+}
+
+export interface GardenResult {
+  ok: boolean;
+  vault: string;
+  stale: StalePage[];
+  orphan: OrphanPage[];
+}
+
+export async function fetchGarden(vault: string): Promise<GardenResult | null> {
+  const r = await fetch(`/api/vaults/${vault}/garden`);
+  if (!r.ok) return null;
+  return r.json();
+}
