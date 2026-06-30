@@ -158,7 +158,7 @@ export function PageView() {
           updated: fm.updated || "",
           tags,
           content: d.content,
-          backlinks: [],
+          backlinks: d.backlinks || [],
         });
         console.log("[Raven-Debug] setPage done");
       })

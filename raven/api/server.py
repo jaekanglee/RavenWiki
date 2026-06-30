@@ -1127,12 +1127,52 @@ def get_page(name: str, slug: str):
             raise HTTPException(status_code=404, detail=f"page {slug!r} not found in vault {name!r}")
     text = fp.read_text()
     meta, body = _split_fm(text)
+
+    # Fetch backlinks
+    backlinks = []
+    wiki_db = v.root / "wiki.db"
+    if wiki_db.exists():
+        try:
+            import sqlite3
+            db = sqlite3.connect(str(wiki_db))
+            db.row_factory = sqlite3.Row
+            rows = db.execute(
+                "SELECT l.source_slug, p.title "
+                "FROM links l "
+                "JOIN pages p ON l.source_slug = p.slug "
+                "WHERE l.target_slug = ? AND l.intent IN ('auto', 'broken')",
+                (slug,)
+            ).fetchall()
+            backlinks = [{"source_slug": r["source_slug"], "source_title": r["title"]} for r in rows]
+            db.close()
+        except Exception:
+            pass
+
+    if not backlinks:
+        import re
+        link_pat = re.compile(rf"\[\[{re.escape(slug)}(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]", re.IGNORECASE)
+        for other_fp in v.content_root.rglob("*.md"):
+            other_slug = str(other_fp.relative_to(v.root))[:-3]
+            if other_slug == slug:
+                continue
+            try:
+                content = other_fp.read_text(errors="replace")
+                m, b = _split_fm(content)
+                if link_pat.search(b):
+                    backlinks.append({
+                        "source_slug": other_slug,
+                        "source_title": m.get("title", other_slug)
+                    })
+            except Exception:
+                pass
+
     return {
         "ok": True,
         "vault": name,
         "slug": slug,
         "frontmatter": meta,
         "content": body,
+        "backlinks": backlinks,
     }
 
 

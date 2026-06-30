@@ -859,3 +859,28 @@ def test_folder_create_is_idempotent(client, isolated_env):
     assert second.status_code == 200
     assert first.json()["existed"] is False
     assert second.json()["existed"] is True
+
+
+def test_get_page_includes_backlinks(client, isolated_env):
+    """get_page가 backlinks 리스트를 포함하는지 검증."""
+    target = isolated_env["target_root"] / "bl1"
+    client.post("/api/vaults/create", json={
+        "name": "bl1", "path": str(target), "bootstrap": False,
+    })
+    # 1. 대상 페이지 (target) 생성
+    client.post("/api/vaults/bl1/pages", json={
+        "slug": "content/target", "title": "Target Page", "content": "I am target."
+    })
+    # 2. 소스 페이지 (source)가 대상을 참조하도록 생성
+    client.post("/api/vaults/bl1/pages", json={
+        "slug": "content/source", "title": "Source Page", "content": "Link to [[content/target]]"
+    })
+    # 3. get_page API 호출
+    resp = client.get("/api/vaults/bl1/pages/content/target")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "backlinks" in data
+    assert len(data["backlinks"]) == 1
+    assert data["backlinks"][0]["source_slug"] == "content/source"
+    assert data["backlinks"][0]["source_title"] == "Source Page"
+
