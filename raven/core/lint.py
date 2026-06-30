@@ -551,7 +551,7 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
             missing.append("confidence")
 
         if missing:
-            sev = "warning" if vault.is_llm_wiki else "info"
+            sev = "info"
             out.append(_mk_issue(
                 "#13", sev, slug,
                 f"cognitive governance 누락 ({len(missing)}/4): {', '.join(missing)}",

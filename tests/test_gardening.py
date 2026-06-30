@@ -59,17 +59,16 @@ def test_gardening_validation_skips_system_meta(vault_llm_wiki: Vault) -> None:
 
 
 def test_gardening_validation_blocks_incomplete_concept(vault_llm_wiki: Vault) -> None:
-    """Main concept page must have all required elements."""
-    meta = {"type": "concept", "confidence": "high"}
+    """Write-time validation stays minimal for human-first documents."""
+    meta = {"type": "concept"}
     content = "This is a body."
-    
+
     missing = validate_gardening_schema(vault_llm_wiki, "content/concept/topic", content, meta)
-    assert "Why it matters 섹션/패턴" in missing
-    assert "반대 입장/한계/대안 섹션" in missing
+    assert missing == []
 
 
 def test_gardening_validation_passes_complete_concept(vault_llm_wiki: Vault) -> None:
-    """Concept page with Why it matters, opposing headings, and confidence passes."""
+    """Complete concept also passes the minimal write-time validation."""
     meta = {"type": "concept", "confidence": "high"}
     content = """
 # Topic Title
@@ -95,7 +94,7 @@ def test_gardening_validation_skips_exempt_types(vault_llm_wiki: Vault) -> None:
 # ────────────────────────── write contract with guardrail tests ──────────────────────────
 
 def test_agent_write_fails_on_incomplete_main_content(vault_llm_wiki: Vault) -> None:
-    """An agent (indicated by actor is not None) writing to main content in llm_wiki vault fails if incomplete."""
+    """An agent can write normal content when metadata is minimally valid."""
     actor = {"name": "test-agent"}
     res = write_page(
         vault_llm_wiki,
@@ -105,9 +104,7 @@ def test_agent_write_fails_on_incomplete_main_content(vault_llm_wiki: Vault) -> 
         actor=actor,
         overwrite=True
     )
-    assert res.ok is False
-    assert res.error == "strict_schema_violated"
-    assert "누락된 항목" in res.message
+    assert res.ok is True
 
 
 def test_agent_write_succeeds_on_wip_even_incomplete(vault_llm_wiki: Vault) -> None:
@@ -141,7 +138,7 @@ def test_human_write_succeeds_even_incomplete(vault_llm_wiki: Vault) -> None:
 # ────────────────────────── Linter Severity Promotion tests ──────────────────────────
 
 def test_linter_promotes_cognitive_governance_severity(vault_llm_wiki: Vault, vault_basic: Vault) -> None:
-    """Lint issues for cognitive governance are info on basic vault but warning on llm_wiki vault."""
+    """Cognitive governance is advisory info even in llm_wiki mode."""
     # Write same incomplete page directly to both vaults
     p_basic = vault_basic.root / "content" / "concept" / "incomplete-doc.md"
     p_basic.parent.mkdir(parents=True, exist_ok=True)
@@ -167,4 +164,4 @@ Just simple text.""", encoding="utf-8")
 
     issues_wiki = check_cognitive_governance(vault_llm_wiki)
     assert len(issues_wiki) > 0
-    assert all(issue["severity"] == "warning" for issue in issues_wiki)
+    assert all(issue["severity"] == "info" for issue in issues_wiki)

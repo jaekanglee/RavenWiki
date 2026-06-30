@@ -63,138 +63,163 @@ confidence: high
 
 ---
 
-## 📝 2. 페이지 작성 템플릿 (Type 8종)
+## 📝 2. 사람 우선 문서 원칙 (Human-First Writing)
+
+> 📝 **사람**: 문서는 위키처럼 자연스럽게 읽혀야 합니다. 에이전트 운영 메타가 본문에 튀어나오면 읽기 어려워집니다.
+> 🤖 **Agent**: 구조는 frontmatter와 얇은 섹션으로 확보하고, 본문은 자연어 중심으로 씁니다.
+
+### 2.1 기본 원칙
+
+- **frontmatter는 구조화**, 본문은 자연스러운 문장으로 작성
+- **필수 섹션은 적게**: 보통 `요약`, `내용`, `관련` 정도면 충분
+- **type마다 최소 차이만** 두고, 모든 문서를 ADR처럼 딱딱하게 만들지 말 것
+- **사람이 먼저 읽는 제목** 사용, 영문 ID는 헤더 괄호나 frontmatter에서만 보조
+
+### 2.2 본문에 과하게 노출하지 말 것
+
+- ❌ `actor`, `run_id`, `tool`, `idempotency_key` 같은 운영 메타를 본문에 쓰기
+- ❌ JSON, 체크리스트, 내부 추론 흔적을 본문 상단에 노출
+- ❌ "에이전트가 판단했다" 같은 기계 중심 문장 반복
+- ✅ 한 줄 요약 → 설명 → 관련 링크 순서 유지
+
+### 2.3 최소 공통 뼈대
+
+모든 타입에 완전 고정 템플릿을 강제하지 말고, 아래 3개 정도를 기본으로 삼습니다:
+
+```
+# {제목}
+
+> {BLUF: 이 문서가 말하는 핵심 1문장}
+
+## 내용
+{사람이 읽기 쉬운 설명}
+
+## 관련
+- [[related-page]]
+```
+
+---
+
+## 📝 3. 페이지 작성 템플릿 (Type 8종)
 
 > 📝 **사람**: vault 자유지만 권장 구조.
 > 🤖 **Agent**: 섹션 자동 생성 시 이 템플릿 따라.
 
-### 📝 2.1 `concept` (Concept)
+### 📝 3.1 `concept` (Concept)
 
 ```
 # {Concept Name}
 
 > {BLUF: 1-line definition}
 
-## Why It Matters / 왜 중요한가
-{2-3 lines. 다른 개념과 어떻게 연결되는지.}
+## 내용
+{핵심 설명. 다른 개념과 연결되면 wikilink 추가.}
 
-## Essence / 본질
-{Core explanation. wikilink to related pages.}
+## 왜 중요한가
+{2-3 lines. 이 개념이 왜 필요한지.}
 
-## Examples / 예시
-{Real use cases or wikilinks.}
+## 반대 입장 / 한계
+{필요할 때만. 항상 길게 쓸 필요 없음.}
 
-## Counter-Perspective / 반대 입장
-{Alternative or opposing view ≥ 1 — cognitive governance.}
-
-## Related / 관련
+## 관련
 - [[related-concept-1]]
 - [[related-concept-2]]
 ```
 
-### 📝 2.2 `decision` (Decision)
+### 📝 3.2 `decision` (Decision)
 
 ```
 # Decision: {Title}
 
 > {BLUF: 1-line decision}
 
-## Context / 맥락
+## 맥락
 {Why this decision was needed.}
 
-## Options / 선택지
-{Alternatives considered.}
-
-## Decision / 결정
+## 결정
 {Final choice + reason. Pyramid principle — conclusion → rationale.}
 
-## Consequences / 결과
+## 영향
 {What changed as a result.}
 
-## Follow-up
+## 관련
 {Next steps. wikilink to relevant pages.}
 ```
 
-### 📝 2.3 `journal` (Journal / Daily Note)
+### 📝 3.3 `journal` (Journal / Daily Note)
 
 ```
 # {YYYY-MM-DD} {Title}
 
 > {BLUF: What happened today, 1 line}
 
-## Did / 한 일
+## 한 일
 - ...
 
-## Decisions / 결정
-- (if any, wikilink to decision pages)
+## 메모
+- 필요한 관찰 / 결정 / 이슈만 짧게
 
-## Issues / 이슈
-- (if any, wikilink to issue pages or details)
-
-## Next / 다음
+## 다음
 - ...
 ```
 
-### 📝 2.4 `rule` (Rule / Policy)
+### 📝 3.4 `rule` (Rule / Policy)
 
 ```
 # {Rule Name}
 
 > {BLUF: What this rule is, 1 line}
 
-## Scope / 적용 범위
+## 적용 범위
 {Where it applies. Exceptions if any.}
 
-## Body / 규칙 본문
+## 규칙
 {Detailed. wikilink to related pages.}
 
-## Exceptions / 예외
+## 예외
 {If any.}
-
-## Changelog / 변경 이력
-- {YYYY-MM-DD}: {Reason}
 ```
 
-### 📝 2.5 `person` (Person)
+### 📝 3.5 `person` (Person)
 
 ```
 # {Name}
 
 > {BLUF: Who they are, 1 line}
 
-## Role / 역할
+## 역할
 
-## Main Work / 주요 작업
+## 주요 작업
 
-## Related / 관련
+## 관련
 - [[project-x]]
 - [[meeting-yyyy-mm-dd]]
 ```
 
-### 📝 2.6 `tool` (Tool)
+### 📝 3.6 `tool` (Tool)
 
 ```
 # {Tool Name}
 
 > {BLUF: What this tool is, 1 line}
 
-## Purpose / 용도
+## 용도
 
-## Usage / 사용법
+## 사용법
 
-## Alternatives / 대안
+## 대안
 
-## Config / 설정
+## 관련
 ```
 
-### 📝 2.7 `comparison` (Comparison)
+### 📝 3.7 `comparison` (Comparison)
 
 ```
 # {A} vs {B}
 
 > {BLUF: Conclusion — which is better, 1 line}
 
-## Criteria / 기준
+## 기준
 {Comparison axes.}
 
 ## Comparison
@@ -202,53 +227,51 @@ confidence: high
 |---|---|---|
 | ... | ... | ... |
 
-## Conclusion / 결론
+## 결론
 {Which and why.}
 ```
 
-### 📝 2.8 `query` (Question)
+### 📝 3.8 `query` (Question)
 
 ```
 # Question: {Title}
 
 > {BLUF: Core of the question, 1 line}
 
-## Context / 맥락
+## 맥락
 {Why this question arose.}
 
-## Candidates / 후보 답
+## 후보 답
 - Candidate 1: ...
 - Candidate 2: ...
 
-## Open Issues / 열린 이슈
+## 열린 이슈
 {Unresolved parts.}
 
-## Related / 관련
+## 관련
 - [[related-page]]
 ```
 
-### 📝 2.9 `project` (Project)
+### 📝 3.9 `project` (Project)
 
 ```
 # Project: {Name}
 
 > {BLUF: What this project is, 1 line}
 
-## Goals / 목표
+## 목표
 
-## Scope / Non-Scope / 범위 / 비범위
+## 현재 상태
 
-## Team / 팀
+## 범위 / 비범위
 
-## Schedule / 일정
-
-## Decisions & Issues / 결정 & 이슈
-- (wikilink to decision/issue pages)
+## 관련
+- [[decision-or-issue-page]]
 ```
 
 ---
 
-## ✅ 3. 일관성 체크리스트 (Consistency Checklist)
+## ✅ 4. 일관성 체크리스트 (Consistency Checklist)
 
 페이지 작성 후 다음 5개 확인:
 
@@ -256,13 +279,14 @@ confidence: high
 - [ ] **frontmatter**: `title`, `type`, `created`, `updated` 채워짐
 - [ ] **type이 8종 중 하나** (`concept`, `person`, `comparison`, `project`, `tool`, `rule`, `query`, `journal`)
 - [ ] **wikilink ≥ 1** (관련 페이지 연결)
+- [ ] **본문이 사람 문장으로 읽힘** (운영 메타 / JSON / 내부 추론 흔적 노출 ❌)
 - [ ] **저장 신호 4가지 통과** (재사용 가능성, 인수인계 필요성, 결정 근거, 실패/리스크)
 
 → 4가지 저장 신호 모두 "아니오"면 **저장하지 말 것** (vault = 신호 대 잡음비가 높은 공간).
 
 ---
 
-## 🔗 4. 참고 (References)
+## 🔗 5. 참고 (References)
 
 - 📝 vault 운영 일반 규칙: `_meta/system/AGENTS.md` ("Vault User Guide")
 - 🤖 데이터 구조: `_meta/system/SCHEMA.md`
@@ -271,7 +295,7 @@ confidence: high
 
 ---
 
-## 💡 5. 예시 (참고용, 사용자 팀에 맞게 수정)
+## 💡 6. 예시 (참고용, 사용자 팀에 맞게 수정)
 
 ```
 # harumoa팀 워크플로우
@@ -297,21 +321,31 @@ confidence: high
 
 ---
 
-## 📌 6. 작성자 가이드 — 사람/에이전트 이중 헤더 정책 (v0.7.6+)
+## 📌 7. 작성자 가이드 — 순수 자연어 헤더
 
-> 📝 **사람**: 각 섹션 제목은 사람 친화적 한글 (또는 영문) + 이모지
-> 🤖 **Agent**: 같은 섹션에 영문 ID (괄호 안) — 자동 처리/링크용
+> 📝 **사람**: 섹션 제목은 사람이 바로 읽히는 자연어를 우선합니다.
+> 🤖 **Agent**: 영문 ID를 헤더에 노출하지 말고, 한글 제목과 문맥으로 구조를 따릅니다.
+
+권장:
 
 ```
-## 📌 결론 (BLUF)        ← 사람: "결론"
-## 🔄 분업 (Division)     ← 사람: "분업"
+## 결론
+## 분업
+## 트리거
 ```
 
-→ 한 헤더에 두 가지 의미 박힘. 사람 = 시각적, 에이전트 = 기계 식별 가능.
+비권장:
+
+```
+## 결론 (BLUF)
+## 분업 (Division)
+```
+
+→ 기계 식별용 영어 괄호는 시각적 노이즈가 되므로 문서 본문에서 제거합니다.
 
 ---
 
-## ⚠️ 7. 폴더 구조 권장 (vault 자유지만 일관성)
+## ⚠️ 8. 폴더 구조 권장 (vault 자유지만 일관성)
 
 - `content/` — 자유 (사용자)
 - `content/decisions/` — 결정 페이지

@@ -170,30 +170,24 @@ def test_lite_project_workflow_has_bluf_guidance() -> None:
     assert "실패/리스크" in content or "실패" in content
 
 
-def test_lite_project_workflow_has_dual_audience_headings() -> None:
-    """v0.7.6+: PROJECT-WORKFLOW.md는 사람/에이전트 이중 헤더 정책 적용.
-
-    사용자 정정 (2026-06-30):
-      '문서 내부 섹션 타이틀은 사람이 읽을 수 있는 네이밍 + 에이전트가 읽는
-       네이밍 둘 다 해야 할 것 같아. 너무 에이전트 위주만 ❌'
-
-    패턴: '## {이모지} {한글 제목} ({English ID})' 형식
-    """
+def test_lite_project_workflow_prefers_human_readability() -> None:
+    """PROJECT-WORKFLOW는 사람 가독성 우선 + 얇은 공통 포맷을 명시해야 한다."""
     content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
-    # 이중 헤더 최소 3개 이상
-    import re
-    pattern = re.compile(r"^## .+ \(.+\)$", re.MULTILINE)
-    matches = pattern.findall(content)
-    assert len(matches) >= 3, (
-        f"PROJECT-WORKFLOW.md must have ≥3 dual-audience headings "
-        f"(이모지 한글 + 영문 ID 형식). 발견: {len(matches)}"
-    )
-    # 사람 친화 이모지 사용
-    assert "📌" in content or "📝" in content, \
-        "PROJECT-WORKFLOW.md must use 사람 친화 이모지 (📌/📝)"
-    # 에이전트용 메타 설명
-    assert "🤖" in content or "Agent:" in content, \
-        "PROJECT-WORKFLOW.md must have agent-readable 메타 설명"
+    assert "사람 우선 문서 원칙" in content
+    assert "frontmatter는 구조화" in content
+    assert "본문은 자연스러운 문장" in content
+    assert "운영 메타" in content
+    assert "요약" in content and "내용" in content and "관련" in content
+
+
+def test_lite_project_workflow_has_dual_audience_headings() -> None:
+    """PROJECT-WORKFLOW는 헤더를 순수 자연어 위주로 유지해야 한다."""
+    content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
+    assert "순수 자연어 헤더" in content
+    assert "## 결론" in content
+    assert "## 분업" in content
+    assert "(BLUF)" in content
+    assert "(Division)" in content
 
 
 def test_lite_project_workflow_is_only_in_agent_template() -> None:

@@ -266,7 +266,7 @@ def write_page(
 
 
 def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> list[str]:
-    """Validate that the document has required llm_wiki metadata and sections.
+    """Validate the minimal metadata required for agent writes.
     Returns a list of missing items (empty if valid).
     """
     slug_lower = slug.lower()
@@ -279,13 +279,6 @@ def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> lis
     ):
         return []
 
-    from raven.core.lint import (
-        _has_why_it_matters,
-        _has_oppose_heading,
-        COG_GOV_CONFIDENCE_LEVELS,
-        COG_GOV_EXEMPT_TYPES,
-    )
-    
     missing = []
     
     # 1. Check type
@@ -295,21 +288,6 @@ def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> lis
         missing.append("올바른 type (frontmatter)")
         return missing
 
-    # If it is an exempt type, we skip confidence, why it matters, and opposing views checks
-    if ptype in COG_GOV_EXEMPT_TYPES:
-        return []
-
-    # 2. Check confidence
-    conf = meta.get("confidence")
-    if not isinstance(conf, str) or conf.strip().lower() not in COG_GOV_CONFIDENCE_LEVELS:
-        missing.append("confidence (frontmatter)")
-        
-    # 3. Check why it matters
-    if not _has_why_it_matters(content):
-        missing.append("Why it matters 섹션/패턴")
-        
-    # 4. Check opposing heading
-    if not _has_oppose_heading(content):
-        missing.append("반대 입장/한계/대안 섹션")
-        
+    # Human-first contract: keep write-time validation minimal.
+    # Richer writing guidance is advisory in PROJECT-WORKFLOW and lint info.
     return missing

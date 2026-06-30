@@ -54,6 +54,14 @@
 * **회귀 테스트 추가**:
   * MCP `wiki_update`가 `raw/`와 `_meta/system/` 경로를 거부하는지 검증하는 테스트 2건을 추가했습니다.
   * `is_llm_wiki`가 `_meta/agents/`는 감지하고 `raw/`, `log.md` 단독 존재는 감지하지 않는지 검증하는 테스트 3건을 추가했습니다.
+* **에이전트 문서 포맷 최종안 정리**:
+  * 과도하게 agentic한 본문을 피하기 위해 `PROJECT-WORKFLOW.md`를 **사람 가독성 우선 + 얇은 공통 포맷** 기준으로 재정렬했습니다.
+  * type 8종 템플릿은 유지하되, 강한 ADR식 강제 대신 `BLUF + 내용 + 관련` 중심의 최소 뼈대로 완화했습니다.
+  * `SCHEMA.md`에도 Human-First Writing Contract를 추가해 frontmatter는 구조화, 본문은 자연어 중심이라는 원칙을 명시했습니다.
+* **감사 반영 추가 정리**:
+  * 이중 헤더의 영문 괄호 표기를 제거하고, `PROJECT-WORKFLOW.md`에서 순수 자연어 헤더를 권장하도록 수정했습니다.
+  * `SCHEMA.md`의 집필 원칙 중복 선언을 삭제해 데이터 계약 문서 역할로 다시 축소했습니다.
+  * `#13 cognitive governance`와 write-time gardening validation을 advisory 중심으로 완화해, 템플릿의 인간 친화성 방향과 실제 lint/write 규칙이 충돌하지 않도록 맞췄습니다.
 
 ---
 
