@@ -73,7 +73,7 @@ Raven은 **4개 진입점만** 제공합니다. **5번째 진입점 추가 ❌**
 
 ---
 
-## 4. Lite Bootstrap 정책 (Tier 1 ↔ Tier 2)
+### 4. Lite Bootstrap 정책 (Tier 1 ↔ Tier 2) — v0.7.1+ 표면화
 
 ### Tier 1 — raven 패키지 내부 (vault 복사 ❌)
 
@@ -85,16 +85,17 @@ raven-policy.md     → raven 내부 정책 (Lite/Full 동작 정의)
 
 접근: `raven docs show <topic>` (CLI 진입점)
 
-### Tier 2 — user vault (Lite bootstrap ✅, v0.5.5+: 4종)
+### Tier 2 — user vault (Lite bootstrap ✅, v0.7.1+: 4종 표면화)
 
 ```
-_meta/system/SCHEMA.md    → vault frontmatter/type/tag/wikilink 규약
-_meta/system/RULES.md     → 편집 5규칙
-_meta/system/AGENTS.md    → vault 운영자 규칙 (사람+에이전트 공통, vendor-agnostic)
-log.md                    → 작업 이력 (append-only)
+_meta/system/SCHEMA.md    → vault 데이터 구조 (frontmatter/type/tag/wikilink) — 사용자 표면
+_meta/system/RULES.md     → 편집 규칙 — 사용자 표면
+_meta/system/AGENTS.md    → "Vault User Guide" — 도구 표면 (v0.7.1+ 재작성)
+log.md                    → 작업 이력 (append-only) — 사용자 표면
 ```
 
-→ Tier 1 ↔ Tier 2 경계 강제. `vault clone` 기본 = content only (Tier 1 leak 방지).
+→ **v0.7.1+ Lite bootstrap 4종 모두 도구 표면만**. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지) ❌. 사용자가 vault에서 자기 프로덕트를 자유롭게 문서화.
+→ Tier 1 ↔ Tier 2 경계: `vault clone` 기본 = content only (Tier 1 leak 방지, **이건 raven 도구 내부 안전망** — 사용자에겐 안 보임).
 
 ### 4.5 Audience 라우팅 표 (v0.6.35+)
 
@@ -231,7 +232,8 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)
 - ❌ `raven/mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌 회피를 위해 v0.6.0+ 고정)
 - ❌ SCHEMA.md 8종 외 type 정의 ❌
-- ❌ Tier 1 문서(OPERATIONS, agent/*, raven-policy)를 vault에 복사 ❌
+- ❌ Lite bootstrap 4종 (사용자 표면 가이드)에 raven 내부 정책/Tier 1 leak/vendor 예시 ❌ — v0.7.1+
+- ❌ Tier 1 문서(OPERATIONS, agent/*, raven-policy)를 vault에 자동 복사 ❌ (raven 도구 내부 안전망)
 - ❌ 의존성 추가 without 사용자 승인 ❌
 
 ---

@@ -8,5 +8,5 @@
 > Grep tip: `grep "^## \[" log.md | tail -5` → last 5 entries.
 
 ## [YYYY-MM-DD] create | log.md initialized
-- reason: v0.5.0 — 카파시 LLM Wiki 운영정책 도입
+- reason: vault created via Lite bootstrap
 - files: [log.md]
