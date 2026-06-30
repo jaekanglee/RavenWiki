@@ -139,9 +139,20 @@ def vault_create(
     mode: str = typer.Option("personal", help="personal | shared | agent"),
     owner: str = typer.Option("user"),
     description: str = typer.Option(""),
-    bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="copy SCHEMA/RULES templates into _meta/"),
+    bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="apply profile bootstrap (use --no-bootstrap for existing folders)"),
+    profile: str = typer.Option("llm-wiki", "--profile", help="v0.6.38+ profile: 'basic' (WELCOME.md only) | 'llm-wiki' (4-file Lite bootstrap)"),
 ) -> None:
-    """Create new vault on disk and register it."""
+    """Create new vault on disk and register it.
+
+    Profiles (v0.6.38+):
+      - basic: Obsidian-style human-first vault, only WELCOME.md
+      - llm-wiki: LLM Wiki pattern vault, SCHEMA+RULES+AGENTS+log.md
+
+    For new users, --profile basic is recommended.
+    """
+    if profile not in ("basic", "llm-wiki"):
+        typer.echo(f"❌ invalid profile: {profile!r} (use 'basic' or 'llm-wiki')", err=True)
+        raise typer.Exit(1)
     v = Vault.create(
         name=name,
         path=Path(path).expanduser(),
@@ -149,10 +160,15 @@ def vault_create(
         owner=owner,
         description=description,
         bootstrap=bootstrap,
+        profile=profile,
     )
     if bootstrap:
-        typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-        typer.echo(f"   bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md, AGENTS.md}}")
+        if profile == "basic":
+            typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
+            typer.echo(f"   profile: basic (WELCOME.md only, human-first Obsidian-style)")
+        else:
+            typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
+            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/{{SCHEMA.md, RULES.md, AGENTS.md}})")
     else:
         typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 

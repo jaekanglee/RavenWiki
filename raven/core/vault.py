@@ -44,6 +44,13 @@ _LITE_BOOTSTRAP_FILES = (
     "log.md",
 )
 
+# v0.6.38+: basic profile whitelist — human-first Obsidian-style vault.
+# Only WELCOME.md (1 file) — no schema/rules/agents forced on the user.
+# LLM Wiki patterns are opt-in via _meta/system/features.json.
+_BASIC_BOOTSTRAP_FILES = (
+    "WELCOME.md",
+)
+
 
 @dataclass
 class Vault:
@@ -69,14 +76,22 @@ class Vault:
         description: str = "",
         *,
         bootstrap: bool = True,
+        profile: str = "llm-wiki",
     ) -> "Vault":
         """Create a new vault on disk and register it.
 
         Args:
             name, path, mode, owner, description: standard vault meta.
-            bootstrap: if True (default), create content/ + _meta/ and copy
-                SCHEMA.md / RULES.md templates (Lite policy). Use False when
-                registering an existing folder that already has content.
+            bootstrap: if True (default), apply the profile bootstrap.
+                Use False when registering an existing folder.
+            profile: v0.6.38+ bootstrap profile selector.
+                - "basic" (default for new users): Obsidian-style human-first
+                  vault. Only copies WELCOME.md (1 file). No SCHEMA/RULES/AGENTS.
+                - "llm-wiki": LLM Wiki-pattern vault. Copies 4-file Lite
+                  bootstrap (SCHEMA + RULES + AGENTS + log.md).
+
+                Default is "llm-wiki" for backward compatibility with v0.6.31~36.
+                New users are encouraged to pass --profile basic.
         """
         path = Path(path).expanduser().resolve()
         path.mkdir(parents=True, exist_ok=True)
@@ -91,13 +106,16 @@ class Vault:
         # write per-vault meta
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
         if bootstrap:
-            cls._bootstrap_lite(path)
+            if profile == "basic":
+                cls._bootstrap_basic(path)
+            else:
+                cls._bootstrap_lite(path)
             # M4 F3 — Bootstrap Self-Test (read-back verification).
             # Lite bootstrap = 4 files. AGENTS.md §9 silent-failure policy:
             # verify failure emits a warning, write itself succeeds.
             try:
                 from . import verify as _verify
-                _verify.verify_and_warn(path, context=f"vault.create({name})")
+                _verify.verify_and_warn(path, context=f"vault.create({name}, profile={profile})")
             except Exception:
                 # Verify must never break vault create (defensive).
                 pass
@@ -112,21 +130,66 @@ class Vault:
         # log.md에 create entry 자동 append (silent write 방지, AGENTS.md §8/§9).
         # ensure_log()가 log.md 부재 시 템플릿에서 1회 생성 → 첫 vault create 안전.
         # log append 실패는 무시 — vault create 자체는 성공 유지 (db.py와 동일 패턴).
+        # v0.6.38+: basic profile은 log.md 없음 → log append skip.
         instance = cls(meta=meta, root=path)
-        try:
-            from . import log as _log
-            _log.ensure_log(instance)
-            _log.append(
-                instance,
-                action="create",
-                subject=f"vault created (mode={mode}, bootstrap={bootstrap})",
-                files=[".vault.json"],
-                note=f"path={path}",
-            )
-        except Exception:
-            pass
+        if profile != "basic":
+            try:
+                from . import log as _log
+                _log.ensure_log(instance)
+                _log.append(
+                    instance,
+                    action="create",
+                    subject=f"vault created (mode={mode}, profile={profile})",
+                    files=[".vault.json"],
+                    note=f"path={path}",
+                )
+            except Exception:
+                pass
 
         return instance
+
+    @classmethod
+    def _bootstrap_basic(cls, path: Path) -> None:
+        """v0.6.38+ basic profile bootstrap.
+
+        Obsidian-style human-first vault. Only copies WELCOME.md (1 file).
+        User decides if/when to enable LLM Wiki patterns via
+        _meta/system/features.json (opt-in, never forced).
+
+        Creates:
+            content/                     (empty)
+            _meta/                       (empty)
+            WELCOME.md                   (human-friendly welcome guide)
+
+        Does NOT copy:
+            SCHEMA.md, RULES.md, AGENTS.md, log.md
+            → user enables LLM Wiki patterns manually if desired
+        """
+        from importlib import resources
+
+        content_dir = path / "content"
+        meta_dir = path / "_meta"
+
+        content_dir.mkdir(parents=True, exist_ok=True)
+        meta_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy WELCOME.md to vault root (visible immediately)
+        template_map = {
+            "WELCOME.md": "templates/system/WELCOME.md",
+        }
+
+        for rel_target, tmpl_path in template_map.items():
+            target = path / rel_target
+            if target.exists():
+                continue  # never overwrite user-edited files
+            try:
+                src = resources.files("raven.core").joinpath(tmpl_path)
+                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Basic bootstrap failed: could not copy {rel_target} "
+                    f"from {tmpl_path}: {e}"
+                ) from e
 
     @classmethod
     def _bootstrap_lite(cls, path: Path) -> None:
