@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
@@ -24,6 +24,7 @@ export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: 
 export function Layout() {
   const [vault, setVault] = useState<string>(() => getActiveVault() || "");
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [trees, setTrees] = useState<Record<string, TreeNode | null>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -52,9 +53,15 @@ export function Layout() {
   // ─── load all vaults ────────────────────────────────────────
   useEffect(() => {
     fetchVaults()
-      .then((vs) => setVaults(vs))
-      .catch(() => setVaults([]));
-  }, []);
+      .then((vs) => {
+        setVaults(vs);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setVaults([]);
+        setLoaded(true);
+      });
+  }, [refreshKey]);
 
   // Graph/Search/Log/Lint rely on Layout outlet context. If localStorage is empty
   // (fresh browser / cleared PWA state), keep the UI on the API default vault instead
@@ -102,6 +109,10 @@ export function Layout() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileNavOpen]);
+
+  if (loaded && vaults.length === 0 && location.pathname !== "/vault/new") {
+    return <Navigate to="/vault/new" replace />;
+  }
 
   return (
     <div className="flex h-screen" style={{ background: "var(--color-canvas)" }}>

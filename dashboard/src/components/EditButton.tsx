@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { updatePage } from "../lib/api";
 import { Button } from "./ui/Button";
 
@@ -48,7 +49,7 @@ export function EditButton({
         <span aria-hidden>✏️</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Backdrop */}
           <div
@@ -151,7 +152,8 @@ export function EditButton({
               </Button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </>
   );

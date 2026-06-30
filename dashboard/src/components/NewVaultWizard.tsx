@@ -23,7 +23,7 @@
  * Advanced 옵션 (CLI):
  *   `raven vault create <name> <path> --mode shared|agent --template none`
  */
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { setActiveVault } from "../lib/api";
 import { TextField } from "./ui/TextField";
@@ -59,6 +59,7 @@ type Step = 1 | 2;
 
 export function NewVaultWizard() {
   const navigate = useNavigate();
+  const { refresh } = useOutletContext<{ refresh: () => void }>() || {};
 
   // state machine — 2 step only
   const [step, setStep] = useState<Step>(1);
@@ -133,6 +134,7 @@ export function NewVaultWizard() {
       // 옛 default를 가리키는 문제 해결). 그리고 첫 페이지(index.md)
       // 를 자동 생성해 사용자가 즉시 페이지에 진입할 수 있게 한다.
       setActiveVault(name);
+      if (refresh) refresh();
 
       try {
         const indexBody =
