@@ -47,6 +47,10 @@ docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runti
 	docker compose build
 
 docker-up: ## Start 4 services (API + MCP HTTP + Dashboard, stdio is docker exec)
+	@if [ ! -f .env ]; then \
+		echo "📋 .env 없음. .env.example → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
+		cp .env.example .env; \
+	fi
 	docker compose up -d
 	@echo ""
 	@echo "🟢 Raven Docker stack running:"

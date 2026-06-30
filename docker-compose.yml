@@ -28,8 +28,13 @@ services:
     ports:
       - "${PORT_API}:8765"
     volumes:
-      # 사용자 vault 외부 경로 ~/Raven → 컨테이너 /vaults.
-      # 다른 PC에서도 호스트의 동일 경로를 mount하면 동일하게 동작.
+      # ──────────────────────────────────────────────────────────────
+      # v0.7.14+: vault 영속성 보장 (bind mount, 컨테이너 down/up 안전)
+      # ──────────────────────────────────────────────────────────────
+      # 1) 사용자 vault 외부 경로 ~/Raven → 컨테이너 /vaults
+      #    → content/ + .vault.json + wiki.db + .mcp/ + backups/ + logs/
+      #    → 마운트된 호스트 디렉토리에 영속. 컨테이너 재시작해도 보존.
+      # 2) 다른 PC에서도 호스트의 동일 경로를 mount하면 동일하게 동작.
       - ${RAVEN_VAULTS_DIR}:/vaults
     working_dir: /vaults
     networks:
@@ -53,6 +58,7 @@ services:
     ports:
       - "${PORT_MCP_HTTP}:8766"
     volumes:
+      # v0.7.14+: vault 영속성 (api 서비스와 동일 mount)
       - ${RAVEN_VAULTS_DIR}:/vaults
     working_dir: /vaults
     networks:
