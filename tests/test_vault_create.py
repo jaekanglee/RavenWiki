@@ -55,7 +55,7 @@ def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
     # Must exist (Lite whitelist)
     assert (v.root / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (v.root / "_meta" / "system" / "RULES.md").is_file()
-    assert (v.root / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (v.root / "_meta" / "system" / "README.md").is_file()
     assert (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     assert (v.root / "log.md").is_file()
     # content sanity
@@ -138,7 +138,7 @@ def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
     result = v.sync_meta()  # lite=True default
     assert "_meta/system/SCHEMA.md" in result["copied"]
     assert "_meta/system/RULES.md" in result["copied"]
-    assert "_meta/system/AGENTS.md" in result["copied"]
+    assert "_meta/system/README.md" in result["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
     # log.md already exists (silent-write by Vault.create) → skipped, not copied
     assert "log.md" not in result["copied"]
@@ -158,7 +158,7 @@ def test_sync_meta_lite_no_op_when_already_bootstrapped(
     # All Lite files in 'skipped' (because they exist)
     assert "_meta/system/SCHEMA.md" in result["skipped"]
     assert "_meta/system/RULES.md" in result["skipped"]
-    assert "_meta/system/AGENTS.md" in result["skipped"]
+    assert "_meta/system/README.md" in result["skipped"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["skipped"]
     assert "log.md" in result["skipped"]
 
@@ -188,7 +188,7 @@ def test_sync_meta_full_copies_raven_internals(isolated_vaults_root, isolated_ta
     # Lite 5종만 복사
     assert "_meta/system/SCHEMA.md" in result["copied"]
     assert "_meta/system/RULES.md" in result["copied"]
-    assert "_meta/system/AGENTS.md" in result["copied"]
+    assert "_meta/system/README.md" in result["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
     assert "log.md" in result["copied"]
     # Tier 1 internal ❌ (v0.7.1+ Lite bootstrap 정책)

@@ -8,7 +8,7 @@ Tier 1 (raven package internal — never copied to vault):
 Tier 2 (user vault — Lite bootstrap):
     _meta/system/SCHEMA.md
     _meta/system/RULES.md
-    _meta/system/AGENTS.md
+    _meta/system/README.md
     _meta/agents/PROJECT-WORKFLOW.md
     log.md
 
@@ -88,7 +88,7 @@ def test_lite_bootstrap_files_size_matches_documented_whitelist():
     canonical_lite = {
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
-        "_meta/system/AGENTS.md",
+        "_meta/system/README.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
@@ -211,7 +211,7 @@ def test_bootstrap_path_constants_use_user_surface_dirs():
     allowed_files = {
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
-        "_meta/system/AGENTS.md",
+        "_meta/system/README.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }

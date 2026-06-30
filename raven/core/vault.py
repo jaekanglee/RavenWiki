@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 _LITE_BOOTSTRAP_FILES = (
     "_meta/system/SCHEMA.md",
     "_meta/system/RULES.md",
-    "_meta/system/AGENTS.md",
+    "_meta/system/README.md",
     "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
@@ -65,6 +65,16 @@ class Vault:
         root = meta.path
         if not root.exists():
             raise FileNotFoundError(f"vault path missing: {root}")
+        
+        # v0.7.34+: 자동 마이그레이션 실드 (AGENTS.md -> README.md)
+        old_path = root / "_meta" / "system" / "AGENTS.md"
+        new_path = root / "_meta" / "system" / "README.md"
+        if old_path.exists() and not new_path.exists():
+            try:
+                old_path.rename(new_path)
+            except Exception as e:
+                print(f"⚠️  Failed to migrate AGENTS.md to README.md: {e}")
+
         return cls(meta=meta, root=root)
 
     @property
@@ -133,7 +143,7 @@ class Vault:
             else:
                 cls._bootstrap_lite(path)
             # M4 F3 — Bootstrap Self-Test (read-back verification).
-            # Lite bootstrap = user-facing files. AGENTS.md §9 silent-failure policy:
+            # Lite bootstrap = user-facing files. README.md §9 silent-failure policy:
             # verify failure emits a warning, write itself succeeds.
             try:
                 from . import verify as _verify
@@ -149,7 +159,7 @@ class Vault:
         # register
         registry().add(meta)
 
-        # log.md에 create entry 자동 append (silent write 방지, AGENTS.md §8/§9).
+        # log.md에 create entry 자동 append (silent write 방지, README.md §8/§9).
         # ensure_log()가 log.md 부재 시 템플릿에서 1회 생성 → 첫 vault create 안전.
         # log append 실패는 무시 — vault create 자체는 성공 유지 (db.py와 동일 패턴).
         # v0.6.38+: basic profile은 log.md 없음 → log append skip.
@@ -184,7 +194,7 @@ class Vault:
             WELCOME.md                   (human-friendly welcome guide)
 
         Does NOT copy:
-            SCHEMA.md, RULES.md, AGENTS.md, PROJECT-WORKFLOW.md, log.md
+            SCHEMA.md, RULES.md, README.md, PROJECT-WORKFLOW.md, log.md
             → user enables LLM Wiki patterns manually if desired
         """
         from importlib import resources
@@ -221,7 +231,7 @@ class Vault:
             content/                     (empty)
             _meta/system/SCHEMA.md          (frontmatter/type/tag/wikilink 규약)
             _meta/system/RULES.md           (편집 규칙)
-            _meta/system/AGENTS.md          (vault 사용자 가이드)
+            _meta/system/README.md          (vault 사용자 가이드)
             _meta/agents/PROJECT-WORKFLOW.md (프로젝트 작업 에이전트 공통 워크플로우)
             log.md                          (빈 로그 헤더)
 
@@ -247,7 +257,7 @@ class Vault:
         template_map = {
             "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
             "_meta/system/RULES.md":           "templates/system/RULES.md",
-            "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+            "_meta/system/README.md":          "templates/system/README.md",
             "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
             "log.md":                          "templates/log.md",
         }
@@ -291,7 +301,7 @@ class Vault:
             file_map = {
                 "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
                 "_meta/system/RULES.md":           "templates/system/RULES.md",
-                "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+                "_meta/system/README.md":          "templates/system/README.md",
                 "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
                 "log.md":                          "templates/log.md",
             }
@@ -304,7 +314,7 @@ class Vault:
             file_map = {
                 "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
                 "_meta/system/RULES.md":           "templates/system/RULES.md",
-                "_meta/system/AGENTS.md":          "templates/system/AGENTS.md",
+                "_meta/system/README.md":          "templates/system/README.md",
                 "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
                 "log.md":                          "templates/log.md",
             }

@@ -7,14 +7,14 @@ permission mode.
 M4 / F1 — provenance + idempotency helpers live here so every write tool can
 reach them without reimplementing the JSON file dance. The store is per-vault
 (under ``<vault>/.mcp/idempotency.json``), append-only, and intentionally
-lock-free: the multi-agent write caveat in AGENTS.md §3 still applies —
+lock-free: the multi-agent write caveat in README.md §3 still applies —
 idempotency prevents accidental *retry*, not concurrent writers.
 
 M5 / F4 — advisory lock helpers live here too. They store per-vault claim
 records under ``<vault>/.mcp/locks.json`` and are **advisory only**: a write
 tool never refuses to run when a lock is held by another actor. The response
 just carries ``_lock_holder`` (with ``_advisory_conflict: True``) so the
-caller can decide whether to back off. This matches AGENTS.md §3's
+caller can decide whether to back off. This matches README.md §3's
 "multi-agent experimental" posture: surface the conflict, don't enforce it.
 """
 from __future__ import annotations
@@ -108,7 +108,7 @@ def normalize_actor(actor: Optional[str]) -> str:
 
     Strips whitespace; falls back to ``ANONYMOUS_ACTOR`` for ``None`` /
     empty / whitespace-only input. Does *not* validate against a user
-    registry — MCP has no such concept and AGENTS.md §3 calls out that
+    registry — MCP has no such concept and README.md §3 calls out that
     multi-agent identity is the caller's responsibility.
     """
     if actor is None:
@@ -309,7 +309,7 @@ def append_log_entry(
 #     ...
 #   }
 #
-# Semantics (F4 spec, AGENTS.md §3):
+# Semantics (F4 spec, README.md §3):
 #   - advisory only — no write tool blocks on a held lock
 #   - claim is overwritten by the SAME actor (idempotent re-acquire / extend)
 #   - claim by a DIFFERENT actor is refused: ``acquire_lock`` returns the

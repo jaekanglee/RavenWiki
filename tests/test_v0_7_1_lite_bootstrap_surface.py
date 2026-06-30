@@ -5,18 +5,18 @@
    알아서 문서화하는 사람이지, Raven의 세부 로직이나 구현사항을 알 필요는
    없음. 알아야 할 건 명확히 Raven이 제공하는 도구로써의 표면일 뿐.'
 
-Lite bootstrap AGENTS.md = vault 사용자 표면 가이드.
+Lite bootstrap README.md = vault 사용자 표면 가이드.
 Lite bootstrap PROJECT-WORKFLOW.md = 프로젝트 작업 에이전트 공통 워크플로우.
 Raven 내부 구현 (Tier 1 leak 정책, vendor 예시, OPERATIONS/agent/raven-policy
 복사 금지 등) ❌. 도구 사용자가 알 필요 없음.
 
 회귀 가드 (v0.7.1):
-  1. Lite bootstrap AGENTS.md에 vendor 예시 0회
-  2. Lite bootstrap AGENTS.md에 Tier 1 leak 정책 0회
-  3. Lite bootstrap AGENTS.md에 도구 내부 정책 0회
-  4. Lite bootstrap AGENTS.md는 vault 사용자 표면만
-  5. Lite bootstrap AGENTS.md 헤더 = "Vault User Guide"
-  6. 기존 vault (harumoa, raven-dev) AGENTS.md 동기화 확인
+  1. Lite bootstrap README.md에 vendor 예시 0회
+  2. Lite bootstrap README.md에 Tier 1 leak 정책 0회
+  3. Lite bootstrap README.md에 도구 내부 정책 0회
+  4. Lite bootstrap README.md는 vault 사용자 표면만
+  5. Lite bootstrap README.md 헤더 = "Vault User Guide"
+  6. 기존 vault (harumoa, raven-dev) README.md 동기화 확인
   7. (v0.7.1 확장) Lite bootstrap SCHEMA.md에도 도구 내부 정책 0회
   8. (v0.7.1 확장) Lite bootstrap SCHEMA.md에 도메인 가정 (karpathy 등) 0회
   9. (v0.7.1 확장) Lite bootstrap log.md에 도메인 가정 0회
@@ -26,7 +26,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LITE_AGENTS = ROOT / "raven" / "core" / "templates" / "system" / "AGENTS.md"
+LITE_AGENTS = ROOT / "raven" / "core" / "templates" / "system" / "README.md"
 LITE_SCHEMA = ROOT / "raven" / "core" / "templates" / "system" / "SCHEMA.md"
 LITE_LOG = ROOT / "raven" / "core" / "templates" / "log.md"
 LITE_PROJECT_WORKFLOW = ROOT / "raven" / "core" / "templates" / "agent" / "PROJECT-WORKFLOW.md"
@@ -64,12 +64,12 @@ def _assert_no_terms(content: str, terms: tuple, file_label: str) -> None:
 
 def test_lite_agents_no_vendor_examples() -> None:
     content = LITE_AGENTS.read_text(encoding="utf-8")
-    _assert_no_terms(content, FORBIDDEN_VENDORS, "Lite bootstrap AGENTS.md")
+    _assert_no_terms(content, FORBIDDEN_VENDORS, "Lite bootstrap README.md")
 
 
 def test_lite_agents_no_internal_policy() -> None:
     content = LITE_AGENTS.read_text(encoding="utf-8")
-    _assert_no_terms(content, FORBIDDEN_INTERNAL_TERMS, "Lite bootstrap AGENTS.md")
+    _assert_no_terms(content, FORBIDDEN_INTERNAL_TERMS, "Lite bootstrap README.md")
 
 
 def test_lite_agents_has_vault_user_surface() -> None:
@@ -85,7 +85,7 @@ def test_lite_agents_has_vault_user_surface() -> None:
 def test_lite_agents_starts_with_user_guide() -> None:
     content = LITE_AGENTS.read_text(encoding="utf-8")
     assert "Vault User Guide" in content, \
-        "Lite bootstrap AGENTS.md must be 'Vault User Guide'"
+        "Lite bootstrap README.md must be 'Vault User Guide'"
 
 
 def test_existing_vaults_synced() -> None:
@@ -100,7 +100,7 @@ def test_existing_vaults_synced() -> None:
     template_project_workflow = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
     # raven-dev만 검증 (harumoa는 운영 중이라 자유)
     for label, template in (
-        ("_meta/system/AGENTS.md", template_agents),
+        ("_meta/system/README.md", template_agents),
         ("_meta/system/SCHEMA.md", template_schema),
         ("_meta/agents/PROJECT-WORKFLOW.md", template_project_workflow),
         ("log.md", template_log),

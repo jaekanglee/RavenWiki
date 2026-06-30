@@ -96,7 +96,7 @@ def _rebuild_db(vault: Path) -> None:
 # Step 3 — the real work — is intentionally untouched per F1 spec.
 
 # Common response keys attached to every successful write. Tools merge
-# these into their existing return dicts so AGENTS.md §8 ("additive-only
+# these into their existing return dicts so README.md §8 ("additive-only
 # response keys") is honored.
 _PROVENANCE_KEYS = ("actor", "idempotency_key", "timestamp")
 
@@ -175,7 +175,7 @@ def _resolve_idempotency(
 # M4/F1 attaches actor/idempotency_key/timestamp via ``_attach_provenance``.
 # M5/F4 adds ``_lock_holder``: a non-blocking advisory read of any active
 # lock on the slugs this write is about to touch. The write proceeds
-# regardless (F4 is advisory per AGENTS.md §3); the caller sees
+# regardless (F4 is advisory per README.md §3); the caller sees
 # ``_lock_holder`` (with ``_advisory_conflict`` if a different actor
 # holds the claim) and decides whether to back off.
 #

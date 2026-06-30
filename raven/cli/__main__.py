@@ -181,7 +181,7 @@ def vault_verify(
     """Verify Lite bootstrap files match source templates (SHA256).
 
     M4 F3 — Bootstrap Self-Test. Checks the Lite bootstrap files
-    (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/AGENTS.md,
+    (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/README.md,
     _meta/agents/PROJECT-WORKFLOW.md, log.md) for existence + content match
     against the raven package's source templates.
 

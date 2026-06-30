@@ -35,7 +35,7 @@ confidence: high
 │   └── system/
 │       ├── SCHEMA.md   # 이 문서
 │       ├── RULES.md    # 편집 규칙
-│       └── AGENTS.md   # vault 사용자 가이드
+│       └── README.md   # vault 사용자 가이드
 ├── _archive/           # retired 페이지
 └── wiki.db             # SQLite Query Index (gitignore)
 ```
@@ -175,4 +175,4 @@ raven log append "manual note" --action chore
 raven link check
 ```
 
-> 💡 자세한 vault 운영 가이드는 `AGENTS.md` 참조. LLM Wiki +α 패턴은 `docs/vault-patterns.md` 참조.
+> 💡 자세한 vault 운영 가이드는 `README.md` 참조. LLM Wiki +α 패턴은 `docs/vault-patterns.md` 참조.

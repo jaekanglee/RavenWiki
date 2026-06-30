@@ -4,7 +4,7 @@ After `Vault.create()` copies the Lite bootstrap templates into a new vault,
 this module verifies that:
 
   1. Each of the 5 Lite bootstrap files exists in the vault.
-  2. The 4 *template* files (SCHEMA.md, RULES.md, AGENTS.md,
+  2. The 4 *template* files (SCHEMA.md, RULES.md, README.md,
      PROJECT-WORKFLOW.md) match the
      source templates byte-for-byte (SHA256 hash).
   3. `log.md` exists and is non-empty (it's an append-only working file,
@@ -12,7 +12,7 @@ this module verifies that:
      the vault's first `create` log entry is appended).
 
 This is the M4 Trust & Tier safety answer to the v0.5.5 silent-write hotfix
-(AGENTS.md §9): silent file leaks / dropouts are the same risk class as
+(README.md §9): silent file leaks / dropouts are the same risk class as
 silent write failures, so we add a deterministic read-back check.
 
 Failure mode policy (mirrors the silent-write pattern in `vault.create`):
@@ -40,7 +40,7 @@ from typing import Optional
 LITE_BOOTSTRAP_FILES: tuple[str, ...] = (
     "_meta/system/SCHEMA.md",
     "_meta/system/RULES.md",
-    "_meta/system/AGENTS.md",
+    "_meta/system/README.md",
     "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
@@ -49,7 +49,7 @@ LITE_BOOTSTRAP_FILES: tuple[str, ...] = (
 TEMPLATE_MAP: dict[str, str] = {
     "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
     "_meta/system/RULES.md":  "templates/system/RULES.md",
-    "_meta/system/AGENTS.md": "templates/system/AGENTS.md",
+    "_meta/system/README.md": "templates/system/README.md",
     "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
     "log.md": "templates/log.md",
 }
@@ -282,7 +282,7 @@ def verify_and_warn(path: Path | str, *, context: str = "vault.create") -> Boots
     """Convenience wrapper used by `Vault.create()`.
 
     Runs `verify_bootstrap(path)` and emits a `warnings.warn` on failure,
-    matching AGENTS.md §9 silent-failure policy (loud, not silent).
+    matching README.md §9 silent-failure policy (loud, not silent).
 
     Returns the BootstrapVerifyResult regardless of outcome — caller decides.
     """

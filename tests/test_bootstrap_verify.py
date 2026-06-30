@@ -66,7 +66,7 @@ def test_lite_bootstrap_files_constant_lists_5_files():
     assert set(LITE_BOOTSTRAP_FILES) == {
         "_meta/system/SCHEMA.md",
         "_meta/system/RULES.md",
-        "_meta/system/AGENTS.md",
+        "_meta/system/README.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
@@ -241,18 +241,18 @@ def test_vault_create_does_not_raise_on_corrupt_template(
     isolated_vaults_root, isolated_target
 ):
     """Even if a bootstrap file is corrupt post-copy, `Vault.create` MUST
-    return successfully (AGENTS.md §9: loud, not silent — verify failure
+    return successfully (README.md §9: loud, not silent — verify failure
     is a warning, not a raised exception).
     """
     # Create normally
     v = Vault.create("ok", isolated_target / "ok", bootstrap=True)
     # Now corrupt one of the bootstrap files (simulating external mutation)
-    (v.root / "_meta" / "system" / "AGENTS.md").write_text("# corrupt\n")
+    (v.root / "_meta" / "system" / "README.md").write_text("# corrupt\n")
     # Run verify directly — should report mismatch, NOT raise
     result = v.verify_bootstrap()
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert bad["_meta/system/AGENTS.md"].status == "mismatch"
+    assert bad["_meta/system/README.md"].status == "mismatch"
 
 
 # ─── CLI: raven vault verify ────────────────────────────────────────

@@ -288,7 +288,7 @@ confidence: high
 
 ## 🔗 5. 참고 (References)
 
-- 📝 vault 운영 일반 규칙: `_meta/system/AGENTS.md` ("Vault User Guide")
+- 📝 vault 운영 일반 규칙: `_meta/system/README.md` ("Vault User Guide")
 - 🤖 데이터 구조: `_meta/system/SCHEMA.md`
 - 🤖 편집 규칙: `_meta/system/RULES.md`
 - 🤖 LLM Wiki +α 가이드: `docs/vault-patterns.md`

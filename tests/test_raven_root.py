@@ -68,7 +68,7 @@ def test_create_vault_auto_creates_directory(
     # Lite bootstrap files
     assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (target / "_meta" / "system" / "README.md").is_file()
     assert (target / "log.md").is_file()
     # Registered
     reg = registry()

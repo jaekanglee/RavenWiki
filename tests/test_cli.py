@@ -231,7 +231,7 @@ def test_cli_meta_sync_copies_when_missing(fresh_env):
     assert result.exit_code == 0, result.stderr
     assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (target / "_meta" / "system" / "README.md").is_file()
     assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     # No internal agent/ subdir created (Lite policy)
     assert not (target / "_meta" / "agent").exists()
@@ -262,7 +262,7 @@ def test_cli_meta_sync_json_out(fresh_env):
     # v0.5.5+ silent-write fix: log.md already exists from Vault.create() → skipped, not copied
     assert "_meta/system/SCHEMA.md" in data["copied"]
     assert "_meta/system/RULES.md" in data["copied"]
-    assert "_meta/system/AGENTS.md" in data["copied"]
+    assert "_meta/system/README.md" in data["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in data["copied"]
     assert "log.md" not in data["copied"]
     assert "log.md" in data["skipped"]
@@ -283,7 +283,7 @@ def test_cli_meta_sync_full_with_force(fresh_env):
     # Lite 5종만 복사
     assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "system" / "AGENTS.md").is_file()
+    assert (target / "_meta" / "system" / "README.md").is_file()
     assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     assert (target / "log.md").is_file()
     # Tier 1 internal ❌ (Tier 1 leak 방지)
