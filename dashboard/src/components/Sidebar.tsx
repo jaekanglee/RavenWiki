@@ -48,6 +48,24 @@ function writeOpenFolders(vault: string, folders: Set<string>) {
   }
 }
 
+function readFavoriteVaults(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem("raven.dashboard.favoriteVaults");
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeFavoriteVaults(favs: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("raven.dashboard.favoriteVaults", JSON.stringify([...favs]));
+  } catch {}
+}
+
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
@@ -108,6 +126,17 @@ export function Sidebar({
   const location = useLocation();
   const activePage = activePageFromPath(location.pathname);
   const [filter, setFilter] = useState("");
+  const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
+
+  function toggleFavorite(name: string) {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      writeFavoriteVaults(next);
+      return next;
+    });
+  }
 
   const activeVaultMeta = vaults.find((v) => v.name === activeVault);
   const activeTree = trees[activeVault] ?? null;
@@ -164,13 +193,59 @@ export function Sidebar({
             value={activeVault}
             onChange={(e) => onSelectVault(e.target.value)}
             aria-label="보관소 선택"
-          >
-            {vaults.map((v) => (
-              <option key={v.name} value={v.name}>
-                📁 {v.name} {v.default ? "★" : ""}
-              </option>
-            ))}
-          </select>
+            style={{ display: "none" }} // keep native fallback hidden if we use styled/flex container
+          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+              className="sidebar-vault-select-native"
+              value={activeVault}
+              onChange={(e) => onSelectVault(e.target.value)}
+              aria-label="보관소 선택"
+              style={{ flex: 1, margin: 0 }}
+            >
+              {[...vaults]
+                .sort((a, b) => {
+                  const aFav = favorites.has(a.name);
+                  const bFav = favorites.has(b.name);
+                  if (aFav && !bFav) return -1;
+                  if (!aFav && bFav) return 1;
+                  if (a.default && !b.default) return -1;
+                  if (!a.default && b.default) return 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((v) => {
+                  const isFav = favorites.has(v.name);
+                  return (
+                    <option key={v.name} value={v.name}>
+                      📁 {isFav ? "⭐ " : ""}{v.name} {v.default ? "★" : ""}
+                    </option>
+                  );
+                })}
+            </select>
+            <button
+              type="button"
+              onClick={() => toggleFavorite(activeVault)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                width: 38,
+                height: 38,
+                fontSize: 16,
+                border: "1px solid var(--color-hairline)",
+                borderRadius: "var(--radius-sm)",
+                backgroundColor: "transparent",
+                color: favorites.has(activeVault) ? "var(--color-primary, #3b82f6)" : "var(--color-muted)",
+                cursor: "pointer",
+                transition: "color 0.15s ease",
+              }}
+              title={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+              aria-label={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+            >
+              ★
+            </button>
+          </div>
         </div>
       )}
 
