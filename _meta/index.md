@@ -54,6 +54,12 @@ confidence: high
 - [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
+### 최신 changelog
+- [[changelog-v0.7.3]] — Lite bootstrap PROJECT-WORKFLOW 템플릿
+- [[changelog-v0.7.2]] — Lite bootstrap 사용자 표면 일관성
+- [[changelog-v0.7.1]] — Lite bootstrap AGENTS.md 도구 표면 재작성
+- [[changelog-v0.7.0]] — Karpathy LLM Wiki +α 가이드
+
 ### 설계 입력
 - [[requirements]] — 사용자 요구사항 (니즈 6 / 제약 5)
 - [[wiki-persona]] — 사용자 페르소나
@@ -87,7 +93,7 @@ confidence: high
 
 ### v0.6.37 → v0.7.x (North Star 재정렬)
 - 강한 "LLM Wiki self-host" 톤 → **사람 1차 Zettelkasten-inspired PKM + Obsidian-style 앱 표면 + LLM Wiki +α 옵션**
-- Lite bootstrap 4종은 사용자 vault 표면만 설명
+- Lite bootstrap 5종은 사용자 vault 표면만 설명
 - Dashboard는 사람이 직접 쓰는 앱 역할, MCP/Agent는 optional layer
 
 ### v0.1 (5-layer) → v0.2 (4-layer, multi-vault)
