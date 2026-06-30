@@ -70,8 +70,8 @@ def test_makefile_status_pgrep_accurate() -> None:
 
 
 def test_makefile_status_handles_mcp_not_running() -> None:
-    """make status는 MCP 안 떠 있을 때 친절한 안내."""
+    """v0.7.11+: make dev가 4개 모두 띄움. status 메시지는 정확한 안내."""
     content = MAKEFILE.read_text(encoding="utf-8")
-    assert "make mcp" in content, (
-        "make status MCP section must suggest 'make mcp' command"
+    assert "make dev" in content and "make stop" in content, (
+        "make status must suggest both 'make dev' and 'make stop'"
     )

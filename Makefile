@@ -52,10 +52,10 @@ mcp: venv-check ## Run raven MCP (stdio, foreground — for MCP clients like Cla
 	PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio
 
 .PHONY: stop-dev
-stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP, best-effort)
+stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP HTTP + MCP stdio, best-effort)
 	@pids="$$( { \
-		lsof -ti :8765 -ti :5173 -ti :5174 2>/dev/null; \
-		ps -ef | awk '/[r]aven\.api|[r]aven\.mcp|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
+		lsof -ti :8765 -ti :5173 -ti :5174 -ti :8766 2>/dev/null; \
+		ps -ef | awk '/[r]aven\.api|[r]aven\.mcp\.cli|[n]ode .*\/vite|[v]ite( |$$)/ {print $$2}'; \
 	} | sort -u )"; \
 	if [ -n "$$pids" ]; then \
 		echo "🧹 stopping existing dev servers: $$pids"; \
@@ -69,11 +69,11 @@ stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP, best-e
 	fi
 
 .PHONY: dev
-dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 진입점 ready, HTTP transport for MCP)
+dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 진입점 ready, one command = full set)
 	@$(MAKE) --no-print-directory stop-dev
 	@echo ""
-	@echo "🚀 Raven product-ready dev stack"
-	@echo "   (one command → 4 진입점 ready for production prep)"
+	@echo "🚀 Raven product-ready dev stack (one command = full set)"
+	@echo "   (CLI · API :8765 · MCP HTTP :8766 · Dashboard :5173 · MCP stdio)"
 	@echo ""
 	@echo "🔌 starting API in background (port 8765)..."
 	@nohup env PYTHONPATH=. $(PY) -m raven.api --host $(HOST) --port 8765 >/tmp/raven-api.log 2>&1 </dev/null &
@@ -88,18 +88,32 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 �
 		fi; \
 	done
 	@echo ""
-	@echo "🔌 starting MCP (HTTP transport, port 8766)..."
-	@nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport http --host $(HOST) --port 8766 >/tmp/raven-mcp.log 2>&1 </dev/null &
+	@echo "🔌 starting MCP HTTP (port 8766)..."
+	@nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport http --host $(HOST) --port 8766 >/tmp/raven-mcp-http.log 2>&1 </dev/null &
 	@for i in 1 2 3 4 5; do \
 		sleep 1; \
 		if lsof -ti :8766 >/dev/null 2>&1; then \
-			echo "✅ MCP ready on http://$(HOST):8766/mcp (pid $$(lsof -ti :8766 | head -1))"; \
+			echo "✅ MCP HTTP ready on http://$(HOST):8766/mcp (pid $$(lsof -ti :8766 | head -1))"; \
 			break; \
 		fi; \
 		if [ $$i -eq 5 ]; then \
-			echo "⚠️  MCP HTTP failed to start (stdio만 가능할 수 있음) — see /tmp/raven-mcp.log"; \
+			echo "⚠️  MCP HTTP failed to start — see /tmp/raven-mcp-http.log"; \
 		fi; \
 	done
+	@echo ""
+	@echo "🔌 starting MCP stdio (for stdio MCP clients)..."
+	@( if command -v setsid >/dev/null 2>&1; then \
+	    setsid env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio </dev/null >/tmp/raven-mcp-stdio.log 2>&1; \
+	  else \
+	    nohup env PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio </dev/null >/tmp/raven-mcp-stdio.log 2>&1; \
+	  fi ) &
+	@sleep 2
+	@stdio_pid=$$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1); \
+	if [ -n "$$stdio_pid" ]; then \
+		echo "✅ MCP stdio ready (pid $$stdio_pid, logs: /tmp/raven-mcp-stdio.log)"; \
+	else \
+		echo "⚠️  MCP stdio failed to start — see /tmp/raven-mcp-stdio.log"; \
+	fi
 	@echo ""
 	@echo "🌐 starting Dashboard in background (port 5173)..."
 	@(cd dashboard && nohup npm run dev >/tmp/raven-dashboard.log 2>&1 </dev/null &)
@@ -116,11 +130,12 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 �
 	done
 	@echo ""
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "🟢 4 진입점 ready:"
-	@echo "   • CLI    → make raven ARGS=\"vault list\""
-	@echo "   • API    → http://$(HOST):8765         (POST /api/vaults/{n}/pages)"
-	@echo "   • MCP    → http://$(HOST):8766/mcp     (HTTP transport — MCP client config)"
-	@echo "   • UI     → http://localhost:5173         (또는 :5174)"
+	@echo "🟢 4 진입점 ready (one command = full set):"
+	@echo "   • CLI    → make raven ARGS=\"vault list\"  (지연 실행, 1회성)"
+	@echo "   • API    → http://$(HOST):8765         (background)"
+	@echo "   • MCP HTTP → http://$(HOST):8766/mcp   (background, for HTTP clients)"
+	@echo "   • MCP stdio → pid $$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1)"
+	@echo "   • UI     → http://localhost:5173         (background)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@if [ "$(HOST)" = "0.0.0.0" ]; then \
@@ -129,21 +144,23 @@ dev: venv-check ## Run product-ready dev stack: CLI + API + Dashboard + MCP (4 �
 		echo "   • MCP HTTP:  http://$(shell tailscale ip -4 2>/dev/null | head -1):8766/mcp"; \
 	fi
 	@echo ""
-	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
+	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp-http,mcp-stdio,dashboard}.log"
 	@echo "🛑 stop: make stop  |  status: make status  |  logs: tail -f /tmp/raven-{api,mcp,dashboard}.log"
 
 .PHONY: status
-status: ## Show whether API (8765), Dashboard (5173), MCP (stdio) are running
+status: ## Show whether API (8765), Dashboard (5173), MCP HTTP (8766), MCP stdio are running
 	@echo "API (8765):"
 	@lsof -i :8765 2>/dev/null | tail -n +2 || echo "  (not listening)"
 	@echo "Dashboard (5173):"
 	@lsof -i :5173 2>/dev/null | tail -n +2 || echo "  (not listening)"
-	@echo "MCP (stdio):"
-	@pid=$$(pgrep -fl 'python.*-m raven\.mcp' | awk '{print $$1}' | head -1); \
-	if [ -n "$$pid" ]; then echo "  pid: $$pid (logs: /tmp/raven-mcp.log)"; else echo "  (not running — see 'make mcp')"; fi
+	@echo "MCP HTTP (8766):"
+	@lsof -i :8766 2>/dev/null | tail -n +2 || echo "  (not listening)"
+	@echo "MCP stdio:"
+	@pid=$$(pgrep -fl 'python.*-m raven\.mcp\.cli --transport stdio' | awk '{print $$1}' | head -1); \
+	if [ -n "$$pid" ]; then echo "  pid: $$pid (logs: /tmp/raven-mcp-stdio.log)"; else echo "  (not running)"; fi
 	@echo ""
-	@echo "Tip: make dev = CLI + API + Dashboard ready (v0.7.7+)."
-	@echo "      MCP는 stdio 기반이라 background 실행 부적합 → 'make mcp' 별도 (foreground/별도 terminal)."
+	@echo "Tip: make dev = 4 진입점 (API + Dashboard + MCP HTTP + MCP stdio) one command."
+	@echo "      stop: make stop. CLI is on-demand (make raven ARGS=\"...\")."
 
 .PHONY: stop
 stop: ## Kill any running API / dashboard / MCP processes (best-effort, never kills this make wrapper)
