@@ -25,7 +25,7 @@ services:
       - .env
     # v0.7.18+: WIKI_VAULTS_DIR 환경변수 명시 (registry.py가 읽는 이름)
     environment:
-      - WIKI_VAULTS_DIR=${RAVEN_VAULTS_DIR}
+      - WIKI_VAULTS_DIR=/vaults
     ports:
       - "${PORT_API}:8765"
     volumes:
@@ -58,7 +58,7 @@ services:
       - .env
     # v0.7.18+: WIKI_VAULTS_DIR 명시
     environment:
-      - WIKI_VAULTS_DIR=${RAVEN_VAULTS_DIR}
+      - WIKI_VAULTS_DIR=/vaults
     ports:
       - "${PORT_MCP_HTTP}:8766"
     volumes:

@@ -108,3 +108,10 @@ def test_no_legacy_vault_data_volume() -> None:
         "v0.7.12+: legacy 'vault-data' Docker volume must NOT exist (use host path)"
     assert "volumes:\n  vault-data:" not in content, \
         "volumes section with vault-data must be removed"
+
+
+def test_compose_uses_vaults_as_wiki_vaults_dir() -> None:
+    """v0.7.23+: WIKI_VAULTS_DIR in docker-compose.yml must be /vaults (container path)."""
+    content = COMPOSE.read_text(encoding="utf-8")
+    assert "- WIKI_VAULTS_DIR=/vaults" in content, \
+        "WIKI_VAULTS_DIR in docker-compose.yml must point to the container path '/vaults'"

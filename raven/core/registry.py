@@ -72,6 +72,12 @@ class VaultMeta:
     @classmethod
     def from_json(cls, name: str, data: dict, default_name: str = "") -> "VaultMeta":
         path = Path(data["path"]).expanduser().resolve()
+        # v0.7.23+ fallback: if path doesn't exist, try resolving relative to VAULTS_ROOT()
+        if not path.exists():
+            fallback_path = (VAULTS_ROOT() / name).resolve()
+            if fallback_path.exists():
+                path = fallback_path
+
         features = tuple(sorted(data.get("features", {}).items()))
         return cls(
             name=name,

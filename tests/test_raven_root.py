@@ -117,3 +117,43 @@ def test_create_vault_under_raven_root_default(
     assert expected.is_dir()
     # Auto-registered
     assert registry().get("alpha") is not None
+
+
+def test_registry_path_fallback_for_docker(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v0.7.23+: registry fallback resolves paths relative to VAULTS_ROOT if data['path'] doesn't exist."""
+    from raven.core.registry import VaultRegistry, VaultMeta
+    import json
+
+    # 1. Setup isolated WIKI_VAULTS_DIR
+    vaults_root = isolated_home / "Raven"
+    vaults_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(vaults_root))
+
+    # 2. Write a registry file with an invalid/non-existent host path
+    reg_file = vaults_root / ".registry.json"
+    reg_data = {
+        "version": 1,
+        "default": "dummy",
+        "vaults": {
+            "dummy": {
+                "path": "/some/nonexistent/host/path/Raven/dummy",
+                "mode": "personal",
+                "owner": "user"
+            }
+        }
+    }
+    reg_file.write_text(json.dumps(reg_data))
+
+    # 3. Create the dummy directory under WIKI_VAULTS_DIR (to simulate container mount)
+    dummy_vault_dir = vaults_root / "dummy"
+    dummy_vault_dir.mkdir(parents=True, exist_ok=True)
+
+    # 4. Load registry
+    reg = VaultRegistry()
+    meta = reg.get("dummy")
+    assert meta is not None
+
+    # 5. Check if it fell back to the correct path under WIKI_VAULTS_DIR
+    assert meta.path == dummy_vault_dir.resolve()
