@@ -1,0 +1,58 @@
+# Raven dockerignore — Docker 이미지 빌드 시 제외할 파일.
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs (rebuild inside container)
+scripts/.venv/
+.venv/
+venv/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Node (dashboard is rebuilt inside container)
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# Runtime / state
+.vault.json
+wiki.db
+wiki.db-journal
+*.db-journal
+*.db-wal
+*.db-shm
+wiki.db.backup
+*.tmp
+*.bak
+tmp/
+
+# Secrets
+.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+.~*
+
+# Hermes / profiles
+.hermes/
+
+# Agent scratch (in-container only)
+/tmp/*
+!/tmp/.gitkeep

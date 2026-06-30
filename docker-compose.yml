@@ -1,0 +1,84 @@
+# Raven — Docker Compose (4 진입점 일괄, one command).
+# v0.7.12+ — 다른 PC 환경에서 동일하게 동작.
+#
+# 사용법:
+#   docker compose up --build    # build + start 4 services
+#   docker compose down           # stop + remove containers
+#   docker compose logs -f api   # 로그 follow
+#
+# 외부 접속 (.env에서 HOST=0.0.0.0 권장):
+#   http://<host>:8765      # API
+#   http://<host>:8766/mcp  # MCP HTTP
+#   http://<host>:5173      # Dashboard
+#
+# MCP stdio는 docker exec -it raven-mcp-stdio / docker-entrypoint.sh mcp-stdio
+
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raven:latest
+    container_name: raven-api
+    command: ["api"]
+    env_file:
+      - .env
+    ports:
+      - "${PORT_API}:8765"
+    volumes:
+      # 사용자 vault 외부 경로 ~/Raven → 컨테이너 /vaults.
+      # 다른 PC에서도 호스트의 동일 경로를 mount하면 동일하게 동작.
+      - ${RAVEN_VAULTS_DIR}:/vaults
+    working_dir: /vaults
+    networks:
+      - raven-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/api/vaults"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mcp-http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raven:latest
+    container_name: raven-mcp-http
+    command: ["mcp-http"]
+    env_file:
+      - .env
+    ports:
+      - "${PORT_MCP_HTTP}:8766"
+    volumes:
+      - ${RAVEN_VAULTS_DIR}:/vaults
+    working_dir: /vaults
+    networks:
+      - raven-net
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raven:latest
+    container_name: raven-dashboard
+    command: ["dashboard"]
+    env_file:
+      - .env
+    ports:
+      - "${PORT_DASHBOARD}:5173"
+    networks:
+      - raven-net
+    depends_on:
+      - api
+      - mcp-http
+    restart: unless-stopped
+
+networks:
+  raven-net:
+    driver: bridge

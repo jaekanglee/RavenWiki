@@ -51,6 +51,34 @@ dashboard: ## Run vite dev on localhost:5173 (foreground, Ctrl+C to stop)
 mcp: venv-check ## Run raven MCP (stdio, foreground — for MCP clients like Claude/Cursor)
 	PYTHONPATH=. $(PY) -m raven.mcp.cli --transport stdio
 
+.PHONY: docker-build docker-up docker-down docker-logs docker-ps
+docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runtime)
+	@if [ ! -f .env ]; then \
+		echo "📋 .env 없음. .env.example → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
+		cp .env.example .env; \
+	fi
+	docker compose build
+
+docker-up: ## Start 4 services (API + MCP HTTP + Dashboard, stdio is docker exec)
+	docker compose up -d
+	@echo ""
+	@echo "🟢 Raven Docker stack running:"
+	@echo "   • API    → http://localhost:8765        (curl http://localhost:8765/api/vaults)"
+	@echo "   • MCP    → http://localhost:8766/mcp    (MCP HTTP client config)"
+	@echo "   • UI     → http://localhost:5173        (Dashboard)"
+	@echo "   • CLI    → docker compose exec api docker-entrypoint.sh cli <args>"
+	@echo "   • MCP stdio → docker compose exec api docker-entrypoint.sh mcp-stdio"
+	@echo "🛑 down: make docker-down  |  logs: make docker-logs  |  ps: make docker-ps"
+
+docker-down: ## Stop and remove Raven Docker containers
+	docker compose down
+
+docker-logs: ## Follow logs from all Raven services
+	docker compose logs -f
+
+docker-ps: ## Show Raven container status
+	docker compose ps
+
 .PHONY: stop-dev
 stop-dev: ## Kill existing dev servers on dynamic PIDs (API + Vite + MCP HTTP + MCP stdio, best-effort)
 	@pids="$$( { \
