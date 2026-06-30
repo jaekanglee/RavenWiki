@@ -185,16 +185,17 @@ export interface LogStatus {
 
 export async function fetchLog(
   vault: string,
-  opts: { tail?: number; action?: string } = {},
-): Promise<{ total: number; shown: number; entries: LogEntry[] }> {
+  opts: { tail?: number; action?: string; raw?: boolean } = {},
+): Promise<{ total: number; shown: number; entries: LogEntry[]; raw?: string }> {
   const params = new URLSearchParams();
   if (opts.tail !== undefined) params.set("tail", String(opts.tail));
   if (opts.action) params.set("action", opts.action);
+  if (opts.raw) params.set("raw", "true");
   const qs = params.toString();
   const r = await fetch(`/api/vaults/${vault}/log${qs ? "?" + qs : ""}`);
   if (!r.ok) return { total: 0, shown: 0, entries: [] };
   const d = await r.json();
-  return { total: d.total, shown: d.shown, entries: d.entries || [] };
+  return { total: d.total || 0, shown: d.shown || 0, entries: d.entries || [], raw: d.raw };
 }
 
 export async function fetchLogStatus(vault: string): Promise<LogStatus | null> {

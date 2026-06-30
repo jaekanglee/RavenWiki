@@ -20,13 +20,15 @@ export function LogPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [log, st] = await Promise.all([
+      const [log, st, rawLog] = await Promise.all([
         fetchLog(vault, { tail: 100, ...(actionFilter ? { action: actionFilter } : {}) }),
         fetchLogStatus(vault),
+        fetchLog(vault, { raw: true }),
       ]);
       setEntries(log.entries);
       setTotal(log.total);
       setStatus(st);
+      setRawText(rawLog.raw || "");
     } finally {
       setLoading(false);
     }
@@ -48,8 +50,11 @@ export function LogPage() {
 
   return (
     <div style={{ maxWidth: 1120 }}>
-      <h1 style={{ marginBottom: 8 }}>Vault Log</h1>
-      <p className="text-muted" style={{ fontSize: 14, marginBottom: 32 }}>
+      <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
+        <h1 style={{ margin: 0 }}>Vault Log</h1>
+        <span style={{ color: "var(--color-muted)", fontSize: 14 }}>in {vault}</span>
+      </div>
+      <p className="text-muted" style={{ fontSize: 14, marginTop: 8, marginBottom: 32 }}>
         vault 작업 이력을 시간순으로 표시합니다.
       </p>
 
@@ -230,8 +235,7 @@ export function LogPage() {
             color: "var(--color-body)",
           }}
         >
-          {status?.log_path &&
-            `# ${status.log_path}\n\n# (raw mode: log.md 직접 보기)\n# 카파시 grep tip:  grep "^## \\[" log.md | tail -5\n`}
+          {rawText || "로그 데이터가 비어 있거나 불러오지 못했습니다."}
         </pre>
       ) : entries.length === 0 ? (
         <p className="text-muted">entry 없음 — 첫 작업 시 자동 생성</p>
