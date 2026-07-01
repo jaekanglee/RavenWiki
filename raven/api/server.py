@@ -547,9 +547,9 @@ class GraphLayoutParams(BaseModel):
 # - ideal_distance=200 (FR의 k로 강제): vault 크기와 무관하게 일정 spacing 목표
 # - uniform random 초기 위치 (FR 알고리즘 정석; 격자는 hub가 중앙에 모이는 패턴 유발)
 # - t0 100→50: 초기 변위 폭 절반으로 좁혀서 미세 조정 위주로 수렴
-LAYOUT_IDEAL_DISTANCE = 200.0  # 노드 간 목표 간격 (px)
-LAYOUT_REPULSION_GAIN = 10.0  # FR 기본 척력(k^2/d) 대비 배율
-LAYOUT_ATTRACTION_GAIN = 0.3  # FR 기본 인력(d^2/k) 대비 배율
+LAYOUT_IDEAL_DISTANCE = 130.0  # 노드 간 목표 간격 (px)
+LAYOUT_REPULSION_GAIN = 6.5  # FR 기본 척력(k^2/d) 대비 배율
+LAYOUT_ATTRACTION_GAIN = 0.45  # FR 기본 인력(d^2/k) 대비 배율
 LAYOUT_T0 = 50.0  # 초기 temperature (이전 100의 절반)
 
 
@@ -758,8 +758,8 @@ def _constellation_layout(
 
         if comp_size == 1:
             angle = 2.0 * math.pi * _stable_unit(hub, "isolated")
-            # 완전 고립 노드는 바깥 별 ring으로 보낸다.
-            r = 360.0 + 55.0 * comp_i
+            # 완전 고립 노드가 너무 멀리 이탈해 전체 레이아웃 정규화 스케일을 쪼그려트리지 않도록 반지름 조정
+            r = 160.0 + 25.0 * math.sqrt(comp_i)
             global_pos[hub] = (comp_cx + math.cos(angle) * r, comp_cy + math.sin(angle) * r)
             continue
 
@@ -792,7 +792,7 @@ def _constellation_layout(
             slugs.sort(key=lambda s: (_stable_unit(s, f"ring-{ring}"), s))
             count = len(slugs)
             # 1-hop orbit은 촘촘히, leaf/outer ring은 넓게.
-            radius = 145.0 + 125.0 * ring + 18.0 * math.sqrt(comp_size)
+            radius = 85.0 + 80.0 * ring + 12.0 * math.sqrt(comp_size)
             for j, slug in enumerate(slugs):
                 angle = base_angle + 2.0 * math.pi * j / max(count, 1)
                 angle += (_stable_unit(slug, "angle-jitter") - 0.5) * (0.45 / max(ring, 1))
@@ -881,15 +881,17 @@ def _forceatlas_layout(
     for s, t in valid_edges:
         degree[idx[s]] += 1
         degree[idx[t]] += 1
+    # 고립 노드(degree=0)는 척력을 극히 덜 받게 하여 중심부 중력으로 묶이게 mass를 0.3으로 억제
     mass = [
+        0.3 if degree[i] == 0 else
         1.0 + min(degree[i], 6) * 0.55 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.6
         for i in range(n)
     ]
 
     steps = max(40, min(iterations, 500))
-    repulsion = 4200.0
-    attraction = 0.075
-    gravity = 0.022
+    repulsion = 2200.0
+    attraction = 0.15
+    gravity = 0.035
     max_step0 = 28.0
 
     edge_indices = [(idx[s], idx[t]) for s, t in valid_edges]
@@ -899,17 +901,27 @@ def _forceatlas_layout(
         dx = [0.0] * n
         dy = [0.0] * n
 
-        # Repulsion (mass-scaled). 모든 노드쌍 — 큰 vault는 O(n^2)이지만
-        # 200 노드 이내에선 충분히 빠르고, 더 큰 vault는 v3에서 Barnes-Hut 검토.
+        # Repulsion (mass-scaled) & Collision (겹침 방지). 모든 노드쌍
         for i in range(n):
             for j in range(i + 1, n):
                 vx = pos_x[i] - pos_x[j]
                 vy = pos_y[i] - pos_y[j]
-                d2 = vx * vx + vy * vy + 1.0
+                d2 = vx * vx + vy * vy + 0.01
                 d = math.sqrt(d2)
+                
+                # 기본 ForceAtlas 척력
                 f = repulsion * mass[i] * mass[j] / d2
                 fx = (vx / d) * f
                 fy = (vy / d) * f
+                
+                # Collision Guard: 옵시디언 감성을 위한 겹침 방지 탄성 (노드 최소 반경 약 45px 보장)
+                min_dist = 45.0
+                if d < min_dist:
+                    overlap = min_dist - d
+                    col_f = (overlap * overlap) * 8.0  # 탄성 강도
+                    fx += (vx / d) * col_f
+                    fy += (vy / d) * col_f
+                
                 dx[i] += fx
                 dy[i] += fy
                 dx[j] -= fx
@@ -995,20 +1007,37 @@ def _spring_layout(
         # displacement 버퍼
         dx = [0.0] * n
         dy = [0.0] * n
-        # 1) 모든 쌍 척력 — O(n^2) (vault 페이지 수 ~ 수백 가정, 충분)
+        # 1) 모든 쌍 척력 & 겹침 방지 충돌 가드
         for i in range(n):
+            i_isolated = len(adj[i]) == 0
             for j in range(i + 1, n):
+                j_isolated = len(adj[j]) == 0
                 d_x = pos_x[i] - pos_x[j]
                 d_y = pos_y[i] - pos_y[j]
                 d2 = d_x * d_x + d_y * d_y
                 if d2 < 0.01:
                     d2 = 0.01
                 d = math.sqrt(d2)
-                # FR 척력 = k^2 / d × repulsion_gain (×10)
+                
+                # FR 척력
                 force = (k2 / d) * LAYOUT_REPULSION_GAIN
+                
+                # 고립 노드가 끼어있으면 척력을 줄여 불필요한 비산 억제 및 중력 응집 유도
+                if i_isolated or j_isolated:
+                    force *= 0.3
+                
                 # 양쪽으로 분리
                 fx = (d_x / d) * force
                 fy = (d_y / d) * force
+                
+                # Collision Guard: 겹침 방지 (최소 45px 보장)
+                min_dist = 45.0
+                if d < min_dist:
+                    overlap = min_dist - d
+                    col_f = (overlap * overlap) * 8.0
+                    fx += (d_x / d) * col_f
+                    fy += (d_y / d) * col_f
+                
                 dx[i] += fx
                 dy[i] += fy
                 dx[j] -= fx
@@ -1106,7 +1135,18 @@ def vault_graph(
             edges_raw = db.execute(
                 "SELECT source_slug, target_slug FROM links WHERE intent IN ('auto', 'broken')"
             ).fetchall()
-            edges = [{"source": r["source_slug"], "target": r["target_slug"]} for r in edges_raw]
+            # 양방향 상호 링킹(A->B, B->A) 및 중복 엣지 제거 -> 단일 무방향 엣지로 정돈
+            seen_pairs = set()
+            unique_edges = []
+            for r in edges_raw:
+                s, t = r["source_slug"], r["target_slug"]
+                if s == t:
+                    continue  # self-loop 방지
+                pair = (min(s, t), max(s, t))
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    unique_edges.append({"source": s, "target": t})
+            edges = unique_edges
             db.close()
             # Patch A1 (v0.6.10+): force-directed 좌표 부착 (서버 1회 계산, 결정론).
             ids = [n["id"] for n in nodes]
@@ -1174,7 +1214,8 @@ def vault_graph(
                 tgt = tgt[:-3]
             if tgt == src:
                 continue
-            key = (src, tgt)
+            # 양방향 상호 링킹 및 중복 엣지 제거 -> 단일 무방향 엣지로 정돈
+            key = (min(src, tgt), max(src, tgt))
             if key in edge_set:
                 continue
             edge_set.add(key)
