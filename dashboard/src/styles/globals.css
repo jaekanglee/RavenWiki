@@ -1110,15 +1110,23 @@ mark {
   align-items: center;
   padding: 9px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--color-ink);
+  border: 1px solid var(--graph-border);
+  background: var(--graph-surface-strong);
+  color: var(--graph-text);
   cursor: pointer;
   text-align: left;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.graph-detail-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-info-border);
+  background: var(--cds-background-brand);
+  box-shadow: var(--shadow-raised);
 }
 .graph-detail-link span:last-child {
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--graph-text-muted);
   white-space: nowrap;
 }
 .graph-detail-empty {
