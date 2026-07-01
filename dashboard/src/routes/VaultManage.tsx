@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { Button } from "../components/ui/Button";
 
 interface VaultMeta {
   name: string;
@@ -228,12 +229,19 @@ export function VaultManage() {
         }
         confirmLabel="락 해제"
       />
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-        Vault 관리
-      </h1>
-      <p style={{ fontSize: 13, color: "var(--color-muted)", marginBottom: 24 }}>
-        모든 vault의 통계 확인 / 이름 변경 / 삭제
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+            Vault 관리
+          </h1>
+          <p style={{ fontSize: 13, color: "var(--color-muted)" }}>
+            모든 vault의 통계 확인 / 이름 변경 / 삭제
+          </p>
+        </div>
+        <Button variant="pillPrimary" onClick={() => navigate("/vault/new")}>
+          ➕ 새 vault 만들기
+        </Button>
+      </div>
 
       {error && (
         <div
