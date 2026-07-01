@@ -128,6 +128,27 @@ def write_page(
     if body is not None and content is None:
         content = body
 
+    # ── 0. agents allowlist gate (v0.7.37+)
+    # When a vault declares an opt-in `agents` allowlist in .vault.json,
+    # only listed actors may write through this contract. Empty allowlist
+    # = no policy = always allowed (no behavior change for existing vaults).
+    if not vault.write_allowed_for(actor):
+        actor_id = actor if isinstance(actor, str) else (
+            str(getattr(actor, "name", "anonymous")) if actor is not None else "anonymous"
+        )
+        return WriteResult(
+            ok=False,
+            slug=slug,
+            error=(
+                f"actor {actor_id!r} not in vault's `agents` allowlist "
+                f"{list(vault.meta.agents)!r}"
+            ),
+            message=(
+                "v0.7.37+ opt-in policy: vault declared an `agents` "
+                "allowlist; this actor is not authorized to write."
+            ),
+        )
+
     # ── 1. slug normalize + validate
     raw_slug = slug if not normalize else slug_module.normalize_prefix(slug)
     try:

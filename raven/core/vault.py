@@ -98,6 +98,53 @@ class Vault:
             return True
         return False
 
+    # ────────────────────────── v0.7.37+: agents policy ─────────────────────
+    #
+    # When `.vault.json` lists an `agents` allowlist, ONLY callers whose
+    # actor string (or dict `.name`) appears in that list may write to
+    # this vault. Empty list = permissive (every actor allowed) — full
+    # backward compatibility with vaults that haven't opted in.
+    #
+    # Reads (`search`, `get_page`, `graph`, `lint`, `log`, MCP read
+    # tools) are NEVER gated here; the policy is write-only by design.
+    # Doing it this way keeps federation / cross-vault wikilinks free
+    # while preventing rogue actors from silently mutating another
+    # vault's content.
+
+    def write_allowed_for(self, actor: Optional[object]) -> bool:
+        """Return True if `actor` may write to this vault under the
+        `agents` opt-in policy.
+
+        Args:
+            actor: One of:
+                * None — anonymous caller (treated as `"anonymous"`).
+                * str — actor identifier (e.g. `"hermes"`, `"wiki-agent"`).
+                * dict — must carry `"name"` (used as actor id).
+                * any object with `.name` attribute — used as actor id.
+
+        Returns:
+            True if `actor` may write. False ONLY when the vault has an
+            opt-in allowlist (`meta.agents` non-empty) AND the actor id
+            is not in that list. Otherwise True (default).
+        """
+        allowlist = self.meta.agents
+        if not allowlist:
+            # No policy declared → allow every actor (current behavior).
+            return True
+
+        # Normalize actor → str
+        if actor is None:
+            actor_id = "anonymous"
+        elif isinstance(actor, str):
+            actor_id = actor
+        elif isinstance(actor, dict):
+            actor_id = str(actor.get("name", "anonymous"))
+        else:
+            name = getattr(actor, "name", None)
+            actor_id = str(name) if name else "anonymous"
+
+        return actor_id in allowlist
+
     @classmethod
     def create(
         cls,

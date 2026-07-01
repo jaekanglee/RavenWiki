@@ -57,6 +57,20 @@ class VaultMeta:
 
     v0.6.39+: `features: dict` enables LLM Wiki patterns per-vault.
     Empty by default; user adds `{"llm_wiki": true}` to opt in.
+
+    v0.7.37+: `agents: tuple` — *opt-in* write allowlist.
+    Empty tuple = no policy (every actor may write, default behavior).
+    Non-empty tuple = ONLY actors in this list may write through the
+    shared `write_page()` contract. Reads are always unrestricted
+    (`search`, `get_page`, `graph`, etc.).
+
+    Rationale:
+        Users operate multiple vaults where each is the runtime scope of
+        a distinct agent/team. A vault can opt-in to refuse writes from
+        actors outside its declared agent set, so an agent cannot
+        silently edit another vault's data even with valid
+        credentials. Negative (`empty`) value preserves backward
+        compatibility — only opt-in vaults enforce.
     """
 
     name: str
@@ -68,6 +82,7 @@ class VaultMeta:
     default: bool = False
     allow_tier1_leak: bool = False   # v0.6.39+: opt-in for Tier 1 doc customization
     features: tuple = ()             # v0.6.39+: feature flags (e.g., {"llm_wiki": True})
+    agents: tuple = ()               # v0.7.37+: opt-in write allowlist (empty = allow all)
 
     @classmethod
     def from_json(cls, name: str, data: dict, default_name: str = "") -> "VaultMeta":
@@ -79,6 +94,14 @@ class VaultMeta:
                 path = fallback_path
 
         features = tuple(sorted(data.get("features", {}).items()))
+        # v0.7.37+: agents is opt-in allowlist. Normalize to a sorted tuple
+        # so the dataclass stays hashable/frozen. Empty stays empty (= no
+        # policy = write allowed for every actor).
+        agents_raw = data.get("agents", [])
+        if isinstance(agents_raw, (list, tuple)):
+            agents: tuple = tuple(sorted(str(a) for a in agents_raw))
+        else:
+            agents = ()
         return cls(
             name=name,
             path=path,
@@ -89,6 +112,7 @@ class VaultMeta:
             default=(name == default_name) or data.get("default", False),
             allow_tier1_leak=data.get("allow_tier1_leak", False),
             features=features,
+            agents=agents,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -105,6 +129,9 @@ class VaultMeta:
             out["allow_tier1_leak"] = True
         if self.features:
             out["features"] = dict(self.features)
+        # v0.7.37+: only serialize agents when non-empty (opt-in surface).
+        if self.agents:
+            out["agents"] = list(self.agents)
         return out
 
 
