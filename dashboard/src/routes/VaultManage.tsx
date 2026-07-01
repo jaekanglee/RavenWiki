@@ -133,6 +133,10 @@ export function VaultManage() {
   }
 
   // ─── delete (2-step: preview then force) ──────────
+  function initiateDelete(name: string) {
+    setConfirmDelete({ name, preview: null });
+  }
+
   async function requestDelete(name: string) {
     setBusy(true);
     setError(null);
@@ -146,6 +150,7 @@ export function VaultManage() {
         setConfirmDelete({ name, preview: d as DeletePreview });
       } else if (d.ok) {
         showToast(`✅ '${name}' 보관소를 제거했습니다.`);
+        setConfirmDelete(null);
         await loadVaults();
       } else {
         throw new Error(d.detail || JSON.stringify(d));
@@ -414,7 +419,7 @@ export function VaultManage() {
                           ✏️
                         </button>
                         <button
-                          onClick={() => requestDelete(v.name)}
+                          onClick={() => initiateDelete(v.name)}
                           disabled={busy}
                           style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)" }}
                           aria-label={`delete ${v.name}`}
@@ -503,7 +508,7 @@ export function VaultManage() {
                       이름 변경
                     </button>
                     <button
-                      onClick={() => requestDelete(v.name)}
+                      onClick={() => initiateDelete(v.name)}
                       disabled={busy}
                       style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--cds-danger-text, #a2191f)" }}
                     >
@@ -617,39 +622,58 @@ export function VaultManage() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         onClose={() => !busy && setConfirmDelete(null)}
-        onConfirm={confirmForceDelete}
+        onConfirm={
+          confirmDelete?.preview
+            ? confirmForceDelete
+            : () => confirmDelete && requestDelete(confirmDelete.name)
+        }
         busy={busy}
         tone="danger"
-        title={confirmDelete ? `🗑️ ${confirmDelete.name} 정말 삭제?` : ""}
-        confirmLabel="예, 강제 삭제"
+        title={
+          confirmDelete
+            ? confirmDelete.preview
+              ? `⚠️ '${confirmDelete.name}' 강제 삭제 경고`
+              : `🗑️ '${confirmDelete.name}' 보관소 제거`
+            : ""
+        }
+        confirmLabel={confirmDelete?.preview ? "예, 강제 삭제 (복구 불가)" : "제거 진행"}
       >
-        {confirmDelete?.preview && (
-          <div
-            style={{
-              padding: 12,
-              marginBottom: 4,
-              background: "var(--cds-warning, #fff8e1)",
-              border: "1px solid var(--cds-warning-border, #f1c21b)",
-              borderRadius: 4,
-              fontSize: 13,
-            }}
-          >
-            ⚠ 이 vault에 컨텐츠가 있어요:
-            <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-              <li>
-                페이지: <strong>{confirmDelete.preview.stats.pages}개</strong>
-              </li>
-              <li>
-                log:{" "}
-                <strong>
-                  {confirmDelete.preview.stats.log_present ? "있음" : "없음"}
-                </strong>
-              </li>
-            </ul>
-            <div style={{ marginTop: 8, color: "var(--cds-danger-text, #a2191f)" }}>
-              강제 삭제 시 디렉토리 전체가 사라집니다 (복구 불가).
+        {confirmDelete && (
+          confirmDelete.preview ? (
+            <div
+              style={{
+                padding: 12,
+                marginBottom: 4,
+                background: "var(--cds-warning, #fff8e1)",
+                border: "1px solid var(--cds-warning-border, #f1c21b)",
+                borderRadius: 4,
+                fontSize: 13,
+              }}
+            >
+              ⚠ 이 vault에 컨텐츠가 있어요:
+              <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                <li>
+                  페이지: <strong>{confirmDelete.preview.stats.pages}개</strong>
+                </li>
+                <li>
+                  log:{" "}
+                  <strong>
+                    {confirmDelete.preview.stats.log_present ? "있음" : "없음"}
+                  </strong>
+                </li>
+              </ul>
+              <div style={{ marginTop: 8, color: "var(--cds-danger-text, #a2191f)" }}>
+                강제 삭제 시 디렉토리 전체가 사라집니다 (복구 불가).
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.5 }}>
+              <strong>{confirmDelete.name}</strong> 보관소를 레이븐 레지스트리에서 제거하시겠습니까?<br/>
+              <span style={{ fontSize: 13, color: "var(--color-muted)", display: "block", marginTop: 4 }}>
+                (디바이스 디스크의 실제 파일은 삭제되지 않으며 등록만 해제됩니다.)
+              </span>
+            </div>
+          )
         )}
       </ConfirmDialog>
     </div>
