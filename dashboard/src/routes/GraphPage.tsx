@@ -172,6 +172,8 @@ export function GraphPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [hoveredInsightNodeId, setHoveredInsightNodeId] = useState<string | null>(null);
+  const [hoveredInsightType, setHoveredInsightType] = useState<string | null>(null);
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
@@ -183,6 +185,8 @@ export function GraphPage() {
     setHideOrphans(true);
     setUseCommunity(false);
     setSelectedNodeId(null);
+    setHoveredInsightNodeId(null);
+    setHoveredInsightType(null);
   };
 
   const loadGraph = () => {
@@ -321,6 +325,8 @@ export function GraphPage() {
                   type="button"
                   className="graph-insight-link"
                   onClick={() => navigate(`/page/${vault}/${node.slug}`)}
+                  onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                  onMouseLeave={() => setHoveredInsightNodeId(null)}
                 >
                   <span>{node.title}</span>
                   <span>{node.weight ?? 0} links</span>
@@ -346,6 +352,8 @@ export function GraphPage() {
                   type="button"
                   className="graph-insight-link"
                   onClick={() => navigate(`/page/${vault}/${node.slug}`)}
+                  onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                  onMouseLeave={() => setHoveredInsightNodeId(null)}
                 >
                   <span>{node.title}</span>
                   <span>{node.type ?? "미분류"}</span>
@@ -374,6 +382,8 @@ export function GraphPage() {
                     setSelectedType(type);
                     setSelectedCommunity(null);
                   }}
+                  onMouseEnter={() => setHoveredInsightType(type)}
+                  onMouseLeave={() => setHoveredInsightType(null)}
                 >
                   <span>{type}</span>
                   <span>{count} docs</span>
@@ -517,6 +527,8 @@ export function GraphPage() {
             onNodeInspect={(node) => setSelectedNodeId(node.id ?? node.slug)}
             onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
+            externalHighlightNodeId={hoveredInsightNodeId}
+            externalHighlightType={hoveredInsightType}
           />
         )}
       </div>
@@ -593,6 +605,8 @@ export function GraphPage() {
                         type="button"
                         className="graph-detail-link"
                         onClick={() => setSelectedNodeId(node.id ?? node.slug)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
                         <span>{node.type ?? "미분류"}</span>
@@ -614,6 +628,8 @@ export function GraphPage() {
                         type="button"
                         className="graph-detail-link"
                         onClick={() => setSelectedNodeId(node.id ?? node.slug)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
                         <span>{node.type ?? "미분류"}</span>
@@ -635,6 +651,8 @@ export function GraphPage() {
                         type="button"
                         className="graph-detail-link"
                         onClick={() => setSelectedNodeId(node.id ?? node.slug)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
                         <span>{node.type ?? "미분류"}</span>

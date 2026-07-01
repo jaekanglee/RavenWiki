@@ -22,6 +22,10 @@ interface Props {
   onNodeClick?: (slug: string) => void;
   /** double click / double tap — 모바일+데스크탑 공통 페이지 이동 */
   onNodeDoubleClick?: (slug: string) => void;
+  /** 외부(인사이트 카드 등)에서 하이라이트 요청한 노드 ID */
+  externalHighlightNodeId?: string | null;
+  /** 외부에서 하이라이트 요청한 문서 타입 */
+  externalHighlightType?: string | null;
 }
 
 // SCHEMA 8종(확장 매핑) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -216,7 +220,15 @@ const graphButtonStyle = {
   backdropFilter: "blur(8px)",
 } as const;
 
-function GraphCanvasInner({ nodes, edges, onNodeInspect, onNodeClick, onNodeDoubleClick }: Props) {
+function GraphCanvasInner({
+  nodes,
+  edges,
+  onNodeInspect,
+  onNodeClick,
+  onNodeDoubleClick,
+  externalHighlightNodeId,
+  externalHighlightType,
+}: Props) {
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -343,6 +355,31 @@ function GraphCanvasInner({ nodes, edges, onNodeInspect, onNodeClick, onNodeDoub
     const nodeIds = new Set<string>();
     const edgeIds = new Set<string>();
 
+    // 1) 외부에서 전달된 노드 하이라이트
+    if (externalHighlightNodeId) {
+      nodeIds.add(externalHighlightNodeId);
+      // 해당 노드와 연결된 엣지 및 이웃 노드들도 하이라이트
+      for (const edge of flowEdges) {
+        if (edge.source === externalHighlightNodeId || edge.target === externalHighlightNodeId) {
+          edgeIds.add(edge.id);
+          nodeIds.add(String(edge.source));
+          nodeIds.add(String(edge.target));
+        }
+      }
+    }
+
+    // 2) 외부에서 전달된 특정 타입 하이라이트
+    if (externalHighlightType) {
+      // 해당 타입인 노드들을 모두 하이라이트
+      for (const fn of flowNodes) {
+        const nodeMeta = nodeMap.get(fn.id);
+        if (nodeMeta && (nodeMeta.type === externalHighlightType || (!nodeMeta.type && externalHighlightType === "미분류"))) {
+          nodeIds.add(fn.id);
+        }
+      }
+    }
+
+    // 3) 마우스 오버된 edge 하이라이트
     if (hoveredEdgeId) {
       const edge = flowEdges.find((e) => e.id === hoveredEdgeId);
       if (edge) {
@@ -352,6 +389,7 @@ function GraphCanvasInner({ nodes, edges, onNodeInspect, onNodeClick, onNodeDoub
       }
     }
 
+    // 4) 마우스 오버된 노드 하이라이트
     if (hoveredNode) {
       nodeIds.add(hoveredNode.id);
       const hoveredCommunity = (hoveredNode as any).community as number | undefined;
@@ -381,7 +419,7 @@ function GraphCanvasInner({ nodes, edges, onNodeInspect, onNodeClick, onNodeDoub
       nodeIds,
       edgeIds,
     };
-  }, [flowEdges, hoveredEdgeId, hoveredNode]);
+  }, [flowEdges, flowNodes, nodeMap, hoveredEdgeId, hoveredNode, externalHighlightNodeId, externalHighlightType]);
 
   const displayNodes = useMemo(
     () =>
