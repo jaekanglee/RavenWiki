@@ -283,7 +283,7 @@ def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> lis
     
     # 1. Check type
     ptype = (meta.get("type") or "").strip().lower()
-    valid_types = {"concept", "person", "tool", "comparison", "project", "rule", "query", "journal"}
+    valid_types = {"concept", "person", "tool", "comparison", "project", "rule", "query", "journal", "issue"}
     if not ptype or ptype not in valid_types:
         missing.append("올바른 type (frontmatter)")
         return missing

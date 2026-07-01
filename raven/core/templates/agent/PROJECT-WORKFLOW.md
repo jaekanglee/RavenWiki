@@ -178,6 +178,23 @@ confidence: high
 ```
 > 🤖 **Agent Note**: 저널에 작성된 내용 중 영구적으로 보존 및 누적될 가치가 있는 핵심 지식(새 개념, 결정, 규칙 등)은 별도의 `concept`, `decision` 페이지로 컴파일하여 추출하고, 저널에는 링크만 남겨 지식을 정제하십시오.
 
+### 📝 3.4 `rule` (Rule / Policy)
+
+```
+# {Rule Name}
+
+> {BLUF: What this rule is, 1 line}
+
+## 적용 범위
+{규칙이 적용되는 대상 및 예외 대상.}
+
+## 규칙
+{구체적인 규칙 세부사항 및 가이드.}
+
+## 예외 (Optional)
+{규칙이 적용되지 않는 특수 사례.}
+```
+
 ### 📝 3.5 `person` (Person)
 
 ```
@@ -276,6 +293,29 @@ confidence: high
 - [[decision-or-issue-page]] — 관련 의사결정 문서 및 이슈 트래커
 ```
 
+### 📝 3.10 `issue` (Issue)
+
+```
+# {Issue Title}
+
+> {BLUF: 이 이슈의 핵심 원인 및 상태 1줄 요약}
+
+## 상태
+{열림(Open) / 진행중(In Progress) / 해결됨(Resolved)}
+
+## 문제 상황
+{발생한 문제의 현상 및 재현 경로.}
+
+## 원인 분석
+{문제의 근본 원인(Root Cause) 분석.}
+
+## 해결 방안 (Optional)
+{적용했거나 고려 중인 패치/해결책.}
+
+## 관련
+- [[project-x]] — 관련된 프로젝트
+```
+
 ---
 
 ## ✅ 4. 일관성 체크리스트 (Consistency Checklist)
@@ -284,7 +324,7 @@ confidence: high
 
 - [ ] **첫 줄이 결론/결정 1문장** (BLUF)
 - [ ] **frontmatter**: `title`, `type`, `created`, `updated` 채워짐
-- [ ] **type이 8종 중 하나** (`concept`, `person`, `comparison`, `project`, `tool`, `rule`, `query`, `journal`)
+- [ ] **type이 9종 중 하나** (`concept`, `person`, `comparison`, `project`, `tool`, `rule`, `query`, `journal`, `issue`)
 - [ ] **wikilink ≥ 1** (관련 페이지 연결) 및 링크 옆 **맥락적 설명** 추가됨
 - [ ] **본문이 사람 문장으로 읽힘** (운영 메타 / JSON / 내부 추론 흔적 / 빈 TBD 플레이스홀더 ❌)
 - [ ] **저장 신호 4가지 통과** (재사용 가능성, 인수인계 필요성, 결정 근거, 실패/리스크)

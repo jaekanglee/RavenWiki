@@ -27,6 +27,7 @@ const TYPES = [
   "rule",
   "query",
   "journal",
+  "issue",
 ] as const;
 
 const TYPE_OPTIONS = TYPES.map((t) => ({ value: t, label: t }));

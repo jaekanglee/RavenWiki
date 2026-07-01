@@ -51,8 +51,8 @@ PAGE_SIZE_LINES = 200
 INDEX_COMPLETE_BUILD_REQUIRED = True  # build 후에만 검증
 
 # #13 cognitive governance (Zettelkasten/LLM Wiki quality signal, v0.5.3+)
-# 면제: type ∈ {rule, journal, query} 또는 _meta/ 안 페이지 (운영 문서).
-COG_GOV_EXEMPT_TYPES: frozenset[str] = frozenset({"rule", "journal", "query"})
+# 면제: type ∈ {rule, journal, query, issue} 또는 _meta/ 안 페이지 (운영 문서).
+COG_GOV_EXEMPT_TYPES: frozenset[str] = frozenset({"rule", "journal", "query", "issue"})
 # 본문 wikilink가 cross-discipline 후보로 인정받으려면 다음 단어가 slug에 포함.
 # (heuristic — 사람/예술/생물/역사/철학 카테고리 위주)
 COG_GOV_DISCIPLINE_KEYWORDS: tuple[str, ...] = (
@@ -84,7 +84,7 @@ CORE_TAGS_FALLBACK = {
     # 시스템
     "system", "tool", "ui", "search", "viewer", "schema", "mcp", "dashboard",
     # 컨텐츠
-    "concept", "person", "comparison", "project", "rule", "query", "journal",
+    "concept", "person", "comparison", "project", "rule", "query", "journal", "issue",
     # 도메인
     "ai", "wiki", "karpathy", "llm-wiki", "tailscale", "react", "python", "docker",
     # 상태

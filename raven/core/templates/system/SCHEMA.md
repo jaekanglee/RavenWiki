@@ -45,7 +45,7 @@ confidence: high
 ```yaml
 ---
 title: 페이지 제목         # 필수
-type: concept             # 필수: concept | person | comparison | project | tool | rule | query | journal
+type: concept             # 필수: concept | person | comparison | project | tool | rule | query | journal | issue
 tags: [core, custom]      # 권장: core = lint 대상
 created: YYYY-MM-DD       # 자동
 updated: YYYY-MM-DD       # 자동
@@ -81,7 +81,7 @@ aliases: [old-slug-1]     # 선택
 ### Core Tags (lint 대상)
 **SCHEMA에 명시된 태그만 사용**:
 - 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`
-- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`
+- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`, `issue`
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
 
 **lint 동작**: core에 없으면 🟡 warning ("not in core taxonomy")

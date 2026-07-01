@@ -516,6 +516,24 @@ NOTE_TEMPLATES = {
         "## 내일 할 것\n"
         "-\n"
     ),
+    "rule": (
+        "# {title}\n\n"
+        "## 적용 범위\n\n\n"
+        "## 규칙\n\n\n"
+        "## 예외\n\n\n"
+        "## 관련\n"
+        "-\n"
+    ),
+    "issue": (
+        "# {title}\n\n"
+        "## 상태\n"
+        "열림 (Open)\n\n"
+        "## 문제 상황\n\n\n"
+        "## 원인 분석\n\n\n"
+        "## 해결 방안\n\n\n"
+        "## 관련\n"
+        "-\n"
+    ),
 }
 
 NOTE_TYPE_MAP = {
@@ -523,6 +541,8 @@ NOTE_TYPE_MAP = {
     "concept": ("concepts", "concept"),
     "lesson": ("lessons", "lesson"),
     "journal": ("journal", "journal"),
+    "rule": ("rules", "rule"),
+    "issue": ("issues", "issue"),
 }
 
 
@@ -571,6 +591,28 @@ def note_journal(
     from datetime import date
     today = date.today().isoformat()
     _note_create("journal", project, today, today, vault)
+
+
+@note_app.command("rule")
+def note_rule(
+    project: str = typer.Option(..., "--project", "-p"),
+    slug: str = typer.Option(..., "--slug"),
+    title: str = typer.Option(..., "--title", "-t"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """규칙 트리거 — rules/{slug}.md 즉시 생성 (playbook §10.1)."""
+    _note_create("rule", project, slug, title, vault)
+
+
+@note_app.command("issue")
+def note_issue(
+    project: str = typer.Option(..., "--project", "-p"),
+    slug: str = typer.Option(..., "--slug"),
+    title: str = typer.Option(..., "--title", "-t"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+) -> None:
+    """이슈 트리거 — issues/{slug}.md 즉시 생성 (playbook §10.1)."""
+    _note_create("issue", project, slug, title, vault)
 
 
 def _note_create(kind: str, project: str, slug: str, title: str, vault: Optional[str]) -> None:
@@ -876,6 +918,31 @@ def page_delete(
     except Exception:
         pass
     typer.echo(f"✅ archived: {slug} → {dest.relative_to(v.root)}")
+
+
+@page_app.command("rename")
+def page_rename(
+    old_slug: str,
+    new_slug: str,
+    vault: Optional[str] = typer.Option(None, "--vault", help="vault name (default: active)"),
+) -> None:
+    """Rename a page (slug), rewrite all inbound wikilinks, and rebuild DB."""
+    v = _resolve_vault_or_die(vault)
+    
+    from raven.mcp.tools.write import wiki_rename, VaultContext
+    
+    ctx = VaultContext(vault=str(v.root), mode="admin")
+    
+    try:
+        res = wiki_rename(old_slug=old_slug, new_slug=new_slug, ctx=ctx, actor="cli")
+        if res.get("ok"):
+            typer.echo(f"✅ Success: {res['message']}")
+        else:
+            typer.echo(f"❌ Error: {res['message']}", err=True)
+            raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Error: {e}", err=True)
+        raise typer.Exit(1)
 
 
 # ────────────────────────── meta (vault _meta/ management) ──────────────────────────

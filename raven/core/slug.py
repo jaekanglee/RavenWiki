@@ -76,16 +76,23 @@ def validate(slug: str, *, vault_root: Path) -> Path:
 
 
 def normalize_prefix(slug: str) -> str:
-    """If `slug` has no '/', prepend 'content/'.
+    """If `slug` does not start with a recognized system prefix, prepend 'content/'.
 
-    Used by `raven page new <slug>` so users can type short names.
-    Explicit paths like '_meta/welcome' or 'content/foo' pass through.
+    Used by CLI/API so users/agents can use slugs like 'concepts/foo' or 'foo'
+    which will both map under 'content/'.
+    System areas like '_meta/welcome', 'raw/data', 'content/foo', or '_archive/foo' pass through.
 
     Note: this does NOT validate; call validate() afterwards for safety.
     """
-    s = slug.strip()
+    s = slug.strip().replace("\\", "/")
     if not s:
         return s
-    if "/" in s:
+    
+    if s.startswith("~") or s.startswith("/") or s.startswith("."):
+        return s
+    
+    prefixes = ("content/", "_meta/", "raw/", "_archive/", "_deprecated/", "_templates/")
+    lower_s = s.lower()
+    if any(lower_s.startswith(p) for p in prefixes):
         return s
     return f"content/{s}"
