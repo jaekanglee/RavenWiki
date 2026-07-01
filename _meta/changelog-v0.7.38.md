@@ -1,44 +1,54 @@
-# raven v0.7.38 — 볼트 삭제 API 디렉토리 유실 예외 처리 및 2단계 확인 대화상자 도입
+# raven v0.7.38 — multi-author vault lint 확장 (wikilink 형식 일관성 + log.md 추가 전용성 회귀 검출)
 
-> **핵심**: 대시보드에서 볼트 삭제 시, 디스크 상에 해당 볼트 디렉토리가 존재하지 않는 경우 `Vault.load`가 `FileNotFoundError`를 던져 500 에러가 나던 문제를 해결했습니다. 또한, 사용자가 볼트를 실수로 삭제하지 않도록 **1차 확인 절차(레지스트리 제거 승인)**를 거친 후, 실제 콘텐츠가 남아 있는 경우에만 **2차 강제 삭제 경고**를 보여주는 안전한 2단계 삭제 플로우를 구축했습니다.
+> **핵심**: 한 vault 를 여러 author(에이전트/사람)가 동시 운영하는 경우 두 가지 공통 회귀를 lint 가 detect-only 로 잡아냅니다. ① wikilink 형식 통일 부족 (short form `[[foo]]` vs long form `[[content/foo]]` 혼재) — INFO 1건 + 샘플 5개 + "(+N more)". ② `log.md` 의 append-only 가정 위반 (시간 역전 entry) — WARNING. **둘 다 silent auto-fix 안 함** — `vault.json.agents` (v0.7.37) 의 opt-in 정책 사고와 같은 철학: raven 은 detect-only generics 만 제공, 사용자 도메인 정책은 사용자 vault 가 결정.
 
 릴리스 일자: 2026-07-01
 이전: v0.7.37
 
 ---
 
-## 1. 배경
+## 1. 배경 — 요청 발생
 
-* **상황 1 (500 에러)**: 대시보드의 볼트 관리 화면에서 볼트를 삭제하려 할 때, 디렉토리가 유실된 경우 `⚠ Unexpected token 'I', "Internal S"... is not valid JSON` 에러가 발생함.
-* **상황 2 (확인 절차 누락)**: 기존에는 빈 볼트(페이지가 없는 볼트)의 경우 클릭 즉시 삭제되었으며, 콘텐츠가 있더라도 곧바로 강제 삭제 경고창이 출력되어 사용자에게 의사를 재확인하는 안전장치가 부족했습니다.
-* **해결 방안**:
-  1. 삭제 요청 시 디스크 경로 존재 여부를 먼저 확인하고, 존재하지 않는다면 레지스트리 해제만 수행하도록 백엔드를 보완했습니다.
-  2. 프론트엔드 대시보드에 **1차 삭제 제거 의사 확인 대화상자(ConfirmDialog)**를 추가해 항상 확인을 거치도록 하고, 콘텐츠 보유 여부에 따라 동적으로 UI 텍스트와 버튼 액션을 전환하는 2단계 확인 플로우를 도입했습니다.
+`hermes-infra` vault 운영자(3개 Hermes 프로필 = 동일 vault 동시 운영) 가 `~/.hermes/decisions/RAVEN-FEATURE-REQUEST.md` 에서 4종 강제 메커니즘 요청. 1:1 검토 후:
+
+* **요청 1 (wikilink auto-format)** 과 **요청 2 (log.md integrity)** 는 raven 제품 자체 결함 — 다른 사용자도 같은 문제. **lint detect-only 로 채택**.
+* **요청 3 (author tracking)** 과 **요청 4 (cross-profile protocol)** 은 hermes-infra 도메인 정책(R5/R6/9.x) — raven core 가 표준화하면 다른 사용자에게 침습. `vault.json.agents` (v0.7.37) 의 `agents` allowlist 가 절반 해결. v0.7.39+ 에서 `author_folders` 확장으로 후속 검토.
+
+이번 사이클 = 첫 두 가지 요청의 detect-only 응답.
 
 ---
 
 ## 2. 변경 사항
 
-### 2-1. 백엔드 볼트 삭제 API 수정 (`raven/api/server.py`)
+### 2-1. Rule #17 `wikilink-format-consistency` (INFO, lint)
 
-* **경로 존재 여부 선 검증**: `_vault_or_404` 대신 `registry().get(name)`를 사용해 `meta.path.exists()`를 선 검사합니다.
-* **디렉토리 유실 시 조기 처리**: 디스크에 해당 폴더가 없는 경우, `Vault.load` 및 디렉토리 삭제 없이 레지스트리에서만 해제하고 성공 응답을 반환합니다.
+* **`scripts/lint.py`** (`_lint_all` 끝부분, Rule #11 다음):
+  * `pages.content` 본문에서 wikilink 후보를 `re.finditer(r"\[\[([^\]!|?]+)...")`.
+  * target 이 다음 조건 모두 해당 시 "short form" 으로 카운트:
+    * `/` 미포함 (= vault-relative prefix 없음)
+    * `http://` / `https://` / `mailto:` 로 시작 안 함
+  * 카운트가 1 이상 → 단일 INFO issue, vault-wide 단위로 surface (`path="(vault)"`).
+  * 메시지에 샘플 최대 5개 wikilink + `(+(N-5) more)` suffix.
+  * **`[[x]]!`, `[[x]]?` intent 표기는 무관** — `[[content/foo!]]` (intent marked long) 는 카운트 안 함.
+  * **auto-rewrite 절대 안 함.** 도메인 의존 결정은 vault opt-in 으로.
 
-### 2-2. 대시보드 2단계 삭제 플로우 추가 (`VaultManage.tsx`)
+### 2-2. Rule #18 `log-append-rollback` (WARNING, lint)
 
-* **삭제 진입점 캡슐화 (`initiateDelete`)**:
-  * 테이블 및 카드 리스트의 "삭제" 버튼 클릭 시, API를 바로 치는 대신 `initiateDelete(name)`를 호출하여 확인창 상태(`confirmDelete`)를 1단계(preview = null)로 전환합니다.
-* **동적 대화상자(`ConfirmDialog`) 처리**:
-  * **1단계 (보관소 제거 의사 확인)**: `preview` 정보가 없는 초기 상태입니다. `'${name}' 보관소 제거` 타이틀과 함께 레지스트리 해제 의사를 먼저 확인하며, 사용자가 "제거 진행"을 누르면 백엔드 삭제 API를 비동기 호출합니다.
-  * **2단계 (강제 삭제 경고)**: 만약 백엔드에서 콘텐츠가 존재하여 에러를 응답하면, 대화상자 상태를 `preview` 데이터가 포함된 경고 상태로 자동 전환합니다. 타이틀이 `⚠️ '${name}' 강제 삭제 경고`로 변하고, 콘텐츠 세부 정보(페이지 수, 로그 여부) 및 디스크가 영구 삭제된다는 주의 문구를 띄우며 "예, 강제 삭제 (복구 불가)" 버튼을 노출합니다.
+* **`scripts/lint.py`** (Rule #17 다음):
+  * `<vault_root>/log.md` 의 `## [YYYY-MM-DD] action | subject` 헤더 줄들만 `re.findall` 로 date 추출.
+  * 인접 entry 비교: `cur_date < prev_date` → 시간 역전 1건.
+  * 1건 이상 → 단일 WARNING issue, path=`"log.md"`.
+  * 메시지에 샘플 최대 3개 (line N: [cur] after [prev]) + `(+(N-3) more)` suffix (N > 3 일 때만).
+  * **detail 줄 (`- key: val`) 은 무시** — 어차피 헤더 패턴만 매치.
+  * **silent repair 절대 안 함** — repair 가 오히려 signal 을 숨김.
+  * `vault_root=None` 인 CLI 호출에서는 log 검출 skip (silent). 다른 사용자가 `--db <wiki.db>` 만 넘기고 `--vault` 안 줘도 lint 다른 룰은 정상 동작.
 
-### 2-3. 백엔드 API 테스트 케이스 추가 (`tests/test_api.py`)
+### 2-3. 회귀 가드 (자동 검증)
 
-* **`test_api_delete_vault` 구현**:
-  * 존재하지 않는 볼트 삭제 시도 (404 반환 검증).
-  * 디렉토리가 디스크에서 유실된 경우에도 `DELETE` 요청 시 성공 및 레지스트리 해제 검증.
-  * 콘텐츠가 남아있는 볼트를 `force=True` 옵션 없이 삭제하려 할 때 실패 응답(`ok: false`, `reason: "vault contains content"`) 검증.
-  * `force=True` 옵션 사용 시 디스크 및 레지스트리 전체 강제 삭제 성공 검증.
+* **`scripts/tests/test_lint_v0_7_38.py`** (신규, 16 케이스):
+  * Rule #17: long-form only / short-form only / intent-marked long-form 통과 / sample cap 5개 / URL-prefix skip / 단수 short-form 케이스.
+  * Rule #18: log 없음 = no issue / monotone log no issue / 시간 역전 1건 / under-cap no overflow / overflow above-cap / corrupt log 500 안 함 / 단일 entry log / detail 줄 무시 / 두 룰 독립 공존.
+  * in-memory wiki.db schema (pages, links, tags, content + raw_content + links.context) 재현해서 `_lint_all` 직접 호출 — 다른 테스트들과 격리.
 
 ---
 
@@ -46,12 +56,17 @@
 
 | 항목 | 결과 | 비고 |
 |---|---|---|
-| `npm run build` (tsc 포함) | **Success** | 대시보드 컴파일 및 빌드 빌드 정상 통과 |
-| `pytest tests/` 전체 | **490 passed, 1 skipped** | 백엔드 API 전체 테스트 통과 |
-| `git status` 변경 목록 일치 | **Success** | `server.py`, `VaultManage.tsx`, `test_api.py` 변경 |
+| `pytest scripts/tests/test_lint_v0_7_38.py -v` | **16 passed** | 신규 가드 (Rule #17 6건 + Rule #18 9건 + co-exist 1건) |
+| `pytest scripts/tests/test_lint.py` | **24 passed** | 기존 lint suite 회귀 0 |
+| `pytest tests/` (raven core) | **525 passed, 2 skipped** | 회귀 0 |
+| `python -c "import ast; ast.parse(...)"` (lint.py) | **OK** | syntax clean |
+| 사용자 vault 데이터 / raven 핵심 코드 | **0건 변동** | lint 룰 2건 추가 외 |
 
 ---
 
 ## 4. 다음 단계
 
-* 볼트 상태 요약 및 레지스트리 정밀 예외 가드레일 지속 추가.
+* **다음 사이클 후보 (사용자 결정 대기)**:
+  * v0.7.39+ `vault.json.author_folders` opt-in 확장 (요청 3·4의 hermes-infra 도메인 격리) — `<actor>: <folder-glob>` map, actor ≠ folder 인 write 시 경고/거부.
+  * 또는 다른 우선순위 (예: Dashboard federated wikilink wire-in).
+* 요청자에게 위 회신은 `~/.hermes/decisions/RAVEN-FEATURE-REQUEST.md` 작성자에게 회신 초안으로 이미 전달됨 (별도 메시지). 이후 응답에 따라 후속 결정.
