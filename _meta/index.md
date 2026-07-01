@@ -55,6 +55,7 @@ confidence: high
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.36]] — 사용자 표면 SOT 동기화(AGENTS.md→README.md) + Docker 이미지 SHA 핀 + 운영 절차 명시
 - [[changelog-v0.7.35]] — 보관소 에이전트 가이드 명칭 변경 및 마이그레이션 실드 구축
 - [[changelog-v0.7.34]] — 린트 이슈 인라인 자동 수정(Quick Fix) 기능 구현
 - [[changelog-v0.7.33]] — 린트 페이지 빠른 대화형 필터(Fast Filter) 구현
