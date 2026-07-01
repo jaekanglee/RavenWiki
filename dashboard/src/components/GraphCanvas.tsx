@@ -235,21 +235,54 @@ function ObsidianNode({
   );
 }
 
-function NebulaNode({ data }: { data: { color: string; radius: number; opacity: number } }) {
+function NebulaNode({ data }: { data: { color: string; radius: number; opacity: number; label?: string } }) {
   return (
     <div
       style={{
+        position: "relative",
         width: data.radius * 2,
         height: data.radius * 2,
         transform: "translate(-50%, -50%)",
-        borderRadius: "50%",
-        background: `radial-gradient(circle, ${data.color} 0%, transparent 75%)`,
-        opacity: data.opacity,
-        filter: "blur(24px)",
         pointerEvents: "none",
-        mixBlendMode: "screen",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
-    />
+    >
+      {/* 1) 흐릿한 성운 가스 레이어 */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${data.color} 0%, transparent 75%)`,
+          opacity: data.opacity,
+          filter: "blur(24px)",
+          mixBlendMode: "screen",
+        }}
+      />
+      
+      {/* 2) 선명한 은하 대표 라벨 레이어 */}
+      {data.label && data.opacity > 0.05 && (
+        <div
+          style={{
+            zIndex: 1,
+            color: "var(--graph-text)",
+            fontSize: Math.max(12, Math.min(18, data.radius * 0.09)),
+            fontWeight: 800,
+            textShadow: `0 0 8px ${data.color}, 0 0 15px ${data.color}, 0 0 2px #000`,
+            opacity: Math.min(0.85, data.opacity * 4.0),
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            letterSpacing: "0.05em",
+            pointerEvents: "none",
+            transform: "translateY(-4px)",
+          }}
+        >
+          {data.label}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -482,10 +515,14 @@ function GraphCanvasInner({
   const nebulaNodes = useMemo(() => {
     if (nebulaOpacity <= 0) return [];
     
+    // 1) 각 커뮤니티별 대표 허브 문서(가장 weight가 높은 노드) 추출
+    const commHubs: Record<number, { title: string; maxWeight: number }> = {};
     const groups: Record<number, { sumX: number; sumY: number; count: number; points: Array<[number, number]> }> = {};
+    
     for (const n of nodes) {
       const c = (n as any).community;
       if (typeof c === "number" && c >= 0) {
+        // 그룹 좌표 데이터
         if (!groups[c]) {
           groups[c] = { sumX: 0, sumY: 0, count: 0, points: [] };
         }
@@ -495,6 +532,13 @@ function GraphCanvasInner({
         groups[c].sumY += y;
         groups[c].count += 1;
         groups[c].points.push([x, y]);
+
+        // 허브 노드 후보 탐색
+        const w = (n as any).weight ?? 0;
+        if (!commHubs[c] || w > commHubs[c].maxWeight) {
+          const t = (n as any).title ?? n.slug;
+          commHubs[c] = { title: t, maxWeight: w };
+        }
       }
     }
     
@@ -510,6 +554,9 @@ function GraphCanvasInner({
       const avgDist = data.count > 1 ? sumDist / data.count : 40;
       const radius = Math.max(85, Math.min(280, avgDist * 1.6));
       
+      const hub = commHubs[commId];
+      const clusterLabel = hub ? `${hub.title} 은하군` : `군집 #${commId}`;
+      
       return {
         id: `nebula-${commId}`,
         type: "nebula" as const,
@@ -520,6 +567,7 @@ function GraphCanvasInner({
           color: COMMUNITY_PALETTE[commId % COMMUNITY_PALETTE.length],
           radius,
           opacity: nebulaOpacity,
+          label: clusterLabel,
         },
       };
     });
