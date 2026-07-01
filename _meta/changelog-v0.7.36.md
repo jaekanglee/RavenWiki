@@ -88,7 +88,54 @@ from templates/system/AGENTS.md: [Errno 2] No such file or directory
 
 ---
 
-## 5. 다음 단계
+## 6. v0.7.36 hotfix (a) — `mcp-http` 컨테이너 Restarting 무한 루프 회귀
+
+> 위 §1~§5 커밋 적용 후 컨테이너를 핀 이미지로 재기동(`docker compose up -d`)하니 `raven-mcp-http`만 즉시 죽고 무한 Restarting 루프에 빠지는 사고가 추가로 발견되었습니다. 같은 v0.7.36 사이클에 묶어 hotfix로 마감합니다.
+
+### 6-1. 근본 원인
+
+`docker-entrypoint.sh`의 `mcp-http` 분기가 **v0.7.21**부터 다음 두 uvicorn 옵션을 wiki-mcp 호출에 함께 던져 왔습니다:
+
+```bash
+exec python -m raven.mcp.cli --transport http --host "$HOST" --port "$PORT_MCP_HTTP" \
+    --forwarded-allow-ips='*' --proxy-headers
+```
+
+**v0.7.23** 리팩토링에서 Tailscale 421 회피 옵션(`forwarded_allow_ips`, `proxy_headers`, `TrustedHostMiddleware`)은 `raven/mcp/cli.py` 내부에서 uvicorn 호출 시 직접 박아 넣는 방식으로 옮겼습니다. 그러나 **`docker-entrypoint.sh`의 exec 라인은 동기화 누락** — Typer 기반 `wiki-mcp` CLI는 위 두 옵션을 모르는 채 매번:
+
+```
+wiki-mcp: error: unrecognized arguments: --forwarded-allow-ips=* --proxy-headers
+```
+
+→ exit 2 → 컨테이너 Restarting 무한 루프. 다른 두 컨테이너(`api`, `dashboard`)는 영향 없음 (각자 다른 진입점).
+
+### 6-2. 변경 사항
+
+* **`scripts/docker-entrypoint.sh`**: `mcp-http` 분기 exec 라인에서 wiki-mcp가 모르는 두 옵션 제거 + 코멘트에 사고 원인/해결 기록.
+* **`tests/test_v0_7_7_mcp_accurate.py`**: 신규 회귀 가드 `test_mcp_http_entrypoint_only_known_flags` — 향후 누가 entrypoint에 `--forwarded-allow-ips` / `--proxy-headers` 같은 Typer 모르는 옵션을 다시 박으면 즉시 차단. `cli.py` 자체엔 `forwarded_allow_ips`와 `proxy_headers=True`가 박혀 있는지 sanity check도 동봉.
+* Tailscale 421 회피 동작은 **그대로 유지** — uvicorn 옵션이 `cli.py` 내부에 박혀 있어 외부 트래픽 Tailscale IP 신뢰 동작은 변함 없음.
+
+### 6-3. 검증
+
+| 항목 | 결과 | 비고 |
+|---|---|---|
+| `wiki-mcp --help` | **Success** | 5개 옵션만 노출 (실행 가능 인자) |
+| 컨테이너 재기동 후 `raven-mcp-http` 상태 | **Up** (Restarting 사라짐) | `docker ps -a` 확인 |
+| `docker logs raven-mcp-http` | **`unrecognized arguments` 에러 0건** | |
+| Tailscale IP로 `/mcp` 호출 | **동작 유지** | cli.py 안 박힌 옵션이 그대로 TrustHost 우회 |
+| `pytest tests/test_v0_7_7_mcp_accurate.py` | **4 passed (신규 1 포함)** | 회귀 가드 통과 |
+| `pytest tests/` 전체 | **489 passed, 1 skipped** (v0.7.36 §3 = 488 → +1 신규 가드) | 회귀 없음 |
+
+---
+
+## 7. 부수 정리 (v0.7.36 사이클 마감 시)
+
+* `sanity-fix-verify` vault registry entry 제거 — v0.7.36 §2 검증 dry-run 중 생성됐던 임시 vault. 디렉토리는 이미 사라졌으나 registry.json에 stale entry로 남아 `GET /api/vaults` 응답을 어지럽히던 항목. 컨테이너 안 `registry.remove('sanity-fix-verify')` 호출로 제거. 디스크 영향 0건.
+* 죽은 컨테이너 3개 (`news-cron-dashboard-1` / `harumoa_app_qc` / `harumoa_db_qc`) — 7주~2개월 전 잔재. **`raven` 프로젝트 산출물이 아니므로 (사용자 자산 영역) 본 사이클에서 일괄 `docker rm` 하지 않음**. 사용자가 직접 정리하거나 다음 사이클에서 별도 의사결정 필요.
+
+---
+
+## 8. 다음 단계
 
 * v0.7.37+: 사용자 표면 정확성 (silent failure 회피) 보강 사이클. 현 우선순위 후보:
   1. `raven vault create` 결과 메시지 표면 점검 — 생성 직후 `/api/vaults/{name}` 응답에 `bootstrap_files` 키를 추가해 클라(예: wizard)에서 "정확히 어느 5종이 복사됐는지" 즉시 확인할 수 있게.
