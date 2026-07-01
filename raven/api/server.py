@@ -1189,11 +1189,17 @@ def get_page(name: str, slug: str):
             except Exception:
                 pass
 
+    import os
+    path_str = str(fp.resolve())
+    host_dir = os.environ.get("RAVEN_VAULTS_DIR")
+    if host_dir and path_str.startswith("/vaults"):
+        path_str = path_str.replace("/vaults", host_dir, 1)
+
     return {
         "ok": True,
         "vault": name,
         "slug": slug,
-        "file_path": str(fp.resolve()),
+        "file_path": path_str,
         "frontmatter": meta,
         "content": body,
         "backlinks": backlinks,
