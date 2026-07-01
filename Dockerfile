@@ -31,6 +31,12 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
+# v0.7.36+: GIT_SHA 핀. compose에서 ${GIT_SHA:-latest} 전달.
+# → 컨테이너 안에서 /app/.git_sha 한 줄만 보면 어떤 커밋이 박혔는지 즉시 식별.
+# → stale 캐시/이미지 섞임 방지 (예: v0.7.35- 이전 _bootstrap_lite에서 AGENTS.md 참조).
+ARG GIT_SHA=latest
+ENV GIT_SHA=${GIT_SHA}
+
 # systemd-less: 의존성 최소화
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates bash \
@@ -77,6 +83,9 @@ ENV HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1
 
 ENV RAVEN_VAULTS_DIR=/vaults
+
+# v0.7.36+: 이미지에 GIT_SHA 박제 — 컨테이너 안에서 즉시 식별.
+RUN printf '%s\n' "${GIT_SHA}" > /app/.git_sha && chown raven:raven /app/.git_sha
 
 USER raven
 

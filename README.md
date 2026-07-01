@@ -102,11 +102,36 @@ raven export                      # GUI 정적 JSON 재생성
 |---|---|
 | `_meta/system/SCHEMA.md` | frontmatter / type / tag / wikilink 규약 |
 | `_meta/system/RULES.md` | 편집 5규칙 |
-| `_meta/system/AGENTS.md` | vault 운영자 규칙 (사람+에이전트 공통) |
+| `_meta/system/README.md` | vault 운영자 가이드 ("Vault User Guide", v0.7.35+ 리네임) |
 | `_meta/agents/PROJECT-WORKFLOW.md` | 프로젝트 작업 에이전트 공통 워크플로우 |
 | `log.md` | 작업 이력 (append-only) |
 
 **Tier 1 문서** (`OPERATIONS.md` / `agent/*` / `raven-policy.md`)는 raven 패키지 내부에 있으며 vault에 **복사되지 않습니다**. 접근은 `raven docs show <topic>`. `vault clone` 기본 = content only (Tier 1 leak 방지).
+
+---
+
+## Docker 운영 (v0.7.36+: 이미지 SHA 핀)
+
+Raven은 4 진입점(CLI/API/MCP/Dashboard) 모두 Docker로 띄울 수 있습니다. **코드 변경 후 반드시 이미지 재빌드 + 컨테이너 재기동** — stale 이미지 캐시가 옛 `_bootstrap_lite`(예: `_meta/system/AGENTS.md` 참조)를 들고 있으면 새로 만든 vault가 즉시 깨질 수 있습니다 (silent failure 사고 사례: v0.7.35 리네임 후 stale 이미지로 `Lite bootstrap failed` 발생).
+
+```bash
+# 0. 환경 (.env에 RAVEN_VAULTS_DIR, PORT_*, HOST 등 정의)
+cd ~/Desktop/Dev/Project/Raven
+
+# 1. 코드 변경 후 → 반드시 SHA 이미지로 재빌드
+docker compose build \
+  --build-arg GIT_SHA=$(git rev-parse --short HEAD)
+
+# 2. 이전 컨테이너/이미지 정리 후 재기동
+docker compose down
+docker compose up -d
+
+# 3. 어떤 SHA가 박힌 이미지인지 즉시 확인
+docker exec raven-api cat /app/.git_sha
+# → fa65226 같은 7자 SHA가 보이면 OK. 보이지 않으면 stale.
+```
+
+**이미지 핀 정책 (왜 필요한가)**: docker-compose는 `image: raven:latest` 만 쓰면 캐시된 이전 레이어를 재사용합니다. 한 번 rename/리팩토 후에도 컨테이너는 옛 코드/템플릿을 들고 있어 vault 생성이 깨지는 일이 발생합니다. **이미지 태그를 GIT SHA로 핀** (`image: raven:${GIT_SHA:-latest}`)하면, 코드 변경 → 다른 태그 → 이전 이미지로 자동 다운그레이드되는 사고가 차단됩니다.
 
 ---
 
@@ -409,7 +434,7 @@ cd dashboard && npm install
 ## 관련 문서
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
-- `~/Raven/<vault>/_meta/system/AGENTS.md` — vault 운영자 규칙 (Lite bootstrap 자동 복사, +α opt-in)
+- `~/Raven/<vault>/_meta/system/README.md` — vault 운영자 가이드 (Lite bootstrap 자동 복사, +α opt-in)
 - `~/Raven/<vault>/_meta/agents/PROJECT-WORKFLOW.md` — 프로젝트 에이전트 공통 작업 지시 템플릿
 - `docs/vault-patterns.md` — **Karpathy LLM Wiki +α 가이드** (v0.7.0+) — raw/ log.md _meta/agents/ opt-in 패턴, 사용자 자유
 - `_meta/decisions/adr-2026-06-30-llm-wiki-plus-alpha.md` — **+α 결정 ADR** (v0.7.0+)

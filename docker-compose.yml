@@ -1,10 +1,13 @@
 # Raven — Docker Compose (4 진입점 일괄, one command).
 # v0.7.16+: 'version' 키 제거 (Docker Compose v2 deprecated).
+# v0.7.36+: 이미지 태그를 GIT SHA로 핀 (코드 변경 후 stale 캐시로 인한
+#   `templates/system/AGENTS.md` 등 옛 리소스를 컨테이너가 참조하는 사고 차단).
 #
 # 사용법:
-#   docker compose up --build    # build + start 3 services
+#   docker compose build --build-arg GIT_SHA=$(git rev-parse --short HEAD)
+#   docker compose up -d          # 위 build 결과의 새 이미지로만 기동
 #   docker compose down           # stop + remove containers
-#   docker compose logs -f api   # 로그 follow
+#   docker compose logs -f api    # 로그 follow
 #
 # 외부 접속 (.env에서 HOST=0.0.0.0 권장):
 #   http://<host>:8765      # API
@@ -13,12 +16,17 @@
 #
 # MCP stdio는 docker exec -it raven-api / docker-entrypoint.sh mcp-stdio
 
+x-raven-image: &raven_image
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      GIT_SHA: ${GIT_SHA:-latest}
+  image: raven:${GIT_SHA:-latest}
+
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: raven:latest
+    <<: *raven_image
     container_name: raven-api
     command: ["api"]
     env_file:
@@ -50,10 +58,7 @@ services:
       retries: 3
 
   mcp-http:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: raven:latest
+    <<: *raven_image
     container_name: raven-mcp-http
     command: ["mcp-http"]
     env_file:
@@ -74,10 +79,7 @@ services:
     restart: unless-stopped
 
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: raven:latest
+    <<: *raven_image
     container_name: raven-dashboard
     command: ["dashboard"]
     env_file:

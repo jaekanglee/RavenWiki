@@ -491,7 +491,7 @@ function Step2({
             }}
           >
             _meta/system/SCHEMA.md, _meta/system/RULES.md,
-            _meta/system/AGENTS.md, _meta/agents/PROJECT-WORKFLOW.md, log.md
+            _meta/system/README.md, _meta/agents/PROJECT-WORKFLOW.md, log.md
           </div>
         </dd>
       </dl>

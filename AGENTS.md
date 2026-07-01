@@ -11,7 +11,7 @@ confidence: high
 
 > AI 에이전트(자율 코딩 도구든, 자동화 스크립트든, 사람 보조자든)가 **이 Raven 코드베이스를 다룰 때** 따라야 하는 규약.
 >
-> 사람 운영자 가이드는 `README.md`, vault 데이터 운영 규칙은 사용자 vault 내부 `_meta/system/AGENTS.md` 참조 (Lite bootstrap으로 자동 복사됨).
+> 사람 운영자 가이드는 `README.md`, vault 데이터 운영 규칙은 사용자 vault 내부 `_meta/system/README.md` 참조 (Lite bootstrap으로 자동 복사됨).
 
 ---
 
@@ -89,11 +89,11 @@ raven-policy.md     → raven 내부 정책 (Lite/Full 동작 정의)
 ### Tier 2 — user vault (Lite bootstrap ✅, v0.7.3+: 5종 표면화)
 
 ```
-_meta/system/SCHEMA.md    → vault 데이터 구조 (frontmatter/type/tag/wikilink) — 사용자 표면
-_meta/system/RULES.md     → 편집 규칙 — 사용자 표면
-_meta/system/AGENTS.md    → "Vault User Guide" — 도구 표면 (v0.7.1+ 재작성)
-_meta/agents/PROJECT-WORKFLOW.md → 프로젝트 작업 에이전트 공통 워크플로우 — 도구 표면
-log.md                    → 작업 이력 (append-only) — 사용자 표면
+| `_meta/system/SCHEMA.md`    → vault 데이터 구조 (frontmatter/type/tag/wikilink) — 사용자 표면
+|_meta/system/RULES.md     → 편집 규칙 — 사용자 표면
+|_meta/system/README.md    → "Vault User Guide" — 도구 표면 (v0.7.35+ 리네임, v0.7.1+ 재작성)
+|_meta/agents/PROJECT-WORKFLOW.md → 프로젝트 작업 에이전트 공통 워크플로우 — 도구 표면
+|log.md                    → 작업 이력 (append-only) — 사용자 표면
 ```
 
 → **v0.7.3+ Lite bootstrap 5종 모두 도구 표면만**. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지) ❌. 사용자가 vault에서 자기 프로덕트를 자유롭게 문서화.
@@ -105,7 +105,7 @@ Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진�
 
 | 독자 | 시작 문서 | 예시 |
 |---|---|---|
-| **사람 (운영자)** | `README.md` (CLI/사용법) + 사용자 vault `_meta/system/AGENTS.md` | vault 운영, 페이지 작성, 검색 |
+| **사람 (운영자)** | `README.md` (CLI/사용법) + 사용자 vault `_meta/system/README.md` | vault 운영, 페이지 작성, 검색 |
 | **Raven 개발팀 (당신)** | `AGENTS.md` (이 문서) + `_meta/changelog-v*.md` | 코드 변경, lint, ADR |
 | **LLM agent (vault에서 일함)** | `raven/core/templates/agent/README.md` + `TOOLS.md` + `WORKFLOW.md` + `SAFETY.md` (4개 묶음) | vault write, cross-reference, log.md |
 
