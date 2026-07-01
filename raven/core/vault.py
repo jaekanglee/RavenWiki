@@ -178,7 +178,37 @@ class Vault:
             except Exception:
                 pass
 
+        # git init + initial commit — SCHEMA.md declares markdown as the
+        # vault's SoT "tracked by git"; make that true from vault creation
+        # onward instead of leaving it as an unmet doc promise. Best-effort:
+        # missing git binary or init failure must never break vault create.
+        cls._ensure_git_repo(path)
+
         return instance
+
+    @staticmethod
+    def _ensure_git_repo(path: Path) -> None:
+        """Best-effort `git init` + initial commit for a freshly created vault."""
+        import shutil
+        import subprocess
+
+        if (path / ".git").exists() or shutil.which("git") is None:
+            return
+        gitignore = path / ".gitignore"
+        if not gitignore.exists():
+            # SCHEMA.md: wiki.db is the query index, explicitly gitignored.
+            gitignore.write_text("wiki.db\n", encoding="utf-8")
+        try:
+            run = lambda *args: subprocess.run(
+                ["git", *args], cwd=path, check=True, capture_output=True, text=True
+            )
+            run("init", "-q")
+            run("config", "user.email", "raven@local")
+            run("config", "user.name", "raven")
+            run("add", "-A")
+            run("commit", "-q", "-m", "chore: initial vault bootstrap")
+        except Exception:
+            pass
 
     @classmethod
     def _bootstrap_basic(cls, path: Path) -> None:

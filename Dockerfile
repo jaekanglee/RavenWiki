@@ -39,7 +39,7 @@ ENV GIT_SHA=${GIT_SHA}
 
 # systemd-less: 의존성 최소화
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates bash \
+    curl ca-certificates bash git \
     && rm -rf /var/lib/apt/lists/*
 
 # 비대자 user (security best practice)
