@@ -8,6 +8,7 @@ import {
   Position,
   useNodesState,
   useEdgesState,
+  useViewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -126,12 +127,16 @@ function ObsidianNode({
     persistent?: boolean;
   };
 }) {
-  // xyflow v12는 node에 `data`만 custom으로 전달받음.
-  // 좌표/타이틀은 onMouseEnter에서 GraphNode 인덱스로 조회 (아래 handle).
-  // Patch 3: pointerEvents: 'all' + cursor: 'grab' 으로 모바일에서 노드 잡기 신호.
-  //   onMouseEnter는 hover-only (데스크탑). 모바일에선 클릭으로 라벨 토글됨.
+  const { zoom } = useViewport();
   const isEmphasized = Boolean(data.highlighted || data.persistent);
-  const labelOpacity = isEmphasized ? 1 : data.dim ? 0.35 : 0.85;
+  
+  // 줌 레벨이 0.35 미만으로 떨어지면 일반 라벨 숨김 및 페이드아웃 (0.35~0.55 구간 보간)
+  const zoomAlpha = zoom < 0.35 ? 0 : zoom > 0.55 ? 1 : (zoom - 0.35) / 0.2;
+  const labelOpacity = isEmphasized 
+    ? 1 
+    : data.dim 
+      ? 0.35 * zoomAlpha 
+      : 0.85 * zoomAlpha;
   const labelText = data.title ?? "";
   return (
     <div
@@ -230,7 +235,28 @@ function ObsidianNode({
   );
 }
 
-const nodeTypes = { obsidian: ObsidianNode };
+function NebulaNode({ data }: { data: { color: string; radius: number; opacity: number } }) {
+  return (
+    <div
+      style={{
+        width: data.radius * 2,
+        height: data.radius * 2,
+        transform: "translate(-50%, -50%)",
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${data.color} 0%, transparent 75%)`,
+        opacity: data.opacity,
+        filter: "blur(24px)",
+        pointerEvents: "none",
+        mixBlendMode: "screen",
+      }}
+    />
+  );
+}
+
+const nodeTypes = {
+  obsidian: ObsidianNode,
+  nebula: NebulaNode,
+};
 
 const graphButtonStyle = {
   border: "1px solid var(--graph-border)",
@@ -300,6 +326,7 @@ function GraphCanvasInner({
   // Patch 5: useReactFlow hook — programmatic fitView 호출용.
   // ReactFlowProvider 안에서만 동작 → GraphCanvas를 Provider로 wrap (export 시).
   const { fitView, flowToScreenPosition } = useReactFlow();
+  const { zoom } = useViewport();
 
   // Patch 2: 모바일 tap 디바운서 타이머 cleanup.
   useEffect(() => {
@@ -448,25 +475,75 @@ function GraphCanvasInner({
     };
   }, [flowEdges, flowNodes, nodeMap, hoveredEdgeId, hoveredNode, externalHighlightNodeId, externalHighlightType]);
 
+  // 줌 레벨에 따른 성운 구름의 opacity 계산 (줌아웃일수록 뚜렷, 줌인일수록 페이드아웃)
+  const nebulaOpacity = Math.max(0, Math.min(0.22, 0.22 * (1.0 - (zoom - 0.2) / 0.55)));
+
+  // 각 커뮤니티의 Centroid와 바운딩 반경을 기준으로 성운 구름 노드들 동적 생성
+  const nebulaNodes = useMemo(() => {
+    if (nebulaOpacity <= 0) return [];
+    
+    const groups: Record<number, { sumX: number; sumY: number; count: number; points: Array<[number, number]> }> = {};
+    for (const n of nodes) {
+      const c = (n as any).community;
+      if (typeof c === "number" && c >= 0) {
+        if (!groups[c]) {
+          groups[c] = { sumX: 0, sumY: 0, count: 0, points: [] };
+        }
+        const x = typeof n.x === "number" ? n.x : 0;
+        const y = typeof n.y === "number" ? n.y : 0;
+        groups[c].sumX += x;
+        groups[c].sumY += y;
+        groups[c].count += 1;
+        groups[c].points.push([x, y]);
+      }
+    }
+    
+    return Object.entries(groups).map(([commIdStr, data]) => {
+      const commId = Number(commIdStr);
+      const cx = data.sumX / data.count;
+      const cy = data.sumY / data.count;
+      
+      let sumDist = 0;
+      for (const [px, py] of data.points) {
+        sumDist += Math.hypot(px - cx, py - cy);
+      }
+      const avgDist = data.count > 1 ? sumDist / data.count : 40;
+      const radius = Math.max(85, Math.min(280, avgDist * 1.6));
+      
+      return {
+        id: `nebula-${commId}`,
+        type: "nebula" as const,
+        position: { x: cx, y: cy },
+        draggable: false,
+        style: { zIndex: -10, pointerEvents: "none" as const },
+        data: {
+          color: COMMUNITY_PALETTE[commId % COMMUNITY_PALETTE.length],
+          radius,
+          opacity: nebulaOpacity,
+        },
+      };
+    });
+  }, [nodes, nebulaOpacity]);
+
   const displayNodes = useMemo(
-    () =>
-      flowNodes.map((node) => {
+    () => [
+      ...nebulaNodes,
+      ...flowNodes.map((node) => {
         const highlighted = focus.nodeIds.has(node.id);
         const persistent = persistentHighlightNodeId === node.id;
         return {
           ...node,
           data: {
-            color: (node.data as any).color,
-            size: (node.data as any).size,
-            title: (node.data as any).title,
+            ...node.data,
             highlighted,
             persistent,
             dim: focus.active && !highlighted && !persistent,
             opacity: !focus.active || highlighted || persistent ? 1 : 0.22,
           },
         };
-      }),
-    [flowNodes, focus, persistentHighlightNodeId]
+      })
+    ],
+    [nebulaNodes, flowNodes, focus, persistentHighlightNodeId]
   );
 
   const displayEdges = useMemo(
