@@ -45,7 +45,19 @@ def _vault_or_404(name: str) -> Vault:
     meta = registry().get(name)
     if not meta:
         raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
-    return Vault.load(meta)
+    try:
+        return Vault.load(meta)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"vault {name!r} is registered at {meta.path!s}, but that path "
+                f"doesn't resolve in this runtime. Fix the registry pointer with "
+                f"`raven vault repair {name} --path <correct-path>` or "
+                f"`POST /api/vaults/{name}/repair` — this only rewrites the "
+                f"registry entry, it never touches vault files."
+            ),
+        )
 
 
 def _err(e: Exception) -> dict:
@@ -1354,6 +1366,46 @@ def rename_vault(name: str, payload: VaultRename):
         reg.set_default(new_name)
 
     return {"ok": True, "vault": {"old": name, "new": new_name, "path": str(new_root)}}
+
+
+class VaultRepairPath(BaseModel):
+    path: str = Field(
+        ...,
+        description=(
+            "corrected path where the vault's files actually live, as resolvable "
+            "by THIS API process — e.g. under WIKI_VAULTS_DIR (/vaults/<name>) "
+            "when running via the Docker image, not the host-facing display path "
+            "shown in `.vault.json` or the dashboard."
+        ),
+    )
+
+
+@app.post("/api/vaults/{name}/repair")
+def repair_vault_path(name: str, payload: VaultRepairPath):
+    """Fix a vault's registered path without touching any files.
+
+    Use when `.registry.json` points at a path that doesn't resolve in the
+    current runtime (e.g. after a host/container path mismatch). This is
+    registry-only — it never moves, copies, or deletes vault data, so it's
+    safe to run even when the currently-registered path is unreachable
+    (unlike rename, which requires the vault to already load).
+
+    `payload.path` must be resolvable by this process (same convention as
+    `vault register`/`vault clone`) — when running via Docker, that means
+    the container-internal path under WIKI_VAULTS_DIR, not the host path.
+    """
+    reg = registry()
+    if reg.get(name) is None:
+        raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
+
+    new_path = Path(payload.path).expanduser().resolve()
+    if not new_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {new_path}")
+    if not (new_path / ".vault.json").exists():
+        raise HTTPException(status_code=400, detail=f"not a vault (missing .vault.json): {new_path}")
+
+    reg.update_path(name, new_path)
+    return {"ok": True, "vault": name, "path": str(new_path)}
 
 
 @app.delete("/api/vaults/{name}")

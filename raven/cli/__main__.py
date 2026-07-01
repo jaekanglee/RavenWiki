@@ -347,6 +347,40 @@ def vault_import_alias(
     )
 
 
+@vault_app.command("repair")
+def vault_repair(
+    name: str,
+    path: str = typer.Option(
+        ..., "--path",
+        help=(
+            "corrected path where the vault's files actually live, as resolvable "
+            "from wherever THIS command runs — e.g. the container-internal path "
+            "under WIKI_VAULTS_DIR if run via `docker compose exec api ...`, not "
+            "necessarily the host path shown in `.vault.json`"
+        ),
+    ),
+) -> None:
+    """Fix a vault's registered path without touching any files.
+
+    Use when `.registry.json` points at a path that no longer resolves
+    (e.g. after a Docker/host path mismatch). Registry-only — no data is
+    copied, moved, or deleted.
+    """
+    reg = registry()
+    if reg.get(name) is None:
+        typer.echo(f"❌ vault {name!r} not found", err=True)
+        raise typer.Exit(1)
+    new_path = Path(path).expanduser().resolve()
+    if not new_path.is_dir():
+        typer.echo(f"❌ not a directory: {new_path}", err=True)
+        raise typer.Exit(1)
+    if not (new_path / ".vault.json").exists():
+        typer.echo(f"❌ not a vault (missing .vault.json): {new_path}", err=True)
+        raise typer.Exit(1)
+    reg.update_path(name, new_path)
+    typer.echo(f"✅ repaired: {name} → {new_path}")
+
+
 @vault_app.command("remove")
 def vault_remove(name: str, force: bool = typer.Option(False, "--force")) -> None:
     """Unregister a vault (does NOT delete the folder)."""

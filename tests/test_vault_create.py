@@ -299,3 +299,34 @@ def test_clone_copies_meta_by_default(isolated_vaults_root, isolated_target):
     assert (dst.root / "_meta" / "system" / "RULES.md").is_file()
     # Note: even src has no raven-internals (Lite bootstrap), so dst has none either
     assert not (dst.root / "_meta" / "system" / "OPERATIONS.md").exists()
+
+
+# ─── git init (SCHEMA.md declares markdown SoT is "tracked by git") ─────
+
+
+def test_create_initializes_git_repo(isolated_vaults_root, isolated_target):
+    """New vault gets a real git repo with the bootstrap files committed.
+
+    SCHEMA.md's SoT table has always claimed markdown is git-tracked; this
+    makes that true instead of leaving it as an unenforced doc promise.
+    """
+    v = Vault.create("gittest", isolated_target / "gittest", bootstrap=True)
+    assert (v.root / ".git").is_dir()
+
+    import subprocess
+    log = subprocess.run(
+        ["git", "log", "--oneline"], cwd=v.root, capture_output=True, text=True, check=True
+    )
+    assert log.stdout.strip() != ""
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=v.root, capture_output=True, text=True, check=True
+    )
+    assert status.stdout.strip() == ""  # bootstrap files committed, tree clean
+
+
+def test_create_git_init_never_breaks_vault_creation(isolated_vaults_root, isolated_target, monkeypatch):
+    """If git is unavailable, vault creation must still succeed (best-effort)."""
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    v = Vault.create("nogit", isolated_target / "nogit", bootstrap=True)
+    assert (v.root / "content").is_dir()
+    assert not (v.root / ".git").exists()

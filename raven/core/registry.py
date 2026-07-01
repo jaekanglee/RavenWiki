@@ -187,6 +187,20 @@ class VaultRegistry:
         self._save()
         return True
 
+    def update_path(self, name: str, new_path: Path) -> bool:
+        """Repair a vault's registered path without touching any files.
+
+        Use when `.registry.json` points at a path that no longer resolves
+        in the current runtime (e.g. after a host/container path mismatch).
+        Registry-only — never moves, copies, or deletes vault data.
+        """
+        vaults = self._data.get("vaults", {})
+        if name not in vaults:
+            return False
+        vaults[name]["path"] = str(new_path)
+        self._save()
+        return True
+
 
 # ─────────────── module-level singleton ───────────────
 
