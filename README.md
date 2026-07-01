@@ -119,8 +119,12 @@ Raven은 4 진입점(CLI/API/MCP/Dashboard) 모두 Docker로 띄울 수 있습�
 cd ~/Desktop/Dev/Project/Raven
 
 # 1. 코드 변경 후 → 반드시 SHA 이미지로 재빌드
-docker compose build \
-  --build-arg GIT_SHA=$(git rev-parse --short HEAD)
+# ⚠️ IMPORTANT: 3개 서비스가 같은 image: raven:${GIT_SHA} 태그를 공유하므로
+#    반드시 **서비스를 explicit 나열**해 sequential build 해야 합니다.
+#    `docker compose build`(서비스 인자 없음) 는 병렬 빌드 → 3개 레이어가
+#    같은 태그를 동시에 export 시도 → "image already exists" 충돌.
+GIT_SHA=$(git rev-parse --short HEAD)
+docker compose build --build-arg "GIT_SHA=$GIT_SHA" api mcp-http dashboard
 
 # 2. 이전 컨테이너/이미지 정리 후 재기동
 docker compose down
@@ -132,6 +136,17 @@ docker exec raven-api cat /app/.git_sha
 ```
 
 **이미지 핀 정책 (왜 필요한가)**: docker-compose는 `image: raven:latest` 만 쓰면 캐시된 이전 레이어를 재사용합니다. 한 번 rename/리팩토 후에도 컨테이너는 옛 코드/템플릿을 들고 있어 vault 생성이 깨지는 일이 발생합니다. **이미지 태그를 GIT SHA로 핀** (`image: raven:${GIT_SHA:-latest}`)하면, 코드 변경 → 다른 태그 → 이전 이미지로 자동 다운그레이드되는 사고가 차단됩니다.
+
+**병렬 빌드 충돌 회피**: yaml anchor `&raven_image` 가 `build` + `image:` 를 묶어 3개 서비스가 동일 정의(`<<: *raven_image`)를 공유합니다. 같은 `image:` 태그로 parallel export 하면 Docker가 `image "raven:<sha>": already exists` 에러로 한두 서비스 빌드가 죽습니다. 위 명령처럼 **서비스 이름을 explicit 나열**해 sequential build 하면 회피됩니다. 대안으로 `make docker-build-{api,mcp-http,dashboard}` (Makefile에 이미 존재) 도 동일한 sequential 동작입니다.
+
+**Makefile 단축 명령** (changelog-v0.7.17의 `docker-build-{api,mcp-http,dashboard}` 패턴 활용):
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) make docker-build
+# 또는 한 줄씩:
+GIT_SHA=$(git rev-parse --short HEAD) make docker-build-api
+GIT_SHA=$(git rev-parse --short HEAD) make docker-build-mcp-http
+GIT_SHA=$(git rev-parse --short HEAD) make docker-build-dashboard
+```
 
 ---
 
