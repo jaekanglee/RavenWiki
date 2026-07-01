@@ -853,7 +853,9 @@ def _hierarchical_layout(
                 x = -420.0 + (idx / (count - 1)) * 840.0
                 coords[node_id] = (x, y)
 
-    return coords
+    pos_x = [coords.get(s, (0.0, 0.0))[0] for s in ids]
+    pos_y = [coords.get(s, (0.0, 0.0))[1] for s in ids]
+    return _normalize_layout(ids, pos_x, pos_y)
 
 
 def _forceatlas_layout(
