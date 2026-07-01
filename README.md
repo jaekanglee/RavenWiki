@@ -225,9 +225,12 @@ MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 
 ```bash
 # Raven MCP server 띄우기
-make dev              # API :8765 + MCP :8766 + Dashboard :5173
-# 또는 stdio client용
-make mcp
+make rebuild          # Docker image rebuild + restart
+# 또는 이미 빌드된 상태면
+make docker-up
+
+# stdio client용 MCP는 컨테이너에서 실행
+docker compose exec api docker-entrypoint.sh mcp-stdio
 ```
 
 > **자세한 도식**: `_meta/diagrams/three-flows.png`
