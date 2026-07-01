@@ -38,6 +38,20 @@ export function buildLocalGraph(graph: Graph, centerSlug: string): Graph {
 }
 
 
+// Raven page bodies conventionally start with "# {title}" (see `raven page new`)
+// so the raw .md file stays self-contained for CLI/git readers. The dashboard
+// already renders `page.title` as its own <h1>, so strip that duplicate leading
+// heading here before the body reaches MarkdownView — otherwise the title shows
+// twice on every page.
+export function stripLeadingTitleHeading(content: string, title: string): string {
+  const lines = content.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === "") i++;
+  const heading = lines[i]?.trim().replace(/^#\s+/, "");
+  if (i >= lines.length || heading !== title.trim()) return content;
+  return lines.slice(i + 1).join("\n").replace(/^\n+/, "");
+}
+
 export function splitRelatedSection(content: string): { body: string; links: string[] } {
   const extractLinks = (text: string): string[] => {
     const links: string[] = [];
@@ -135,6 +149,10 @@ export function PageView() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [err, setErr] = useState<string | null>(null);
   const [showFullGraph, setShowFullGraph] = useState(false);
+  // Bumped after a save so the fetchPage effect below re-runs even though
+  // slug/vault haven't changed — otherwise the article stays stale until
+  // the user navigates away and back.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!slug) {
@@ -168,7 +186,7 @@ export function PageView() {
         setErr(String(e.message || e));
         setPage(null);
       });
-  }, [slug, vault]);
+  }, [slug, vault, reloadKey]);
 
   useEffect(() => {
     if (!vault) return;
@@ -179,7 +197,10 @@ export function PageView() {
   }, [vault]);
 
   const related = useMemo(
-    () => (page ? splitRelatedSection(page.content) : { body: "", links: [] }),
+    () =>
+      page
+        ? splitRelatedSection(stripLeadingTitleHeading(page.content, page.title))
+        : { body: "", links: [] },
     [page]
   );
 
@@ -218,7 +239,10 @@ export function PageView() {
             slug={page.slug}
             title={page.title}
             content={page.content}
-            onSaved={ctx?.refresh}
+            onSaved={() => {
+              setReloadKey((k) => k + 1);
+              ctx?.refresh?.();
+            }}
           />
           <DeleteButton
             vault={vault}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildLocalGraph, buildRelatedGraph, resolveGraphId, splitRelatedSection } from "../src/routes/PageView";
+import {
+  buildLocalGraph,
+  buildRelatedGraph,
+  resolveGraphId,
+  splitRelatedSection,
+  stripLeadingTitleHeading,
+} from "../src/routes/PageView";
 import { deriveGraphInsights, deriveNodeDetail, filterGraphView } from "../src/routes/GraphPage";
 import type { Graph } from "../src/types";
 
@@ -53,6 +59,21 @@ describe("PageView local graph", () => {
 
     expect(result.body.trim()).toBe("# Title\n\n본문");
     expect(result.links).toEqual(["purpose", "users", "roadmap"]);
+  });
+
+  it("strips a leading H1 heading that duplicates the frontmatter title", () => {
+    const content = "# HCR 모바일 앱 아키텍처\n\n본문 내용";
+    expect(stripLeadingTitleHeading(content, "HCR 모바일 앱 아키텍처")).toBe("본문 내용");
+  });
+
+  it("leaves content untouched when the leading heading differs from the title", () => {
+    const content = "# 다른 제목\n\n본문 내용";
+    expect(stripLeadingTitleHeading(content, "HCR 모바일 앱 아키텍처")).toBe(content);
+  });
+
+  it("leaves content untouched when there is no leading heading", () => {
+    const content = "본문만 있음";
+    expect(stripLeadingTitleHeading(content, "제목")).toBe(content);
   });
 
   it("resolveGraphId tolerates prefix mismatches (url vs graph id)", () => {
