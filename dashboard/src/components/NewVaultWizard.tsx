@@ -40,6 +40,11 @@ function defaultPath(name: string) {
   return `~/Raven/${name}/`;
 }
 
+function defaultMcpEndpoint() {
+  if (typeof window === "undefined") return "http://127.0.0.1:8766/mcp";
+  return `http://${window.location.hostname || "127.0.0.1"}:8766/mcp`;
+}
+
 type Step = 1 | 2;
 
 export function NewVaultWizard() {
@@ -55,6 +60,7 @@ export function NewVaultWizard() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [vaultsRoot, setVaultsRoot] = useState<string>("");
+  const mcpEndpoint = defaultMcpEndpoint();
 
   // name이 바뀌면 path 자동 결정 (사용자 입력 0)
   useEffect(() => {
@@ -107,7 +113,7 @@ export function NewVaultWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          path: path, // auto-determined from name (v0.6.3)
+          path: path, // display path; API rebases to runtime mount when needed
           mode,
           description: "Created via Dashboard wizard",
           bootstrap: true, // v0.6.6: 항상 Lite bootstrap
@@ -118,6 +124,7 @@ export function NewVaultWizard() {
       if (!r.ok || data.ok === false) {
         throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
       }
+      const createdPath = data?.vault?.path || path;
       // v0.6.8: 성공 → 새 vault를 active로 설정 (Dashboard가
       // 옛 default를 가리키는 문제 해결). 그리고 첫 페이지(index.md)
       // 를 자동 생성해 사용자가 즉시 페이지에 진입할 수 있게 한다.
@@ -132,7 +139,7 @@ export function NewVaultWizard() {
           `| 항목 | 세부 정보 |\n` +
           `| :--- | :--- |\n` +
           `| **보관소 이름** | \`${name}\` |\n` +
-          `| **로컬 경로** | \`${path}\` |\n` +
+          `| **로컬 경로** | \`${createdPath}\` |\n` +
           `| **소유/접근 모드** | \`${mode}\` |\n` +
           `| **부트스트랩 프로필** | \`${profile}\` |\n\n` +
           `## 📁 볼트 내부 구조 안내\n\n` +
@@ -145,8 +152,11 @@ export function NewVaultWizard() {
           `  * \`system/README.md\`: 보관소 사용자 가이드\n` +
           `  * \`agents/PROJECT-WORKFLOW.md\`: 에이전트가 문서를 수정할 때 따라야 하는 작업 템플릿\n` +
           `* **\`log.md\`**: 볼트에 발생한 문서의 생성, 수정, 인제스트 이력이 시간 순으로 기록되는 타임라인 파일입니다.\n\n` +
-          `## 🚀 에이전트 위키 Quick Start\n\n` +
-          `에이전트(Hermes 등)에게 이 볼트 경로(\`${path}\`)를 입력하여 지식을 누적하게 할 수 있습니다.\n\n` +
+          `## 🚀 Agent / MCP Quick Start\n\n` +
+          `이 vault를 붙일 MCP client는 Raven MCP endpoint(\`${mcpEndpoint}\`)를 추가한 뒤, 이 볼트 경로(\`${createdPath}\`)를 작업 기준으로 사용하면 됩니다.\n\n` +
+          `- **MCP endpoint**: \`${mcpEndpoint}\`\n` +
+          `- **Transport**: streamable HTTP\n` +
+          `- **대상 client**: Claude Code, Cursor, 기타 MCP 호환 agent\n\n` +
           `1. **인제스트 (Ingest)**: 새 소스(URL, 파일)를 볼트에 추가합니다.\n` +
           `2. **린트 (Lint)**: 페이지 간 깨진 링크나 모순을 검증합니다.\n` +
           `3. **그래프 (Graph)**: 상단 메뉴의 **⬡ 그래프**를 눌러 지식 간의 상호 연결망을 한눈에 살펴보세요.\n`;
@@ -263,6 +273,7 @@ export function NewVaultWizard() {
           profile={profile}
           error={error}
           submitting={submitting}
+          mcpEndpoint={mcpEndpoint}
           onBack={back}
           onSubmit={submit}
         />
@@ -436,6 +447,7 @@ function Step2({
   profile,
   error,
   submitting,
+  mcpEndpoint,
   onBack,
   onSubmit,
 }: {
@@ -445,6 +457,7 @@ function Step2({
   profile: string;
   error: string | null;
   submitting: boolean;
+  mcpEndpoint: string;
   onBack: () => void;
   onSubmit: () => void;
 }) {
@@ -545,6 +558,45 @@ function Step2({
           )}
         </dd>
       </dl>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 16,
+          background: "var(--cds-field-01, #fafafa)",
+          borderRadius: 8,
+          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.32px",
+            color: "var(--color-muted)",
+            marginBottom: 8,
+          }}
+        >
+          Agent 연결
+        </div>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--color-body)" }}>
+          이 vault는 특정 vendor가 아니라 MCP 호환 agent를 기준으로 연결합니다.
+        </p>
+        <div
+          style={{
+            marginTop: 10,
+            fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            fontSize: 12,
+            color: "var(--color-muted)",
+          }}
+        >
+          endpoint: {mcpEndpoint}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-muted)" }}>
+          예: Claude Code, Cursor, 기타 MCP client에서 Raven 서버를 추가한 뒤 이 vault 경로를 작업 기준으로 사용
+        </div>
+      </div>
 
       {error && (
         <p

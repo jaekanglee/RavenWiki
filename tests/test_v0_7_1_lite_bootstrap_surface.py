@@ -23,7 +23,9 @@ Raven 내부 구현 (Tier 1 leak 정책, vendor 예시, OPERATIONS/agent/raven-p
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 LITE_AGENTS = ROOT / "raven" / "core" / "templates" / "system" / "README.md"
@@ -94,6 +96,9 @@ def test_existing_vaults_synced() -> None:
     v0.7.4+: harumoa는 운영자가 실제 사용 중이라 sync 테스트에서 제외
     (운영자 자유 존중 — vault 데이터 write 정책). raven-dev만 검증.
     """
+    if os.environ.get("RAVEN_VERIFY_EXISTING_VAULTS") != "1":
+        pytest.skip("external vault sync check is opt-in to avoid depending on local user vault state")
+
     template_agents = LITE_AGENTS.read_text(encoding="utf-8")
     template_schema = LITE_SCHEMA.read_text(encoding="utf-8")
     template_log = LITE_LOG.read_text(encoding="utf-8")
@@ -141,7 +146,7 @@ def test_lite_project_workflow_is_user_surface() -> None:
     """v0.7.6+: PROJECT-WORKFLOW.md는 도구 표면 (vendor-neutral, 도구 내부 정책 ❌).
 
     옛 의도 (v0.7.3+): "project name" / "vault path" / "current task" Runtime Inputs 검증.
-    v0.7.6+: PROJECT-WORKFLOW.md 본문 강화 — 사람/에이전트 이중 헤더 + BLUF + type 8종 템플릿.
+    v0.7.6+: PROJECT-WORKFLOW.md 본문 강화 — 사람/에이전트 이중 헤더 + BLUF + type 9종 템플릿.
     옛 Runtime Inputs 단어 검증은 v0.7.6+ 새 본문에서 제거 (의미 변동).
     """
     content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
@@ -155,7 +160,7 @@ def test_lite_project_workflow_is_user_surface() -> None:
 
 
 def test_lite_project_workflow_has_bluf_guidance() -> None:
-    """v0.7.6+: PROJECT-WORKFLOW.md는 BLUF/템플릿 가이드 포함 (type 8종 일관성)."""
+    """v0.7.6+: PROJECT-WORKFLOW.md는 BLUF/템플릿 가이드 포함 (type 9종 일관성)."""
     content = LITE_PROJECT_WORKFLOW.read_text(encoding="utf-8")
     # BLUF 강조
     assert "BLUF" in content, "PROJECT-WORKFLOW.md must include BLUF guidance"

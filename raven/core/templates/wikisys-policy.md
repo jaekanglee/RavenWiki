@@ -48,7 +48,7 @@ confidence: high
 |---|---|---|
 | 1 | 모든 페이지는 frontmatter 필수 | `raven build` |
 | 2 | slug = vault-relative path | `raven page new <slug>` |
-| 3 | type 8종 + tags core/custom | lint |
+| 3 | type 9종 + tags core/custom | lint |
 | 4 | wikilink 의도 명시 (`[[x]]!` / `[[x]]?`) | `raven link check` |
 | 5 | 작업마다 log.md 자동 append | `raven log list` |
 

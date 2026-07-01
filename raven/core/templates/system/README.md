@@ -94,7 +94,7 @@ confidence: high
 ## 5. 페이지 작성 규약
 
 - **위치**: `<vault>/content/<slug>.md` (slug = vault-relative path)
-- **frontmatter 필수**: `title`, `type` (8종 중), `created`, `updated`
+- **frontmatter 필수**: `title`, `type` (9종 중), `created`, `updated`
 - **wikilink intent**: `[[x]]` (정상) / `[[x]]!` (broken) / `[[x]]?` (placeholder)
 - **type 9종**: concept / person / comparison / project / tool / rule / query / journal / issue — 그 외 값 ❌
 
@@ -115,7 +115,7 @@ confidence: high
 ## 7. 하지 말 것
 
 - ❌ 도메인/팀/프로젝트 이름을 임의로 가정하지 마세요 (모르면 사용자에게 묻기).
-- ❌ `type` 8종 외 새 타입 정의 ❌ (SCHEMA에 먼저 등록).
+- ❌ `type` 9종 외 새 타입 정의 ❌ (SCHEMA에 먼저 등록).
 - ❌ `_meta/` 안 파일을 직접 수정 ❌ (`raven meta sync`만).
 - ❌ `log.md` 기존 줄 삭제/수정 ❌ (append-only).
 - ❌ 4가지 저장 신호 모두 통과 못한 노트 작성 ❌.

@@ -92,9 +92,5 @@ USER raven
 # 포트 노출 (compose가 실제 매핑)
 EXPOSE 8765 8766 5173
 
-# Health check — API 서버가 살아있는지 curl
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8765/api/vaults || exit 1
-
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["api"]  # 기본 = API 시작. 다른 진입점은 환경변수로 전환.

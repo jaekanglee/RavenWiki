@@ -87,6 +87,7 @@ def write_page(
     overwrite: bool = True,
     normalize: bool = True,
     body: Optional[str] = None,
+    enforce_protected_paths: bool = False,
 ) -> WriteResult:
     """Create or overwrite a markdown page through the shared write contract.
 
@@ -169,7 +170,7 @@ def write_page(
             merged = frontmatter_module.merge(existing_meta, updates, today=today)
 
             # Immutable areas are always read-only for agent-style callers.
-            if actor is not None:
+            if actor is not None or enforce_protected_paths:
                 slug_lower = raw_slug.lower()
                 if (
                     slug_lower.startswith("raw/") or

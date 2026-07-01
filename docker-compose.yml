@@ -77,6 +77,11 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS -o /dev/null http://127.0.0.1:8766/mcp || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   dashboard:
     <<: *raven_image

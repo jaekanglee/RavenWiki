@@ -12,6 +12,7 @@ Design:
 """
 from __future__ import annotations
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
@@ -97,11 +98,23 @@ def list_vaults():
     v0.6.3+: also returns the resolved `vaults_root` so the dashboard
     can show "Vaults root: ~/Raven" or wherever WIKI_VAULTS_DIR points.
     """
+    runtime_root = VAULTS_ROOT()
+    host_root_raw = os.environ.get("RAVEN_VAULTS_DIR", "").strip()
+    host_root = Path(host_root_raw).expanduser().resolve() if host_root_raw else runtime_root
+    reg_data = registry()._data.get("vaults", {})
     out = []
     for v in registry().list():
+        raw_meta = reg_data.get(v.name, {})
+        display_path = raw_meta.get("path") if isinstance(raw_meta, dict) else None
+        if not isinstance(display_path, str) or not display_path.strip():
+            try:
+                rel = v.path.resolve().relative_to(runtime_root.resolve())
+                display_path = str((host_root / rel).resolve())
+            except ValueError:
+                display_path = str(v.path)
         out.append({
             "name": v.name,
-            "path": str(v.path),
+            "path": display_path,
             "mode": v.mode,
             "owner": v.owner,
             "default": v.default,
@@ -109,8 +122,39 @@ def list_vaults():
     return {
         "ok": True,
         "vaults": out,
-        "vaults_root": str(VAULTS_ROOT()),
+        "vaults_root": str(host_root),
+        "runtime_vaults_root": str(runtime_root),
     }
+
+
+def _resolve_vault_create_paths(requested_path: Path) -> tuple[Path, Path]:
+    """Return runtime and display paths for vault creation.
+
+    Docker runs against the container-local mount root (`WIKI_VAULTS_DIR`), but
+    the persisted `.vault.json` path and UI should keep the host absolute path
+    from `RAVEN_VAULTS_DIR` when available.
+    """
+    display_path = requested_path.expanduser().resolve()
+    runtime_root = VAULTS_ROOT().resolve()
+    host_root_raw = os.environ.get("RAVEN_VAULTS_DIR", "").strip()
+    if not host_root_raw:
+        return display_path, display_path
+
+    host_root = Path(host_root_raw).expanduser().resolve()
+    if host_root == runtime_root:
+        return display_path, display_path
+
+    try:
+        rel = display_path.relative_to(host_root)
+        return (runtime_root / rel).resolve(), display_path
+    except ValueError:
+        pass
+
+    try:
+        rel = display_path.relative_to(runtime_root)
+        return display_path, (host_root / rel).resolve()
+    except ValueError:
+        return display_path, display_path
 
 
 @app.get("/api/index.json")
@@ -248,10 +292,12 @@ def create_vault(payload: VaultCreate):
     if registry().get(payload.name):
         raise HTTPException(status_code=409, detail=f"vault {payload.name!r} already exists")
 
+    runtime_path, display_path = _resolve_vault_create_paths(Path(payload.path))
+
     try:
         v = _Vault.create(
             name=payload.name,
-            path=Path(payload.path).expanduser(),
+            path=runtime_path,
             mode=payload.mode,
             owner=payload.owner,
             description=payload.description,
@@ -261,11 +307,33 @@ def create_vault(payload: VaultCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"create failed: {e}")
 
+    if display_path != runtime_path:
+        from raven.core.registry import VaultMeta as _VM
+
+        display_meta = _VM(
+            name=v.meta.name,
+            path=display_path,
+            mode=v.meta.mode,
+            owner=v.meta.owner,
+            created=v.meta.created,
+            description=v.meta.description,
+            default=v.meta.default,
+            allow_tier1_leak=v.meta.allow_tier1_leak,
+            features=v.meta.features,
+        )
+        (runtime_path / ".vault.json").write_text(
+            json.dumps(display_meta.to_json(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        reg = registry()
+        reg._data.setdefault("vaults", {})[payload.name] = display_meta.to_json()
+        reg._save()
+
     return {
         "ok": True,
         "vault": {
             "name": v.meta.name,
-            "path": str(v.root),
+            "path": str(display_path),
             "mode": v.meta.mode,
             "owner": v.meta.owner,
             "default": v.meta.name == registry()._data.get("default", ""),
@@ -1193,9 +1261,13 @@ def get_page(name: str, slug: str):
 
     import os
     path_str = str(fp.resolve())
-    host_dir = os.environ.get("RAVEN_VAULTS_DIR")
-    if host_dir and path_str.startswith("/vaults"):
-        path_str = path_str.replace("/vaults", host_dir, 1)
+    host_dir = os.environ.get("RAVEN_VAULTS_DIR", "").strip()
+    if host_dir:
+        try:
+            rel_from_vaults_root = fp.resolve().relative_to(registry().root.resolve())
+            path_str = str(Path(host_dir).expanduser().resolve() / rel_from_vaults_root)
+        except Exception:
+            pass
 
     return {
         "ok": True,
@@ -1368,10 +1440,13 @@ def create_page(name: str, payload: PageCreate):
         type=payload.type,
         tags=payload.tags,
         overwrite=False,  # create-only: 409 on exists (matches pre-v0.6.2)
+        enforce_protected_paths=True,
     )
     if not result.ok:
         if result.error == "exists":
             raise HTTPException(status_code=409, detail=f"page {result.slug!r} already exists")
+        if result.error == "permission_denied":
+            raise HTTPException(status_code=403, detail=result.message or result.error)
         # Slug validation error → 400
         raise HTTPException(status_code=400, detail=result.error)
     return {"ok": True, "vault": name, "slug": result.slug}
@@ -1409,8 +1484,11 @@ def update_page(name: str, slug: str, payload: PageUpdate):
         type=payload.type,
         tags=payload.tags,
         overwrite=True,
+        enforce_protected_paths=True,
     )
     if not result.ok:
+        if result.error == "permission_denied":
+            raise HTTPException(status_code=403, detail=result.message or result.error)
         raise HTTPException(status_code=400, detail=result.error)
     return {
         "ok": True,

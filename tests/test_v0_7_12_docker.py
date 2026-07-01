@@ -40,6 +40,13 @@ def test_dockerfile_exposes_4_ports() -> None:
         "Dockerfile must expose ports 8765 + 8766 + 5173"
 
 
+def test_dockerfile_has_no_global_healthcheck() -> None:
+    """Healthchecks are service-specific in compose; Dockerfile stays neutral."""
+    content = DOCKERFILE.read_text(encoding="utf-8")
+    assert "HEALTHCHECK" not in content, \
+        "Dockerfile must not bake in one healthcheck for all services"
+
+
 def test_compose_no_version_key() -> None:
     """v0.7.16+: 'version: "3.x"' 키 제거 (Docker Compose v2 deprecated)."""
     content = COMPOSE.read_text(encoding="utf-8")
@@ -123,3 +130,25 @@ def test_compose_uses_vaults_as_wiki_vaults_dir() -> None:
     content = COMPOSE.read_text(encoding="utf-8")
     assert "- WIKI_VAULTS_DIR=/vaults" in content, \
         "WIKI_VAULTS_DIR in docker-compose.yml must point to the container path '/vaults'"
+
+
+def test_compose_healthchecks_match_service_ports() -> None:
+    """api는 8765, mcp-http는 8766 자기 포트로 헬스체크해야 한다."""
+    content = COMPOSE.read_text(encoding="utf-8")
+    assert 'http://127.0.0.1:8765/api/vaults' in content, \
+        "api healthcheck must probe port 8765"
+    assert 'http://127.0.0.1:8766/mcp' in content, \
+        "mcp-http healthcheck must probe its own port 8766"
+
+
+def test_entrypoint_preserves_host_raven_vaults_dir() -> None:
+    """docker-entrypoint must NOT overwrite host RAVEN_VAULTS_DIR with /vaults.
+
+    WIKI_VAULTS_DIR = container-internal mount target (/vaults)
+    RAVEN_VAULTS_DIR = host absolute path for UI/API display (e.g. /Users/.../Raven)
+    """
+    content = ENTRYPOINT.read_text(encoding="utf-8")
+    assert 'RAVEN_VAULTS_DIR="${RAVEN_VAULTS_DIR:-$WIKI_VAULTS_DIR}"' in content, \
+        "entrypoint must preserve host RAVEN_VAULTS_DIR when already provided"
+    assert 'RAVEN_VAULTS_DIR="$WIKI_VAULTS_DIR"' not in content, \
+        "entrypoint must not clobber host RAVEN_VAULTS_DIR with container path"

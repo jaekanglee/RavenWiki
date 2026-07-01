@@ -95,8 +95,18 @@ def test_api_page_create_explicit_meta(client, isolated_env):
     resp = client.post("/api/vaults/vp2/pages", json={
         "slug": "_meta/welcome", "title": "W",
     })
-    assert resp.status_code == 200
-    assert (target / "_meta" / "welcome.md").is_file()
+    assert resp.status_code == 403
+    assert not (target / "_meta" / "welcome.md").exists()
+
+
+def test_api_page_create_rejects_protected_raw_path(client, isolated_env):
+    target = isolated_env["target_root"] / "vp2raw"
+    client.post("/api/vaults/create", json={"name": "vp2raw", "path": str(target), "bootstrap": False})
+    resp = client.post("/api/vaults/vp2raw/pages", json={
+        "slug": "raw/source", "title": "S",
+    })
+    assert resp.status_code == 403
+    assert not (target / "raw" / "source.md").exists()
 
 
 def test_api_page_create_rejects_parent_traversal(client, isolated_env):
@@ -153,6 +163,21 @@ def test_api_page_update_preserves_created(client, isolated_env):
     assert get_resp.json()["file_path"].endswith("vp6/content/u.md")
 
 
+def test_api_page_get_maps_container_internal_root_to_host_path(client, isolated_env, monkeypatch):
+    internal_root = isolated_env["reg_root"] / "internal-root"
+    host_root = isolated_env["target_root"] / "host-root"
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(internal_root))
+    monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
+
+    target = internal_root / "vp_hostmap"
+    client.post("/api/vaults/create", json={"name": "vp_hostmap", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/vp_hostmap/pages", json={"slug": "u", "title": "Original"})
+
+    get_resp = client.get("/api/vaults/vp_hostmap/pages/content/u")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["file_path"] == str((host_root / "vp_hostmap" / "content" / "u.md").resolve())
+
+
 def test_api_page_update_rejects_bad_slug(client, isolated_env):
     target = isolated_env["target_root"] / "vp7"
     client.post("/api/vaults/create", json={"name": "vp7", "path": str(target), "bootstrap": False})
@@ -161,6 +186,13 @@ def test_api_page_update_rejects_bad_slug(client, isolated_env):
     resp = client.put("/api/vaults/vp7/pages/~/.ssh-test", json={"content": "x"})
     assert resp.status_code == 400
     assert "invalid slug" in resp.text.lower()
+
+
+def test_api_page_update_rejects_protected_log_path(client, isolated_env):
+    target = isolated_env["target_root"] / "vp7log"
+    client.post("/api/vaults/create", json={"name": "vp7log", "path": str(target), "bootstrap": True})
+    resp = client.put("/api/vaults/vp7log/pages/_meta/system/README", json={"content": "x"})
+    assert resp.status_code == 403
 
 
 # ─── page delete (mirror 경로) ────────────────────────────
@@ -220,6 +252,29 @@ def test_api_vaults_list(client, isolated_env):
     assert resp.status_code == 200
     names = [v["name"] for v in resp.json()["vaults"]]
     assert "vl" in names
+
+
+def test_api_vault_create_persists_host_display_path(client, isolated_env, monkeypatch):
+    runtime_root = isolated_env["reg_root"] / "runtime-root"
+    host_root = isolated_env["target_root"] / "host-root"
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(runtime_root))
+    monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
+
+    display_target = host_root / "alpha"
+    resp = client.post("/api/vaults/create", json={
+        "name": "alpha",
+        "path": str(display_target),
+        "bootstrap": False,
+    })
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["vault"]["path"] == str(display_target.resolve())
+    assert (runtime_root / "alpha").is_dir()
+    assert str(display_target.resolve()) in (runtime_root / "alpha" / ".vault.json").read_text(encoding="utf-8")
+
+    listing = client.get("/api/vaults").json()
+    assert listing["vaults_root"] == str(host_root.resolve())
+    alpha = next(v for v in listing["vaults"] if v["name"] == "alpha")
+    assert alpha["path"] == str(display_target.resolve())
 
 
 # ─── vault clone endpoint ───────────────────────────────────
@@ -962,6 +1017,3 @@ def test_api_delete_vault(client, isolated_env):
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
     assert not target2.exists()
-
-
-
