@@ -133,7 +133,7 @@
   --graph-node-glow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 0 14px rgba(59, 130, 246, 0.16);
   --graph-label-color: #1f2937;
   --graph-label-shadow: 0 1px 3px rgba(255, 255, 255, 0.92);
-  --graph-edge: #64748b;
+  --graph-edge: rgba(100, 116, 139, 0.28);
   --graph-edge-highlight: #0f172a;
   --graph-tooltip-bg: rgba(255, 255, 255, 0.96);
   --graph-tooltip-border: rgba(148, 163, 184, 0.42);
@@ -219,7 +219,7 @@ body {
     --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
     --graph-label-color: rgba(226, 232, 240, 0.92);
     --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
-    --graph-edge: #94a3b8;
+    --graph-edge: rgba(148, 163, 184, 0.22);
     --graph-edge-highlight: #e2e8f0;
     --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
     --graph-tooltip-border: #374151;
@@ -285,7 +285,7 @@ html.dark {
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: rgba(226, 232, 240, 0.92);
   --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
-  --graph-edge: #94a3b8;
+  --graph-edge: rgba(148, 163, 184, 0.22);
   --graph-edge-highlight: #e2e8f0;
   --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
   --graph-tooltip-border: #374151;

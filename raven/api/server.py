@@ -938,9 +938,9 @@ def _forceatlas_layout(
     ]
 
     steps = max(40, min(iterations, 500))
-    repulsion = 2200.0
+    repulsion = 1400.0
     attraction = 0.15
-    gravity = 0.035
+    gravity = 0.045
     max_step0 = 28.0
 
     edge_indices = [(idx[s], idx[t]) for s, t in valid_edges]
@@ -978,11 +978,11 @@ def _forceatlas_layout(
                 fx = (vx / d) * f
                 fy = (vy / d) * f
                 
-                # Collision Guard: 옵시디언 감성을 위한 겹침 방지 탄성 (노드 최소 반경 약 45px 보장)
-                min_dist = 45.0
+                # Collision Guard: 옵시디언 감성을 위한 겹침 방지 탄성 (노드 최소 반경 약 20px 보장)
+                min_dist = 20.0
                 if d < min_dist:
                     overlap = min_dist - d
-                    col_f = (overlap * overlap) * 8.0  # 탄성 강도
+                    col_f = (overlap * overlap) * 12.0  # 탄성 강도
                     fx += (vx / d) * col_f
                     fy += (vy / d) * col_f
                 
@@ -1014,8 +1014,8 @@ def _forceatlas_layout(
                 if c >= 0 and c in comm_centroids:
                     cx, cy, _ = comm_centroids[c]
                     # 자신 소속 커뮤니티 중심(은하 핵)으로 인력 적용
-                    dx[i] -= (pos_x[i] - cx) * 0.065
-                    dy[i] -= (pos_y[i] - cy) * 0.065
+                    dx[i] -= (pos_x[i] - cx) * 0.10
+                    dy[i] -= (pos_y[i] - cy) * 0.10
 
         for i in range(n):
             disp = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
