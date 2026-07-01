@@ -22,6 +22,9 @@ x-raven-image: &raven_image
     dockerfile: Dockerfile
     args:
       GIT_SHA: ${GIT_SHA:-latest}
+  # v0.7.36+: 이미지 태그를 GIT SHA로 핀. 코드 변경 후 stale 캐시로 인한
+  #   `templates/system/AGENTS.md` 등 옛 리소스를 컨테이너가 참조하는 사고 차단.
+  # 병렬 빌드 시 동일 태그 충돌 회피는 README의 sequential build 절차로 해결.
   image: raven:${GIT_SHA:-latest}
 
 services:
