@@ -387,7 +387,7 @@ def bootstrap_vault(name: str, payload: VaultBootstrapPayload):
         if payload.profile == "basic":
             _Vault._bootstrap_basic(v.root)
         else:
-            _Vault._bootstrap_lite(v.root)
+            v.sync_meta(lite=True, force=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"bootstrap failed: {e}")
     return {"ok": True, "profile": payload.profile}
