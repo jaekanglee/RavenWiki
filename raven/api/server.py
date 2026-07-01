@@ -292,6 +292,27 @@ def verify_vault_bootstrap(name: str):
     return payload
 
 
+class VaultBootstrapPayload(BaseModel):
+    profile: str = Field("llm-wiki", description="basic | llm-wiki")
+
+
+@app.post("/api/vaults/{name}/bootstrap")
+def bootstrap_vault(name: str, payload: VaultBootstrapPayload):
+    """Apply/Overwrite profile bootstrap into an existing vault."""
+    v = _vault_or_404(name)
+    if payload.profile not in ("basic", "llm-wiki"):
+        raise HTTPException(status_code=400, detail="invalid profile")
+    try:
+        from raven.core.vault import Vault as _Vault
+        if payload.profile == "basic":
+            _Vault._bootstrap_basic(v.root)
+        else:
+            _Vault._bootstrap_lite(v.root)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"bootstrap failed: {e}")
+    return {"ok": True, "profile": payload.profile}
+
+
 # ────────────────────────── page endpoints ──────────────────────────
 
 # v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.

@@ -211,6 +211,33 @@ def vault_verify(
         raise typer.Exit(1)
 
 
+@vault_app.command("bootstrap")
+def vault_bootstrap(
+    name: Optional[str] = typer.Argument(None, help="vault name (default: active)"),
+    profile: str = typer.Option("llm-wiki", "--profile", help="profile: 'basic' | 'llm-wiki'"),
+) -> None:
+    """Apply/Overwrite profile bootstrap files into an existing vault."""
+    if profile not in ("basic", "llm-wiki"):
+        typer.echo(f"❌ invalid profile: {profile!r} (use 'basic' or 'llm-wiki')", err=True)
+        raise typer.Exit(1)
+    v = _resolve_vault_or_die(name)
+    typer.echo(f"⚙️ Applying bootstrap profile {profile!r} to {v.meta.name} ({v.root})...")
+    
+    if profile == "basic":
+        Vault._bootstrap_basic(v.root)
+    else:
+        Vault._bootstrap_lite(v.root)
+        
+    try:
+        result = v.verify_bootstrap()
+        if result.ok:
+            typer.echo(f"✅ bootstrap success: {v.meta.name} is now updated to {profile}")
+        else:
+            typer.echo(f"⚠️ bootstrap completed, but verification failed.")
+    except Exception as e:
+        typer.echo(f"⚠️ verification error: {e}")
+
+
 @vault_app.command("register")
 def vault_register(
     name: str,
