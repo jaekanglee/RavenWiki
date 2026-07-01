@@ -513,195 +513,29 @@ function GraphCanvasInner({
     };
   }, [flowEdges, flowNodes, nodeMap, hoveredEdgeId, hoveredNode, externalHighlightNodeId, externalHighlightType]);
 
-  // 줌 레벨에 따른 4단계 스케일 모드 결정 (별자리형 layout 일 때만 다단계 축소 활성화)
-  const scaleMode = useMemo(() => {
-    if (layout !== "atlas") return "PLANET";
-    
-    if (zoom >= 0.72) return "PLANET";
-    if (zoom >= 0.42) return "NEBULA";
-    if (zoom >= 0.20) return "GALAXY";
-    return "SUPERCLUSTER";
-  }, [zoom, layout]);
+  // v0.7.48: 클러스터링으로 뭉치고 푸는 기능(Multiscale zoom clustering) 제거.
+  // 항상 개별 노드를 펼쳐진 상태(PLANET)로 렌더링합니다.
+  const scaleMode = "PLANET";
 
-  // 1) 각 줌아웃 레벨(Supercluster, Galaxy, Nebula) 그룹별 Centroid 및 대표 Hub 노드 선계산
-  const scaleGroups = useMemo(() => {
-    // Supercluster (1뎁스 대분류 폴더)
-    const superGroups: Record<string, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
-    const superHubs: Record<string, { id: string; maxWeight: number }> = {};
-    
-    // Galaxy (Louvain 커뮤니티)
-    const galaxyGroups: Record<number, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
-    const galaxyHubs: Record<number, { id: string; maxWeight: number }> = {};
-
-    // Nebula (2뎁스 하위 폴더)
-    const nebulaGroups: Record<string, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
-    const nebulaHubs: Record<string, { id: string; maxWeight: number }> = {};
-
-    const superTemp: Record<string, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
-    const galaxyTemp: Record<number, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
-    const nebulaTemp: Record<string, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
-
-    for (const n of nodes) {
-      const id = (n as any).id ?? n.slug;
-      const x = typeof n.x === "number" ? n.x : 0;
-      const y = typeof n.y === "number" ? n.y : 0;
-      const w = (n as any).weight ?? 0;
-      const c = (n as any).community ?? 0;
-      
-      const parts = n.slug.split("/").filter(Boolean);
-      const superKey = (parts.length > 1 ? parts[0] : "etc").toUpperCase();
-      const nebulaKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
-
-      // Supercluster
-      if (!superTemp[superKey]) superTemp[superKey] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
-      superTemp[superKey].sumX += x;
-      superTemp[superKey].sumY += y;
-      superTemp[superKey].count += 1;
-      superTemp[superKey].ids.add(id);
-      if (!superHubs[superKey] || w > superHubs[superKey].maxWeight) {
-        superHubs[superKey] = { id, maxWeight: w };
-      }
-
-      // Galaxy
-      if (c >= 0) {
-        if (!galaxyTemp[c]) galaxyTemp[c] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
-        galaxyTemp[c].sumX += x;
-        galaxyTemp[c].sumY += y;
-        galaxyTemp[c].count += 1;
-        galaxyTemp[c].ids.add(id);
-        if (!galaxyHubs[c] || w > galaxyHubs[c].maxWeight) {
-          galaxyHubs[c] = { id, maxWeight: w };
-        }
-      }
-
-      // Nebula
-      if (!nebulaTemp[nebulaKey]) nebulaTemp[nebulaKey] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
-      nebulaTemp[nebulaKey].sumX += x;
-      nebulaTemp[nebulaKey].sumY += y;
-      nebulaTemp[nebulaKey].count += 1;
-      nebulaTemp[nebulaKey].ids.add(id);
-      if (!nebulaHubs[nebulaKey] || w > nebulaHubs[nebulaKey].maxWeight) {
-        nebulaHubs[nebulaKey] = { id, maxWeight: w };
-      }
-    }
-
-    Object.entries(superTemp).forEach(([k, t]) => {
-      superGroups[k] = {
-        cx: t.sumX / t.count,
-        cy: t.sumY / t.count,
-        hubId: superHubs[k]?.id ?? Array.from(t.ids)[0],
-        count: t.count,
-        ids: t.ids,
-      };
-    });
-
-    Object.entries(galaxyTemp).forEach(([cStr, t]) => {
-      const c = Number(cStr);
-      galaxyGroups[c] = {
-        cx: t.sumX / t.count,
-        cy: t.sumY / t.count,
-        hubId: galaxyHubs[c]?.id ?? Array.from(t.ids)[0],
-        count: t.count,
-        ids: t.ids,
-      };
-    });
-
-    Object.entries(nebulaTemp).forEach(([k, t]) => {
-      nebulaGroups[k] = {
-        cx: t.sumX / t.count,
-        cy: t.sumY / t.count,
-        hubId: nebulaHubs[k]?.id ?? Array.from(t.ids)[0],
-        count: t.count,
-        ids: t.ids,
-      };
-    });
-
-    return { superGroups, galaxyGroups, nebulaGroups };
-  }, [nodes]);
-
-  // 2) 줌 레벨에 따라 노드의 목표 좌표(Centroid)와 크기/투명도를 동적으로 매핑 (애니메이션 지원)
+  // 1) 줌 레벨에 따라 노드의 크기/투명도 매핑
   const displayNodes = useMemo(() => {
-    const { superGroups, galaxyGroups, nebulaGroups } = scaleGroups;
-
     return flowNodes.map((node) => {
       const id = node.id;
       const highlighted = focus.nodeIds.has(id);
       const persistent = persistentHighlightNodeId === id;
       
-      const type = (node.data as any).type ?? "concept";
       const orgSize = (node.data as any).size ?? 6;
-      const orgCommunity = (node.data as any).community ?? 0;
-      
-      const parts = node.id.split("/").filter(Boolean);
-      const superKey = (parts.length > 1 ? parts[0] : "etc").toUpperCase();
-      const nebulaKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
-      const commId = orgCommunity;
-
-      let targetX = node.position.x;
-      let targetY = node.position.y;
-      let size = orgSize;
       let opacity = !focus.active || highlighted || persistent ? 1 : 0.22;
-      let title = (node.data as any).title ?? id;
-      let showLabel = true;
+      const title = (node.data as any).title ?? id;
+      const showLabel = true;
 
-      if (scaleMode === "SUPERCLUSTER") {
-        const sGroup = superGroups[superKey];
-        if (sGroup) {
-          targetX = sGroup.cx;
-          targetY = sGroup.cy;
-          if (id === sGroup.hubId) {
-            size = Math.max(26, Math.min(58, 18 + Math.sqrt(sGroup.count) * 6.5));
-            title = `${superKey} 초은하단`;
-            opacity = 1;
-          } else {
-            size = 0;
-            opacity = 0;
-            title = "";
-            showLabel = false;
-          }
-        }
-      } else if (scaleMode === "GALAXY") {
-        const gGroup = galaxyGroups[commId];
-        if (gGroup) {
-          targetX = gGroup.cx;
-          targetY = gGroup.cy;
-          if (id === gGroup.hubId) {
-            size = Math.max(18, Math.min(42, 13 + Math.sqrt(gGroup.count) * 4.0));
-            title = (node.data as any).title ?? id;
-            opacity = 1;
-          } else {
-            size = 0;
-            opacity = 0;
-            title = "";
-            showLabel = false;
-          }
-        }
-      } else if (scaleMode === "NEBULA") {
-        const nGroup = nebulaGroups[nebulaKey];
-        if (nGroup) {
-          targetX = nGroup.cx;
-          targetY = nGroup.cy;
-          if (id === nGroup.hubId) {
-            size = Math.max(12, Math.min(30, 9 + Math.sqrt(nGroup.count) * 2.8));
-            title = (node.data as any).title ?? id;
-            opacity = 1;
-          } else {
-            size = 0;
-            opacity = 0;
-            title = "";
-            showLabel = false;
-          }
-        }
-      } else {
-        // scaleMode === "PLANET"
-        const isMoon = orgSize <= 6 && !highlighted && !persistent;
-        size = isMoon ? 4 : orgSize;
-        opacity = isMoon ? 0.55 : opacity;
-      }
+      // scaleMode === "PLANET"
+      const isMoon = orgSize <= 6 && !highlighted && !persistent;
+      const size = isMoon ? 4 : orgSize;
+      opacity = isMoon ? 0.55 : opacity;
 
       return {
         ...node,
-        position: { x: targetX, y: targetY },
         data: {
           ...node.data,
           size,
@@ -711,55 +545,15 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [scaleMode, scaleGroups, flowNodes, focus, persistentHighlightNodeId]);
+  }, [flowNodes, focus, persistentHighlightNodeId]);
 
-  // 3) 줌 레벨과 노드 수렴 상태에 매핑하여 엣지 강도 및 가시성 동적 조율
+  // 2) 엣지 강도 및 가시성 동적 조율
   const displayEdges = useMemo(() => {
     return flowEdges.map((edge) => {
       const highlighted = focus.edgeIds.has(edge.id);
-      const s = edge.source;
-      const t = edge.target;
 
-      let opacity = !focus.active ? 0.16 : highlighted ? 0.82 : 0.045;
-      let strokeWidth = highlighted ? 1.35 : 0.65;
-
-      if (scaleMode === "SUPERCLUSTER") {
-        const partsS = s.split("/").filter(Boolean);
-        const partsT = t.split("/").filter(Boolean);
-        const superS = (partsS.length > 1 ? partsS[0] : "etc").toUpperCase();
-        const superT = (partsT.length > 1 ? partsT[0] : "etc").toUpperCase();
-
-        if (superS === superT) {
-          opacity = 0;
-        } else {
-          opacity = 0.45;
-          strokeWidth = 1.2;
-        }
-      } else if (scaleMode === "GALAXY") {
-        const nodeS = nodes.find(n => (n.id ?? n.slug) === s);
-        const nodeT = nodes.find(n => (n.id ?? n.slug) === t);
-        const commS = (nodeS as any)?.community ?? 0;
-        const commT = (nodeT as any)?.community ?? 0;
-
-        if (commS === commT) {
-          opacity = 0;
-        } else {
-          opacity = 0.42;
-          strokeWidth = 1.0;
-        }
-      } else if (scaleMode === "NEBULA") {
-        const partsS = s.split("/").filter(Boolean);
-        const partsT = t.split("/").filter(Boolean);
-        const nebS = partsS.slice(0, Math.min(2, partsS.length - 1)).join("/") || "etc";
-        const nebT = partsT.slice(0, Math.min(2, partsT.length - 1)).join("/") || "etc";
-
-        if (nebS === nebT) {
-          opacity = 0;
-        } else {
-          opacity = 0.38;
-          strokeWidth = 0.85;
-        }
-      }
+      const opacity = !focus.active ? 0.16 : highlighted ? 0.82 : 0.045;
+      const strokeWidth = highlighted ? 1.35 : 0.65;
 
       return {
         ...edge,
@@ -772,7 +566,7 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [scaleMode, scaleGroups, flowEdges, nodes, focus]);
+  }, [flowEdges, focus]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {

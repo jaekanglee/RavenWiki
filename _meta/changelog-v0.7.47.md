@@ -1,6 +1,6 @@
 # raven v0.7.47 — 대시보드 헤더 보관소 드롭다운 전환 및 지침 당겨오기 지원
 
-> **핵심**: 대시보드 헤더의 고정 링크였던 active vault chip을 드롭다운(`VaultPicker`) 형태로 교체하여 클릭 시 다른 보관소로 바로 전환하고 인덱스(첫 페이지)로 부드럽게 SPA 라우팅되도록 개선했습니다. 또한, 보관소 관리 페이지에서 지침 파일 정합성을 검증(Verify)하고 최신 원본 지침을 원클릭으로 덮어써서 갱신(Bootstrap/당겨오기)할 수 있는 UI 액션을 추가했습니다. 추가로, 지침 당겨오기 시 기존 파일이 존재하면 덮어쓰지 않고 그냥 건너뛰던 오작동 버그를 수정했으며, 그래프 뷰가 옵시디언 고유의 밀도 높은 밤하늘 은하수(Constellation) 미학을 가질 수 있도록 레이아웃 파라미터 및 연결선 스타일을 정밀하게 튜닝했습니다.
+> **핵심**: 대시보드 헤더의 고정 링크였던 active vault chip을 드롭다운(`VaultPicker`) 형태로 교체하여 클릭 시 다른 보관소로 바로 전환하고 인덱스(첫 페이지)로 부드럽게 SPA 라우팅되도록 개선했습니다. 또한, 보관소 관리 페이지에서 지침 파일 정합성을 검증(Verify)하고 최신 원본 지침을 원클릭으로 덮어써서 갱신(Bootstrap/당겨오기)할 수 있는 UI 액션을 추가했습니다. 추가로, 지침 당겨오기 시 기존 파일이 존재하면 덮어쓰지 않고 그냥 건너뛰던 오작동 버그를 수정했으며, 그래프 뷰가 옵시디언 고유의 밀도 높은 밤하늘 은하수(Constellation) 미학을 가질 수 있도록 레이아웃 파라미터 및 연결선 스타일을 정밀하게 튜닝하고 줌 연동 노드 뭉침/풀림(클러스터 병합) 기능을 제거했습니다.
 
 릴리스 일자: 2026-07-01
 이전: v0.7.46
@@ -26,7 +26,8 @@
 * 기존 `_bootstrap_lite` 메서드는 이미 파일이 존재할 시 덮어쓰지 않고 그냥 건너뛰어(continue), '당겨오기 완료' 후에도 정합성 불일치가 해소되지 않는 모순이 있었습니다.
 * 이를 해결하기 위해 백엔드 API 및 CLI 부트스트랩 명령어가 `_bootstrap_lite` 대신 파일 덮어쓰기가 보장되는 `v.sync_meta(lite=True, force=True)`를 수행하도록 수정했습니다.
 
-### 1-5. 옵시디언 감성 그래프 레이아웃 및 엣지 미학 튜닝 ([server.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven/api/server.py), [globals.css](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/styles/globals.css))
+### 1-5. 줌 연동 노드 뭉침(클러스터 병합) 제거 및 옵시디언 식 촘촘한 은하수 그래프 튜닝 ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx), [server.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven/api/server.py), [globals.css](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/styles/globals.css))
+* **동적 클러스터 뭉침(Collapse) 제거**: 줌 레벨에 따라 노드들이 임의의 무게중심으로 뭉치고 풀어져서 시야를 복잡하게 만들던 Cosmic scale 뭉침 연산(Supercluster/Galaxy/Nebula 모드)을 완전히 배제했습니다. 항상 모든 개별 노드가 본연의 좌표(`PLANET` 모드)에 배치됩니다.
 * **노드 응집도 및 밀도 극대화**: ForceAtlas2 레이아웃의 척력(`repulsion`)을 `2200.0` ➡️ `1400.0`으로 줄이고, 중력(`gravity`)을 `0.035` ➡️ `0.045`로, 커뮤니티 핵 인력 배율을 `0.065` ➡️ `0.10`으로 강화하여 노드들이 중심부로 촘촘히 달라붙어 덩어리진 성단 형태를 이루게 했습니다.
 * **Collision Guard 완화**: 겹침 방지 임계거리(`min_dist`)를 기존 `45.0px` ➡️ `20.0px`로 낮추고 밀어내는 탄성 계수를 강화하여, 큰 허브 노드 주변의 보조 노드들이 넓게 흩어지지 않고 밤하늘 은하수의 조밀한 아라베스크 무늬처럼 엉키도록 유도했습니다.
 * **엣지(연결선) 가시성 투명화**: 수많은 연결선이 화면을 둔탁하게 덮지 않고 안개처럼 얇고 은은하게 녹아들도록, 라이트 모드(`rgba(100, 116, 139, 0.28)`)와 다크 모드(`rgba(148, 163, 184, 0.22)`)의 `--graph-edge` 투명도를 대폭 조율했습니다.
