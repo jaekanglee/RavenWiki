@@ -280,7 +280,7 @@ export function GraphPage() {
       { value: "all", label: "전체 클러스터" },
       ...Object.entries(commHubs).map(([commIdStr, data]) => ({
         value: commIdStr,
-        label: `${data.title} 은하군 (#${commIdStr}, ${data.count}개)`,
+        label: `${data.title} (#${commIdStr}, ${data.count}개)`,
       })),
     ];
   }, [graph.nodes]);
