@@ -916,3 +916,50 @@ def test_locks_api_list_and_delete(client, isolated_env):
     assert resp2.json()["locks"] == {}
 
 
+def test_api_delete_vault(client, isolated_env):
+    """DELETE /api/vaults/{name} API 검증."""
+    # 1. 존재하지 않는 볼트 삭제 시도 -> 404
+    resp = client.delete("/api/vaults/nonexistent")
+    assert resp.status_code == 404
+
+    # 2. 볼트는 등록되어 있으나 실제 디스크 경로가 유실된 경우 -> 에러 없이 unregister 성공해야 함
+    target = isolated_env["target_root"] / "del1"
+    resp = client.post("/api/vaults/create", json={
+        "name": "del1", "path": str(target), "bootstrap": False,
+    })
+    assert resp.status_code == 200
+    
+    import shutil
+    shutil.rmtree(target, ignore_errors=True)
+    assert not target.exists()
+
+    # 삭제 시도
+    resp = client.delete("/api/vaults/del1")
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert resp.json()["vault"] == "del1"
+
+    # 3. 콘텐트가 있는 볼트 삭제 시도 -> force=True 없이는 실패
+    target2 = isolated_env["target_root"] / "del2"
+    resp = client.post("/api/vaults/create", json={
+        "name": "del2", "path": str(target2), "bootstrap": True,
+    })
+    assert resp.status_code == 200
+    (target2 / "content").mkdir(parents=True, exist_ok=True)
+    (target2 / "content" / "hello.md").write_text("Hello", encoding="utf-8")
+
+    resp = client.delete("/api/vaults/del2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["reason"] == "vault contains content"
+    assert data["stats"]["pages"] == 1
+
+    # 4. force=True와 함께 삭제 시도 -> 성공 및 디스크 삭제
+    resp = client.delete("/api/vaults/del2?force=true")
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert not target2.exists()
+
+
+

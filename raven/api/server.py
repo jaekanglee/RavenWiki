@@ -1288,7 +1288,21 @@ def delete_vault(name: str, force: bool = False):
         - use with care
     """
     import shutil
-    v = _vault_or_404(name)
+    meta = registry().get(name)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
+
+    # 만약 디스크에서 디렉토리가 이미 유실되었다면, 바로 등록 해제 처리
+    if not meta.path.exists():
+        was_default = registry()._data.get("default") == name
+        registry().remove(name)
+        if was_default:
+            remaining = list(registry()._data.get("vaults", {}).keys())
+            if remaining:
+                registry().set_default(remaining[0])
+        return {"ok": True, "vault": name, "destructive": force, "note": "directory already missing"}
+
+    v = Vault.load(meta)
     pages = list(v.content_root.rglob("*.md")) if v.content_root.exists() else []
     log_path = v.root / "log.md"
     has_log = log_path.exists() and log_path.stat().st_size > 0
