@@ -614,7 +614,7 @@ function SidebarStatsWidget({ activeVault }: { activeVault: string }) {
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--color-muted)" }}>깨진 링크</div>
-            <div style={{ fontWeight: 700, color: stats.broken > 0 ? "var(--color-danger, #ef4444)" : "var(--color-ink)", marginTop: 2 }}>{stats.broken}</div>
+            <div style={{ fontWeight: 700, color: stats.broken > 0 ? "var(--color-danger-text)" : "var(--color-ink)", marginTop: 2 }}>{stats.broken}</div>
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--color-muted)" }}>활성 락</div>

@@ -1,5 +1,5 @@
 import MDEditor from "@uiw/react-md-editor";
-import type { FC } from "react";
+import { useEffect, useState, type FC } from "react";
 import { preprocessWikilinks } from "../lib/wikilink";
 
 interface MarkdownViewProps {
@@ -22,13 +22,28 @@ interface MarkdownViewProps {
  *   - 의존성 0, @uiw/react-md-editor raw markdown 그대로 전달
  */
 export const MarkdownView: FC<MarkdownViewProps> = ({ content, vault }) => {
+    const [colorMode, setColorMode] = useState<"light" | "dark">(() => {
+        if (typeof document === "undefined") return "light";
+        return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    });
+
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        const root = document.documentElement;
+        const sync = () => setColorMode(root.classList.contains("dark") ? "dark" : "light");
+        sync();
+        const observer = new MutationObserver(sync);
+        observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+        return () => observer.disconnect();
+    }, []);
+
     // wikilink pre-process: [[slug]] → [slug](...)
     const processed = preprocessWikilinks(content ?? "", vault);
 
-    // @uiw/react-md-editor는 data-color-mode="dark" 자동 지원.
+    // @uiw/react-md-editor는 data-color-mode="light|dark"를 읽는다.
     // Raven 디자인 토큰 (--color-body, --color-bg 등)은 globals.css에서 정의.
     return (
-        <div className="raven-md-view" data-color-mode="dark">
+        <div className="raven-md-view" data-color-mode={colorMode}>
             <MDEditor.Markdown
                 source={processed}
                 style={{

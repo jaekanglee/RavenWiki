@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLocalGraph, buildRelatedGraph, resolveGraphId, splitRelatedSection } from "../src/routes/PageView";
+import { deriveGraphInsights, deriveNodeDetail, filterGraphView } from "../src/routes/GraphPage";
 import type { Graph } from "../src/types";
 
 const graph: Graph = {
@@ -100,6 +101,93 @@ describe("PageView local graph", () => {
       "concept/users",
     ]);
     expect(local.edges).toHaveLength(1);
+  });
+});
+
+describe("GraphPage helpers", () => {
+  it("filterGraphView keeps matched nodes plus one-hop neighbors for query context", () => {
+    const filtered = filterGraphView(graph, {
+      hideOrphans: false,
+      query: "A",
+      selectedType: "all",
+      selectedCommunity: null,
+    });
+
+    expect(filtered.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b", "c"]);
+    expect(filtered.edges).toHaveLength(2);
+  });
+
+  it("filterGraphView narrows nodes by selected type after orphan filtering", () => {
+    const typedGraph: Graph = {
+      nodes: [
+        { id: "a", slug: "a", title: "Alpha", type: "concept", weight: 2 },
+        { id: "b", slug: "b", title: "Beta", type: "rule", weight: 1 },
+        { id: "c", slug: "c", title: "Gamma", type: "concept", weight: 0 },
+      ],
+      edges: [{ source_slug: "a", target_slug: "b" }],
+    };
+
+    const filtered = filterGraphView(typedGraph, {
+      hideOrphans: true,
+      query: "",
+      selectedType: "concept",
+      selectedCommunity: null,
+    });
+
+    expect(filtered.nodes.map((n) => n.id ?? n.slug)).toEqual(["a"]);
+    expect(filtered.edges).toHaveLength(0);
+  });
+
+  it("deriveGraphInsights sorts top connected nodes by weight and returns type counts", () => {
+    const insightGraph: Graph = {
+      nodes: [
+        { id: "a", slug: "a", title: "Alpha", type: "concept", weight: 4 },
+        { id: "b", slug: "b", title: "Beta", type: "rule", weight: 1 },
+        { id: "c", slug: "c", title: "Gamma", type: "concept", weight: 0 },
+      ],
+      edges: [{ source_slug: "b", target_slug: "a" }],
+    };
+
+    const insights = deriveGraphInsights(insightGraph);
+
+    expect(insights.topConnected.map((n) => n.id ?? n.slug)).toEqual(["a", "b"]);
+    expect(insights.topOrphans.map((n) => n.id ?? n.slug)).toEqual(["c"]);
+    expect(insights.typeBreakdown).toEqual([
+      { type: "concept", count: 2 },
+      { type: "rule", count: 1 },
+    ]);
+  });
+
+  it("deriveNodeDetail returns inbound, outbound, and merged neighbors for a node", () => {
+    const details = deriveNodeDetail(graph, "a");
+
+    expect(details?.inbound.map((n) => n.id ?? n.slug)).toEqual(["c"]);
+    expect(details?.outbound.map((n) => n.id ?? n.slug)).toEqual(["b"]);
+    expect(details?.neighbors.map((n) => n.id ?? n.slug)).toEqual(["b", "c"]);
+  });
+
+  it("filterGraphView can isolate a single community when community ids are present", () => {
+    const communityGraph: Graph = {
+      nodes: [
+        { id: "a", slug: "a", title: "Alpha", community: 0, weight: 1 },
+        { id: "b", slug: "b", title: "Beta", community: 0, weight: 1 },
+        { id: "c", slug: "c", title: "Gamma", community: 1, weight: 1 },
+      ],
+      edges: [
+        { source_slug: "a", target_slug: "b" },
+        { source_slug: "b", target_slug: "c" },
+      ],
+    };
+
+    const filtered = filterGraphView(communityGraph, {
+      hideOrphans: false,
+      query: "",
+      selectedType: "all",
+      selectedCommunity: 0,
+    });
+
+    expect(filtered.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b"]);
+    expect(filtered.edges).toEqual([{ source_slug: "a", target_slug: "b" }]);
   });
 });
 

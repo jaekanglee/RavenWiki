@@ -16,6 +16,8 @@ import type { GraphNode, GraphEdge } from "../types";
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** hover/click 시 선택 노드 메타를 상위 UI에 전달 */
+  onNodeInspect?: (node: GraphNode) => void;
   /** single click — 데스크탑 전용 (페이지 이동), 모바일에서는 no-op (라벨 토글) */
   onNodeClick?: (slug: string) => void;
   /** double click / double tap — 모바일+데스크탑 공통 페이지 이동 */
@@ -130,10 +132,10 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
           height: data.size,
           borderRadius: "50%",
           background: data.color,
-          border: "1px solid rgba(255,255,255,0.22)",
+          border: "1px solid var(--graph-node-outline)",
           boxShadow: data.highlighted
-            ? "0 0 0 1px rgba(226,232,240,0.75), 0 0 10px rgba(226,232,240,0.24)"
-            : "0 0 0 1px rgba(0,0,0,0.32)",
+            ? "var(--graph-node-glow)"
+            : "0 0 0 1px var(--graph-node-outline)",
           cursor: "grab",
           pointerEvents: "all",
           touchAction: "none",
@@ -141,13 +143,12 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
-          (e.currentTarget as HTMLDivElement).style.boxShadow =
-            "0 0 0 1px rgba(255,255,255,0.55), 0 0 8px rgba(255,255,255,0.25)";
+          (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--graph-node-glow)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
           (e.currentTarget as HTMLDivElement).style.boxShadow =
-            "0 0 0 1px rgba(0,0,0,0.4)";
+            "0 0 0 1px var(--graph-node-outline)";
         }}
       >
       {/* React Flow custom nodes need explicit handles; otherwise edges are kept in
@@ -177,8 +178,8 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
             marginTop: 4,
             fontSize: 11,
             lineHeight: 1.25,
-            color: "rgba(226, 232, 240, 0.92)",
-            textShadow: "0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95)",
+            color: "var(--graph-label-color)",
+            textShadow: "var(--graph-label-shadow)",
             // 최대 2줄 + 폭 180px까지 줄바꿈 허용, 더 길면 잘림.
             width: 180,
             maxWidth: 180,
@@ -204,9 +205,9 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
 const nodeTypes = { obsidian: ObsidianNode };
 
 const graphButtonStyle = {
-  border: "1px solid rgba(148, 163, 184, 0.45)",
-  background: "rgba(15, 23, 42, 0.72)",
-  color: "#cbd5e1",
+  border: "1px solid var(--graph-border)",
+  background: "var(--graph-surface)",
+  color: "var(--graph-text)",
   borderRadius: 999,
   padding: "6px 10px",
   fontSize: 12,
@@ -215,7 +216,7 @@ const graphButtonStyle = {
   backdropFilter: "blur(8px)",
 } as const;
 
-function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Props) {
+function GraphCanvasInner({ nodes, edges, onNodeInspect, onNodeClick, onNodeDoubleClick }: Props) {
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -315,7 +316,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         type: "straight" as const,
         // Obsidian-style: relationship lines are quiet by default; hover reveals structure.
         style: {
-          stroke: "#94a3b8",
+          stroke: "var(--graph-edge)",
           strokeWidth: 0.65,
           strokeOpacity: 0.16,
         },
@@ -410,7 +411,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
           animated: highlighted,
           style: {
             ...(edge.style ?? {}),
-            stroke: highlighted ? "#e2e8f0" : "#94a3b8",
+            stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
             strokeWidth: highlighted ? 1.35 : 0.65,
             strokeOpacity: !focus.active ? 0.16 : highlighted ? 0.82 : 0.045,
           },
@@ -459,6 +460,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         x: node.position.x + size / 2,
         y: node.position.y + size / 2,
       });
+      onNodeInspect?.(meta);
       setHoveredNode({
         id: node.id,
         title: meta.title,
@@ -468,7 +470,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         y: screen.y,
       });
     },
-    [nodeMap, flowToScreenPosition]
+    [nodeMap, onNodeInspect, flowToScreenPosition]
   );
 
   const handleNodeLeave = useCallback(() => {
@@ -506,6 +508,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
           }, 320);
           return;
         }
+        onNodeInspect?.(meta);
         // 같은 노드 재탭이 아니면 label은 즉시 토글 + 첫 탭 예약.
         setHoveredNode((prev) => {
           if (prev && prev.id === n.id) return null;
@@ -536,7 +539,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
       }
       onNodeClick?.(n.id);
     },
-    [isCoarse, nodeMap, onNodeClick, onNodeDoubleClick, flowToScreenPosition]
+    [isCoarse, nodeMap, onNodeInspect, onNodeClick, onNodeDoubleClick, flowToScreenPosition]
   );
 
   const handleNodeDoubleClick = useCallback(
@@ -579,7 +582,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         width: "100%",
         height: "100%",
         position: "relative",
-        background: "#0a0e1a",
+        background: "var(--graph-canvas-bg)",
         // Patch 4: 모바일에서 브라우저 기본 pinch/scroll 방지
         touchAction: "none",
         userSelect: "none",
@@ -627,12 +630,12 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
         ]}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#1f2937" bgColor="#0a0e1a" size={1} gap={32} />
+        <Background color="var(--graph-grid)" bgColor="var(--graph-canvas-bg)" size={1} gap={32} />
         <Controls
           style={{
-            background: "#1f2937",
-            borderColor: "#374151",
-            color: "#e5e7eb",
+            background: "var(--graph-surface-strong)",
+            borderColor: "var(--graph-border)",
+            color: "var(--graph-text)",
           }}
           showInteractive={false}
         />
@@ -678,15 +681,15 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
             top: hoveredNode.y,
             transform: "translate(-50%, calc(-100% - 14px))",
             pointerEvents: "none",
-            background: "rgba(17, 24, 39, 0.95)",
-            color: "#e5e7eb",
+            background: "var(--graph-tooltip-bg)",
+            color: "var(--graph-text)",
             padding: "6px 10px",
             borderRadius: 6,
             fontSize: 12,
             fontWeight: 500,
             lineHeight: 1.35,
-            border: "1px solid #374151",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+            border: "1px solid var(--graph-tooltip-border)",
+            boxShadow: "var(--graph-tooltip-shadow)",
             whiteSpace: "nowrap",
             maxWidth: 320,
             zIndex: 10,
@@ -696,7 +699,7 @@ function GraphCanvasInner({ nodes, edges, onNodeClick, onNodeDoubleClick }: Prop
           <div
             style={{
               fontSize: 10,
-              color: "#9ca3af",
+              color: "var(--graph-text-muted)",
               marginTop: 2,
               display: "flex",
               gap: 8,
