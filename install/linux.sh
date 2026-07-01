@@ -1,87 +1,87 @@
 #!/usr/bin/env bash
-# Linux install branch — invoked by ./install.sh when OSTYPE=linux*
-# Supports: apt (Debian/Ubuntu) or dnf (Fedora/RHEL)
+# Linux install branch — invoked by ./_meta/install.sh when OSTYPE=linux*
 set -euo pipefail
 
-echo "🐧 Linux 설치 시작"
+echo "🐧 Linux Raven 설치 시작"
 echo ""
 
-# ─── 1. 시스템 패키지 ─────────────────────────────────────────────
+SUDO=""
+[[ $EUID -ne 0 ]] && SUDO="sudo"
+
 if command -v apt &> /dev/null; then
     echo "📦 apt (Debian/Ubuntu) 감지"
-    SUDO=""
-    [[ $EUID -ne 0 ]] && SUDO="sudo"
     $SUDO apt update
-    $SUDO apt install -y python3.11 python3-venv python3-pip nodejs npm git curl
+    $SUDO apt install -y python3 git curl make docker.io docker-compose-plugin
 elif command -v dnf &> /dev/null; then
     echo "📦 dnf (Fedora/RHEL) 감지"
-    SUDO=""
-    [[ $EUID -ne 0 ]] && SUDO="sudo"
-    $SUDO dnf install -y python3.11 nodejs npm git curl
+    $SUDO dnf install -y python3 git curl make docker docker-compose-plugin
 else
     echo "❌ apt/dnf 모두 없음. 수동 설치 필요."
-    echo "   Debian/Ubuntu: apt install python3 python3-venv nodejs npm git curl"
-    echo "   Fedora/RHEL:   dnf install python3 nodejs npm git curl"
+    echo "   Debian/Ubuntu: apt install python3 git curl make docker.io docker-compose-plugin"
+    echo "   Fedora/RHEL:   dnf install python3 git curl make docker docker-compose-plugin"
     exit 1
 fi
 
-# ─── 2. Tailscale (선택) ──────────────────────────────────────────
-if ! command -v tailscale &> /dev/null; then
-    echo "📦 Tailscale 설치 (외부 접근용)..."
-    curl -fsSL https://tailscale.com/install.sh | $SUDO sh
-    echo "🔐 Tailscale 로그인: sudo tailscale up"
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker CLI 설치 실패"
+    exit 1
 fi
 
-# ─── 3. vault clone ───────────────────────────────────────────────
-if [[ ! -d "$VAULT" ]]; then
-    echo "📥 Vault clone: $REPO → $VAULT"
-    git clone "$REPO" "$VAULT"
+if command -v systemctl &> /dev/null; then
+    $SUDO systemctl enable --now docker >/dev/null 2>&1 || true
+fi
+
+if [[ ! -d "$APP_DIR/.git" ]]; then
+    echo "📥 Raven repo clone: $REPO → $APP_DIR"
+    git clone "$REPO" "$APP_DIR"
 else
-    echo "✅ Vault 이미 존재: $VAULT"
+    echo "✅ repo 이미 존재: $APP_DIR"
 fi
 
-cd "$VAULT"
+mkdir -p "$RAVEN_VAULTS_DIR"
+echo "✅ vault root 준비: $RAVEN_VAULTS_DIR"
 
-# ─── 4. Python venv ───────────────────────────────────────────────
-echo "🐍 Python venv..."
-python3 -m venv scripts/.venv
-scripts/.venv/bin/pip install --upgrade pip
-scripts/.venv/bin/pip install -e "scripts[dev]"
+cd "$APP_DIR"
 
-# ─── 5. Dashboard 빌드 ────────────────────────────────────────────
-echo "📦 Dashboard 의존성 + 빌드..."
-cd dashboard
-npm install
-npm run build
-cd ..
+if [[ ! -f .env ]]; then
+    cp .env.example .env
+    echo "✅ .env 생성"
+fi
 
-# ─── 6. 데이터 export ─────────────────────────────────────────────
-echo "📊 데이터 빌드 + export..."
-scripts/.venv/bin/python scripts/build_db.py
-scripts/.venv/bin/python scripts/export_static.py
+python3 - "$APP_DIR/.env" "$RAVEN_VAULTS_DIR" <<'PY'
+from pathlib import Path
+import sys
 
-# ─── 7. 초기 백업 ─────────────────────────────────────────────────
-echo "💾 초기 백업..."
-scripts/.venv/bin/python scripts/backup_db.py
+env_path = Path(sys.argv[1])
+vault_dir = sys.argv[2]
+lines = env_path.read_text().splitlines()
+out = []
+found = False
+for line in lines:
+    if line.startswith("RAVEN_VAULTS_DIR="):
+        out.append(f"RAVEN_VAULTS_DIR={vault_dir}")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f"RAVEN_VAULTS_DIR={vault_dir}")
+env_path.write_text("\n".join(out) + "\n")
+PY
+echo "✅ .env의 RAVEN_VAULTS_DIR 설정 완료"
 
-# ─── 8. systemd 등록 ──────────────────────────────────────────────
-echo "🚀 systemd 등록..."
-$SUDO mkdir -p /etc/systemd/system
-$SUDO cp deploy/systemd/wiki-dashboard.service   /etc/systemd/system/
-$SUDO cp deploy/systemd/wiki-mcp.service         /etc/systemd/system/
-$SUDO cp deploy/systemd/wiki-backup.service      /etc/systemd/system/
-$SUDO cp deploy/systemd/wiki-backup.timer        /etc/systemd/system/ 2>/dev/null || true
+echo "🐳 Docker daemon 확인..."
+if ! docker info >/dev/null 2>&1; then
+    echo "❌ Docker daemon이 실행 중이 아닙니다."
+    echo "   필요시: sudo systemctl start docker"
+    exit 1
+fi
 
-$SUDO systemctl daemon-reload
-$SUDO systemctl enable --now wiki-dashboard.service wiki-mcp.service
-$SUDO systemctl enable --now wiki-backup.timer   2>/dev/null || true
-
-# ─── 9. 로그 디렉토리 ─────────────────────────────────────────────
-mkdir -p "$VAULT/logs"
+echo "🔨 Raven 이미지 빌드 + 기동..."
+make rebuild
 
 echo ""
 echo "✅ Linux 설치 완료"
 echo "🌐 Dashboard: http://localhost:5173"
-echo "📊 MCP http:  scripts/.venv/bin/python -m mcp.cli --transport http --port 8765"
-echo "📋 상태 확인: sudo systemctl status wiki-dashboard wiki-mcp"
-echo "📋 백업 로그: sudo journalctl -u wiki-backup.service"
+echo "🔌 API:       http://localhost:8765/api/vaults"
+echo "🧠 MCP HTTP:  http://localhost:8766/mcp"
+echo "📋 상태 확인: cd $APP_DIR && docker compose ps"

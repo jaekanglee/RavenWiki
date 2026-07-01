@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# macOS install branch — invoked by ./install.sh when OSTYPE=darwin*
+# macOS install branch — invoked by ./_meta/install.sh when OSTYPE=darwin*
 set -euo pipefail
 
-echo "🍎 macOS 설치 시작"
+echo "🍎 macOS Raven 설치 시작"
 echo ""
 
-# 1. Homebrew 확인
 if ! command -v brew &> /dev/null; then
     echo "❌ Homebrew 미설치. 설치 명령어:"
     echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
@@ -13,76 +12,64 @@ if ! command -v brew &> /dev/null; then
 fi
 echo "✅ Homebrew 발견"
 
-# 2. 시스템 패키지
 echo "📦 Brew 패키지 설치..."
-brew install python@3.11 node git
+brew install python@3.11 git docker docker-compose make
 
-# 3. Tailscale (선택)
-if ! command -v tailscale &> /dev/null; then
-    echo "📦 Tailscale 설치 (외부 접근용)..."
-    brew install --cask tailscale
-    echo "🔐 Tailscale 로그인 필요: 메뉴바 → Tailscale → Log In"
-fi
-
-# 4. vault clone
-if [[ ! -d "$VAULT" ]]; then
-    echo "📥 Vault clone: $REPO → $VAULT"
-    git clone "$REPO" "$VAULT"
-else
-    echo "✅ Vault 이미 존재: $VAULT"
-fi
-
-cd "$VAULT"
-
-# 5. Python venv
-if [[ ! -d scripts/.venv ]]; then
-    echo "🐍 Python venv 생성..."
-    python3 -m venv scripts/.venv
-    scripts/.venv/bin/pip install --upgrade pip
-    scripts/.venv/bin/pip install -e "scripts[dev]"
-else
-    echo "✅ venv 이미 존재"
-fi
-
-# 6. dashboard 의존성 + 빌드
-echo "📦 Dashboard 의존성 설치 + 빌드..."
-cd dashboard
-if [[ ! -d node_modules ]]; then
-    npm install
-fi
-npm run build
-cd ..
-
-# 7. 데이터 export
-echo "📊 데이터 빌드 + export..."
-scripts/.venv/bin/python scripts/build_db.py
-scripts/.venv/bin/python scripts/export_static.py
-
-# 8. 초기 백업
-echo "💾 초기 백업..."
-scripts/.venv/bin/python scripts/backup_db.py
-
-# 9. LaunchAgent 등록
-echo "🚀 LaunchAgent 등록..."
-LAUNCH_DIR="$HOME/Library/LaunchAgents"
-mkdir -p "$LAUNCH_DIR" "$VAULT/logs"
-
-PLIST_TEMPLATE="$VAULT/deploy/launchd/com.wiki.dashboard.plist"
-PLIST_TARGET="$LAUNCH_DIR/com.wiki.dashboard.plist"
-
-if [[ ! -f "$PLIST_TEMPLATE" ]]; then
-    echo "❌ plist 템플릿 없음: $PLIST_TEMPLATE"
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker CLI 설치 실패"
     exit 1
 fi
 
-# {{VAULT}} → 절대경로 치환
-sed "s|{{VAULT}}|$VAULT|g" "$PLIST_TEMPLATE" > "$PLIST_TARGET"
+if [[ ! -d "$APP_DIR/.git" ]]; then
+    echo "📥 Raven repo clone: $REPO → $APP_DIR"
+    git clone "$REPO" "$APP_DIR"
+else
+    echo "✅ repo 이미 존재: $APP_DIR"
+fi
 
-launchctl unload "$PLIST_TARGET" 2>/dev/null || true
-launchctl load "$PLIST_TARGET"
+mkdir -p "$RAVEN_VAULTS_DIR"
+echo "✅ vault root 준비: $RAVEN_VAULTS_DIR"
+
+cd "$APP_DIR"
+
+if [[ ! -f .env ]]; then
+    cp .env.example .env
+    echo "✅ .env 생성"
+fi
+
+python3 - "$APP_DIR/.env" "$RAVEN_VAULTS_DIR" <<'PY'
+from pathlib import Path
+import sys
+
+env_path = Path(sys.argv[1])
+vault_dir = sys.argv[2]
+lines = env_path.read_text().splitlines()
+out = []
+found = False
+for line in lines:
+    if line.startswith("RAVEN_VAULTS_DIR="):
+        out.append(f"RAVEN_VAULTS_DIR={vault_dir}")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f"RAVEN_VAULTS_DIR={vault_dir}")
+env_path.write_text("\n".join(out) + "\n")
+PY
+echo "✅ .env의 RAVEN_VAULTS_DIR 설정 완료"
+
+echo "🐳 Docker daemon 확인..."
+if ! docker info >/dev/null 2>&1; then
+    echo "❌ Docker daemon이 실행 중이 아닙니다. Docker Desktop을 실행한 뒤 다시 시도하세요."
+    exit 1
+fi
+
+echo "🔨 Raven 이미지 빌드 + 기동..."
+make rebuild
 
 echo ""
 echo "✅ macOS 설치 완료"
 echo "🌐 Dashboard: http://localhost:5173"
-echo "📊 MCP stdio: cd $VAULT && scripts/.venv/bin/python -m mcp.cli"
-echo "📋 Logs:      $VAULT/logs/dashboard.log"
+echo "🔌 API:       http://localhost:8765/api/vaults"
+echo "🧠 MCP HTTP:  http://localhost:8766/mcp"
+echo "📋 상태 확인: cd $APP_DIR && docker compose ps"

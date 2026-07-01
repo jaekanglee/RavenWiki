@@ -53,3 +53,23 @@
 ## 4. 다음 단계
 
 * 다른 깨끗한 환경(Docker 컨테이너 내부 또는 신규 PC)에서 `_meta/install.sh` 및 `Makefile`이 완벽하게 초기 구동되는지 지속적인 피드백 확인 및 필요시 CLI 안내 문구 최적화.
+
+---
+
+## 5. 문서 후속 정렬 (2026-07-01)
+
+* `_meta/setup-guide.md`를 현재 코드 기준으로 다시 정렬했습니다.
+  * Docker-first 설치 경로를 공식 권장으로 명시
+  * repo clone / `.env` 준비 / `~/Raven` 생성 등 다른 PC 초기 세팅 절차 추가
+  * 로컬 호스트 경로를 `make install` + `make run-local` / `make stop-local` 기준으로 수정
+  * 예전 `com.wiki.*`, `wiki-*` 서비스 제거 절차는 **레거시 service 흔적 제거** 섹션으로 격리
+  * 에이전트에게 그대로 넘길 최소 설치 절차와 성공 기준 추가
+* `README.md`의 MCP 실행 예시에서 현재 없는 `make dev`, `make mcp` 명령을 제거하고 `make rebuild`, `make docker-up`, `docker compose exec api docker-entrypoint.sh mcp-stdio` 기준으로 수정했습니다.
+
+## 6. 설치 스크립트 현대화 (2026-07-01)
+
+* `_meta/install.sh`를 현재 Raven 아키텍처 기준의 **Docker-first 설치 래퍼**로 재작성했습니다.
+  * repo checkout 경로(`APP_DIR`)와 vault 루트(`RAVEN_VAULTS_DIR`)를 분리
+  * 기본 경로를 `$HOME/Raven-app` + `$HOME/Raven`으로 정리
+  * macOS/Linux 분기 스크립트가 `.env`를 생성/보정하고 `make rebuild`까지 수행하도록 변경
+  * 예전 launchd/systemd 상주 서비스 설치는 더 이상 기본 동작으로 수행하지 않음
