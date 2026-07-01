@@ -815,6 +815,7 @@ def _forceatlas_layout(
     edges: list[tuple[str, str]],
     weights: dict[str, int] | None = None,
     iterations: int = 320,
+    communities: dict[str, int] | None = None,
 ) -> dict[str, tuple[float, float]]:
     """ForceAtlas2 / LinLog hybrid v2 — PKM 문서 그래프 가독성 우선.
 
@@ -901,6 +902,21 @@ def _forceatlas_layout(
         dx = [0.0] * n
         dy = [0.0] * n
 
+        # 각 커뮤니티의 Centroid 계산 (매 iteration 마다)
+        comm_centroids: dict[int, list[float]] = {}
+        if communities:
+            for i in range(n):
+                c = communities.get(ids[i], -1)
+                if c >= 0:
+                    data = comm_centroids.setdefault(c, [0.0, 0.0, 0.0])
+                    data[0] += pos_x[i]
+                    data[1] += pos_y[i]
+                    data[2] += 1.0
+            for c, data in comm_centroids.items():
+                if data[2] > 0:
+                    data[0] /= data[2]
+                    data[1] /= data[2]
+
         # Repulsion (mass-scaled) & Collision (겹침 방지). 모든 노드쌍
         for i in range(n):
             for j in range(i + 1, n):
@@ -941,10 +957,17 @@ def _forceatlas_layout(
             dx[j] += fx
             dy[j] += fy
 
-        # Gravity: center 방향으로 약한 인력 — disconnected 군집이 무한히 멀리 안 가게.
+        # Gravity: center 방향으로 약한 인력 & 커뮤니티 중심 중력 (은하 중심 인력)
         for i in range(n):
             dx[i] -= pos_x[i] * gravity
             dy[i] -= pos_y[i] * gravity
+            if communities:
+                c = communities.get(ids[i], -1)
+                if c >= 0 and c in comm_centroids:
+                    cx, cy, _ = comm_centroids[c]
+                    # 자신 소속 커뮤니티 중심(은하 핵)으로 인력 적용
+                    dx[i] -= (pos_x[i] - cx) * 0.065
+                    dy[i] -= (pos_y[i] - cy) * 0.065
 
         for i in range(n):
             disp = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
@@ -1152,23 +1175,23 @@ def vault_graph(
             ids = [n["id"] for n in nodes]
             edge_pairs = [(e["source"], e["target"]) for e in edges]
             weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
+
+            # 은하 중심 중력 및 시각 군집화를 위해 커뮤니티를 레이아웃 전에 항상 계산
+            comm_map = _louvain_communities(ids, edge_pairs)
+            for node in nodes:
+                node["community"] = comm_map.get(node["id"], -1)
+
             layout_coords = (
                 _spring_layout(ids, edge_pairs, iterations=iterations)
                 if layout == "spring"
                 else _constellation_layout(ids, edge_pairs, weights=weights)
                 if layout == "constellation"
-                else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations)
+                else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
             )
             for node in nodes:
                 xy = layout_coords.get(node["id"], (0.0, 0.0))
                 node["x"] = xy[0]
                 node["y"] = xy[1]
-            if community == "modularity":
-                comm_map = _louvain_communities(
-                    [n["id"] for n in nodes], edge_pairs
-                )
-                for node in nodes:
-                    node["community"] = comm_map.get(node["id"], -1)
             return {
                 "ok": True,
                 "vault": name,
@@ -1230,12 +1253,18 @@ def vault_graph(
     ids = [n["id"] for n in nodes]
     edge_pairs = [(e["source"], e["target"]) for e in edges]
     weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
+
+    # fallback 분기에서도 커뮤니티 항상 계산
+    comm_map = _louvain_communities(ids, edge_pairs)
+    for node in nodes:
+        node["community"] = comm_map.get(node["id"], -1)
+
     layout_coords = (
         _spring_layout(ids, edge_pairs, iterations=iterations)
         if layout == "spring"
         else _constellation_layout(ids, edge_pairs, weights=weights)
         if layout == "constellation"
-        else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations)
+        else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
     )
     for node in nodes:
         xy = layout_coords.get(node["id"], (0.0, 0.0))
