@@ -357,6 +357,19 @@ def wiki_update(
         if cached is not None:
             return cached
 
+    holder = check_lock(vault_path, slug)
+    if holder and holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{slug}' is currently locked by agent '{holder['actor']}'. Please wait or release the lock.",
+            "path": slug,
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": holder,
+        }
+
     if not abs_path.exists():
         return {
             "ok": False,
@@ -506,6 +519,21 @@ def wiki_ingest(
         if cached is not None:
             return cached
 
+    dest_slug = f"raw/{project or 'default'}/{src_path.name}"
+    holder = check_lock(vault_path, dest_slug)
+    if holder and holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: raw path '{dest_slug}' is currently locked by agent '{holder['actor']}'. Please wait or release the lock.",
+            "pages_created": 0,
+            "pages_updated": 0,
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": holder,
+        }
+
     if dest.exists() and mode != "force":
         response = {
             "ok": True,
@@ -599,6 +627,20 @@ def wiki_delete(
         )
         if cached is not None:
             return cached
+
+    holder = check_lock(vault_path, slug)
+    if holder and holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{slug}' is currently locked by agent '{holder['actor']}'. Please wait or release the lock.",
+            "archived": None,
+            "rewritten_files": 0,
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": holder,
+        }
 
     if not abs_path.exists():
         return fail(f"{slug} not found")
@@ -701,6 +743,36 @@ def wiki_rename(
         )
         if cached is not None:
             return cached
+
+    old_holder = check_lock(vault_path, old_slug)
+    if old_holder and old_holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{old_slug}' is currently locked by agent '{old_holder['actor']}'. Please wait or release the lock.",
+            "rewritten_files": 0,
+            "old_slug": old_slug,
+            "new_slug": new_slug,
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": old_holder,
+        }
+
+    new_holder = check_lock(vault_path, new_slug)
+    if new_holder and new_holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{new_slug}' is currently locked by agent '{new_holder['actor']}'. Please wait or release the lock.",
+            "rewritten_files": 0,
+            "old_slug": old_slug,
+            "new_slug": new_slug,
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": new_holder,
+        }
 
     old_path = _resolve_md_path(vault_path, old_slug)
     if not old_path.exists():

@@ -108,8 +108,8 @@ def test_update_same_actor_lock_is_self(temp_vault: Path):
     assert r.get("_advisory_conflict") in (False, None)
 
 
-def test_update_foreign_actor_lock_advisory_only(temp_vault: Path):
-    """The F4 spec scenario: bob writes while alice holds. Write still succeeds."""
+def test_update_foreign_actor_lock_hard_blocks(temp_vault: Path):
+    """The hard lock enforcement scenario: bob writes while alice holds. Write fails."""
     slug = f"queries/f4u_{uuid.uuid4().hex[:8]}"
     abs_path = _stage_page(temp_vault, slug)
     ctx = VaultContext(vault=temp_vault, mode=WRITE)
@@ -118,18 +118,16 @@ def test_update_foreign_actor_lock_advisory_only(temp_vault: Path):
     pre = abs_path.read_text(encoding="utf-8")
     r = wiki_update(slug=slug, content="bob body\n", actor="bob", ctx=ctx)
 
-    # Write succeeded — F4 is advisory, never blocking.
-    assert r["ok"] is True
-    assert "bob body" in abs_path.read_text(encoding="utf-8")
-    assert pre != abs_path.read_text(encoding="utf-8")
+    # Write failed — lock is hard enforced.
+    assert r["ok"] is False
+    assert r["error"] == "lock_conflict"
+    assert "bob body" not in abs_path.read_text(encoding="utf-8")
+    assert pre == abs_path.read_text(encoding="utf-8")
 
-    # Caller sees the conflict.
+    # Caller sees the conflict holder.
     holder = r["_lock_holder"]
     assert holder is not None
     assert holder["actor"] == "alice"
-    assert holder["_self"] is False
-    assert holder["_advisory_conflict"] is True
-    assert r.get("_advisory_conflict") is True
 
 
 def test_update_default_actor_advisory_self(temp_vault: Path):
@@ -151,7 +149,7 @@ def test_update_default_actor_advisory_self(temp_vault: Path):
 
 
 def test_ingest_dest_slug_uses_lock(temp_vault: Path):
-    """Lock on the derived ``raw/<project>/<src>`` slug must be observed."""
+    """Lock on the derived ``raw/<project>/<src>`` slug must be observed and block."""
     src = temp_vault / f"src_{uuid.uuid4().hex[:8]}.md"
     src.write_text("# raw\n", encoding="utf-8")
     ctx = VaultContext(vault=temp_vault, mode=WRITE)
@@ -160,11 +158,11 @@ def test_ingest_dest_slug_uses_lock(temp_vault: Path):
     acquire_lock(temp_vault, dest_slug, "alice")
     r = wiki_ingest(source=str(src), project="proj", actor="bob", ctx=ctx)
 
-    assert r["ok"] is True
+    assert r["ok"] is False
+    assert r["error"] == "lock_conflict"
     holder = r["_lock_holder"]
     assert holder is not None
     assert holder["actor"] == "alice"
-    assert r.get("_advisory_conflict") is True
 
 
 def test_ingest_no_lock(temp_vault: Path):
@@ -181,22 +179,21 @@ def test_ingest_no_lock(temp_vault: Path):
 
 
 def test_delete_foreign_actor_advisory(temp_vault: Path):
+    """Foreign lock must block the delete operation."""
     slug = f"queries/f4d_{uuid.uuid4().hex[:8]}"
     _stage_page(temp_vault, slug)
     ctx = VaultContext(vault=temp_vault, mode=ADMIN)
 
     acquire_lock(temp_vault, slug, "alice")
     r = wiki_delete(slug=slug, actor="bob", ctx=ctx)
-    assert r["ok"] is True  # advisory only — delete proceeded
+    assert r["ok"] is False
+    assert r["error"] == "lock_conflict"
     holder = r["_lock_holder"]
     assert holder is not None
     assert holder["actor"] == "alice"
-    assert r.get("_advisory_conflict") is True
 
-    # Restore so the temp vault stays clean.
-    archive = temp_vault / r["archived"]
-    if archive.exists():
-        archive.rename(temp_vault / f"{slug}.md")
+    # Verify file was NOT archived / deleted
+    assert (temp_vault / f"{slug}.md").exists()
 
 
 def test_delete_no_lock(temp_vault: Path):
@@ -224,17 +221,18 @@ def test_rename_old_slug_lock_advisory(temp_vault: Path):
 
     acquire_lock(temp_vault, old, "alice")
     r = wiki_rename(old_slug=old, new_slug=new, actor="bob", ctx=ctx)
-    assert r["ok"] is True  # advisory only
+    assert r["ok"] is False
+    assert r["error"] == "lock_conflict"
     holder = r["_lock_holder"]
     assert holder is not None
     assert holder["actor"] == "alice"
-    assert r.get("_advisory_conflict") is True
 
-    (temp_vault / f"{new}.md").unlink()
+    assert (temp_vault / f"{old}.md").exists()
+    assert not (temp_vault / f"{new}.md").exists()
 
 
 def test_rename_new_slug_lock_advisory(temp_vault: Path):
-    """Lock on the *target* slug must also surface (rename touches both)."""
+    """Lock on the *target* slug must also block rename."""
     old = f"queries/f4ro_{uuid.uuid4().hex[:8]}"
     new = f"queries/f4rn_{uuid.uuid4().hex[:8]}"
     _stage_page(temp_vault, old)
@@ -243,14 +241,14 @@ def test_rename_new_slug_lock_advisory(temp_vault: Path):
     # Lock the destination slug only.
     acquire_lock(temp_vault, new, "carol")
     r = wiki_rename(old_slug=old, new_slug=new, actor="bob", ctx=ctx)
-    assert r["ok"] is True
+    assert r["ok"] is False
+    assert r["error"] == "lock_conflict"
     holder = r["_lock_holder"]
     assert holder is not None
-    # The probe walks old → new; both are free of foreign claims until new.
     assert holder["actor"] == "carol"
-    assert r.get("_advisory_conflict") is True
 
-    (temp_vault / f"{new}.md").unlink()
+    assert (temp_vault / f"{old}.md").exists()
+    assert not (temp_vault / f"{new}.md").exists()
 
 
 def test_rename_no_lock(temp_vault: Path):
