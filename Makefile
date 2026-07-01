@@ -116,10 +116,11 @@ nuke: ## ⚠️ Remove venv + ALL build artifacts (asks for confirmation)
 
 # ────────────────────────── run / stop shortcuts ──────────────────────────
 
-.PHONY: up down restart
+.PHONY: up down restart rebuild
 up: docker-up ## Start Raven via Docker compose (all services including Dashboard)
 down: docker-down ## Stop Raven via Docker compose
 restart: down up ## Restart Raven via Docker compose
+rebuild: docker-build restart ## Rebuild Docker images and restart all services
 
 .PHONY: run-local stop-local restart-local
 run-local: venv-check ## Start Raven locally in the background (API + Dashboard dev server)
