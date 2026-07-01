@@ -17,6 +17,7 @@ import type { GraphNode, GraphEdge } from "../types";
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  layout?: string; // 레이아웃 모드 추가 (atlas, hierarchical 등)
   /** hover/click 시 선택 노드 메타를 상위 UI에 전달 */
   onNodeInspect?: (node: GraphNode) => void;
   /** single click — 데스크탑 전용 (페이지 이동), 모바일에서는 no-op (라벨 토글) */
@@ -309,6 +310,7 @@ const graphButtonStyle = {
 function GraphCanvasInner({
   nodes,
   edges,
+  layout = "atlas",
   onNodeInspect,
   onNodeClick,
   onNodeDoubleClick,
@@ -511,14 +513,66 @@ function GraphCanvasInner({
     };
   }, [flowEdges, flowNodes, nodeMap, hoveredEdgeId, hoveredNode, externalHighlightNodeId, externalHighlightType]);
 
-  // 줌아웃 임계값(0.28) 미만일 때 노드들을 클러스터 대표 노드 하나로 뭉쳐서(Collapse) 렌더링
-  const isCollapsed = zoom < 0.28;
-
-  // 1) 줌아웃 시 뭉쳐진 클러스터 대표 노드 목록 계산
-  const clusterNodes = useMemo(() => {
-    if (!isCollapsed) return [];
+  // 줌 레벨에 따른 4단계 스케일 모드 결정 (별자리형 layout 일 때만 다단계 축소 활성화)
+  const scaleMode = useMemo(() => {
+    if (layout !== "atlas") return "PLANET";
     
-    // c -> { sumX, sumY, count }
+    if (zoom >= 0.72) return "PLANET";
+    if (zoom >= 0.42) return "NEBULA";
+    if (zoom >= 0.20) return "GALAXY";
+    return "SUPERCLUSTER";
+  }, [zoom, layout]);
+
+  // 1) 줌아웃 Level 4: SUPERCLUSTER (최상위 초은하단 - 1뎁스 대분류 폴더 단위 병합)
+  const superclusterNodes = useMemo(() => {
+    if (scaleMode !== "SUPERCLUSTER") return [];
+    
+    const groups: Record<string, { sumX: number; sumY: number; count: number; comms: Set<number> }> = {};
+    for (const n of nodes) {
+      const parts = n.slug.split("/").filter(Boolean);
+      const firstFolder = parts.length > 1 ? parts[0] : "etc";
+      const key = firstFolder.toUpperCase();
+
+      if (!groups[key]) {
+        groups[key] = { sumX: 0, sumY: 0, count: 0, comms: new Set() };
+      }
+      const x = typeof n.x === "number" ? n.x : 0;
+      const y = typeof n.y === "number" ? n.y : 0;
+      groups[key].sumX += x;
+      groups[key].sumY += y;
+      groups[key].count += 1;
+      
+      const c = (n as any).community;
+      if (typeof c === "number" && c >= 0) {
+        groups[key].comms.add(c);
+      }
+    }
+
+    return Object.entries(groups).map(([key, data], idx) => {
+      const cx = data.sumX / data.count;
+      const cy = data.sumY / data.count;
+      const size = Math.max(28, Math.min(64, 20 + Math.sqrt(data.count) * 7.5));
+      const firstComm = Array.from(data.comms)[0] ?? idx;
+
+      return {
+        id: `super-${key}`,
+        type: "obsidian" as const,
+        position: { x: cx, y: cy },
+        data: {
+          color: COMMUNITY_PALETTE[firstComm % COMMUNITY_PALETTE.length],
+          size,
+          title: `${key} 초은하단`,
+          isClusterNode: true,
+          nodeCount: data.count,
+        },
+      };
+    });
+  }, [nodes, scaleMode]);
+
+  // 2) 줌아웃 Level 3: GALAXY (은하 - Louvain 커뮤니티 단위 병합)
+  const galaxyNodes = useMemo(() => {
+    if (scaleMode !== "GALAXY") return [];
+    
     const commHubs: Record<number, { title: string; maxWeight: number }> = {};
     const groups: Record<number, { sumX: number; sumY: number; count: number }> = {};
     
@@ -546,11 +600,8 @@ function GraphCanvasInner({
       const commId = Number(commIdStr);
       const cx = data.sumX / data.count;
       const cy = data.sumY / data.count;
-      
       const hub = commHubs[commId];
-      // 끝에 은하군을 붙이지 않고, 대표 문서의 이름을 그대로 노출
       const clusterLabel = hub ? hub.title : `클러스터 #${commId}`;
-      // 클러스터 문서 개수가 많을수록 대표 노드 크기를 더 크게 렌더링
       const size = Math.max(18, Math.min(46, 14 + Math.sqrt(data.count) * 4.5));
       
       return {
@@ -567,11 +618,105 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [nodes, isCollapsed]);
+  }, [nodes, scaleMode]);
 
-  // 2) 줌아웃 시 클러스터 간 연결선(Super Edge) 계산
-  const clusterEdges = useMemo(() => {
-    if (!isCollapsed) return [];
+  // 3) 줌아웃 Level 2: NEBULA / STAR SYSTEM (성운 / 항성계 - 2뎁스 하위 폴더 단위 병합)
+  const nebulaNodes = useMemo(() => {
+    if (scaleMode !== "NEBULA") return [];
+    
+    const groups: Record<string, { sumX: number; sumY: number; count: number; ids: string[] }> = {};
+    const commHubs: Record<string, { title: string; maxWeight: number; community: number }> = {};
+
+    for (const n of nodes) {
+      const parts = n.slug.split("/").filter(Boolean);
+      const folderKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
+      
+      if (!groups[folderKey]) {
+        groups[folderKey] = { sumX: 0, sumY: 0, count: 0, ids: [] };
+      }
+      const x = typeof n.x === "number" ? n.x : 0;
+      const y = typeof n.y === "number" ? n.y : 0;
+      groups[folderKey].sumX += x;
+      groups[folderKey].sumY += y;
+      groups[folderKey].count += 1;
+      groups[folderKey].ids.push(n.id ?? n.slug);
+
+      const w = (n as any).weight ?? 0;
+      if (!commHubs[folderKey] || w > commHubs[folderKey].maxWeight) {
+        commHubs[folderKey] = { 
+          title: n.title ?? n.slug, 
+          maxWeight: w, 
+          community: (n as any).community ?? 0 
+        };
+      }
+    }
+
+    return Object.entries(groups).map(([folderKey, data]) => {
+      const cx = data.sumX / data.count;
+      const cy = data.sumY / data.count;
+      const hub = commHubs[folderKey];
+      const size = Math.max(12, Math.min(32, 10 + Math.sqrt(data.count) * 3));
+      const comm = hub ? hub.community : 0;
+
+      return {
+        id: `nebula-${folderKey}`,
+        type: "obsidian" as const,
+        position: { x: cx, y: cy },
+        data: {
+          color: COMMUNITY_PALETTE[comm % COMMUNITY_PALETTE.length],
+          size,
+          title: hub ? hub.title : folderKey,
+          community: comm,
+          isClusterNode: true,
+          nodeCount: data.count,
+        },
+      };
+    });
+  }, [nodes, scaleMode]);
+
+  // 4) 줌아웃 Level 4 엣지 (초은하단 간 연결선)
+  const superclusterEdges = useMemo(() => {
+    if (scaleMode !== "SUPERCLUSTER") return [];
+    
+    const nodeSuperMap = new Map<string, string>();
+    for (const n of nodes) {
+      const id = (n as any).id ?? n.slug;
+      const parts = n.slug.split("/").filter(Boolean);
+      const firstFolder = parts.length > 1 ? parts[0] : "etc";
+      nodeSuperMap.set(id, firstFolder.toUpperCase());
+    }
+
+    const edgeCounts: Record<string, number> = {};
+    for (const e of edges) {
+      const s = (e as any).source ?? e.source_slug;
+      const t = (e as any).target ?? e.target_slug;
+      const s_src = nodeSuperMap.get(s);
+      const s_tgt = nodeSuperMap.get(t);
+      if (s_src && s_tgt && s_src !== s_tgt) {
+        const pairKey = s_src < s_tgt ? `${s_src}-to-${s_tgt}` : `${s_tgt}-to-${s_src}`;
+        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
+      }
+    }
+
+    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
+      const [s_src, s_tgt] = pairKey.split("-to-");
+      return {
+        id: `se${idx}`,
+        source: `super-${s_src}`,
+        target: `super-${s_tgt}`,
+        type: "straight" as const,
+        style: {
+          stroke: "var(--graph-edge)",
+          strokeWidth: Math.min(3.5, 1.0 + Math.sqrt(count) * 0.6),
+          strokeOpacity: Math.min(0.65, 0.22 + count * 0.06),
+        },
+      };
+    });
+  }, [edges, nodes, scaleMode]);
+
+  // 5) 줌아웃 Level 3 엣지 (은하 간 연결선)
+  const galaxyEdges = useMemo(() => {
+    if (scaleMode !== "GALAXY") return [];
     
     const nodeCommMap = new Map<string, number>();
     for (const n of nodes) {
@@ -588,17 +733,16 @@ function GraphCanvasInner({
       const t = (e as any).target ?? e.target_slug;
       const c_src = nodeCommMap.get(s);
       const c_tgt = nodeCommMap.get(t);
-      
       if (c_src !== undefined && c_tgt !== undefined && c_src !== c_tgt) {
         const pairKey = c_src < c_tgt ? `${c_src}-${c_tgt}` : `${c_tgt}-${c_src}`;
         edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
       }
     }
-    
+
     return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
       const [c_src, c_tgt] = pairKey.split("-").map(Number);
       return {
-        id: `ce${idx}`,
+        id: `ge${idx}`,
         source: `cluster-${c_src}`,
         target: `cluster-${c_tgt}`,
         type: "straight" as const,
@@ -609,32 +753,89 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [edges, nodes, isCollapsed]);
+  }, [edges, nodes, scaleMode]);
+
+  // 6) 줌아웃 Level 2 엣지 (성운 간 연결선)
+  const nebulaEdges = useMemo(() => {
+    if (scaleMode !== "NEBULA") return [];
+    
+    const nodeFolderMap = new Map<string, string>();
+    for (const n of nodes) {
+      const id = (n as any).id ?? n.slug;
+      const parts = n.slug.split("/").filter(Boolean);
+      const folderKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
+      nodeFolderMap.set(id, folderKey);
+    }
+
+    const edgeCounts: Record<string, number> = {};
+    for (const e of edges) {
+      const s = (e as any).source ?? e.source_slug;
+      const t = (e as any).target ?? e.target_slug;
+      const f_src = nodeFolderMap.get(s);
+      const f_tgt = nodeFolderMap.get(t);
+      if (f_src && f_tgt && f_src !== f_tgt) {
+        const pairKey = f_src < f_tgt ? `${f_src}-to-${f_tgt}` : `${f_tgt}-to-${f_src}`;
+        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
+      }
+    }
+
+    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
+      const [f_src, f_tgt] = pairKey.split("-to-");
+      return {
+        id: `ne${idx}`,
+        source: `nebula-${f_src}`,
+        target: `nebula-${f_tgt}`,
+        type: "straight" as const,
+        style: {
+          stroke: "var(--graph-edge)",
+          strokeWidth: Math.min(2.5, 0.7 + Math.sqrt(count) * 0.4),
+          strokeOpacity: Math.min(0.55, 0.16 + count * 0.04),
+        },
+      };
+    });
+  }, [edges, nodes, scaleMode]);
 
   const displayNodes = useMemo(() => {
-    if (isCollapsed) {
-      return clusterNodes;
-    }
+    if (scaleMode === "SUPERCLUSTER") return superclusterNodes;
+    if (scaleMode === "GALAXY") return galaxyNodes;
+    if (scaleMode === "NEBULA") return nebulaNodes;
+
+    // PLANET 레벨 (행성 및 위성)
     return flowNodes.map((node) => {
       const highlighted = focus.nodeIds.has(node.id);
       const persistent = persistentHighlightNodeId === node.id;
+      // 노드 크기에 따른 위성 판별 (in-degree가 없거나 1개 이하인 소형 노드)
+      const sizeVal = (node.data as any).size ?? 6;
+      const isMoon = sizeVal <= 6 && !highlighted && !persistent;
+      
+      const size = isMoon ? 4 : sizeVal;
+      const opacity = isMoon 
+        ? 0.55 
+        : !focus.active || highlighted || persistent 
+          ? 1 
+          : 0.22;
+
       return {
         ...node,
         data: {
           ...node.data,
+          size,
           highlighted,
           persistent,
           dim: focus.active && !highlighted && !persistent,
-          opacity: !focus.active || highlighted || persistent ? 1 : 0.22,
+          opacity,
+          isMoon,
         },
       };
     });
-  }, [isCollapsed, clusterNodes, flowNodes, focus, persistentHighlightNodeId]);
+  }, [scaleMode, superclusterNodes, galaxyNodes, nebulaNodes, flowNodes, focus, persistentHighlightNodeId]);
 
   const displayEdges = useMemo(() => {
-    if (isCollapsed) {
-      return clusterEdges;
-    }
+    if (scaleMode === "SUPERCLUSTER") return superclusterEdges;
+    if (scaleMode === "GALAXY") return galaxyEdges;
+    if (scaleMode === "NEBULA") return nebulaEdges;
+
+    // PLANET 레벨
     return flowEdges.map((edge) => {
       const highlighted = focus.edgeIds.has(edge.id);
       return {
@@ -648,7 +849,7 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [isCollapsed, clusterEdges, flowEdges, focus]);
+  }, [scaleMode, superclusterEdges, galaxyEdges, nebulaEdges, flowEdges, focus]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
