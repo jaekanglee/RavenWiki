@@ -1492,6 +1492,10 @@ mark {
   border: 1px solid var(--color-hairline);
 }
 
+.react-flow__node {
+  transition: transform 650ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
 .react-flow__controls {
   overflow: hidden;
   background: var(--graph-surface-strong) !important;
