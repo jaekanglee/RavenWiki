@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sqlite3
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -325,6 +326,100 @@ def _lint_all(conn: sqlite3.Connection, vault_root: Optional[Path]) -> List[Issu
                 f"Missing: {', '.join(missing)}. (v0.3.0 PKM 노트 프로덕트 정정)"
             ),
         ))
+
+    # --- Rule 17: wikilink-format-consistency (v0.7.38+) -- Detect use of
+    # **short-form wikilinks** (`[[foo]]`) that DON'T include a vault-relative
+    # prefix (`content/`, `_meta/`, `_archive/`, `_deprecated/`, `raw/`).
+    # Multi-author vaults (one vault, multiple agents writing) repeatedly
+    # mix `[[foo]]` and `[[content/foo]]` in adjacent pages, breaking
+    # readability without breaking the build (the build resolves either).
+    # This rule is **detect-only** — no auto-rewrite — because (a) silent
+    # rewrite would violate user's intent and (b) the standardization
+    # surface itself is judged too domain-specific to bake into raven
+    # core. Vaults can configure their own normalize_format via future
+    # v0.7.39+ extensions; for now, this just informs the author.
+    if pages:
+        short_form: List[Tuple[str, str]] = []  # (slug, sample_wikilink)
+        total_short = 0
+        for p in pages:
+            content = p["content"] or ""
+            for m in re.finditer(r"\[\[([^\]!|?]+)(?:[!?]?)(?:\|[^\]]+)?\]\]", content):
+                target = m.group(1).strip()
+                if not target:
+                    continue
+                # Skip if it already has a recognized system prefix or is a
+                # bare anchor / URL-like. Anything with '/' or starting with
+                # a system prefix is "long form".
+                if "/" in target:
+                    continue
+                if target.startswith(("http://", "https://", "mailto:")):
+                    continue
+                total_short += 1
+                if len(short_form) < 5:  # sample cap to keep message readable
+                    short_form.append((p["slug"], target))
+
+        if total_short:
+            samples = ", ".join(f"[[{t}]]" for _, t in short_form[:5])
+            extra = f" (+{total_short - 5} more)" if total_short > 5 else ""
+            issues.append(Issue(
+                rule="wikilink-format-consistency",
+                severity="info",
+                path="(vault)",
+                message=(
+                    f"{total_short} short-form wikilink(s) found without a "
+                    f"vault-relative prefix (e.g. {samples}{extra}). "
+                    f"Consider `content/<slug>` form for cross-author readability."
+                ),
+            ))
+
+    # --- Rule 18: log-append-rollback (v0.7.38+) -- Detect time-reversed
+    # entries in `<vault>/log.md`. The append-only log policy (R9.x / v0.7.20+
+    # FileLock-protected writes) is broken if entries appear with a date
+    # earlier than the immediately previous one — that pattern only arises
+    # when someone has rewritten a portion of the file (rollback / edit).
+    # This rule is **detect-only** — silent auto-repair of log.md would
+    # hide the very signal it's meant to surface, so we just flag.
+    # Vault-rooted scan: we read the log.md at `vault_root / log.md`. The
+    # connection's vault_root is a `Path` or None; both shapes handled.
+    log_path = None
+    if vault_root is not None:
+        log_path = Path(vault_root) / "log.md"
+    if log_path is not None and log_path.exists():
+        try:
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            log_dates = re.findall(
+                r"^##\s+\[(\d{4}-\d{2}-\d{2})\]\s+\S+\s*\|", log_text, re.MULTILINE
+            )
+            rollback_pairs: List[Tuple[str, str, int]] = []
+            for i in range(1, len(log_dates)):
+                prev_d = log_dates[i - 1]
+                cur_d = log_dates[i]
+                if cur_d < prev_d:
+                    rollback_pairs.append((prev_d, cur_d, i + 1))
+            if rollback_pairs:
+                samples = ", ".join(
+                    f"line {ln}: [{cur}] after [{prev}]"
+                    for prev, cur, ln in rollback_pairs[:3]
+                )
+                extra = (
+                    f" (+{len(rollback_pairs) - 3} more)"
+                    if len(rollback_pairs) > 3 else ""
+                )
+                issues.append(Issue(
+                    rule="log-append-rollback",
+                    severity="warning",
+                    path="log.md",
+                    message=(
+                        f"{len(rollback_pairs)} time-reversed entry(s) in "
+                        f"log.md (later entry has earlier date than previous). "
+                        f"log.md is supposed to be append-only. "
+                        f"Sample: {samples}{extra}"
+                    ),
+                ))
+        except Exception:
+            # log.md unreadable or malformed — don't 500 the lint. Other
+            # rules already cover path/IO issues.
+            pass
 
     return issues
 
