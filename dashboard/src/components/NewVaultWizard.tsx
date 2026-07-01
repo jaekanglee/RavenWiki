@@ -28,22 +28,7 @@ import { useEffect, useState } from "react";
 import { setActiveVault } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { Button } from "./ui/Button";
-
-/** Default mode for Dashboard-created vaults.
- *
- * Why "personal" only? Because:
- *   - `shared` and `agent` are system-internal ownership concepts (CLI use)
- *   - User persona = "1인 vault" by default (Raven product spec)
- *   - AGENTS.md §3 forbids exposing `agent` mode with "안정" wording
- *   - Multi-vault user can have multiple `personal` vaults (D8 ADR)
- */
-const DEFAULT_MODE: "personal" = "personal";
-
-/** Default template — Lite bootstrap (4종: SCHEMA.md / RULES.md / AGENTS.md / log.md).
- *  "none" is also possible via CLI but the Dashboard skips that choice
- *  entirely — every new vault is a real Raven vault.
- */
-const DEFAULT_TEMPLATE: "raven-v1" = "raven-v1";
+import { SelectField } from "./ui/SelectField";
 
 // kebab-case: 소문자/숫자/하이픈, 시작은 소문자, 연속 하이픈 ❌
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -65,6 +50,8 @@ export function NewVaultWizard() {
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [path, setPath] = useState(""); // readonly display
+  const [mode, setMode] = useState<"personal" | "shared" | "agent">("personal");
+  const [profile, setProfile] = useState<"basic" | "llm-wiki">("llm-wiki");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [vaultsRoot, setVaultsRoot] = useState<string>("");
@@ -121,9 +108,10 @@ export function NewVaultWizard() {
         body: JSON.stringify({
           name,
           path: path, // auto-determined from name (v0.6.3)
-          mode: DEFAULT_MODE,
+          mode,
           description: "Created via Dashboard wizard",
           bootstrap: true, // v0.6.6: 항상 Lite bootstrap
+          profile,
         }),
       });
       const data = await r.json().catch(() => ({}));
@@ -244,11 +232,17 @@ export function NewVaultWizard() {
           vaultsRoot={vaultsRoot}
           error={error}
           onNext={next}
+          mode={mode}
+          setMode={setMode}
+          profile={profile}
+          setProfile={setProfile}
         />
       ) : (
         <Step2
           name={name}
           path={path}
+          mode={mode}
+          profile={profile}
           error={error}
           submitting={submitting}
           onBack={back}
@@ -274,6 +268,10 @@ function Step1({
   vaultsRoot,
   error,
   onNext,
+  mode,
+  setMode,
+  profile,
+  setProfile,
 }: {
   name: string;
   setName: (n: string) => void;
@@ -281,6 +279,10 @@ function Step1({
   vaultsRoot: string;
   error: string | null;
   onNext: () => void;
+  mode: "personal" | "shared" | "agent";
+  setMode: (m: "personal" | "shared" | "agent") => void;
+  profile: "basic" | "llm-wiki";
+  setProfile: (p: "basic" | "llm-wiki") => void;
 }) {
   return (
     <section>
@@ -289,7 +291,7 @@ function Step1({
         className="text-body"
         style={{ fontSize: 14, color: "var(--color-muted)", marginBottom: 24 }}
       >
-        이름만 정하면 경로와 Lite bootstrap(4종 표준 문서)은 자동으로 만들어집니다.
+        이름을 정하고 모드와 템플릿(프로필)을 선택하면 볼트가 자동으로 만들어집니다.
       </p>
 
       <TextField
@@ -305,6 +307,30 @@ function Step1({
         placeholder="my-notes"
         aria-label="vault name"
       />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+        <SelectField
+          label="모드"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as any)}
+          options={[
+            { value: "personal", label: "개인용 (personal)" },
+            { value: "shared", label: "공유용 (shared)" },
+            { value: "agent", label: "에이전트용 (agent)" },
+          ]}
+          helper="볼트의 소유권 및 접근 모드를 설정합니다."
+        />
+        <SelectField
+          label="프로필 (템플릿)"
+          value={profile}
+          onChange={(e) => setProfile(e.target.value as any)}
+          options={[
+            { value: "llm-wiki", label: "에이전트 위키 (llm-wiki)" },
+            { value: "basic", label: "기본 (basic)" },
+          ]}
+          helper="llm-wiki: 5종 표준 문서 생성 | basic: WELCOME.md만 생성"
+        />
+      </div>
       <div
         style={{
           fontSize: 12,
@@ -388,6 +414,8 @@ function Step1({
 function Step2({
   name,
   path,
+  mode,
+  profile,
   error,
   submitting,
   onBack,
@@ -395,6 +423,8 @@ function Step2({
 }: {
   name: string;
   path: string;
+  mode: string;
+  profile: string;
   error: string | null;
   submitting: boolean;
   onBack: () => void;
@@ -407,7 +437,7 @@ function Step2({
         className="text-body"
         style={{ fontSize: 14, color: "var(--color-muted)", marginBottom: 24 }}
       >
-        아래 정보로 vault를 만듭니다. Lite bootstrap(4종 표준 문서) 자동 복사.
+        아래 정보로 vault를 만듭니다.
       </p>
 
       <dl
@@ -467,7 +497,7 @@ function Step2({
         >
           모드
         </dt>
-        <dd style={{ margin: 0 }}>personal (1인용 — 기본값)</dd>
+        <dd style={{ margin: 0, fontWeight: 600 }}>{mode}</dd>
 
         <dt
           style={{
@@ -481,18 +511,20 @@ function Step2({
           Bootstrap
         </dt>
         <dd style={{ margin: 0 }}>
-          Lite 5종 자동 복사
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-muted)",
-              fontFamily: "ui-monospace, SFMono-Regular, monospace",
-              marginTop: 4,
-            }}
-          >
-            _meta/system/SCHEMA.md, _meta/system/RULES.md,
-            _meta/system/README.md, _meta/agents/PROJECT-WORKFLOW.md, log.md
-          </div>
+          {profile === "llm-wiki" ? "Lite 5종 자동 복사 (llm-wiki)" : "WELCOME.md 1장 생성 (basic)"}
+          {profile === "llm-wiki" && (
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--color-muted)",
+                fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                marginTop: 4,
+              }}
+            >
+              _meta/system/SCHEMA.md, _meta/system/RULES.md,
+              _meta/system/README.md, _meta/agents/PROJECT-WORKFLOW.md, log.md
+            </div>
+          )}
         </dd>
       </dl>
 

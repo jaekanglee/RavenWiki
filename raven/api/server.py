@@ -228,6 +228,7 @@ class VaultCreate(BaseModel):
             "Use `raven docs` command to read raven-internal docs."
         ),
     )
+    profile: str = Field("llm-wiki", description="basic | llm-wiki")
 
 
 @app.post("/api/vaults/create")
@@ -255,6 +256,7 @@ def create_vault(payload: VaultCreate):
             owner=payload.owner,
             description=payload.description,
             bootstrap=payload.bootstrap,
+            profile=payload.profile,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"create failed: {e}")
