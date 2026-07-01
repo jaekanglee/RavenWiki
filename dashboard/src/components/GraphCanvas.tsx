@@ -523,333 +523,256 @@ function GraphCanvasInner({
     return "SUPERCLUSTER";
   }, [zoom, layout]);
 
-  // 1) 줌아웃 Level 4: SUPERCLUSTER (최상위 초은하단 - 1뎁스 대분류 폴더 단위 병합)
-  const superclusterNodes = useMemo(() => {
-    if (scaleMode !== "SUPERCLUSTER") return [];
+  // 1) 각 줌아웃 레벨(Supercluster, Galaxy, Nebula) 그룹별 Centroid 및 대표 Hub 노드 선계산
+  const scaleGroups = useMemo(() => {
+    // Supercluster (1뎁스 대분류 폴더)
+    const superGroups: Record<string, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
+    const superHubs: Record<string, { id: string; maxWeight: number }> = {};
     
-    const groups: Record<string, { sumX: number; sumY: number; count: number; comms: Set<number> }> = {};
-    for (const n of nodes) {
-      const parts = n.slug.split("/").filter(Boolean);
-      const firstFolder = parts.length > 1 ? parts[0] : "etc";
-      const key = firstFolder.toUpperCase();
+    // Galaxy (Louvain 커뮤니티)
+    const galaxyGroups: Record<number, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
+    const galaxyHubs: Record<number, { id: string; maxWeight: number }> = {};
 
-      if (!groups[key]) {
-        groups[key] = { sumX: 0, sumY: 0, count: 0, comms: new Set() };
-      }
+    // Nebula (2뎁스 하위 폴더)
+    const nebulaGroups: Record<string, { cx: number; cy: number; hubId: string; count: number; ids: Set<string> }> = {};
+    const nebulaHubs: Record<string, { id: string; maxWeight: number }> = {};
+
+    const superTemp: Record<string, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
+    const galaxyTemp: Record<number, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
+    const nebulaTemp: Record<string, { sumX: number; sumY: number; count: number; ids: Set<string> }> = {};
+
+    for (const n of nodes) {
+      const id = (n as any).id ?? n.slug;
       const x = typeof n.x === "number" ? n.x : 0;
       const y = typeof n.y === "number" ? n.y : 0;
-      groups[key].sumX += x;
-      groups[key].sumY += y;
-      groups[key].count += 1;
-      
-      const c = (n as any).community;
-      if (typeof c === "number" && c >= 0) {
-        groups[key].comms.add(c);
-      }
-    }
-
-    return Object.entries(groups).map(([key, data], idx) => {
-      const cx = data.sumX / data.count;
-      const cy = data.sumY / data.count;
-      const size = Math.max(28, Math.min(64, 20 + Math.sqrt(data.count) * 7.5));
-      const firstComm = Array.from(data.comms)[0] ?? idx;
-
-      return {
-        id: `super-${key}`,
-        type: "obsidian" as const,
-        position: { x: cx, y: cy },
-        data: {
-          color: COMMUNITY_PALETTE[firstComm % COMMUNITY_PALETTE.length],
-          size,
-          title: `${key} 초은하단`,
-          isClusterNode: true,
-          nodeCount: data.count,
-        },
-      };
-    });
-  }, [nodes, scaleMode]);
-
-  // 2) 줌아웃 Level 3: GALAXY (은하 - Louvain 커뮤니티 단위 병합)
-  const galaxyNodes = useMemo(() => {
-    if (scaleMode !== "GALAXY") return [];
-    
-    const commHubs: Record<number, { title: string; maxWeight: number }> = {};
-    const groups: Record<number, { sumX: number; sumY: number; count: number }> = {};
-    
-    for (const n of nodes) {
-      const c = (n as any).community;
-      if (typeof c === "number" && c >= 0) {
-        if (!groups[c]) {
-          groups[c] = { sumX: 0, sumY: 0, count: 0 };
-        }
-        const x = typeof n.x === "number" ? n.x : 0;
-        const y = typeof n.y === "number" ? n.y : 0;
-        groups[c].sumX += x;
-        groups[c].sumY += y;
-        groups[c].count += 1;
-
-        const w = (n as any).weight ?? 0;
-        if (!commHubs[c] || w > commHubs[c].maxWeight) {
-          const t = (n as any).title ?? n.slug;
-          commHubs[c] = { title: t, maxWeight: w };
-        }
-      }
-    }
-    
-    return Object.entries(groups).map(([commIdStr, data]) => {
-      const commId = Number(commIdStr);
-      const cx = data.sumX / data.count;
-      const cy = data.sumY / data.count;
-      const hub = commHubs[commId];
-      const clusterLabel = hub ? hub.title : `클러스터 #${commId}`;
-      const size = Math.max(18, Math.min(46, 14 + Math.sqrt(data.count) * 4.5));
-      
-      return {
-        id: `cluster-${commId}`,
-        type: "obsidian" as const,
-        position: { x: cx, y: cy },
-        data: {
-          color: COMMUNITY_PALETTE[commId % COMMUNITY_PALETTE.length],
-          size,
-          title: clusterLabel,
-          community: commId,
-          isClusterNode: true,
-          nodeCount: data.count,
-        },
-      };
-    });
-  }, [nodes, scaleMode]);
-
-  // 3) 줌아웃 Level 2: NEBULA / STAR SYSTEM (성운 / 항성계 - 2뎁스 하위 폴더 단위 병합)
-  const nebulaNodes = useMemo(() => {
-    if (scaleMode !== "NEBULA") return [];
-    
-    const groups: Record<string, { sumX: number; sumY: number; count: number; ids: string[] }> = {};
-    const commHubs: Record<string, { title: string; maxWeight: number; community: number }> = {};
-
-    for (const n of nodes) {
-      const parts = n.slug.split("/").filter(Boolean);
-      const folderKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
-      
-      if (!groups[folderKey]) {
-        groups[folderKey] = { sumX: 0, sumY: 0, count: 0, ids: [] };
-      }
-      const x = typeof n.x === "number" ? n.x : 0;
-      const y = typeof n.y === "number" ? n.y : 0;
-      groups[folderKey].sumX += x;
-      groups[folderKey].sumY += y;
-      groups[folderKey].count += 1;
-      groups[folderKey].ids.push(n.id ?? n.slug);
-
       const w = (n as any).weight ?? 0;
-      if (!commHubs[folderKey] || w > commHubs[folderKey].maxWeight) {
-        commHubs[folderKey] = { 
-          title: n.title ?? n.slug, 
-          maxWeight: w, 
-          community: (n as any).community ?? 0 
-        };
-      }
-    }
-
-    return Object.entries(groups).map(([folderKey, data]) => {
-      const cx = data.sumX / data.count;
-      const cy = data.sumY / data.count;
-      const hub = commHubs[folderKey];
-      const size = Math.max(12, Math.min(32, 10 + Math.sqrt(data.count) * 3));
-      const comm = hub ? hub.community : 0;
-
-      return {
-        id: `nebula-${folderKey}`,
-        type: "obsidian" as const,
-        position: { x: cx, y: cy },
-        data: {
-          color: COMMUNITY_PALETTE[comm % COMMUNITY_PALETTE.length],
-          size,
-          title: hub ? hub.title : folderKey,
-          community: comm,
-          isClusterNode: true,
-          nodeCount: data.count,
-        },
-      };
-    });
-  }, [nodes, scaleMode]);
-
-  // 4) 줌아웃 Level 4 엣지 (초은하단 간 연결선)
-  const superclusterEdges = useMemo(() => {
-    if (scaleMode !== "SUPERCLUSTER") return [];
-    
-    const nodeSuperMap = new Map<string, string>();
-    for (const n of nodes) {
-      const id = (n as any).id ?? n.slug;
-      const parts = n.slug.split("/").filter(Boolean);
-      const firstFolder = parts.length > 1 ? parts[0] : "etc";
-      nodeSuperMap.set(id, firstFolder.toUpperCase());
-    }
-
-    const edgeCounts: Record<string, number> = {};
-    for (const e of edges) {
-      const s = (e as any).source ?? e.source_slug;
-      const t = (e as any).target ?? e.target_slug;
-      const s_src = nodeSuperMap.get(s);
-      const s_tgt = nodeSuperMap.get(t);
-      if (s_src && s_tgt && s_src !== s_tgt) {
-        const pairKey = s_src < s_tgt ? `${s_src}-to-${s_tgt}` : `${s_tgt}-to-${s_src}`;
-        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
-      }
-    }
-
-    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
-      const [s_src, s_tgt] = pairKey.split("-to-");
-      return {
-        id: `se${idx}`,
-        source: `super-${s_src}`,
-        target: `super-${s_tgt}`,
-        type: "straight" as const,
-        style: {
-          stroke: "var(--graph-edge)",
-          strokeWidth: Math.min(3.5, 1.0 + Math.sqrt(count) * 0.6),
-          strokeOpacity: Math.min(0.65, 0.22 + count * 0.06),
-        },
-      };
-    });
-  }, [edges, nodes, scaleMode]);
-
-  // 5) 줌아웃 Level 3 엣지 (은하 간 연결선)
-  const galaxyEdges = useMemo(() => {
-    if (scaleMode !== "GALAXY") return [];
-    
-    const nodeCommMap = new Map<string, number>();
-    for (const n of nodes) {
-      const id = (n as any).id ?? n.slug;
-      const c = (n as any).community;
-      if (typeof c === "number" && c >= 0) {
-        nodeCommMap.set(id, c);
-      }
-    }
-    
-    const edgeCounts: Record<string, number> = {};
-    for (const e of edges) {
-      const s = (e as any).source ?? e.source_slug;
-      const t = (e as any).target ?? e.target_slug;
-      const c_src = nodeCommMap.get(s);
-      const c_tgt = nodeCommMap.get(t);
-      if (c_src !== undefined && c_tgt !== undefined && c_src !== c_tgt) {
-        const pairKey = c_src < c_tgt ? `${c_src}-${c_tgt}` : `${c_tgt}-${c_src}`;
-        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
-      }
-    }
-
-    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
-      const [c_src, c_tgt] = pairKey.split("-").map(Number);
-      return {
-        id: `ge${idx}`,
-        source: `cluster-${c_src}`,
-        target: `cluster-${c_tgt}`,
-        type: "straight" as const,
-        style: {
-          stroke: "var(--graph-edge)",
-          strokeWidth: Math.min(2.5, 0.8 + Math.sqrt(count) * 0.45),
-          strokeOpacity: Math.min(0.55, 0.18 + count * 0.05),
-        },
-      };
-    });
-  }, [edges, nodes, scaleMode]);
-
-  // 6) 줌아웃 Level 2 엣지 (성운 간 연결선)
-  const nebulaEdges = useMemo(() => {
-    if (scaleMode !== "NEBULA") return [];
-    
-    const nodeFolderMap = new Map<string, string>();
-    for (const n of nodes) {
-      const id = (n as any).id ?? n.slug;
-      const parts = n.slug.split("/").filter(Boolean);
-      const folderKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
-      nodeFolderMap.set(id, folderKey);
-    }
-
-    const edgeCounts: Record<string, number> = {};
-    for (const e of edges) {
-      const s = (e as any).source ?? e.source_slug;
-      const t = (e as any).target ?? e.target_slug;
-      const f_src = nodeFolderMap.get(s);
-      const f_tgt = nodeFolderMap.get(t);
-      if (f_src && f_tgt && f_src !== f_tgt) {
-        const pairKey = f_src < f_tgt ? `${f_src}-to-${f_tgt}` : `${f_tgt}-to-${f_src}`;
-        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
-      }
-    }
-
-    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
-      const [f_src, f_tgt] = pairKey.split("-to-");
-      return {
-        id: `ne${idx}`,
-        source: `nebula-${f_src}`,
-        target: `nebula-${f_tgt}`,
-        type: "straight" as const,
-        style: {
-          stroke: "var(--graph-edge)",
-          strokeWidth: Math.min(2.5, 0.7 + Math.sqrt(count) * 0.4),
-          strokeOpacity: Math.min(0.55, 0.16 + count * 0.04),
-        },
-      };
-    });
-  }, [edges, nodes, scaleMode]);
-
-  const displayNodes = useMemo(() => {
-    if (scaleMode === "SUPERCLUSTER") return superclusterNodes;
-    if (scaleMode === "GALAXY") return galaxyNodes;
-    if (scaleMode === "NEBULA") return nebulaNodes;
-
-    // PLANET 레벨 (행성 및 위성)
-    return flowNodes.map((node) => {
-      const highlighted = focus.nodeIds.has(node.id);
-      const persistent = persistentHighlightNodeId === node.id;
-      // 노드 크기에 따른 위성 판별 (in-degree가 없거나 1개 이하인 소형 노드)
-      const sizeVal = (node.data as any).size ?? 6;
-      const isMoon = sizeVal <= 6 && !highlighted && !persistent;
+      const c = (n as any).community ?? 0;
       
-      const size = isMoon ? 4 : sizeVal;
-      const opacity = isMoon 
-        ? 0.55 
-        : !focus.active || highlighted || persistent 
-          ? 1 
-          : 0.22;
+      const parts = n.slug.split("/").filter(Boolean);
+      const superKey = (parts.length > 1 ? parts[0] : "etc").toUpperCase();
+      const nebulaKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
+
+      // Supercluster
+      if (!superTemp[superKey]) superTemp[superKey] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
+      superTemp[superKey].sumX += x;
+      superTemp[superKey].sumY += y;
+      superTemp[superKey].count += 1;
+      superTemp[superKey].ids.add(id);
+      if (!superHubs[superKey] || w > superHubs[superKey].maxWeight) {
+        superHubs[superKey] = { id, maxWeight: w };
+      }
+
+      // Galaxy
+      if (c >= 0) {
+        if (!galaxyTemp[c]) galaxyTemp[c] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
+        galaxyTemp[c].sumX += x;
+        galaxyTemp[c].sumY += y;
+        galaxyTemp[c].count += 1;
+        galaxyTemp[c].ids.add(id);
+        if (!galaxyHubs[c] || w > galaxyHubs[c].maxWeight) {
+          galaxyHubs[c] = { id, maxWeight: w };
+        }
+      }
+
+      // Nebula
+      if (!nebulaTemp[nebulaKey]) nebulaTemp[nebulaKey] = { sumX: 0, sumY: 0, count: 0, ids: new Set() };
+      nebulaTemp[nebulaKey].sumX += x;
+      nebulaTemp[nebulaKey].sumY += y;
+      nebulaTemp[nebulaKey].count += 1;
+      nebulaTemp[nebulaKey].ids.add(id);
+      if (!nebulaHubs[nebulaKey] || w > nebulaHubs[nebulaKey].maxWeight) {
+        nebulaHubs[nebulaKey] = { id, maxWeight: w };
+      }
+    }
+
+    Object.entries(superTemp).forEach(([k, t]) => {
+      superGroups[k] = {
+        cx: t.sumX / t.count,
+        cy: t.sumY / t.count,
+        hubId: superHubs[k]?.id ?? Array.from(t.ids)[0],
+        count: t.count,
+        ids: t.ids,
+      };
+    });
+
+    Object.entries(galaxyTemp).forEach(([cStr, t]) => {
+      const c = Number(cStr);
+      galaxyGroups[c] = {
+        cx: t.sumX / t.count,
+        cy: t.sumY / t.count,
+        hubId: galaxyHubs[c]?.id ?? Array.from(t.ids)[0],
+        count: t.count,
+        ids: t.ids,
+      };
+    });
+
+    Object.entries(nebulaTemp).forEach(([k, t]) => {
+      nebulaGroups[k] = {
+        cx: t.sumX / t.count,
+        cy: t.sumY / t.count,
+        hubId: nebulaHubs[k]?.id ?? Array.from(t.ids)[0],
+        count: t.count,
+        ids: t.ids,
+      };
+    });
+
+    return { superGroups, galaxyGroups, nebulaGroups };
+  }, [nodes]);
+
+  // 2) 줌 레벨에 따라 노드의 목표 좌표(Centroid)와 크기/투명도를 동적으로 매핑 (애니메이션 지원)
+  const displayNodes = useMemo(() => {
+    const { superGroups, galaxyGroups, nebulaGroups } = scaleGroups;
+
+    return flowNodes.map((node) => {
+      const id = node.id;
+      const highlighted = focus.nodeIds.has(id);
+      const persistent = persistentHighlightNodeId === id;
+      
+      const type = (node.data as any).type ?? "concept";
+      const orgSize = (node.data as any).size ?? 6;
+      const orgCommunity = (node.data as any).community ?? 0;
+      
+      const parts = node.id.split("/").filter(Boolean);
+      const superKey = (parts.length > 1 ? parts[0] : "etc").toUpperCase();
+      const nebulaKey = parts.slice(0, Math.min(2, parts.length - 1)).join("/") || "etc";
+      const commId = orgCommunity;
+
+      let targetX = node.position.x;
+      let targetY = node.position.y;
+      let size = orgSize;
+      let opacity = !focus.active || highlighted || persistent ? 1 : 0.22;
+      let title = (node.data as any).title ?? id;
+      let showLabel = true;
+
+      if (scaleMode === "SUPERCLUSTER") {
+        const sGroup = superGroups[superKey];
+        if (sGroup) {
+          targetX = sGroup.cx;
+          targetY = sGroup.cy;
+          if (id === sGroup.hubId) {
+            size = Math.max(26, Math.min(58, 18 + Math.sqrt(sGroup.count) * 6.5));
+            title = `${superKey} 초은하단`;
+            opacity = 1;
+          } else {
+            size = 0;
+            opacity = 0;
+            title = "";
+            showLabel = false;
+          }
+        }
+      } else if (scaleMode === "GALAXY") {
+        const gGroup = galaxyGroups[commId];
+        if (gGroup) {
+          targetX = gGroup.cx;
+          targetY = gGroup.cy;
+          if (id === gGroup.hubId) {
+            size = Math.max(18, Math.min(42, 13 + Math.sqrt(gGroup.count) * 4.0));
+            title = (node.data as any).title ?? id;
+            opacity = 1;
+          } else {
+            size = 0;
+            opacity = 0;
+            title = "";
+            showLabel = false;
+          }
+        }
+      } else if (scaleMode === "NEBULA") {
+        const nGroup = nebulaGroups[nebulaKey];
+        if (nGroup) {
+          targetX = nGroup.cx;
+          targetY = nGroup.cy;
+          if (id === nGroup.hubId) {
+            size = Math.max(12, Math.min(30, 9 + Math.sqrt(nGroup.count) * 2.8));
+            title = (node.data as any).title ?? id;
+            opacity = 1;
+          } else {
+            size = 0;
+            opacity = 0;
+            title = "";
+            showLabel = false;
+          }
+        }
+      } else {
+        // scaleMode === "PLANET"
+        const isMoon = orgSize <= 6 && !highlighted && !persistent;
+        size = isMoon ? 4 : orgSize;
+        opacity = isMoon ? 0.55 : opacity;
+      }
 
       return {
         ...node,
+        position: { x: targetX, y: targetY },
         data: {
           ...node.data,
           size,
-          highlighted,
-          persistent,
-          dim: focus.active && !highlighted && !persistent,
           opacity,
-          isMoon,
+          title,
+          showLabel,
         },
       };
     });
-  }, [scaleMode, superclusterNodes, galaxyNodes, nebulaNodes, flowNodes, focus, persistentHighlightNodeId]);
+  }, [scaleMode, scaleGroups, flowNodes, focus, persistentHighlightNodeId]);
 
+  // 3) 줌 레벨과 노드 수렴 상태에 매핑하여 엣지 강도 및 가시성 동적 조율
   const displayEdges = useMemo(() => {
-    if (scaleMode === "SUPERCLUSTER") return superclusterEdges;
-    if (scaleMode === "GALAXY") return galaxyEdges;
-    if (scaleMode === "NEBULA") return nebulaEdges;
-
-    // PLANET 레벨
     return flowEdges.map((edge) => {
       const highlighted = focus.edgeIds.has(edge.id);
+      const s = edge.source;
+      const t = edge.target;
+
+      let opacity = !focus.active ? 0.16 : highlighted ? 0.82 : 0.045;
+      let strokeWidth = highlighted ? 1.35 : 0.65;
+
+      if (scaleMode === "SUPERCLUSTER") {
+        const partsS = s.split("/").filter(Boolean);
+        const partsT = t.split("/").filter(Boolean);
+        const superS = (partsS.length > 1 ? partsS[0] : "etc").toUpperCase();
+        const superT = (partsT.length > 1 ? partsT[0] : "etc").toUpperCase();
+
+        if (superS === superT) {
+          opacity = 0;
+        } else {
+          opacity = 0.45;
+          strokeWidth = 1.2;
+        }
+      } else if (scaleMode === "GALAXY") {
+        const nodeS = nodes.find(n => (n.id ?? n.slug) === s);
+        const nodeT = nodes.find(n => (n.id ?? n.slug) === t);
+        const commS = (nodeS as any)?.community ?? 0;
+        const commT = (nodeT as any)?.community ?? 0;
+
+        if (commS === commT) {
+          opacity = 0;
+        } else {
+          opacity = 0.42;
+          strokeWidth = 1.0;
+        }
+      } else if (scaleMode === "NEBULA") {
+        const partsS = s.split("/").filter(Boolean);
+        const partsT = t.split("/").filter(Boolean);
+        const nebS = partsS.slice(0, Math.min(2, partsS.length - 1)).join("/") || "etc";
+        const nebT = partsT.slice(0, Math.min(2, partsT.length - 1)).join("/") || "etc";
+
+        if (nebS === nebT) {
+          opacity = 0;
+        } else {
+          opacity = 0.38;
+          strokeWidth = 0.85;
+        }
+      }
+
       return {
         ...edge,
         animated: highlighted,
         style: {
           ...(edge.style ?? {}),
           stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
-          strokeWidth: highlighted ? 1.35 : 0.65,
-          strokeOpacity: !focus.active ? 0.16 : highlighted ? 0.82 : 0.045,
+          strokeWidth,
+          strokeOpacity: opacity,
         },
       };
     });
-  }, [scaleMode, superclusterEdges, galaxyEdges, nebulaEdges, flowEdges, focus]);
+  }, [scaleMode, scaleGroups, flowEdges, nodes, focus]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
