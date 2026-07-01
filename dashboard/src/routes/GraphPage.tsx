@@ -471,6 +471,7 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
+            layout={layout}
             onNodeInspect={(node) => setSelectedNodeId(node.id ?? node.slug)}
             onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
