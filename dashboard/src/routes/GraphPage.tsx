@@ -321,6 +321,16 @@ export function GraphPage() {
         options={communityOptions}
         helper="관계(Modularity)로 묶인 은하군 단위로 필터링합니다."
       />
+      <SelectField
+        label="레이아웃 모드"
+        value={layout}
+        onChange={(e) => setLayout(e.target.value as any)}
+        options={[
+          { value: "atlas", label: "별자리형 (네트워크)" },
+          { value: "hierarchical", label: "트리형 (계층 구조)" },
+        ]}
+        helper="노드들의 배치 알고리즘을 변경합니다."
+      />
       <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
           type="button"
