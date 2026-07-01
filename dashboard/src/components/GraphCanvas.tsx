@@ -24,8 +24,12 @@ interface Props {
   onNodeDoubleClick?: (slug: string) => void;
   /** 외부(인사이트 카드 등)에서 하이라이트 요청한 노드 ID */
   externalHighlightNodeId?: string | null;
+  /** 현재 문서처럼 항상 강조해야 하는 노드 ID */
+  persistentHighlightNodeId?: string | null;
   /** 외부에서 하이라이트 요청한 문서 타입 */
   externalHighlightType?: string | null;
+  /** 전체화면 모달 요청 — 상위 컴포넌트가 모달을 열어 처리 */
+  onFullscreen?: () => void;
 }
 
 // SCHEMA 8종(확장 매핑) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -109,12 +113,25 @@ export function nodeSize(weight: number | undefined): number {
 // ObsidianNode — xyflow custom renderer.
 //   - 외형: 둥근 점 + 그 아래에 작은 title 라벨 (Obsidian-style, 상시 표시).
 //   - hover/포커스 시 라벨 또렷, 비포커스 시 흐리게.
-function ObsidianNode({ data }: { data: { color: string; size: number; opacity?: number; highlighted?: boolean; title?: string; dim?: boolean } }) {
+function ObsidianNode({
+  data,
+}: {
+  data: {
+    color: string;
+    size: number;
+    opacity?: number;
+    highlighted?: boolean;
+    title?: string;
+    dim?: boolean;
+    persistent?: boolean;
+  };
+}) {
   // xyflow v12는 node에 `data`만 custom으로 전달받음.
   // 좌표/타이틀은 onMouseEnter에서 GraphNode 인덱스로 조회 (아래 handle).
   // Patch 3: pointerEvents: 'all' + cursor: 'grab' 으로 모바일에서 노드 잡기 신호.
   //   onMouseEnter는 hover-only (데스크탑). 모바일에선 클릭으로 라벨 토글됨.
-  const labelOpacity = data.highlighted ? 1 : data.dim ? 0.35 : 0.85;
+  const isEmphasized = Boolean(data.highlighted || data.persistent);
+  const labelOpacity = isEmphasized ? 1 : data.dim ? 0.35 : 0.85;
   const labelText = data.title ?? "";
   return (
     <div
@@ -136,23 +153,29 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
           height: data.size,
           borderRadius: "50%",
           background: data.color,
-          border: "1px solid var(--graph-node-outline)",
-          boxShadow: data.highlighted
+          border: data.persistent
+            ? "2px solid var(--graph-edge-highlight)"
+            : "1px solid var(--graph-node-outline)",
+          boxShadow: isEmphasized
             ? "var(--graph-node-glow)"
             : "0 0 0 1px var(--graph-node-outline)",
           cursor: "grab",
           pointerEvents: "all",
           touchAction: "none",
           transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
+          transform: data.persistent ? "scale(1.45)" : "scale(1)",
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
           (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--graph-node-glow)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.transform = "scale(1)";
-          (e.currentTarget as HTMLDivElement).style.boxShadow =
-            "0 0 0 1px var(--graph-node-outline)";
+          (e.currentTarget as HTMLDivElement).style.transform = data.persistent
+            ? "scale(1.45)"
+            : "scale(1)";
+          (e.currentTarget as HTMLDivElement).style.boxShadow = isEmphasized
+            ? "var(--graph-node-glow)"
+            : "0 0 0 1px var(--graph-node-outline)";
         }}
       >
       {/* React Flow custom nodes need explicit handles; otherwise edges are kept in
@@ -194,6 +217,7 @@ function ObsidianNode({ data }: { data: { color: string; size: number; opacity?:
             WebkitBoxOrient: "vertical",
             textAlign: "center",
             opacity: labelOpacity,
+            fontWeight: data.persistent ? 700 : 500,
             pointerEvents: "none",
             userSelect: "none",
             transition: "opacity 120ms ease-out",
@@ -227,8 +251,11 @@ function GraphCanvasInner({
   onNodeClick,
   onNodeDoubleClick,
   externalHighlightNodeId,
+  persistentHighlightNodeId,
   externalHighlightType,
+  onFullscreen,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -425,6 +452,7 @@ function GraphCanvasInner({
     () =>
       flowNodes.map((node) => {
         const highlighted = focus.nodeIds.has(node.id);
+        const persistent = persistentHighlightNodeId === node.id;
         return {
           ...node,
           data: {
@@ -432,12 +460,13 @@ function GraphCanvasInner({
             size: (node.data as any).size,
             title: (node.data as any).title,
             highlighted,
-            dim: focus.active && !highlighted,
-            opacity: !focus.active || highlighted ? 1 : 0.22,
+            persistent,
+            dim: focus.active && !highlighted && !persistent,
+            opacity: !focus.active || highlighted || persistent ? 1 : 0.22,
           },
         };
       }),
-    [flowNodes, focus]
+    [flowNodes, focus, persistentHighlightNodeId]
   );
 
   const displayEdges = useMemo(
@@ -616,6 +645,7 @@ function GraphCanvasInner({
 
   return (
     <div
+      ref={containerRef}
       style={{
         width: "100%",
         height: "100%",
@@ -677,34 +707,49 @@ function GraphCanvasInner({
           }}
           showInteractive={false}
         />
-        <div
-          style={{
-            position: "absolute",
-            right: 12,
-            top: 12,
-            zIndex: 5,
-            display: "flex",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={fitGraph}
-            style={graphButtonStyle}
-            aria-label="그래프 전체 보기"
-          >
-            전체 보기
-          </button>
-          <button
-            type="button"
-            onClick={resetLayout}
-            style={graphButtonStyle}
-            aria-label="그래프 배치 초기화"
-          >
-            배치 초기화
-          </button>
-        </div>
       </ReactFlow>
+
+      {/* 전체보기 / 맞춤보기 / 배치 초기화 버튼 */}
+      <div
+        style={{
+          position: "absolute",
+          right: 12,
+          top: 12,
+          zIndex: 10,
+          display: "flex",
+          gap: 8,
+          pointerEvents: "auto",
+        }}
+      >
+        {onFullscreen && (
+          <button
+            type="button"
+            onClick={onFullscreen}
+            style={graphButtonStyle}
+            aria-label="그래프 전체보기"
+            title="팝업으로 크게 보기"
+          >
+            전체보기
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={fitGraph}
+          style={graphButtonStyle}
+          aria-label="그래프 맞춤보기"
+          title="모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
+        >
+          맞춤보기
+        </button>
+        <button
+          type="button"
+          onClick={resetLayout}
+          style={graphButtonStyle}
+          aria-label="그래프 배치 초기화"
+        >
+          배치 초기화
+        </button>
+      </div>
 
       {/* Patch 2: hover/tap overlay — position: fixed로 화면 좌표에 정확히 표시.
             v0.6.12 1차에서 absolute + server coords 썼더니 zoom/pan 후 라벨이

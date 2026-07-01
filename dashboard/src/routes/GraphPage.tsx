@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { COMMUNITY_PALETTE, GraphCanvas } from "../components/GraphCanvas";
+import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import type { Graph, GraphNode } from "../types";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -174,6 +175,7 @@ export function GraphPage() {
   const [loadError, setLoadError] = useState(false);
   const [hoveredInsightNodeId, setHoveredInsightNodeId] = useState<string | null>(null);
   const [hoveredInsightType, setHoveredInsightType] = useState<string | null>(null);
+  const [showFullGraph, setShowFullGraph] = useState(false);
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
@@ -529,6 +531,7 @@ export function GraphPage() {
             onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             externalHighlightNodeId={hoveredInsightNodeId}
             externalHighlightType={hoveredInsightType}
+            onFullscreen={() => setShowFullGraph(true)}
           />
         )}
       </div>
@@ -681,6 +684,16 @@ export function GraphPage() {
           {insightsSection}
         </div>
       </details>
+
+      {showFullGraph && graph.nodes.length > 0 && (
+        <FullscreenGraphModal
+          vault={vault}
+          nodes={graph.nodes}
+          edges={graph.edges}
+          centerTitle={`${vault} 전체 그래프`}
+          onClose={() => setShowFullGraph(false)}
+        />
+      )}
     </div>
   );
 }

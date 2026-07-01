@@ -189,6 +189,11 @@ export function PageView() {
     return relatedGraph.nodes.length > 1 ? relatedGraph : buildLocalGraph(graph, page.slug);
   }, [graph, page, related.links]);
 
+  const currentGraphNodeId = useMemo(
+    () => (page ? resolveGraphId(graph, page.slug) : null),
+    [graph, page]
+  );
+
   if (page === undefined) {
     return <div className="text-muted">Loading…</div>;
   }
@@ -276,6 +281,7 @@ export function PageView() {
         vault={vault}
         nodes={localGraph.nodes}
         edges={localGraph.edges}
+        currentNodeId={currentGraphNodeId}
         onOpenFullGraph={() => setShowFullGraph(true)}
       />
 
@@ -284,7 +290,8 @@ export function PageView() {
           vault={vault}
           nodes={localGraph.nodes}
           edges={localGraph.edges}
-          centerTitle={page?.title ?? slug ?? "관련 그래프"}
+          currentNodeId={currentGraphNodeId}
+          centerTitle={`${page.title} 관련 그래프`}
           onClose={() => setShowFullGraph(false)}
         />
       )}

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { GraphCanvas } from "./GraphCanvas";
 import type { GraphNode, GraphEdge } from "../types";
 
@@ -6,6 +7,7 @@ interface FullscreenGraphModalProps {
   vault: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  currentNodeId?: string | null;
   centerTitle: string;
   onClose: () => void;
 }
@@ -19,6 +21,7 @@ export function FullscreenGraphModal({
   vault,
   nodes,
   edges,
+  currentNodeId,
   centerTitle,
   onClose,
 }: FullscreenGraphModalProps) {
@@ -36,7 +39,7 @@ export function FullscreenGraphModal({
     };
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fullscreen-graph-modal"
       role="dialog"
@@ -69,6 +72,7 @@ export function FullscreenGraphModal({
           <GraphCanvas
             nodes={nodes}
             edges={edges}
+            persistentHighlightNodeId={currentNodeId}
             onNodeClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
           />
@@ -77,6 +81,7 @@ export function FullscreenGraphModal({
           <span className="text-muted">Esc 또는 바깥 클릭으로 닫기</span>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

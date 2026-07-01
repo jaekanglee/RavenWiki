@@ -7,10 +7,10 @@ set -e
 # - Python code는 $WIKI_VAULTS_DIR 환경변수 사용 (registry.py:4, 10, 34)
 # - entrypoint에서 export → 자식 프로세스 (python -m raven.*) 에게 상속
 # - 환경변수 override 가능 (사용자 .env에 WIKI_VAULTS_DIR 설정)
-# - RAVEN_VAULTS_DIR도 alias로 인정 (Docker compose 호환)
+# - RAVEN_VAULTS_DIR은 "호스트 절대 경로"를 보존 (Dashboard 경로 표시용)
 # - v0.7.19+: default 경로 = $HOME/Raven (컨테이너 안, bind mount로 호스트 ~/Raven에 연결)
 WIKI_VAULTS_DIR="${WIKI_VAULTS_DIR:-${RAVEN_VAULTS_DIR:-$HOME/Raven}}"
-RAVEN_VAULTS_DIR="$WIKI_VAULTS_DIR"
+RAVEN_VAULTS_DIR="${RAVEN_VAULTS_DIR:-$WIKI_VAULTS_DIR}"
 export WIKI_VAULTS_DIR RAVEN_VAULTS_DIR
 
 # v0.7.19+: vault 폴더 검증 (bind mount가 호스트 폴더 보장)

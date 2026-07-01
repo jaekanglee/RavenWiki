@@ -38,14 +38,22 @@ export function LogPage() {
     load();
   }, [vault, actionFilter]);
 
-  // Action token — single accent (Rausch) reserved for destructive actions.
-  // Other actions use neutral ink chip so the row reads as a calm timeline.
+  // Action chip — action 종류별로 구분 가능한 배경/텍스트 색상.
+  // CSS 변수(--color-ink 등)는 테마에 따라 대비가 깨질 수 있어 고정 팔레트 사용.
   const actionStyle = (a: string): React.CSSProperties => {
-    const isDestructive = a === "archive" || a === "delete";
-    return {
-      background: isDestructive ? "var(--color-primary)" : "var(--color-ink)",
-      color: "var(--color-on-primary)",
+    const palette: Record<string, { bg: string; color: string }> = {
+      create:  { bg: "#16a34a", color: "#fff" },   // green
+      ingest:  { bg: "#2563eb", color: "#fff" },   // blue
+      update:  { bg: "#7c3aed", color: "#fff" },   // violet
+      build:   { bg: "#0891b2", color: "#fff" },   // cyan
+      lint:    { bg: "#d97706", color: "#fff" },   // amber
+      chore:   { bg: "#6b7280", color: "#fff" },   // gray
+      migrate: { bg: "#0f766e", color: "#fff" },   // teal
+      archive: { bg: "#ea580c", color: "#fff" },   // orange
+      delete:  { bg: "#dc2626", color: "#fff" },   // red
     };
+    const p = palette[a] ?? { bg: "#374151", color: "#fff" };
+    return { background: p.bg, color: p.color };
   };
 
   return (

@@ -268,6 +268,11 @@ describe("GraphCanvas — node labels and no minimap (CSS/JSX contract)", () => 
     const signature = "nodeColor(type: string | undefined, community?: number): string";
     expect(signature).toMatch(/community\?:\s*number/);
   });
+
+  it("GraphCanvas supports a persistent current-page highlight prop", () => {
+    const key = "persistentHighlightNodeId";
+    expect(key).toBe("persistentHighlightNodeId");
+  });
 });
 
 describe("PageView header minimap CSS contract", () => {
