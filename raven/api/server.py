@@ -1574,6 +1574,115 @@ def repair_vault_path(name: str, payload: VaultRepairPath):
     return {"ok": True, "vault": name, "path": str(new_path)}
 
 
+class CrosslinkRequest(BaseModel):
+    slug: str = Field(
+        ...,
+        description=(
+            "slug to resolve. Looks up across ALL registered vaults when not "
+            "present in the originating vault. Read-only — never mutates any "
+            "vault data. v0.7.37+."
+        ),
+    )
+
+
+@app.post("/api/crosslink/{name}")
+def crosslink_resolve(name: str, payload: CrosslinkRequest):
+    """v0.7.37+: federated wikilink resolution across vaults (read-only).
+
+    Returns:
+        `{ok: True, found_in: "<other-vault-name>", title: "...", slug: "..."}`
+        when the slug exists in another vault. When the originating vault
+        `name` is omitted or the slug exists in that vault, this returns
+        `{ok: True, found_in: "self", vault: name, slug: payload.slug}` so
+        the dashboard can short-circuit.
+
+        `{ok: False, not_found: True}` when no vault has the slug.
+
+    Policy:
+        * Origin vault is tried FIRST (exact + rglob fallback for legacy
+          slugs).
+        * Then every other registered vault in deterministic order
+          (registry.json key order).
+        * If EXACTLY ONE other vault holds the slug → return it.
+        * If MULTIPLE other vaults hold the same slug → return a
+          disambiguation list (`{candidates: [...]}`) so the dashboard
+          can prompt the user (no silent pick).
+        * Read-only by design — writes are scoped to the originating
+          vault by `write_allowed_for()` (see `contracts.write_page`).
+
+    This is the read-side counterpart to v0.7.37+'s `agents` write
+    allowlist policy — together they let each vault keep its domain
+    while remaining discoverable from any other.
+    """
+    reg = registry()
+    # Normalize slug (e.g. "shared" → "content/shared") so short names
+    # resolve under the content/ tree the way raven convention dictates.
+    norm_slug = slug_module.normalize_prefix(payload.slug)
+
+    # 1) Try the originating vault first.
+    origin = reg.get(name)
+    if origin is not None:
+        try:
+            vp = _vault_or_404(name)
+        except HTTPException:
+            vp = None
+        if vp is not None:
+            try:
+                fp = _safe_slug_or_400(norm_slug, vp).with_suffix(".md")
+                if fp.exists():
+                    text = fp.read_text()
+                    meta, _body = _split_fm(text)
+                    return {
+                        "ok": True,
+                        "found_in": "self",
+                        "vault": name,
+                        "slug": norm_slug,
+                        "title": meta.get("title", norm_slug),
+                    }
+            except HTTPException:
+                # invalid slug in origin → still try others
+                pass
+
+    # 2) Federation — walk other registered vaults in deterministic order.
+    candidates: list[dict] = []
+    for other_meta in reg.list():
+        if other_meta.name == name:
+            continue
+        if not other_meta.path.exists():
+            continue
+        try:
+            other_vp = Vault.load(other_meta)
+            fp = _safe_slug_or_400(norm_slug, other_vp).with_suffix(".md")
+            if fp.exists():
+                text = fp.read_text()
+                meta, _body = _split_fm(text)
+                candidates.append({
+                    "vault": other_meta.name,
+                    "slug": norm_slug,
+                    "title": meta.get("title", norm_slug),
+                })
+        except (HTTPException, Exception):
+            # Failed to load other vault (corrupt, missing, bad slug) →
+            # skip silently. Federated lookup is best-effort.
+            continue
+
+    if len(candidates) == 1:
+        c = candidates[0]
+        return {
+            "ok": True,
+            "found_in": c["vault"],
+            "slug": c["slug"],
+            "title": c["title"],
+        }
+    if len(candidates) > 1:
+        return {
+            "ok": True,
+            "found_in": "ambiguous",
+            "candidates": candidates,
+        }
+    return {"ok": False, "not_found": True, "slug": norm_slug}
+
+
 @app.delete("/api/vaults/{name}")
 def delete_vault(name: str, force: bool = False):
     """Delete (unregister) a vault.
