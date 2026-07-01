@@ -118,14 +118,10 @@ CREATE VIEW v_pages_with_tags AS
 # ─────────────────────────── slug strategy (v2.2) ───────────────────
 
 def derive_slug(md_path: Path, vault: Path, fm_slug: Optional[str]) -> str:
-    """1. frontmatter slug wins; 2. vault-relative path (.md stripped); 3. content/ prefix removed; 4. _meta/ kept."""
+    """1. frontmatter slug wins; 2. vault-relative path (.md stripped); 3. _meta/ kept."""
     if fm_slug:
         return fm_slug.strip()
-    rel = md_path.relative_to(vault).with_suffix("").as_posix()
-    # strip leading 'content/' but keep '_meta/', 'scripts/' etc.
-    if rel.startswith("content/"):
-        rel = rel[len("content/"):]
-    return rel
+    return md_path.relative_to(vault).with_suffix("").as_posix()
 
 
 # ─────────────────────────── frontmatter defaults ──────────────────
