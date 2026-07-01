@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Toast } from "../components/ui/Toast";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
 interface VaultMeta {
   name: string;
@@ -32,6 +34,7 @@ function formatBytes(n: number): string {
 
 export function VaultManage() {
   const navigate = useNavigate();
+  const [isCompact, setIsCompact] = useState(false);
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [stats, setStats] = useState<Record<string, VaultStats>>({});
   const [locks, setLocks] = useState<Record<string, Record<string, any>>>({});
@@ -44,6 +47,13 @@ export function VaultManage() {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<{ vaultName: string; slug: string } | null>(null);
+
+  function showToast(message: string, type: "success" | "error" = "success") {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2400);
+  }
 
   const loadVaults = useCallback(async () => {
     setLoading(true);
@@ -85,6 +95,14 @@ export function VaultManage() {
     loadVaults();
   }, [loadVaults]);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1024px)");
+    const sync = () => setIsCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   // ─── rename ────────────────────────────────────────
   async function doRename() {
     if (!editingName || !newName.trim() || newName === editingName) return;
@@ -102,9 +120,12 @@ export function VaultManage() {
       }
       setEditingName(null);
       setNewName("");
+      showToast(`✅ 보관소 이름을 '${newName.trim()}'로 변경했습니다.`);
       await loadVaults();
     } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`이름 변경 실패: ${msg}`, "error");
     } finally {
       setBusy(false);
     }
@@ -123,12 +144,15 @@ export function VaultManage() {
         // need confirm with force
         setConfirmDelete({ name, preview: d as DeletePreview });
       } else if (d.ok) {
+        showToast(`✅ '${name}' 보관소를 제거했습니다.`);
         await loadVaults();
       } else {
         throw new Error(d.detail || JSON.stringify(d));
       }
     } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`삭제 실패: ${msg}`, "error");
     } finally {
       setBusy(false);
     }
@@ -148,16 +172,18 @@ export function VaultManage() {
         throw new Error(err.detail || `HTTP ${r.status}`);
       }
       setConfirmDelete(null);
+      showToast(`✅ '${confirmDelete.name}' 보관소를 강제 삭제했습니다.`);
       await loadVaults();
     } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`강제 삭제 실패: ${msg}`, "error");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleUnlock(vaultName: string, slug: string) {
-    if (!window.confirm(`문서 '${slug}'의 락을 강제로 해제하시겠습니까?`)) return;
     setBusy(true);
     setError(null);
     try {
@@ -169,9 +195,13 @@ export function VaultManage() {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.detail || `HTTP ${r.status}`);
       }
+      setUnlockTarget(null);
+      showToast(`✅ '${slug}' 락을 해제했습니다.`);
       await loadVaults();
     } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`락 해제 실패: ${msg}`, "error");
     } finally {
       setBusy(false);
     }
@@ -179,6 +209,25 @@ export function VaultManage() {
 
   return (
     <div style={{ maxWidth: 960 }}>
+      <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
+      <ConfirmDialog
+        open={Boolean(unlockTarget)}
+        onClose={() => !busy && setUnlockTarget(null)}
+        onConfirm={() => {
+          if (unlockTarget) {
+            handleUnlock(unlockTarget.vaultName, unlockTarget.slug);
+          }
+        }}
+        busy={busy}
+        tone="danger"
+        title="락을 강제로 해제할까요?"
+        description={
+          unlockTarget
+            ? `'${unlockTarget.slug}' 문서의 활성 락을 제거합니다. 다른 에이전트 작업과 충돌할 수 있습니다.`
+            : ""
+        }
+        confirmLabel="락 해제"
+      />
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
         Vault 관리
       </h1>
@@ -209,7 +258,7 @@ export function VaultManage() {
         <div style={{ padding: 16, color: "var(--color-muted)" }}>
           등록된 vault 없음
         </div>
-      ) : (
+      ) : !isCompact ? (
         <table
           style={{
             width: "100%",
@@ -311,7 +360,7 @@ export function VaultManage() {
                     style={{
                       padding: "8px",
                       textAlign: "right",
-                      color: s && s.broken_links > 0 ? "var(--cds-danger, #a2191f)" : undefined,
+                      color: s && s.broken_links > 0 ? "var(--cds-danger-text, #a2191f)" : undefined,
                       fontWeight: s && s.broken_links > 0 ? 600 : undefined,
                     }}
                   >
@@ -359,7 +408,7 @@ export function VaultManage() {
                         <button
                           onClick={() => requestDelete(v.name)}
                           disabled={busy}
-                          style={{ ...btnGhost, color: "var(--cds-danger, #a2191f)" }}
+                          style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)" }}
                           aria-label={`delete ${v.name}`}
                         >
                           🗑️
@@ -372,6 +421,92 @@ export function VaultManage() {
             })}
           </tbody>
         </table>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {vaults.map((v) => {
+            const s = stats[v.name];
+            const isEditing = editingName === v.name;
+            const lockCount = locks[v.name] ? Object.keys(locks[v.name]).length : 0;
+            return (
+              <div key={v.name} className="card-flat" style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <strong style={{ fontSize: 16 }}>{v.name}</strong>
+                  {v.default && <span className="chip">기본</span>}
+                  <span className="chip">{v.mode}</span>
+                  {lockCount > 0 && <span className="chip">락 {lockCount}</span>}
+                </div>
+                <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                  <MetricRow label="경로" value={v.path} mono />
+                  <MetricRow label="페이지" value={s ? String(s.pages) : "—"} />
+                  <MetricRow label="로그" value={s ? String(s.log_entries) : "—"} />
+                  <MetricRow label="깨진 링크" value={s ? String(s.broken_links) : "—"} accent={Boolean(s && s.broken_links > 0)} />
+                  <MetricRow label="크기" value={s ? formatBytes(s.size_bytes) : "—"} />
+                </div>
+                {isEditing ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <input
+                      autoFocus
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") doRename();
+                        if (e.key === "Escape") {
+                          setEditingName(null);
+                          setNewName("");
+                        }
+                      }}
+                      style={{
+                        padding: "10px 12px",
+                        fontSize: 13,
+                        border: "1px solid var(--color-hairline-strong)",
+                        borderRadius: 6,
+                        fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                      }}
+                    />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <button
+                        onClick={doRename}
+                        disabled={busy || !newName.trim() || newName === v.name}
+                        style={{ ...btnPrimary, marginRight: 0, width: "100%" }}
+                      >
+                        저장
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingName(null);
+                          setNewName("");
+                        }}
+                        style={{ ...btnGhost, marginRight: 0, width: "100%" }}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <button
+                      onClick={() => {
+                        setEditingName(v.name);
+                        setNewName(v.name);
+                      }}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%" }}
+                    >
+                      이름 변경
+                    </button>
+                    <button
+                      onClick={() => requestDelete(v.name)}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--cds-danger-text, #a2191f)" }}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <div style={{ marginTop: 16, fontSize: 12, color: "var(--color-muted)" }}>
@@ -387,6 +522,7 @@ export function VaultManage() {
           <p style={{ fontSize: 13, color: "var(--color-muted)", marginBottom: 16 }}>
             에이전트가 쓰기 작업을 진행하는 동안 충돌을 방지하기 위해 획득한 lock 목록입니다.
           </p>
+          {!isCompact ? (
           <table
             style={{
               width: "100%",
@@ -425,9 +561,9 @@ export function VaultManage() {
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <button
-                        onClick={() => handleUnlock(v.name, slug)}
+                        onClick={() => setUnlockTarget({ vaultName: v.name, slug })}
                         disabled={busy}
-                        style={{ ...btnGhost, color: "var(--cds-danger, #a2191f)", margin: 0 }}
+                        style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)", margin: 0 }}
                         title="락 해제"
                       >
                         🔓 해제
@@ -438,93 +574,76 @@ export function VaultManage() {
               })}
             </tbody>
           </table>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {vaults.flatMap((v) => {
+                const lMap = locks[v.name] || {};
+                return Object.entries(lMap).map(([slug, info]: [string, any]) => (
+                  <div key={`${v.name}-${slug}`} className="card-flat" style={{ padding: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                      <strong>{v.name}</strong>
+                      <span className="chip">활성 락</span>
+                    </div>
+                    <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                      <MetricRow label="대상" value={slug} mono />
+                      <MetricRow label="소유자" value={info.actor || "unknown"} />
+                      <MetricRow label="획득 시각" value={info.since ? new Date(info.since).toLocaleString() : "—"} />
+                      <MetricRow label="만료 예정" value={info.expires_at ? new Date(info.expires_at).toLocaleString() : "—"} />
+                    </div>
+                    <button
+                      onClick={() => setUnlockTarget({ vaultName: v.name, slug })}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--cds-danger-text, #a2191f)" }}
+                    >
+                      🔓 락 해제
+                    </button>
+                  </div>
+                ));
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* ─── delete confirm modal ───────────────────── */}
-      {confirmDelete && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-modal-title"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
-        >
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        onClose={() => !busy && setConfirmDelete(null)}
+        onConfirm={confirmForceDelete}
+        busy={busy}
+        tone="danger"
+        title={confirmDelete ? `🗑️ ${confirmDelete.name} 정말 삭제?` : ""}
+        confirmLabel="예, 강제 삭제"
+      >
+        {confirmDelete?.preview && (
           <div
             style={{
-              background: "var(--color-canvas)",
-              borderRadius: 8,
-              padding: 24,
-              maxWidth: 480,
-              width: "90%",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              padding: 12,
+              marginBottom: 4,
+              background: "var(--cds-warning, #fff8e1)",
+              border: "1px solid var(--cds-warning-border, #f1c21b)",
+              borderRadius: 4,
+              fontSize: 13,
             }}
           >
-            <h2
-              id="delete-modal-title"
-              style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}
-            >
-              🗑️ <code>{confirmDelete.name}</code> 정말 삭제?
-            </h2>
-            {confirmDelete.preview && (
-              <div
-                style={{
-                  padding: 12,
-                  marginBottom: 16,
-                  background: "var(--cds-warning, #fff8e1)",
-                  border: "1px solid var(--cds-warning-border, #f1c21b)",
-                  borderRadius: 4,
-                  fontSize: 13,
-                }}
-              >
-                ⚠ 이 vault에 컨텐츠가 있어요:
-                <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                  <li>
-                    페이지: <strong>{confirmDelete.preview.stats.pages}개</strong>
-                  </li>
-                  <li>
-                    log:{" "}
-                    <strong>
-                      {confirmDelete.preview.stats.log_present ? "있음" : "없음"}
-                    </strong>
-                  </li>
-                </ul>
-                <div style={{ marginTop: 8, color: "var(--cds-danger, #a2191f)" }}>
-                  강제 삭제 시 디렉토리 전체가 사라집니다 (복구 불가).
-                </div>
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setConfirmDelete(null)}
-                disabled={busy}
-                style={btnGhost}
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmForceDelete}
-                disabled={busy}
-                style={{
-                  ...btnPrimary,
-                  background: "var(--cds-danger, #da1e28)",
-                  color: "#fff",
-                  borderColor: "var(--cds-danger, #da1e28)",
-                }}
-              >
-                {busy ? "삭제 중…" : "예, 강제 삭제"}
-              </button>
+            ⚠ 이 vault에 컨텐츠가 있어요:
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+              <li>
+                페이지: <strong>{confirmDelete.preview.stats.pages}개</strong>
+              </li>
+              <li>
+                log:{" "}
+                <strong>
+                  {confirmDelete.preview.stats.log_present ? "있음" : "없음"}
+                </strong>
+              </li>
+            </ul>
+            <div style={{ marginTop: 8, color: "var(--cds-danger-text, #a2191f)" }}>
+              강제 삭제 시 디렉토리 전체가 사라집니다 (복구 불가).
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -534,7 +653,7 @@ const btnPrimary: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   background: "var(--color-primary)",
-  color: "#fff",
+  color: "var(--color-on-primary)",
   border: "1px solid var(--color-primary)",
   borderRadius: 4,
   cursor: "pointer",
@@ -553,3 +672,33 @@ const btnGhost: React.CSSProperties = {
   fontFamily: "inherit",
   marginRight: 4,
 };
+
+function MetricRow({
+  label,
+  value,
+  mono = false,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+      <span style={{ fontSize: 12, color: "var(--color-muted)", flexShrink: 0 }}>{label}</span>
+      <span
+        style={{
+          fontSize: 13,
+          color: accent ? "var(--cds-danger-text, #a2191f)" : "var(--color-ink)",
+          fontWeight: accent ? 700 : 500,
+          textAlign: "right",
+          wordBreak: "break-all",
+          fontFamily: mono ? "ui-monospace, SFMono-Regular, monospace" : "inherit",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}

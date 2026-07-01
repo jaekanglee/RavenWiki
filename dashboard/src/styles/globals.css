@@ -16,11 +16,13 @@
  * Adapted for raven dashboard (text-card, not photo-card).
  * ───────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
   /* colors */
   --color-primary: #1c69d4;          /* BMW Blue, interactive accent */
   --color-primary-active: #0653b6;   /* BMW Focus Blue */
   --color-primary-disabled: #d4e3f7; /* softer blue tint */
   --color-error-text: #c13515;
+  --color-danger: var(--color-error-text);
 
   --color-ink: #262626;              /* BMW near-black */
   --color-body: #404040;             /* slightly darker */
@@ -40,6 +42,7 @@
   --shadow-flat: none;
   --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.08);    /* floating elements */
   --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.16);  /* modals, dropdowns */
+  --shadow-card: var(--shadow-raised);
 
   /* rounded */
   --radius-sm: 4px;
@@ -79,6 +82,8 @@
   --cds-button-primary-active: #002d9c;            /* deeper pressed */
   --cds-button-secondary: var(--color-ink);        /* dark ghost */
   --cds-button-secondary-hover: #404040;
+  --cds-button-secondary-text: var(--color-on-primary);
+  --cds-button-secondary-border: var(--cds-button-secondary);
   --cds-button-tertiary: transparent;
   --cds-button-danger: var(--color-error-text);
   --cds-button-danger-hover: #a02a10;
@@ -92,6 +97,47 @@
   --cds-tag-blue-text: var(--color-primary);
   --cds-tag-neutral-bg: var(--color-surface-soft);
   --cds-tag-neutral-text: var(--color-ink);
+  --cds-background-brand: #f4f7fc;
+  --cds-field-hover: #f1f5f9;
+  --cds-danger: #fff1f1;
+  --cds-danger-border: #f5b1b1;
+  --cds-danger-text: #a2191f;
+  --cds-warning: #fff8e1;
+  --cds-warning-border: #f1c21b;
+  --cds-warning-text: #8a5b00;
+  --cds-support-error: var(--color-error-text);
+
+  --color-info-bg: #dbeafe;
+  --color-info-border: #93c5fd;
+  --color-info-text: #1d4ed8;
+  --color-success-bg: #dcfce7;
+  --color-success-border: #86efac;
+  --color-success-text: #15803d;
+  --color-warning-bg: #fef9c3;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #854d0e;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+
+  --graph-canvas-bg: #edf2f7;
+  --graph-grid: #cbd5e1;
+  --graph-surface: rgba(255, 255, 255, 0.82);
+  --graph-surface-strong: rgba(255, 255, 255, 0.94);
+  --graph-border: rgba(148, 163, 184, 0.42);
+  --graph-text: #0f172a;
+  --graph-text-muted: #64748b;
+  --graph-node-outline: rgba(15, 23, 42, 0.18);
+  --graph-node-outline-hover: rgba(59, 130, 246, 0.4);
+  --graph-node-glow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 0 14px rgba(59, 130, 246, 0.16);
+  --graph-label-color: #1f2937;
+  --graph-label-shadow: 0 1px 3px rgba(255, 255, 255, 0.92);
+  --graph-edge: #64748b;
+  --graph-edge-highlight: #0f172a;
+  --graph-tooltip-bg: rgba(255, 255, 255, 0.96);
+  --graph-tooltip-border: rgba(148, 163, 184, 0.42);
+  --graph-tooltip-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
 
   /* ── <mark> — search-result highlight (commit 7c98738 이후 API 응답에 포함).
    *    Soft BMW Blue background + dark ink text — readable, on-brand,
@@ -116,10 +162,12 @@ body {
 /* ── Dark mode support (v0.7.20+) ── */
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --color-primary: #3b82f6;          /* brighter blue for visibility */
     --color-primary-active: #2563eb;
     --color-primary-disabled: #1d4ed8;
     --color-error-text: #f87171;
+    --color-danger: var(--color-error-text);
 
     --color-ink: #f3f4f6;              /* near white */
     --color-body: #d1d5db;             /* soft gray */
@@ -134,14 +182,58 @@ body {
     --color-on-primary: #ffffff;
     
     --color-mark-bg: rgba(59, 130, 246, 0.25);
+    --cds-background-brand: rgba(59, 130, 246, 0.14);
+    --cds-field-hover: rgba(51, 65, 85, 0.9);
+    --cds-button-secondary: var(--color-surface-strong);
+    --cds-button-secondary-hover: var(--cds-field-hover);
+    --cds-button-secondary-text: var(--color-ink);
+    --cds-button-secondary-border: var(--color-hairline-strong);
+    --cds-danger: rgba(127, 29, 29, 0.3);
+    --cds-danger-border: rgba(248, 113, 113, 0.42);
+    --cds-danger-text: #fca5a5;
+    --cds-warning: rgba(120, 53, 15, 0.3);
+    --cds-warning-border: rgba(245, 158, 11, 0.45);
+    --cds-warning-text: #fcd34d;
+    --color-info-bg: rgba(30, 64, 175, 0.28);
+    --color-info-border: rgba(96, 165, 250, 0.38);
+    --color-info-text: #bfdbfe;
+    --color-success-bg: rgba(20, 83, 45, 0.34);
+    --color-success-border: rgba(74, 222, 128, 0.32);
+    --color-success-text: #bbf7d0;
+    --color-warning-bg: rgba(133, 77, 14, 0.34);
+    --color-warning-border: rgba(250, 204, 21, 0.28);
+    --color-warning-text: #fde68a;
+    --color-danger-bg: rgba(127, 29, 29, 0.34);
+    --color-danger-border: rgba(248, 113, 113, 0.32);
+    --color-danger-text: #fecaca;
+    --color-overlay: rgba(2, 6, 23, 0.7);
+    --graph-canvas-bg: #0a0e1a;
+    --graph-grid: #1f2937;
+    --graph-surface: rgba(17, 24, 39, 0.78);
+    --graph-surface-strong: rgba(15, 23, 42, 0.94);
+    --graph-border: rgba(148, 163, 184, 0.32);
+    --graph-text: #e5e7eb;
+    --graph-text-muted: #9ca3af;
+    --graph-node-outline: rgba(255, 255, 255, 0.22);
+    --graph-node-outline-hover: rgba(226, 232, 240, 0.6);
+    --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
+    --graph-label-color: rgba(226, 232, 240, 0.92);
+    --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
+    --graph-edge: #94a3b8;
+    --graph-edge-highlight: #e2e8f0;
+    --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
+    --graph-tooltip-border: #374151;
+    --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 }
 
 html.dark {
+  color-scheme: dark;
   --color-primary: #3b82f6;
   --color-primary-active: #2563eb;
   --color-primary-disabled: #1d4ed8;
   --color-error-text: #f87171;
+  --color-danger: var(--color-error-text);
 
   --color-ink: #f3f4f6;
   --color-body: #d1d5db;
@@ -156,6 +248,48 @@ html.dark {
   --color-on-primary: #ffffff;
   
   --color-mark-bg: rgba(59, 130, 246, 0.25);
+  --cds-background-brand: rgba(59, 130, 246, 0.14);
+  --cds-field-hover: rgba(51, 65, 85, 0.9);
+  --cds-button-secondary: var(--color-surface-strong);
+  --cds-button-secondary-hover: var(--cds-field-hover);
+  --cds-button-secondary-text: var(--color-ink);
+  --cds-button-secondary-border: var(--color-hairline-strong);
+  --cds-danger: rgba(127, 29, 29, 0.3);
+  --cds-danger-border: rgba(248, 113, 113, 0.42);
+  --cds-danger-text: #fca5a5;
+  --cds-warning: rgba(120, 53, 15, 0.3);
+  --cds-warning-border: rgba(245, 158, 11, 0.45);
+  --cds-warning-text: #fcd34d;
+  --color-info-bg: rgba(30, 64, 175, 0.28);
+  --color-info-border: rgba(96, 165, 250, 0.38);
+  --color-info-text: #bfdbfe;
+  --color-success-bg: rgba(20, 83, 45, 0.34);
+  --color-success-border: rgba(74, 222, 128, 0.32);
+  --color-success-text: #bbf7d0;
+  --color-warning-bg: rgba(133, 77, 14, 0.34);
+  --color-warning-border: rgba(250, 204, 21, 0.28);
+  --color-warning-text: #fde68a;
+  --color-danger-bg: rgba(127, 29, 29, 0.34);
+  --color-danger-border: rgba(248, 113, 113, 0.32);
+  --color-danger-text: #fecaca;
+  --color-overlay: rgba(2, 6, 23, 0.7);
+  --graph-canvas-bg: #0a0e1a;
+  --graph-grid: #1f2937;
+  --graph-surface: rgba(17, 24, 39, 0.78);
+  --graph-surface-strong: rgba(15, 23, 42, 0.94);
+  --graph-border: rgba(148, 163, 184, 0.32);
+  --graph-text: #e5e7eb;
+  --graph-text-muted: #9ca3af;
+  --graph-node-outline: rgba(255, 255, 255, 0.22);
+  --graph-node-outline-hover: rgba(226, 232, 240, 0.6);
+  --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
+  --graph-label-color: rgba(226, 232, 240, 0.92);
+  --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
+  --graph-edge: #94a3b8;
+  --graph-edge-highlight: #e2e8f0;
+  --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
+  --graph-tooltip-border: #374151;
+  --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
 /* Global transitions for premium feel */
@@ -349,8 +483,8 @@ mark {
 /* Secondary — Carbon ghost pattern: dark gray bg, white text */
 .btn-secondary {
   background: var(--cds-button-secondary);
-  color: var(--color-on-primary);
-  border: 1px solid var(--cds-button-secondary);
+  color: var(--cds-button-secondary-text);
+  border: 1px solid var(--cds-button-secondary-border);
   border-radius: var(--radius-sm);
   padding: 13px 23px;
   height: 48px;
@@ -368,6 +502,10 @@ mark {
   background: var(--cds-button-secondary-hover);
   border-color: var(--cds-button-secondary-hover);
 }
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* Tertiary text — no surface */
 .btn-tertiary {
@@ -379,10 +517,52 @@ mark {
   cursor: pointer;
   padding: 8px 4px;
   transition: color 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
 }
 .btn-tertiary:hover {
   color: var(--cds-link-hover);
   text-decoration: underline;
+}
+.btn-tertiary:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.btn-pill-secondary,
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-full);
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.btn-pill-secondary {
+  background: var(--cds-button-secondary);
+  color: var(--cds-button-secondary-text);
+  border: 1px solid var(--cds-button-secondary-border);
+}
+.btn-pill-secondary:hover {
+  background: var(--cds-button-secondary-hover);
+  border-color: var(--cds-button-secondary-hover);
+}
+.btn-pill {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline);
+}
+.btn-pill:hover {
+  background: var(--cds-field-hover);
+  border-color: var(--color-hairline-strong);
 }
 
 /* Form input — Carbon signature: bottom-border only */
@@ -614,9 +794,9 @@ mark {
   margin-top: 10px;
 }
 .page-related-chip {
-  border: 1px solid rgba(148, 163, 184, 0.34);
+  border: 1px solid var(--graph-border);
   border-radius: var(--radius-full);
-  background: rgba(15, 23, 42, 0.04);
+  background: var(--graph-surface);
   color: var(--color-ink);
   cursor: pointer;
   font-size: 12px;
@@ -624,8 +804,8 @@ mark {
   padding: 6px 10px;
 }
 .page-related-chip:hover {
-  border-color: rgba(59, 130, 246, 0.55);
-  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--color-info-border);
+  background: var(--cds-background-brand);
 }
 
 /* Graph page — maximize canvas area and restyle xyflow controls for dark canvas.
@@ -704,8 +884,257 @@ mark {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--graph-border);
   flex-shrink: 0;
+}
+.graph-page-control-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.5fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+.graph-desktop-only {
+  display: contents;
+}
+.graph-mobile-only {
+  display: none;
+}
+.graph-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  min-height: 40px;
+  padding-top: 30px;
+}
+.graph-page-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.graph-page-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+}
+.graph-mobile-panel {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  background: var(--graph-surface-strong);
+  overflow: hidden;
+}
+.graph-mobile-panel summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  list-style: none;
+}
+.graph-mobile-panel summary::-webkit-details-marker {
+  display: none;
+}
+.graph-mobile-panel-body {
+  padding: 0 14px 14px;
+}
+.graph-insight-card {
+  background: linear-gradient(180deg, var(--graph-surface-strong), var(--graph-surface));
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-overlay);
+}
+.graph-insight-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.graph-insight-card-header strong {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+.graph-insight-card-header span {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.graph-insight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.graph-insight-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--graph-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.graph-insight-link span:last-child {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.graph-insight-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--graph-border);
+  box-shadow: var(--shadow-raised);
+}
+.graph-insight-link-active {
+  border-color: var(--color-info-border);
+  background: var(--cds-background-brand);
+}
+.graph-insight-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.graph-detail-panel {
+  min-height: 0;
+  padding: 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--graph-surface-strong), var(--graph-surface));
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+}
+.graph-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.graph-detail-header strong {
+  display: block;
+  font-size: 16px;
+  color: var(--color-ink);
+}
+.graph-detail-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+  word-break: break-all;
+}
+.graph-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.graph-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.graph-detail-stats div {
+  border-radius: 12px;
+  padding: 12px 10px;
+  background: var(--graph-surface);
+  border: 1px solid var(--graph-border);
+}
+.graph-detail-stats span {
+  display: block;
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+}
+.graph-detail-stats strong {
+  font-size: 18px;
+  color: var(--color-ink);
+}
+.graph-detail-community {
+  margin: -2px 0 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.graph-detail-community-chip {
+  align-self: flex-start;
+  border: 1px solid var(--graph-border);
+  border-radius: 999px;
+  background: var(--graph-surface);
+  color: var(--graph-text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+.graph-detail-community-chip-active {
+  background: var(--cds-background-brand);
+  border-color: var(--color-info-border);
+}
+.graph-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.graph-detail-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.graph-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.graph-detail-link {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+}
+.graph-detail-link span:last-child {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.graph-detail-empty {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.graph-detail-empty strong {
+  font-size: 16px;
+  color: var(--color-ink);
+}
+.graph-detail-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-muted);
 }
 /* Sidebar — IBM Plex Sans + clean chevron + 16/24 sizing.
    v0.6.15 sidebar cleanup: vault name 크기 ↑, chevron rotation transition,
@@ -1024,24 +1453,24 @@ mark {
 }
 .react-flow__controls {
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.92) !important;
-  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  background: var(--graph-surface-strong) !important;
+  border: 1px solid var(--graph-border) !important;
   border-radius: 10px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: var(--shadow-overlay) !important;
 }
 .react-flow__controls-button {
   width: 30px !important;
   height: 30px !important;
-  background: rgba(15, 23, 42, 0.96) !important;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22) !important;
-  color: #e2e8f0 !important;
-  fill: #e2e8f0 !important;
+  background: var(--graph-surface-strong) !important;
+  border-bottom: 1px solid var(--graph-border) !important;
+  color: var(--graph-text) !important;
+  fill: var(--graph-text) !important;
 }
 .react-flow__controls-button:hover {
-  background: rgba(30, 41, 59, 0.98) !important;
+  background: var(--graph-surface) !important;
 }
 .react-flow__controls-button svg {
-  fill: #e2e8f0 !important;
+  fill: var(--graph-text) !important;
 }
 
 /* Page content padding collapses on narrow screens so cards have room. */
@@ -1049,10 +1478,79 @@ mark {
   .page-content {
     padding: 24px 24px !important;
   }
+  .graph-page-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .graph-page-actions {
+    padding-top: 0;
+    justify-content: flex-start;
+  }
+  .graph-page-insights {
+    grid-template-columns: 1fr;
+  }
+  .graph-page-workspace {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 744px) {
   .page-content {
     padding: 16px 16px !important;
+  }
+  .graph-page-shell {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .graph-desktop-only {
+    display: none;
+  }
+  .graph-mobile-only {
+    display: block;
+  }
+  .graph-page-toolbar {
+    gap: 10px;
+  }
+  .graph-page-meta {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .graph-page-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(52dvh, 52dvh) auto;
+    min-height: 0;
+  }
+  .graph-canvas-frame {
+    min-height: 52dvh;
+  }
+  .graph-page-control-grid {
+    grid-template-columns: 1fr;
+  }
+  .graph-page-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+  .graph-insight-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .graph-insight-link {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .graph-detail-header {
+    flex-direction: column;
+  }
+  .graph-detail-stats {
+    grid-template-columns: 1fr;
+  }
+  .graph-detail-link {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .graph-mobile-panel-body .graph-page-insights {
+    grid-template-columns: 1fr;
   }
 }
 

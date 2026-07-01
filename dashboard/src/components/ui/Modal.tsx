@@ -26,7 +26,7 @@ export interface ModalProps {
   maxWidth?: number;
   /** z-index. 기본 80. */
   zIndex?: number;
-  /** dim 색. 기본 "rgba(0,0,0,0.5)". */
+  /** dim 색. 기본 "var(--color-overlay)". */
   overlay?: string;
   /** true면 backdrop 클릭 시 onClose 안 함 (필수 액션 모달용). */
   disableBackdropClose?: boolean;
@@ -38,7 +38,7 @@ export function Modal({
   children,
   maxWidth = 720,
   zIndex = 80,
-  overlay = "rgba(0,0,0,0.5)",
+  overlay = "var(--color-overlay)",
   disableBackdropClose = false,
 }: ModalProps) {
   // Escape 키로 닫기 (열려있을 때만 등록)

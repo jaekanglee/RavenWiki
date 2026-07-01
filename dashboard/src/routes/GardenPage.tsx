@@ -10,10 +10,18 @@ import {
   type OrphanPage,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Toast } from "../components/ui/Toast";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+
+type GardenConfirmState =
+  | { kind: "archiveOne"; slug: string }
+  | { kind: "archiveBatch"; slugs: string[] }
+  | null;
 
 export function GardenPage() {
   const { vault } = useOutletContext<{ vault: string }>();
   const navigate = useNavigate();
+  const [isCompact, setIsCompact] = useState(false);
   const [stalePages, setStalePages] = useState<StalePage[]>([]);
   const [orphanPages, setOrphanPages] = useState<OrphanPage[]>([]);
   const [selectedStaleSlugs, setSelectedStaleSlugs] = useState<string[]>([]);
@@ -22,6 +30,7 @@ export function GardenPage() {
   const [manualTargetSlug, setManualTargetSlug] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmState, setConfirmState] = useState<GardenConfirmState>(null);
 
   const loadGardenData = async () => {
     if (!vault) return;
@@ -52,34 +61,32 @@ export function GardenPage() {
   };
 
   const handleArchive = async (slug: string) => {
-    if (!window.confirm(`문서 '${slug}'를 아카이브 폴더로 이동하시겠습니까?`)) {
-      return;
-    }
-    try {
-      await deletePage(vault, slug);
-      showToast(`✅ 문서 '${slug}' 아카이빙 완료`);
-      loadGardenData();
-    } catch (e) {
-      console.error(e);
-      showToast("아카이빙 중 오류가 발생했습니다.", "error");
-    }
+    setConfirmState({ kind: "archiveOne", slug });
   };
 
   const handleBatchArchive = async () => {
     const count = selectedStaleSlugs.length;
     if (count === 0) return;
-    if (!window.confirm(`선택한 ${count}개의 문서를 아카이브 폴더로 이동하시겠습니까?`)) {
-      return;
-    }
+    setConfirmState({ kind: "archiveBatch", slugs: [...selectedStaleSlugs] });
+  };
+
+  const confirmArchive = async () => {
+    if (!confirmState) return;
     setLoading(true);
     try {
-      await Promise.all(selectedStaleSlugs.map((slug) => deletePage(vault, slug)));
-      showToast(`✅ 문서 ${count}개 일괄 아카이빙 완료`);
+      if (confirmState.kind === "archiveOne") {
+        await deletePage(vault, confirmState.slug);
+        showToast(`✅ 문서 '${confirmState.slug}' 아카이빙 완료`);
+      } else {
+        await Promise.all(confirmState.slugs.map((slug) => deletePage(vault, slug)));
+        showToast(`✅ 문서 ${confirmState.slugs.length}개 일괄 아카이빙 완료`);
+      }
       setSelectedStaleSlugs([]);
+      setConfirmState(null);
       await loadGardenData();
     } catch (e) {
       console.error(e);
-      showToast("일괄 아카이빙 중 오류가 발생했습니다.", "error");
+      showToast("아카이빙 중 오류가 발생했습니다.", "error");
     } finally {
       setLoading(false);
     }
@@ -113,6 +120,14 @@ export function GardenPage() {
     loadGardenData();
   }, [vault]);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1024px)");
+    const sync = () => setIsCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", padding: "100px 0" }}>
@@ -123,26 +138,27 @@ export function GardenPage() {
 
   return (
     <div style={{ maxWidth: 1120, position: "relative" }}>
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            padding: "12px 20px",
-            backgroundColor: toast.type === "success" ? "#0f172a" : "#991b1b",
-            color: "#ffffff",
-            borderRadius: "var(--radius-md)",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-            zIndex: 1000,
-            fontSize: 14,
-            fontWeight: 500,
-            animation: "fade-in 0.2s ease-out",
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
+      <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        onClose={() => !loading && setConfirmState(null)}
+        onConfirm={confirmArchive}
+        busy={loading}
+        tone="danger"
+        title={
+          confirmState?.kind === "archiveBatch"
+            ? "선택 문서를 아카이브할까요?"
+            : "문서를 아카이브할까요?"
+        }
+        description={
+          confirmState?.kind === "archiveBatch"
+            ? `${confirmState.slugs.length}개 문서를 _archive/ 로 이동합니다.`
+            : confirmState?.kind === "archiveOne"
+            ? `'${confirmState.slug}' 문서를 _archive/ 로 이동합니다.`
+            : ""
+        }
+        confirmLabel="아카이브"
+      />
 
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -157,7 +173,7 @@ export function GardenPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: isCompact ? "1fr" : "1fr 1fr",
           gap: 24,
           alignItems: "start",
         }}
@@ -198,7 +214,9 @@ export function GardenPage() {
                     padding: "8px 12px",
                     background: "var(--color-surface-soft)",
                     borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--color-border)",
+                    border: "1px solid var(--color-hairline)",
+                    flexWrap: "wrap",
+                    gap: 12,
                   }}
                 >
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", color: "var(--color-ink)", fontWeight: 500 }}>
@@ -220,14 +238,7 @@ export function GardenPage() {
                     <button
                       onClick={handleBatchArchive}
                       style={{
-                        padding: "4px 10px",
-                        fontSize: 12,
-                        borderRadius: "var(--radius-sm)",
-                        border: "none",
-                        backgroundColor: "#fee2e2",
-                        color: "#991b1b",
-                        cursor: "pointer",
-                        fontWeight: 600,
+                        ...dangerButtonStyle,
                       }}
                     >
                       선택 아카이브
@@ -250,17 +261,39 @@ export function GardenPage() {
                     style={{
                       padding: 16,
                       display: "flex",
+                      flexDirection: isCompact ? "column" : "row",
                       gap: 12,
-                      borderLeft: isVeryOld ? "4px solid #ef4444" : "4px solid #eab308",
+                      borderLeft: isVeryOld
+                        ? "4px solid var(--color-danger-text)"
+                        : "4px solid var(--color-warning-text)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: isCompact ? "space-between" : "flex-start" }}>
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleSelect(p.slug)}
                         style={{ accentColor: "var(--color-primary)", cursor: "pointer", width: 15, height: 15 }}
                       />
+                      {isCompact && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            backgroundColor: isVeryOld
+                              ? "var(--color-danger-bg)"
+                              : "var(--color-warning-bg)",
+                            color: isVeryOld
+                              ? "var(--color-danger-text)"
+                              : "var(--color-warning-text)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p.age_days}일 경과
+                        </span>
+                      )}
                     </div>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -276,34 +309,35 @@ export function GardenPage() {
                         >
                           {p.slug}
                         </Link>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "2px 6px",
-                            borderRadius: 4,
-                            backgroundColor: isVeryOld ? "#fef2f2" : "#fef9c3",
-                            color: isVeryOld ? "#991b1b" : "#854d0e",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {p.age_days}일 경과
-                        </span>
+                        {!isCompact && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              backgroundColor: isVeryOld
+                                ? "var(--color-danger-bg)"
+                                : "var(--color-warning-bg)",
+                              color: isVeryOld
+                                ? "var(--color-danger-text)"
+                                : "var(--color-warning-text)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {p.age_days}일 경과
+                          </span>
+                        )}
                       </div>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isCompact ? "stretch" : "center", fontSize: 12, gap: 10, flexDirection: isCompact ? "column" : "row" }}>
                         <span style={{ color: "var(--color-muted)" }}>마지막 갱신: {p.updated}</span>
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 8, flexDirection: isCompact ? "column" : "row", width: isCompact ? "100%" : undefined }}>
                           <button
                             onClick={() => navigate(`/page/${vault}/${p.slug}`)}
                             style={{
-                              padding: "4px 8px",
-                              fontSize: 12,
-                              borderRadius: "var(--radius-sm)",
-                              border: "1px solid var(--color-border)",
-                              backgroundColor: "transparent",
-                              color: "var(--color-ink)",
-                              cursor: "pointer",
+                              ...neutralButtonStyle,
+                              width: isCompact ? "100%" : undefined,
                             }}
                           >
                             편집
@@ -311,14 +345,8 @@ export function GardenPage() {
                           <button
                             onClick={() => handleArchive(p.slug)}
                             style={{
-                              padding: "4px 8px",
-                              fontSize: 12,
-                              borderRadius: "var(--radius-sm)",
-                              border: "none",
-                              backgroundColor: "#fee2e2",
-                              color: "#991b1b",
-                              cursor: "pointer",
-                              fontWeight: 500,
+                              ...dangerButtonStyle,
+                              width: isCompact ? "100%" : undefined,
                             }}
                           >
                             아카이브
@@ -391,7 +419,7 @@ export function GardenPage() {
                     </span>
                   </div>
 
-                  <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
+                  <div style={{ borderTop: "1px solid var(--color-hairline)", paddingTop: 12 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", display: "block", marginBottom: 8 }}>
                       💡 지식 추천 연결 후보
                     </span>
@@ -411,7 +439,7 @@ export function GardenPage() {
                               padding: "4px 8px",
                               backgroundColor: "var(--color-surface-soft)",
                               borderRadius: 4,
-                              border: "1px solid var(--color-border)",
+                              border: "1px solid var(--color-hairline)",
                             }}
                           >
                             <span style={{ fontSize: 12, color: "var(--color-ink)", wordBreak: "break-all" }}>
@@ -439,9 +467,9 @@ export function GardenPage() {
                   </div>
 
                   {/* 수동 연결 UI */}
-                  <div style={{ borderTop: "1px dashed var(--color-border)", marginTop: 12, paddingTop: 8 }}>
+                  <div style={{ borderTop: "1px dashed var(--color-hairline-strong)", marginTop: 12, paddingTop: 8 }}>
                     {activeManualConnect === p.slug ? (
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: isCompact ? "stretch" : "center", flexDirection: isCompact ? "column" : "row" }}>
                         <select
                           value={manualTargetSlug}
                           onChange={(e) => setManualTargetSlug(e.target.value)}
@@ -450,7 +478,7 @@ export function GardenPage() {
                             fontSize: 12,
                             padding: "4px 8px",
                             borderRadius: "var(--radius-sm)",
-                            border: "1px solid var(--color-border)",
+                            border: "1px solid var(--color-hairline)",
                             backgroundColor: "var(--color-canvas)",
                             color: "var(--color-ink)",
                           }}
@@ -473,14 +501,8 @@ export function GardenPage() {
                           }}
                           disabled={!manualTargetSlug}
                           style={{
-                            padding: "4px 8px",
-                            fontSize: 11,
-                            borderRadius: "var(--radius-sm)",
-                            border: "none",
-                            backgroundColor: "var(--color-primary)",
-                            color: "#fff",
-                            cursor: "pointer",
-                            fontWeight: 600,
+                            ...primaryButtonStyle,
+                            width: isCompact ? "100%" : undefined,
                             opacity: !manualTargetSlug ? 0.6 : 1,
                           }}
                         >
@@ -492,13 +514,8 @@ export function GardenPage() {
                             setManualTargetSlug("");
                           }}
                           style={{
-                            padding: "4px 8px",
-                            fontSize: 11,
-                            borderRadius: "var(--radius-sm)",
-                            border: "1px solid var(--color-border)",
-                            backgroundColor: "transparent",
-                            color: "var(--color-ink)",
-                            cursor: "pointer",
+                            ...neutralButtonStyle,
+                            width: isCompact ? "100%" : undefined,
                           }}
                         >
                           취소
@@ -512,13 +529,9 @@ export function GardenPage() {
                           setManualTargetSlug(candidates[0]?.slug || "");
                         }}
                         style={{
+                          ...neutralButtonStyle,
                           padding: "2px 6px",
                           fontSize: 11,
-                          borderRadius: "var(--radius-sm)",
-                          border: "1px solid var(--color-border)",
-                          backgroundColor: "transparent",
-                          color: "var(--color-ink)",
-                          cursor: "pointer",
                         }}
                       >
                         🔎 수동 연결...
@@ -534,3 +547,35 @@ export function GardenPage() {
     </div>
   );
 }
+
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "4px 8px",
+  fontSize: 11,
+  borderRadius: 4,
+  border: "none",
+  backgroundColor: "var(--color-primary)",
+  color: "var(--color-on-primary)",
+  cursor: "pointer",
+  fontWeight: 600,
+};
+
+const neutralButtonStyle: React.CSSProperties = {
+  padding: "4px 8px",
+  fontSize: 12,
+  borderRadius: 4,
+  border: "1px solid var(--color-hairline-strong)",
+  backgroundColor: "transparent",
+  color: "var(--color-ink)",
+  cursor: "pointer",
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  padding: "4px 10px",
+  fontSize: 12,
+  borderRadius: 4,
+  border: "none",
+  backgroundColor: "var(--color-danger-bg)",
+  color: "var(--color-danger-text)",
+  cursor: "pointer",
+  fontWeight: 600,
+};

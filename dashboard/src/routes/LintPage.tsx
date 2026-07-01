@@ -12,6 +12,8 @@ import {
   type LintResult,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Toast } from "../components/ui/Toast";
 
 /**
  * LintPage — vault lint 12개 viewer.
@@ -20,20 +22,26 @@ import { EmptyState } from "../components/ui/EmptyState";
  * yellow/red는 ink 기반 다층 표현으로 대체 (체크/이니셜 라벨).
  */
 const CHECK_NAMES: Record<string, string> = {
-  "#1": "broken wikilink",
-  "#2": "broken-intent false positive",
-  "#3": "missing wikilink",
-  "#4": "orphan (7d grace)",
-  "#5": "contradictions",
-  "#6": "confidence low",
-  "#7": "stale (90d+)",
-  "#8": "page size > 200",
-  "#9": "tag not in core",
+  "#1": "깨진 위키링크",
+  "#2": "깨진 의도 링크 오탐",
+  "#3": "누락된 위키링크",
+  "#4": "고아 문서 (7일 유예)",
+  "#5": "모순 감지",
+  "#6": "신뢰도 낮음",
+  "#7": "오래된 문서 (90일+)",
+  "#8": "문서 길이 초과 (> 200줄)",
+  "#9": "핵심 분류 밖 태그",
   "#10": "frontmatter 완전성",
   "#11": "index 완전성 (FS↔DB)",
-  "#12": "log size ≥ 500",
-  "#13": "cognitive governance",
-  "#14": "tier integrity (leak)",
+  "#12": "로그 크기 과다 (500+)",
+  "#13": "인지 거버넌스",
+  "#14": "계층 무결성 (누수)",
+};
+
+const SEVERITY_LABELS: Record<LintSeverity, string> = {
+  critical: "치명",
+  warning: "주의",
+  info: "정보",
 };
 
 export function LintPage() {
@@ -82,13 +90,11 @@ export function LintPage() {
 
   return (
     <div style={{ maxWidth: 1120 }}>
-      <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
-        <h1 style={{ margin: 0 }}>Vault Lint</h1>
-        <span style={{ color: "var(--color-muted)", fontSize: 14 }}>in {vault}</span>
-      </div>
-      <p className="text-muted" style={{ fontSize: 14, marginTop: 8, marginBottom: 32 }}>
-        14개 lint check 결과 요약입니다.
-      </p>
+      <PageHeader
+        title="린트"
+        contextLabel={`${vault} 보관소`}
+        subtitle="14개 lint check 결과 요약입니다."
+      />
 
       {/* Counts header */}
       {summary && (
@@ -104,7 +110,7 @@ export function LintPage() {
             <span style={{ fontSize: 24 }}>{summary.ok ? "✓" : "!"}</span>
             <span style={{ fontSize: 20, fontWeight: 700 }}>{summary.vault}</span>
             <span style={{ marginLeft: "auto", color: "var(--color-muted)", fontSize: 13 }}>
-              total {summary.counts.total} issues
+              총 {summary.counts.total}개 이슈
             </span>
           </div>
           <div
@@ -139,7 +145,7 @@ export function LintPage() {
       {/* By-check bar chart */}
       {summary && (
         <div className="card-flat" style={{ marginBottom: 24, padding: 24 }}>
-          <h3 style={{ marginBottom: 16, fontSize: 18 }}>14 check by-count</h3>
+          <h3 style={{ marginBottom: 16, fontSize: 18 }}>체크별 이슈 분포</h3>
           {Array.from({ length: 14 }, (_, i) => `#${i + 1}`).map((cid) => {
             const n = summary.by_check[cid] || 0;
             const max = Math.max(...Object.values(summary.by_check), 1);
@@ -235,7 +241,7 @@ export function LintPage() {
         }}
       >
         <label style={{ fontSize: 13, color: "var(--color-muted)" }}>
-          check&nbsp;
+          체크&nbsp;
           <select
             value={checkFilter}
             onChange={(e) => setCheckFilter(e.target.value)}
@@ -259,7 +265,7 @@ export function LintPage() {
           </select>
         </label>
         <label style={{ fontSize: 13, color: "var(--color-muted)" }}>
-          severity&nbsp;
+          심각도&nbsp;
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value as LintSeverity | "")}
@@ -275,9 +281,9 @@ export function LintPage() {
             }}
           >
             <option value="">전체</option>
-            <option value="critical">critical</option>
-            <option value="warning">warning</option>
-            <option value="info">info</option>
+            <option value="critical">{SEVERITY_LABELS.critical}</option>
+            <option value="warning">{SEVERITY_LABELS.warning}</option>
+            <option value="info">{SEVERITY_LABELS.info}</option>
           </select>
         </label>
         <button
@@ -313,7 +319,7 @@ export function LintPage() {
 
       {/* Issue list — data table with ink + rausch accent badges only */}
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">불러오는 중…</p>
       ) : !result ? (
         <p style={{ color: "var(--color-error-text)" }}>API 응답 실패</p>
       ) : result.issues.length === 0 ? (
@@ -343,32 +349,13 @@ export function LintPage() {
                 background: "var(--color-surface-soft)",
               }}
             >
-              … +{result.issues.length - 200} more (필터로 좁히세요)
+              … +{result.issues.length - 200}개 더 있음 (필터로 좁히세요)
             </p>
           )}
         </div>
       )}
 
-      {toast && (
-        <div
-          className={`toast toast-${toast.type}`}
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            zIndex: 1000,
-            padding: "12px 18px",
-            borderRadius: "var(--radius-md)",
-            background: toast.type === "success" ? "var(--color-primary)" : "#da1e28",
-            color: "#fff",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
+      <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
     </div>
   );
 }
@@ -406,7 +393,7 @@ function SeverityCard({
           color: isActive ? "var(--color-primary)" : "var(--color-muted)",
         }}
       >
-        {label}
+        {SEVERITY_LABELS[label]}
       </div>
       <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4, color: "var(--color-ink)" }}>
         {count}
@@ -498,7 +485,7 @@ function IssueRow({
           background: issue.severity === "critical" ? "var(--color-primary)" : "var(--color-ink)",
         }}
       >
-        {issue.severity}
+        {SEVERITY_LABELS[issue.severity]}
       </span>
       <span
         style={{

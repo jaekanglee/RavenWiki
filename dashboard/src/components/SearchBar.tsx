@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SearchResultItem } from "./SearchResultItem";
 
 /**
  * SearchBar — pill-shaped (search-bar-pill token).
@@ -214,60 +215,20 @@ export function SearchBar({
           {results.map((r, i) => {
             const isActive = activeIndex === i;
             return (
-              <li
+              <SearchResultItem
                 key={r.slug}
-                id={`search-opt-${vault}-${i}`}
-                role="option"
-                aria-selected={isActive}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  selectResult(r.slug);
+                vault={vault}
+                result={r}
+                compact
+                interactive
+                active={isActive}
+                optionId={`search-opt-${vault}-${i}`}
+                onSelect={() => selectResult(r.slug)}
+                onMouseEnter={() => setActiveIndex(i)}
+                onMouseLeave={() => {
+                  if (activeIndex === i) setActiveIndex(null);
                 }}
-                onClick={() => selectResult(r.slug)}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "var(--color-surface-soft)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = isActive
-                    ? "var(--color-surface-soft)"
-                    : "transparent";
-                }}
-                style={{
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  borderRadius: 8,
-                  background: isActive
-                    ? "var(--color-surface-soft)"
-                    : "transparent",
-                }}
-              >
-                <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                  {r.title}
-                </div>
-                {r.snippet && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--color-muted)",
-                      marginTop: 4,
-                      lineHeight: 1.4,
-                    }}
-                    dangerouslySetInnerHTML={{ __html: r.snippet }}
-                  />
-                )}
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--color-muted)",
-                    fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                    marginTop: 2,
-                  }}
-                >
-                  {r.type} · score {r.score}
-                </div>
-              </li>
+              />
             );
           })}
         </ul>

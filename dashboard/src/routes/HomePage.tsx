@@ -9,6 +9,7 @@ import {
 } from "../lib/api";
 import { NewPageInline } from "../components/NewPageInline";
 import { Button } from "../components/ui/Button";
+import { PageHeader } from "../components/ui/PageHeader";
 
 /**
  * HomePage — v0.6.10 (P16): 종합 홈 (vault 미선택).
@@ -181,27 +182,20 @@ export function HomePage() {
           paddingBottom: isMobile ? 24 : 40,
         }}
       >
-        <h1 style={{ marginBottom: 8, fontSize: isMobile ? 22 : 30 }}>
-          🐦 Raven
-        </h1>
-        <p
-          className="text-body"
-          style={{
-            fontSize: isMobile ? 14 : 16,
-            maxWidth: 640,
-            color: "var(--color-muted)",
-            margin: 0,
-            lineHeight: 1.5,
-          }}
-        >
-          {loading
-            ? "vault 목록을 불러오는 중…"
-            : vaults.length === 0
-            ? "아직 등록된 vault가 없습니다. 새 vault를 만들어 시작하세요."
-            : activeVault
-            ? `vault를 선택하거나 새로 만드세요. 현재 활성: ${activeVault}`
-            : "vault를 선택하거나 새로 만드세요."}
-        </p>
+        <PageHeader
+          title="🐦 Raven"
+          titleSize={isMobile ? 22 : 30}
+          bottomSpacing={0}
+          subtitle={
+            loading
+              ? "vault 목록을 불러오는 중…"
+              : vaults.length === 0
+              ? "아직 등록된 vault가 없습니다. 새 vault를 만들어 시작하세요."
+              : activeVault
+              ? `vault를 선택하거나 새로 만드세요. 현재 활성: ${activeVault}`
+              : "vault를 선택하거나 새로 만드세요."
+          }
+        />
       </section>
 
       {/* ─── Quick actions ─────────────────────────────────── */}
@@ -272,7 +266,7 @@ export function HomePage() {
           }}
         >
           <h2 style={{ fontSize: 18 }}>
-            Vaults{" "}
+            보관소{" "}
             <span
               className="text-muted"
               style={{ fontSize: 13, fontWeight: 400 }}
@@ -493,7 +487,7 @@ function VaultCard({
         {v.meta.default && (
           <span
             className="chip"
-            style={{ fontSize: 10, background: "#dbeafe", color: "#1c69d4" }}
+            style={{ fontSize: 10, background: "var(--color-info-bg)", color: "var(--color-info-text)" }}
           >
             default
           </span>
@@ -501,7 +495,7 @@ function VaultCard({
         {isActive && (
           <span
             className="chip"
-            style={{ fontSize: 10, background: "#dcfce7", color: "#15803d" }}
+            style={{ fontSize: 10, background: "var(--color-success-bg)", color: "var(--color-success-text)" }}
           >
             active
           </span>
@@ -511,8 +505,8 @@ function VaultCard({
           style={{
             fontSize: 10,
             marginLeft: "auto",
-            background: "#f1f5f9",
-            color: "#475569",
+            background: "var(--color-surface-soft)",
+            color: "var(--color-muted)",
           }}
         >
           {v.meta.mode}
@@ -556,7 +550,7 @@ function VaultCard({
       </div>
 
       {v.statsError && (
-        <div style={{ fontSize: 11, color: "#dc2626" }}>
+        <div style={{ fontSize: 11, color: "var(--color-danger-text)" }}>
           stats 오류: {v.statsError}
         </div>
       )}
@@ -592,7 +586,7 @@ function Stat({
   hint?: string;
 }) {
   const color =
-    tone === "warn" ? "#b45309" : "var(--color-ink, #161616)";
+    tone === "warn" ? "var(--color-warning-text)" : "var(--color-ink, #161616)";
   return (
     <div
       style={{
