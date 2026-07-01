@@ -278,24 +278,13 @@ export function GraphPage() {
         helper="검색 시 일치 문서와 1-hop 이웃만 남겨 맥락을 유지합니다."
       />
       <SelectField
-        label="레이아웃"
-        value={layout}
-        onChange={(e) => setLayout(e.target.value as GraphLayout)}
-        options={[
-          { value: "atlas", label: "Atlas" },
-          { value: "constellation", label: "Constellation" },
-          { value: "spring", label: "Spring" },
-        ]}
-        helper="API가 지원하는 서버 계산 레이아웃을 즉시 전환합니다."
-      />
-      <SelectField
         label="타입 필터"
         value={selectedType}
         onChange={(e) => setSelectedType(e.target.value)}
         options={typeOptions}
         helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
       />
-      <div className="graph-page-actions">
+      <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
           type="button"
           variant="secondary"
@@ -312,94 +301,6 @@ export function GraphPage() {
     </div>
   );
 
-  const insightsSection = hasAnyNodes ? (
-    <div className="graph-page-insights">
-      <section className="graph-insight-card">
-        <div className="graph-insight-card-header">
-          <strong>핵심 허브</strong>
-          <span>가장 많이 참조되는 문서</span>
-        </div>
-        {graphInsights.topConnected.length > 0 ? (
-          <ul className="graph-insight-list">
-            {graphInsights.topConnected.map((node) => (
-              <li key={node.id ?? node.slug}>
-                <button
-                  type="button"
-                  className="graph-insight-link"
-                  onClick={() => navigate(`/page/${vault}/${node.slug ?? node.id}`)}
-                  onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
-                  onMouseLeave={() => setHoveredInsightNodeId(null)}
-                >
-                  <span>{node.title}</span>
-                  <span>{node.weight ?? 0} links</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="graph-insight-empty">아직 참조 허브가 없습니다.</p>
-        )}
-      </section>
-
-      <section className="graph-insight-card">
-        <div className="graph-insight-card-header">
-          <strong>고립 문서</strong>
-          <span>연결되지 않은 문서 후보</span>
-        </div>
-        {graphInsights.topOrphans.length > 0 ? (
-          <ul className="graph-insight-list">
-            {graphInsights.topOrphans.map((node) => (
-              <li key={node.id ?? node.slug}>
-                <button
-                  type="button"
-                  className="graph-insight-link"
-                  onClick={() => navigate(`/page/${vault}/${node.slug ?? node.id}`)}
-                  onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
-                  onMouseLeave={() => setHoveredInsightNodeId(null)}
-                >
-                  <span>{node.title}</span>
-                  <span>{node.type ?? "미분류"}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="graph-insight-empty">모든 문서가 최소 한 번은 연결돼 있습니다.</p>
-        )}
-      </section>
-
-      <section className="graph-insight-card">
-        <div className="graph-insight-card-header">
-          <strong>타입 분포</strong>
-          <span>지금 보관소의 문서 성격</span>
-        </div>
-        {graphInsights.typeBreakdown.length > 0 ? (
-          <ul className="graph-insight-list">
-            {graphInsights.typeBreakdown.slice(0, 5).map(({ type, count }) => (
-              <li key={type}>
-                <button
-                  type="button"
-                  className={`graph-insight-link${selectedType === type ? " graph-insight-link-active" : ""}`}
-                  onClick={() => {
-                    setSelectedType(type);
-                    setSelectedCommunity(null);
-                  }}
-                  onMouseEnter={() => setHoveredInsightType(type)}
-                  onMouseLeave={() => setHoveredInsightType(null)}
-                >
-                  <span>{type}</span>
-                  <span>{count} docs</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="graph-insight-empty">타입 통계가 아직 없습니다.</p>
-        )}
-      </section>
-    </div>
-  ) : null;
-
   useEffect(() => {
     if (!selectedNodeId) return;
     const stillVisible = visibleNodes.some((node) => (node.id ?? node.slug) === selectedNodeId);
@@ -412,14 +313,12 @@ export function GraphPage() {
         <PageHeader
           title="그래프"
           contextLabel={`${vault} 보관소`}
-          subtitle="문서 연결 구조를 탐색하고, 연결이 약한 영역과 집중 허브를 빠르게 파악합니다."
           titleSize={22}
           bottomSpacing={0}
         />
         <div className="graph-page-meta" aria-label="그래프 상태">
           <span>{loading ? "그래프 계산 중…" : `문서 ${visibleNodes.length}/${graph.nodes.length}`}</span>
           <span>{loading ? "잠시만 기다려 주세요" : `연결 ${visibleEdges.length}`}</span>
-          <span>레이아웃 {layout}</span>
           {useCommunity && communityCount > 0 && <span>커뮤니티 {communityCount}</span>}
           {orphanCount > 0 && hideOrphans && <span>고아 {orphanCount}개 숨김</span>}
         </div>
@@ -457,7 +356,6 @@ export function GraphPage() {
 
       <div className="graph-desktop-only">
         {controlsSection}
-        {insightsSection}
       </div>
 
       <div className="graph-page-workspace">
@@ -681,7 +579,6 @@ export function GraphPage() {
         <summary>모바일 세부 옵션</summary>
         <div className="graph-mobile-panel-body">
           {controlsSection}
-          {insightsSection}
         </div>
       </details>
 
