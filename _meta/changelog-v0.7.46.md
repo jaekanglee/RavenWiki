@@ -44,13 +44,17 @@
 * macOS 환경에서 `tempfile.mkdtemp` 반환 경로(`/var/folders/...`)가 런타임에 `/private/var/folders/...`로 해석되어 `test_vault_repair.py` 내 vault 복구(repair) 단언문에서 `AssertionError`가 발생하던 문제를 수정했습니다.
 * fixture 단계에서 `Path.resolve()`를 붙여 심볼릭 링크가 풀린 절대 경로로 고정하여 macOS 환경에서도 테스트가 안정적으로 수행되도록 개선했습니다.
 
-### 1-5. 줌 레벨 기반 동적 노드/엣지 병합 클러스터링 (Aggregation) ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx))
-* **동적 줌 클러스터링 (Collapse/Expand)**: 줌아웃(축소)이 일정 한계선(`zoom < 0.28`) 미만으로 떨어졌을 때, 개별 문서 노드들을 모두 숨기고 이들이 속한 클러스터의 대표 노드 하나(예: 가장 중요도가 높은 `React` 허브 노드)로 병합(Collapse)하여 표현하는 구조적 클러스터링을 구현했습니다.
-* **클러스터 간 엣지 병합**: 동일 클러스터 내의 잔가지 연결선은 모두 숨기고, 클러스터 대표 노드들 간에 걸쳐 있는 거시적인 연결선(Super Edge)들로 머지하여 엣지 강도(연결 수)에 비례하는 굵기로 렌더링했습니다.
-* **은하군 꼬리표 제거 및 라벨 최적화**: 텍스트에 "은하군" 등의 사족을 붙이지 않고, 대표 문서의 이름을 그대로 노출하여 직관성을 극대화했습니다.
-* **줌 연동 디테일 스케일링**:
-  * **줌아웃(축소 뷰)**: 복잡한 수백 개의 별들이 단 5~10개의 대형 대표 클러스터 노드들로 병합되어 줌아웃 상태에서 거시적인 생각 군집들의 연결 흐름을 한눈에 읽을 수 있습니다. 대표 노드의 이름표는 축소 상태에서도 선명하게 노출됩니다.
-  * **줌인(확대 뷰)**: 병합되었던 대표 노드가 다시 부드럽게 해체(Expand)되면서 개별 문서 노드들과 세부 엣지들이 화려하게 펼쳐지도록 조율했습니다.
+### 1-5. 줌 레벨 연동 4단계 다단계 우주 줌 스케일링 (Multiscale Aggregation) ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx))
+* 별자리형(atlas) 레이아웃 모드에서 단순 단일 축소를 넘어, 줌 레벨(`zoom`)에 연계하여 노드와 엣지를 4단계의 우주적 은유(Cosmic Metaphor) 스케일로 동적 클러스터 병합(Collapse/Expand)처리하는 다차원 가시화 아키텍처를 구현했습니다:
+  1. **Level 4: SUPERCLUSTER (초은하단 뷰 - `zoom < 0.20`)**:
+     * 보관소의 최상위 대분류 폴더(1뎁스 경로)를 기준으로 노드를 뭉쳐 단 3~5개의 큼직한 메인 노드(`CONCEPT 초은하단`, `LOG 초은하단` 등)와 초은하단 간의 거대한 골격 연결선(Super Edge)들만 노출합니다.
+  2. **Level 3: GALAXY (은하 뷰 - `0.20 <= zoom < 0.42`)**:
+     * Louvain 커뮤니티 단위로 병합된 10~15개의 은하 노드들을 렌더링하며, 라벨은 군집 내 대표 문서명으로 표기합니다.
+  3. **Level 4: NEBULA / STAR SYSTEM (성운/항성계 뷰 - `0.42 <= zoom < 0.72`)**:
+     * 2뎁스 하위 폴더(예: `concept/react`) 단위로 좀 더 조밀하게 뭉친 서브클러스터 노드들로 가독성을 스케일링합니다.
+  4. **Level 1: PLANET / MOON (개별 행성 및 위성 뷰 - `zoom >= 0.72`)**:
+     * 개별 문서들이 Planet(일반 행성)으로 모두 해체되어 펼쳐집니다.
+     * 이때, 유입 링크가 1개 이하인 고립/보조 노드는 **Moon (위성)**으로 판정해 노드 크기를 매우 작게(4px) 축소하고 투명도를 주어(`opacity: 0.55`), 큼직하게 빛나는 행성 노드들 곁에 매달려 공전하는 듯한 시각적 위계를 극대화했습니다.
 
 ### 1-6. 클러스터 필터링 컨트롤 UI 추가 및 라벨 정돈 ([GraphPage.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/routes/GraphPage.tsx))
 * 대시보드 좌측 제어판 영역에 **"클러스터 필터"** SelectField를 추가했습니다.
