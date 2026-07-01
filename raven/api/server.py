@@ -1193,6 +1193,7 @@ def get_page(name: str, slug: str):
         "ok": True,
         "vault": name,
         "slug": slug,
+        "file_path": str(fp.resolve()),
         "frontmatter": meta,
         "content": body,
         "backlinks": backlinks,

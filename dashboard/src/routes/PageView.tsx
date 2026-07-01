@@ -154,6 +154,7 @@ export function PageView() {
           title: fm.title || d.slug,
           type: fm.type || "?",
           path: d.slug,
+          filePath: d.file_path,
           created: fm.created || "",
           updated: fm.updated || "",
           tags,
@@ -221,6 +222,19 @@ export function PageView() {
         </div>
 
         {/* Title row — only the title now. The local graph is a floating overlay. */}
+        {page.filePath && (
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: "ui-monospace, SFMono-Regular, monospace",
+              color: "var(--color-muted)",
+              marginBottom: 4,
+              wordBreak: "break-all",
+            }}
+          >
+            {page.filePath}
+          </div>
+        )}
         <h1 className="page-header-title">{page.title}</h1>
 
         {/* Meta row — type chip + 📑 Index marker + tags (v0.6.21+) */}

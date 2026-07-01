@@ -3,6 +3,7 @@ export interface Page {
   title: string;
   type: string;
   path: string;
+  filePath?: string;
   created: string;
   updated: string;
   tags: string;

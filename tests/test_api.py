@@ -149,6 +149,8 @@ def test_api_page_update_preserves_created(client, isolated_env):
     assert fm["updated"] == today
     assert fm["title"] == "Updated"
     assert "new body" in get_resp.json()["content"]
+    assert "file_path" in get_resp.json()
+    assert get_resp.json()["file_path"].endswith("vp6/content/u.md")
 
 
 def test_api_page_update_rejects_bad_slug(client, isolated_env):
