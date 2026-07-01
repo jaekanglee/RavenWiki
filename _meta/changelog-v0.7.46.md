@@ -63,6 +63,13 @@
   * 링크 유입 수(In-Degree)에 기반한 기존의 자동 크기 조절 구조와 상호 호환성을 유지하면서, 중요하게 지정된 핵심 문서가 시각적으로 거대하고 밝게 반짝이도록 크기 가중치 보정을 결합했습니다.
   * 백엔드 레이아웃 연산 단계에서도 이 가중치가 질량(`mass`) 및 관성으로 결합하여 중요한 문서가 은하의 중심부에 묵직하게 앵커링되도록 제어했습니다.
 
+### 1-8. 폴더 기반 계층형 트리 레이아웃 (Hierarchical Layout) 및 선택 UI 추가 ([server.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven/api/server.py), [GraphPage.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/routes/GraphPage.tsx))
+* 별자리형(Force-directed)의 자유도 높은 포진 방식과 더불어, 지식 보관소의 폴더 깊이와 계층 구조를 직관적으로 파악할 수 있는 **"계층형 트리 레이아웃(Hierarchical Layout)"** 알고리즘을 백엔드에 신규 구현했습니다.
+  - **Y 좌표**: 파일 디렉토리 경로의 깊이(depth)에 비례하여 위에서 아래로 정돈 배치합니다.
+  - **X 좌표**: 동일 깊이 레이어 내의 노드 개수에 맞게 가로 폭을 균등 할당하여 사전식(Alphabetical) 결정론적 배치를 수행합니다.
+* **레이아웃 모드 선택 UI 추가**:
+  * 제어판 영역에 **"레이아웃 모드"** SelectField를 복구하여 사용자가 언제든지 실시간으로 `별자리형 (네트워크)`과 `트리형 (계층 구조)` 뷰를 실시간 선택 및 교환하며 탐색할 수 있도록 편의를 제공했습니다.
+
 ---
 
 ## 2. 검증 결과
