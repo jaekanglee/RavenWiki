@@ -50,6 +50,59 @@ export function VaultManage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<{ vaultName: string; slug: string } | null>(null);
+  const [confirmBootstrap, setConfirmBootstrap] = useState<string | null>(null);
+
+  // ─── bootstrap / verify ─────────────────────────────
+  async function handleVerify(name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/vaults/${encodeURIComponent(name)}/verify`, {
+        method: "POST",
+      });
+      if (r.ok) {
+        showToast("✅ 지침 검증 성공: 보관소 지침 파일이 원본 템플릿과 완전히 일치합니다.");
+      } else {
+        const d = await r.json().catch(() => ({}));
+        if (r.status === 409) {
+          showToast("⚠️ 지침 불일치 발견: 일부 지침 파일이 원본과 다릅니다. '당겨오기'로 갱신할 수 있습니다.", "error");
+        } else {
+          throw new Error(d.detail || `HTTP ${r.status}`);
+        }
+      }
+    } catch (e) {
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`지침 검증 중 오류 발생: ${msg}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleBootstrap(name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/vaults/${encodeURIComponent(name)}/bootstrap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: "llm-wiki" }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${r.status}`);
+      }
+      setConfirmBootstrap(null);
+      showToast(`✅ '${name}' 보관소 지침 파일들을 최신 템플릿으로 갱신(당겨오기)했습니다.`);
+      await loadVaults();
+    } catch (e) {
+      const msg = String(e instanceof Error ? e.message : e);
+      setError(msg);
+      showToast(`지침 당겨오기 실패: ${msg}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function showToast(message: string, type: "success" | "error" = "success") {
     setToast({ message, type });
@@ -408,6 +461,24 @@ export function VaultManage() {
                     ) : (
                       <>
                         <button
+                          onClick={() => handleVerify(v.name)}
+                          disabled={busy}
+                          style={btnGhost}
+                          title="지침 검증"
+                          aria-label={`verify bootstrap for ${v.name}`}
+                        >
+                          🔍
+                        </button>
+                        <button
+                          onClick={() => setConfirmBootstrap(v.name)}
+                          disabled={busy}
+                          style={btnGhost}
+                          title="지침 당겨오기 (부트스트랩 갱신)"
+                          aria-label={`bootstrap update for ${v.name}`}
+                        >
+                          🔄
+                        </button>
+                        <button
                           onClick={() => {
                             setEditingName(v.name);
                             setNewName(v.name);
@@ -497,6 +568,20 @@ export function VaultManage() {
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <button
+                      onClick={() => handleVerify(v.name)}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%" }}
+                    >
+                      지침 검증 🔍
+                    </button>
+                    <button
+                      onClick={() => setConfirmBootstrap(v.name)}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%" }}
+                    >
+                      지침 당겨오기 🔄
+                    </button>
                     <button
                       onClick={() => {
                         setEditingName(v.name);
@@ -617,6 +702,26 @@ export function VaultManage() {
           )}
         </div>
       )}
+
+      {/* ─── bootstrap confirm modal ─────────────────── */}
+      <ConfirmDialog
+        open={Boolean(confirmBootstrap)}
+        onClose={() => !busy && setConfirmBootstrap(null)}
+        onConfirm={() => confirmBootstrap && handleBootstrap(confirmBootstrap)}
+        busy={busy}
+        tone="danger"
+        title="지침 파일 갱신 (당겨오기)"
+        confirmLabel="당겨오기"
+      >
+        {confirmBootstrap && (
+          <div style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.5 }}>
+            <strong>{confirmBootstrap}</strong> 보관소의 지침 파일들(<code>SCHEMA.md</code>, <code>RULES.md</code>, <code>README.md</code>, <code>PROJECT-WORKFLOW.md</code>, <code>log.md</code>)을 Raven 소스코드에 포함된 최신 템플릿 원본으로 덮어씁니다.<br/>
+            <span style={{ fontSize: 13, color: "var(--color-warning-text)", display: "block", marginTop: 8 }}>
+              ⚠️ 이미 직접 수정한 지침 내용이 있다면 덮어쓰기되어 손실될 수 있습니다. 진행하시겠습니까?
+            </span>
+          </div>
+        )}
+      </ConfirmDialog>
 
       {/* ─── delete confirm modal ───────────────────── */}
       <ConfirmDialog

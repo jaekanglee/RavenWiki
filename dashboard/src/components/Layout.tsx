@@ -4,6 +4,7 @@ import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
 import { fetchVaults, fetchTree, getActiveVault, setActiveVault } from "../lib/api";
 import { useEffect, useState } from "react";
+import { VaultPicker } from "./VaultPicker";
 import type { TreeNode, VaultMeta } from "../types";
 
 const NAV_TABS = [
@@ -191,14 +192,14 @@ export function Layout() {
                   background: "var(--color-hairline-strong)",
                 }}
               />
-              <Link
-                to="/vault/manage"
-                className="active-vault-chip"
-                title="보관소 관리로 이동"
-              >
-                <span aria-hidden style={{ fontSize: 13 }}>📁</span>
-                <span>{vault}</span>
-              </Link>
+              <VaultPicker
+                active={vault}
+                onChange={(name) => {
+                  setVault(name);
+                  setActiveVault(name);
+                  setRefreshKey((k) => k + 1);
+                }}
+              />
             </div>
           )}
 
