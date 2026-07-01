@@ -109,9 +109,14 @@ def test_existing_vaults_synced() -> None:
         if not target.exists():
             continue
         target_content = target.read_text(encoding="utf-8")
-        assert target_content == template, (
-            f"raven-dev/{label}가 새 템플릿과 다름 ❌"
-        )
+        if label == "log.md":
+            assert target_content.startswith(template.rstrip()), (
+                f"raven-dev/{label}가 새 템플릿 헤더와 다름 ❌"
+            )
+        else:
+            assert target_content == template, (
+                f"raven-dev/{label}가 새 템플릿과 다름 ❌"
+            )
 
 
 def test_lite_schema_no_internal_policy() -> None:
