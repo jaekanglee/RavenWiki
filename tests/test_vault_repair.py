@@ -32,8 +32,8 @@ runner = CliRunner()
 
 @pytest.fixture
 def isolated_env(monkeypatch):
-    reg_root = Path(tempfile.mkdtemp(prefix="raven-repair-reg-"))
-    target_root = Path(tempfile.mkdtemp(prefix="raven-repair-target-"))
+    reg_root = Path(tempfile.mkdtemp(prefix="raven-repair-reg-")).resolve()
+    target_root = Path(tempfile.mkdtemp(prefix="raven-repair-target-")).resolve()
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
     yield {"reg_root": reg_root, "target_root": target_root}
     shutil.rmtree(reg_root, ignore_errors=True)
