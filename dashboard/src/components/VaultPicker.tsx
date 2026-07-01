@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 interface VaultMeta {
   name: string;
@@ -77,12 +77,32 @@ export function VaultPicker({
   }, [open]);
 
   // ─── select vault ────────────────────────────────────────
-  function select(name: string) {
+  const navigate = useNavigate();
+
+  async function select(name: string) {
     onChange(name);
     localStorage.setItem(ACTIVE_KEY, name);
     setOpen(false);
-    fetch(`/api/vaults/${name}/select`, { method: "POST" }).catch(() => {});
-    window.location.reload();
+    try {
+      await fetch(`/api/vaults/${name}/select`, { method: "POST" });
+    } catch (e) {
+      console.error("Failed to select vault on backend", e);
+    }
+
+    try {
+      const r = await fetch(
+        `/api/vaults/${encodeURIComponent(name)}/pages?top_k=1`
+      );
+      const d = await r.json();
+      const slug = d?.pages?.[0]?.slug;
+      if (slug) {
+        navigate(`/page/${encodeURIComponent(name)}/${slug}`);
+      } else {
+        navigate(`/vault/manage`);
+      }
+    } catch {
+      navigate(`/vault/manage`);
+    }
   }
 
   const current = vaults.find((v) => v.name === active);
