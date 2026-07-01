@@ -73,3 +73,17 @@
   * 기본 경로를 `$HOME/Raven-app` + `$HOME/Raven`으로 정리
   * macOS/Linux 분기 스크립트가 `.env`를 생성/보정하고 `make rebuild`까지 수행하도록 변경
   * 예전 launchd/systemd 상주 서비스 설치는 더 이상 기본 동작으로 수행하지 않음
+
+## 7. vault 문맥 파악 순서 강화 (2026-07-01)
+
+* `raven/core/templates/system/README.md`와 `raven/core/templates/agent/PROJECT-WORKFLOW.md`에 **"특정 vault 참고해서 파악" 요청의 읽기 순서**를 명시했습니다.
+  * `log.md` → `content/index.md` → 관련 `project/issue/decision/journal` → `_meta/system/*` → `PROJECT-WORKFLOW.md`
+  * 폴더명만 보고 추측하지 말고, 해당 vault 안의 기존 용어/분류/대표 문서를 먼저 source of truth로 삼도록 강화
+  * 사용자가 "이 vault 보고 이어서 해"라고 말했을 때 에이전트가 무엇을 기준으로 파악해야 하는지 템플릿 차원에서 명확화
+
+## 8. taxonomy / 읽기 순서 충돌 정리 (2026-07-01)
+
+* `raven/core/templates/system/RULES.md`, `system/README.md`, `agent/PROJECT-WORKFLOW.md`, `system/OPERATIONS.md` 사이의 타입 개수/읽기 순서 충돌을 정리했습니다.
+  * `type` 기준을 `issue` 포함 **9종**으로 통일
+  * `decision`은 별도 `type`이 아니라 문서 목적/스타일로 취급하고, 기본적으로 `type: rule` 또는 문맥상 `issue`/`project`로 기록하도록 정정
+  * vault 파악 순서를 `log.md` → `content/index.md` → 관련 대표 문서 → `system/README.md` → `PROJECT-WORKFLOW.md` → `SCHEMA/RULES`로 단일화

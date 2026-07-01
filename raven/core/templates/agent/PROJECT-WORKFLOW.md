@@ -17,6 +17,40 @@ confidence: high
 
 ---
 
+## 🔎 0. 특정 vault를 맡았을 때 먼저 할 일
+
+> 📝 **사람**: 에이전트에게 "이 vault 참고해서 해"라고 말할 때, 무엇을 기준으로 읽어야 하는지 먼저 고정합니다.
+> 🤖 **Agent**: 특정 vault / 특정 프로젝트를 맡았을 때는 아래 읽기 순서를 먼저 수행하고, 그 결과를 기준으로 판단합니다.
+
+### 0.1 읽는 순서 (고정)
+
+1. `log.md` 최근 5-10줄
+2. `content/index.md` 또는 루트 카탈로그 페이지 (있다면)
+3. 요청과 직접 관련된 폴더의 대표 문서 3-5개
+   - `project`
+   - `issue`
+   - 결정 기록 페이지 (`type: rule`인 경우가 많음)
+   - 최근 `journal`
+4. `_meta/system/README.md` — vault 운영 원칙
+5. 이 `PROJECT-WORKFLOW.md` — 팀/프로젝트 특유의 분업, 금지사항, 문서 스타일
+6. `_meta/system/SCHEMA.md`, `_meta/system/RULES.md` — 형식/편집 규약
+
+### 0.2 읽고 나서 먼저 정리할 것
+
+- 지금 다루는 대상이 **무슨 프로젝트/주제**인지
+- 어디까지가 **이미 합의된 기준**인지
+- 어떤 페이지/폴더가 **source of truth**인지
+- 내가 새로 만들기보다 **기존 구조를 재사용**해야 하는지
+
+### 0.3 금지
+
+- ❌ 폴더명만 보고 도메인 추측
+- ❌ 비슷해 보인다고 다른 vault의 구조를 그대로 이식
+- ❌ 기존 `project` / `issue` / 결정 기록(`type: rule`인 경우가 많음) 문서를 안 읽고 새 분류 생성
+- ❌ "대충 이런 팀일 것 같다" 식으로 태그, 타입, 섹션 이름 임의 생성
+
+---
+
 ## 📌 1. 작성 가이드 — BLUF (Bottom Line Up First)
 
 > 📝 **사람**: 모든 페이지 첫 줄에 결론/결정 1문장.
@@ -137,15 +171,19 @@ confidence: high
 - [[related-concept-1]] — 연관 개념에 대한 맥락 설명
 ```
 
-### 📝 3.2 `decision` (Decision)
+### 📝 3.2 결정 기록 (Decision Record, 보통 `type: rule`)
 
 ```
 # {Title}
 
+---
+type: rule
+---
+
 > {BLUF: 1-line decision}
 
 > [!NOTE] (선택 - 이 결정이 폐기/대체된 경우에만 작성)
-> ⚠️ **대체됨**: 이 결정은 [[decision-new-slug]]에 의해 대체되었습니다.
+> ⚠️ **대체됨**: 이 결정은 [[replacement-rule-or-issue]]에 의해 대체되었습니다.
 
 ## 맥락
 {결정이 필요하게 된 배경과 문제 상황.}
@@ -159,6 +197,8 @@ confidence: high
 ## 관련
 - [[related-page]] — 관련 설계 문서 또는 후속 작업 페이지
 ```
+
+> 🤖 **Agent Note**: "결정"은 이 vault의 문서 목적/스타일이지 별도 `type`이 아닐 수 있습니다. 별도 타입이 없으면 보통 `type: rule`로 기록하고, 진행 중 문제 해결 맥락이면 `type: issue`, 프로젝트 범위/상태 문맥이면 `type: project` 안에 녹입니다.
 
 ### 📝 3.3 `journal` (Journal / Daily Note)
 
@@ -176,7 +216,7 @@ confidence: high
 ## 관련 / 다음
 - [[related-project]] — 진행 중인 프로젝트 페이지
 ```
-> 🤖 **Agent Note**: 저널에 작성된 내용 중 영구적으로 보존 및 누적될 가치가 있는 핵심 지식(새 개념, 결정, 규칙 등)은 별도의 `concept`, `decision` 페이지로 컴파일하여 추출하고, 저널에는 링크만 남겨 지식을 정제하십시오.
+> 🤖 **Agent Note**: 저널에 작성된 내용 중 영구적으로 보존 및 누적될 가치가 있는 핵심 지식(새 개념, 결정, 규칙 등)은 별도의 `concept`, `rule`, `issue` 페이지로 컴파일하여 추출하고, 저널에는 링크만 남겨 지식을 정제하십시오.
 
 ### 📝 3.4 `rule` (Rule / Policy)
 
@@ -335,14 +375,26 @@ confidence: high
 
 - 📝 vault 운영 일반 규칙: `_meta/system/README.md` (\"Vault User Guide\")
 - 🤖 데이터 구조: `_meta/system/SCHEMA.md`
+- 🤖 편집 규칙: `_meta/system/RULES.md`
 - 🤖 LLM Wiki +α 가이드: `docs/vault-patterns.md`
 
 > **에이전트 기준 파일 구분**
 >
 > | 파일 | 역할 | 에이전트 행동 |
 > |---|---|---|
-> | `_meta/system/RULES.md` | **lint 집행 기준** (frontmatter 구조, slug, type 8종 등) | 직접 읽을 필요 없음 — 어기면 `raven build` / lint가 알려줌 |
-> | `_meta/agents/PROJECT-WORKFLOW.md` | **에이전트 작업 방식 SOT** (BLUF, 분업, 트리거, 템플릿) | **이 파일이 작업 기준** — 세션 시작 시 읽기 |
+> | `_meta/system/RULES.md` | **형식/편집 규칙** (frontmatter 구조, slug, type taxonomy, link intent) | 작업 전에 읽어두고, 최종적으로는 `raven build` / lint로 재검증 |
+> | `_meta/agents/PROJECT-WORKFLOW.md` | **에이전트 작업 방식 SOT** (읽기 순서, 분업, 트리거, 템플릿) | **이 파일이 작업 기준** — 특정 vault 파악 요청을 받으면 `system/README.md` 다음에 읽기 |
+
+### 5.1 "특정 vault 참고해서 파악" 요청의 기본 해석
+
+이 요청은 단순히 파일 몇 개를 열어보라는 뜻이 아닙니다. 에이전트는 아래를 먼저 해석해야 합니다.
+
+1. 이 vault에서 이미 쓰는 **용어와 분류**가 무엇인지
+2. 어떤 페이지가 **현재 상태를 대표**하는지
+3. 어떤 폴더가 **활성 작업 공간**인지
+4. 무엇이 **확정 규칙**이고 무엇이 **최근 작업 메모**인지
+
+→ 위 4개를 구분하지 못했으면 아직 "파악 완료"가 아닙니다.
 
 ---
 
@@ -439,5 +491,3 @@ confidence: high
    * **제어권 분리**: 이 문서들은 보관소의 글로벌 헌법이므로 에이전트가 임의로 수정해서는 안 됩니다. 태그 추가 등 스키마 변경이 필요한 경우, 에이전트는 직접 문서를 고치지 않고 사용자에게 승인을 요청하거나 이슈 문서(`type: issue`)를 발의하여 조율해야 합니다.
 5. **`_meta/collections.yaml` (공통 콜렉션 설정)**:
    * **사전 검증**: 콜렉션 추가/수정 시 스키마 무결성 보장을 위해 반드시 `raven collection validate`를 돌려 자가 검증을 마친 뒤 변경 사항을 통합해야 합니다.
-
-

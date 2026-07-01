@@ -1,7 +1,7 @@
 ---
 title: Vault User Guide
 created: 2026-06-30
-updated: 2026-06-30
+updated: 2026-07-01
 type: rule
 tags: [system, vault, guide]
 audience: agent
@@ -18,12 +18,38 @@ confidence: high
 
 ## 1. 시작 (1회) — vault 파악
 
-매 세션 시작 시:
+매 세션 시작 시, 특히 사용자가 **"이 vault 참고해서 파악해"**, **"이 프로젝트 문맥 읽어"**, **"이 폴더 보고 이어서 해"** 같은 요청을 한 경우 아래 순서를 따르세요.
+
+### 1.1 읽는 순서 (고정)
 
 1. `log.md` — 최근 작업 5-10줄 (`grep "^## \[" log.md | tail -10`)
 2. (있다면) `content/index.md` — vault 전체 구조 카탈로그
+3. 사용자 요청과 직접 관련된 폴더/페이지 3-5개
+   - 예: `project`
+   - 예: `issue`
+   - 예: 결정 기록 페이지 (`type: rule`인 경우가 많음)
+   - 예: 최근 `journal`
+4. `_meta/system/README.md` — vault 운영 원칙
+5. `_meta/agents/PROJECT-WORKFLOW.md` — 이 vault 특유의 작업 방식, 분업, 금지사항
+6. `_meta/system/SCHEMA.md`, `_meta/system/RULES.md` — 형식/편집 규칙
 
-→ 이 두 파일을 안 읽고 컨텍스트를 가정하지 마세요.
+→ 이 순서를 건너뛰고 컨텍스트를 가정하지 마세요.
+
+### 1.2 특정 vault / 특정 프로젝트를 보라고 했을 때
+
+- **폴더 이름만 보고 추측하지 마세요.**
+- 먼저 해당 폴더의 대표 `project`, `issue`, 결정 기록(`type: rule`인 경우가 많음), 최근 `journal` 페이지를 읽고 현재 상태를 파악합니다.
+- 이미 존재하는 용어, 분류, 페이지 구조를 **그 vault 기준으로 재사용**합니다.
+- 기준 문서가 모호하면 새 구조를 만들기 전에 사용자에게 확인합니다.
+
+### 1.3 최소 보고 기준
+
+사용자에게 "파악했다"고 말하기 전에 최소한 다음은 설명 가능해야 합니다.
+
+- 이 vault / 프로젝트의 현재 목표
+- 최근 무엇이 바뀌었는지
+- 어떤 폴더/페이지를 source of truth로 봤는지
+- 바로 수정해도 되는지, 먼저 물어야 하는지
 
 ## 2. 4가지 명령 키워드
 
@@ -70,13 +96,13 @@ confidence: high
 - **위치**: `<vault>/content/<slug>.md` (slug = vault-relative path)
 - **frontmatter 필수**: `title`, `type` (8종 중), `created`, `updated`
 - **wikilink intent**: `[[x]]` (정상) / `[[x]]!` (broken) / `[[x]]?` (placeholder)
-- **type 8종**: concept / person / comparison / project / tool / rule / query / journal — 그 외 값 ❌
+- **type 9종**: concept / person / comparison / project / tool / rule / query / journal / issue — 그 외 값 ❌
 
 자세한 필드 정의는 `SCHEMA.md` 참조.
 
 ## 6. 작업 절차
 
-1. `log.md` 5-10줄 읽기 (세션 시작)
+1. §1의 순서대로 vault 문맥 읽기 (세션 시작)
 2. 사용자 요청을 4 키워드로 분류
 3. 매핑된 CLI/API 호출
 4. 작업 끝나면 사용자에게 보고:

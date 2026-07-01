@@ -1,7 +1,7 @@
 ---
 title: Vault Editing Rules
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-01
 type: rule
 tags: [system, rules, meta]
 audience: system
@@ -18,7 +18,7 @@ confidence: high
 ```yaml
 ---
 title: ...
-type: concept   # 8개 중 하나
+type: concept   # 9개 중 하나
 ---
 ```
 
@@ -30,7 +30,7 @@ type: concept   # 8개 중 하나
 - `raven page new meta/welcome` → `_meta/welcome` (명시)
 - 절대 ❌: `~`, `/`, `..`
 
-## R3. type taxonomy (8개)
+## R3. type taxonomy (9개)
 
 | type | 용도 |
 |---|---|
@@ -42,6 +42,7 @@ type: concept   # 8개 중 하나
 | `rule` | 규칙 (이 문서) |
 | `query` | 검색 결과 페이지 |
 | `journal` | 일지/메모 |
+| `issue` | 문제 분석 / 장애 / 추적 |
 
 ## R4. tags는 core/custom
 

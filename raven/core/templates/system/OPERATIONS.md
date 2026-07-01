@@ -47,7 +47,7 @@ raven build
 |---|---|---|---|
 | 1 | frontmatter 필수 | 🔴 | R1 — 모든 페이지 frontmatter 5필드 |
 | 2 | slug 형식 | 🔴 | R2 — `~` `/` `..` 금지 |
-| 3 | type 8개 taxonomy | 🟡 | R3 — SCHEMA 명시 8개만 |
+| 3 | type 9개 taxonomy | 🟡 | R3 — SCHEMA 명시 9개만 |
 | 4 | tag core 분류 | 🟡 | R4 — core/custom 분리 |
 | 5 | contradictions | 🟡 | frontmatter.contradictions 미존재 경고 |
 | 6-14 | ... | ... | (`raven lint run` 출력 참조) |
