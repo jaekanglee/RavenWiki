@@ -44,16 +44,17 @@
 * macOS 환경에서 `tempfile.mkdtemp` 반환 경로(`/var/folders/...`)가 런타임에 `/private/var/folders/...`로 해석되어 `test_vault_repair.py` 내 vault 복구(repair) 단언문에서 `AssertionError`가 발생하던 문제를 수정했습니다.
 * fixture 단계에서 `Path.resolve()`를 붙여 심볼릭 링크가 풀린 절대 경로로 고정하여 macOS 환경에서도 테스트가 안정적으로 수행되도록 개선했습니다.
 
-### 1-5. 줌 레벨 기반 점진적 세부 가시화 (Progressive Disclosure) 및 성운 가스 효과 구현 ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx))
-* **Community Nebula Glow (성운 구름 오버레이)**: 각 커뮤니티의 Centroid와 반경을 기준으로 몽환적인 `radial-gradient` 성운 구름 노드(`NebulaNode`)를 캔버스 하단(zIndex=-10)에 동적으로 렌더링했습니다.
-* **은하군 대표 허브 라벨 노출**: 각 커뮤니티(군집) 내에서 연결선이 가장 많은 핵심 Hub 노드의 타이틀을 추출하여 `"{Hub Title} 은하군"` 형태로 자동 명명하고, 이를 성운 노드 내부 중앙에 선명하게 띄워 줌아웃 상태에서도 보관소 내 군집 성격을 한눈에 볼 수 있도록 시각화 효과를 더했습니다.
-* **줌 레벨별 페이드 아웃/인 연동**:
-  * **줌아웃(우주/은하 뷰)**: 노드 라벨 텍스트가 페이드아웃되어 텍스트 겹침 노이즈를 100% 제거하고, 은은한 성운 가스 구름 및 은하군 대표 이름표만 캔버스에 도드라지게 하여 거시적인 구조 파악을 돕습니다.
-  * **줌인(성단/별 상세 뷰)**: 성운 구름과 군집 대표 이름표가 조용히 투명하게 걷히며, 개별 노드의 상세 텍스트 라벨이 서서히 페이드인되도록 줌 상태에 연동했습니다.
+### 1-5. 줌 레벨 기반 동적 노드/엣지 병합 클러스터링 (Aggregation) ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx))
+* **동적 줌 클러스터링 (Collapse/Expand)**: 줌아웃(축소)이 일정 한계선(`zoom < 0.28`) 미만으로 떨어졌을 때, 개별 문서 노드들을 모두 숨기고 이들이 속한 클러스터의 대표 노드 하나(예: 가장 중요도가 높은 `React` 허브 노드)로 병합(Collapse)하여 표현하는 구조적 클러스터링을 구현했습니다.
+* **클러스터 간 엣지 병합**: 동일 클러스터 내의 잔가지 연결선은 모두 숨기고, 클러스터 대표 노드들 간에 걸쳐 있는 거시적인 연결선(Super Edge)들로 머지하여 엣지 강도(연결 수)에 비례하는 굵기로 렌더링했습니다.
+* **은하군 꼬리표 제거 및 라벨 최적화**: 텍스트에 "은하군" 등의 사족을 붙이지 않고, 대표 문서의 이름을 그대로 노출하여 직관성을 극대화했습니다.
+* **줌 연동 디테일 스케일링**:
+  * **줌아웃(축소 뷰)**: 복잡한 수백 개의 별들이 단 5~10개의 대형 대표 클러스터 노드들로 병합되어 줌아웃 상태에서 거시적인 생각 군집들의 연결 흐름을 한눈에 읽을 수 있습니다. 대표 노드의 이름표는 축소 상태에서도 선명하게 노출됩니다.
+  * **줌인(확대 뷰)**: 병합되었던 대표 노드가 다시 부드럽게 해체(Expand)되면서 개별 문서 노드들과 세부 엣지들이 화려하게 펼쳐지도록 조율했습니다.
 
-### 1-6. 클러스터(은하군) 필터링 컨트롤 UI 추가 ([GraphPage.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/routes/GraphPage.tsx))
-* 대시보드 좌측 제어판 영역에 **"클러스터 필터"** SelectField를 정식으로 추가했습니다.
-* 보관소의 구조적 관계(Modularity)로 묶여 분류된 클러스터들을 문서 개수와 대표 타이틀이 병기된 드롭다운 항목(예: `React 은하군 (#0, 12개)`)으로 직접 탐색 및 개별 필터링할 수 있도록 제공하여 클러스터링 기반 탐색 편의성을 보장했습니다.
+### 1-6. 클러스터 필터링 컨트롤 UI 추가 및 라벨 정돈 ([GraphPage.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/routes/GraphPage.tsx))
+* 대시보드 좌측 제어판 영역에 **"클러스터 필터"** SelectField를 추가했습니다.
+* 드롭다운 옵션에서도 불필요한 "은하군" 꼬리표를 떼어내고, 군집 대표 문서의 순수 명칭과 군집 ID, 문서 개수만 정갈하게 표기하도록 개선했습니다 (예: `React (#0, 12개)`).
 
 ### 1-7. YAML Frontmatter 'importance' 연계 하이브리드 노드 가중치 수식 탑재 ([server.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven/api/server.py))
 * 에이전트나 사람이 문서를 구조화할 때 수동/의미론적으로 중요도를 부여할 수 있도록, 각 마크다운 파일의 YAML frontmatter 내 `importance` 속성을 파싱하는 기능을 추가했습니다.
