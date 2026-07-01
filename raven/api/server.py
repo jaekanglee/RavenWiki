@@ -1015,6 +1015,7 @@ def vault_graph(
             nodes = [
                 {
                     "id": p["slug"],
+                    "slug": p["slug"],
                     "title": p["title"],
                     "type": p["type"],
                     "weight": in_degree.get(p["slug"], 0),
@@ -1070,6 +1071,7 @@ def vault_graph(
         seen.add(slug)
         nodes.append({
             "id": slug,
+            "slug": slug,
             "title": meta.get("title", slug),
             "type": meta.get("type", "?"),
         })

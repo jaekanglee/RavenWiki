@@ -181,6 +181,27 @@ export function Layout() {
             <span aria-hidden style={{ marginRight: 6 }}>🐦</span>Raven
           </Link>
 
+          {/* Active Vault Indicator */}
+          {vault && (
+            <div className="flex items-center" style={{ flexShrink: 0, gap: 12 }}>
+              <div
+                style={{
+                  height: 16,
+                  width: 1,
+                  background: "var(--color-hairline-strong)",
+                }}
+              />
+              <Link
+                to="/vault/manage"
+                className="active-vault-chip"
+                title="보관소 관리로 이동"
+              >
+                <span aria-hidden style={{ fontSize: 13 }}>📁</span>
+                <span>{vault}</span>
+              </Link>
+            </div>
+          )}
+
           {/* Search bar */}
           <div className="top-nav-search flex-1 flex justify-center min-w-0">
             <div style={{ width: "100%", maxWidth: 560 }}>

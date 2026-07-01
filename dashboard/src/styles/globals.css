@@ -686,6 +686,38 @@ mark {
   color: var(--color-ink);
 }
 
+/* Active Vault Indicator Chip */
+.active-vault-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-hairline-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-decoration: none;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.active-vault-chip:hover {
+  border-color: var(--color-primary);
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-1px);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.active-vault-chip:active {
+  transform: translateY(0);
+}
+
+
 /* Page section band — 64px vertical */
 .section {
   padding-top: 64px;

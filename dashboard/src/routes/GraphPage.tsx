@@ -37,7 +37,7 @@ function normalizeGraphText(value: string | undefined): string {
 function matchesGraphQuery(node: GraphNode, query: string): boolean {
   const normalized = normalizeGraphText(query);
   if (!normalized) return true;
-  return [node.title, node.slug, node.type]
+  return [node.title, node.slug ?? node.id, node.type]
     .map(normalizeGraphText)
     .some((token) => token.includes(normalized));
 }
@@ -46,13 +46,13 @@ export function deriveGraphInsights(graph: Graph): GraphInsight {
   const sortedNodes = [...graph.nodes].sort((a, b) => {
     const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
     if (weightDiff !== 0) return weightDiff;
-    return (a.title ?? a.slug).localeCompare(b.title ?? b.slug, "ko");
+    return (a.title ?? a.slug ?? a.id).localeCompare(b.title ?? b.slug ?? b.id, "ko");
   });
 
   const topConnected = sortedNodes.filter((node) => (node.weight ?? 0) > 0).slice(0, 5);
   const topOrphans = [...graph.nodes]
     .filter((node) => (node.weight ?? 0) === 0)
-    .sort((a, b) => (a.title ?? a.slug).localeCompare(b.title ?? b.slug, "ko"))
+    .sort((a, b) => (a.title ?? a.slug ?? a.id).localeCompare(b.title ?? b.slug ?? b.id, "ko"))
     .slice(0, 5);
 
   const typeCounts = new Map<string, number>();
@@ -324,7 +324,7 @@ export function GraphPage() {
                 <button
                   type="button"
                   className="graph-insight-link"
-                  onClick={() => navigate(`/page/${vault}/${node.slug}`)}
+                  onClick={() => navigate(`/page/${vault}/${node.slug ?? node.id}`)}
                   onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
                   onMouseLeave={() => setHoveredInsightNodeId(null)}
                 >
@@ -351,7 +351,7 @@ export function GraphPage() {
                 <button
                   type="button"
                   className="graph-insight-link"
-                  onClick={() => navigate(`/page/${vault}/${node.slug}`)}
+                  onClick={() => navigate(`/page/${vault}/${node.slug ?? node.id}`)}
                   onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
                   onMouseLeave={() => setHoveredInsightNodeId(null)}
                 >
@@ -538,7 +538,7 @@ export function GraphPage() {
             <div className="graph-detail-header">
               <div>
                 <strong>{selectedNodeDetail.node.title}</strong>
-                <p>{selectedNodeDetail.node.slug}</p>
+                <p>{selectedNodeDetail.node.slug ?? selectedNodeDetail.node.id}</p>
               </div>
               <span className="graph-detail-chip">
                 {selectedNodeDetail.node.type ?? "미분류"}
@@ -590,7 +590,7 @@ export function GraphPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(`/page/${vault}/${selectedNodeDetail.node.slug}`)}
+                onClick={() => navigate(`/page/${vault}/${selectedNodeDetail.node.slug ?? selectedNodeDetail.node.id}`)}
               >
                 문서 열기
               </Button>
