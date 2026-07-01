@@ -333,10 +333,16 @@ confidence: high
 
 ## 🔗 5. 참고 (References)
 
-- 📝 vault 운영 일반 규칙: `_meta/system/README.md` ("Vault User Guide")
+- 📝 vault 운영 일반 규칙: `_meta/system/README.md` (\"Vault User Guide\")
 - 🤖 데이터 구조: `_meta/system/SCHEMA.md`
-- 🤖 편집 규칙: `_meta/system/RULES.md`
 - 🤖 LLM Wiki +α 가이드: `docs/vault-patterns.md`
+
+> **에이전트 기준 파일 구분**
+>
+> | 파일 | 역할 | 에이전트 행동 |
+> |---|---|---|
+> | `_meta/system/RULES.md` | **lint 집행 기준** (frontmatter 구조, slug, type 8종 등) | 직접 읽을 필요 없음 — 어기면 `raven build` / lint가 알려줌 |
+> | `_meta/agents/PROJECT-WORKFLOW.md` | **에이전트 작업 방식 SOT** (BLUF, 분업, 트리거, 템플릿) | **이 파일이 작업 기준** — 세션 시작 시 읽기 |
 
 ---
 
