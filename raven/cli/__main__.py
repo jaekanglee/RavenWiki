@@ -226,7 +226,7 @@ def vault_bootstrap(
     if profile == "basic":
         Vault._bootstrap_basic(v.root)
     else:
-        Vault._bootstrap_lite(v.root)
+        v.sync_meta(lite=True, force=True)
         
     try:
         result = v.verify_bootstrap()
