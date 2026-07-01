@@ -125,13 +125,16 @@ function ObsidianNode({
     title?: string;
     dim?: boolean;
     persistent?: boolean;
+    isClusterNode?: boolean;
   };
 }) {
   const { zoom } = useViewport();
-  const isEmphasized = Boolean(data.highlighted || data.persistent);
+  const isClusterNode = Boolean(data.isClusterNode);
+  const isEmphasized = Boolean(data.highlighted || data.persistent || isClusterNode);
   
   // 줌 레벨이 0.35 미만으로 떨어지면 일반 라벨 숨김 및 페이드아웃 (0.35~0.55 구간 보간)
-  const zoomAlpha = zoom < 0.35 ? 0 : zoom > 0.55 ? 1 : (zoom - 0.35) / 0.2;
+  // 단, 클러스터 노드일 경우에는 줌아웃 상태에서도 항상 뚜렷하게 노출됨
+  const zoomAlpha = isClusterNode ? 1.0 : zoom < 0.35 ? 0 : zoom > 0.55 ? 1 : (zoom - 0.35) / 0.2;
   const labelOpacity = isEmphasized 
     ? 1 
     : data.dim 
@@ -508,32 +511,29 @@ function GraphCanvasInner({
     };
   }, [flowEdges, flowNodes, nodeMap, hoveredEdgeId, hoveredNode, externalHighlightNodeId, externalHighlightType]);
 
-  // 줌 레벨에 따른 성운 구름의 opacity 계산 (줌아웃일수록 뚜렷, 줌인일수록 페이드아웃)
-  const nebulaOpacity = Math.max(0, Math.min(0.22, 0.22 * (1.0 - (zoom - 0.2) / 0.55)));
+  // 줌아웃 임계값(0.28) 미만일 때 노드들을 클러스터 대표 노드 하나로 뭉쳐서(Collapse) 렌더링
+  const isCollapsed = zoom < 0.28;
 
-  // 각 커뮤니티의 Centroid와 바운딩 반경을 기준으로 성운 구름 노드들 동적 생성
-  const nebulaNodes = useMemo(() => {
-    if (nebulaOpacity <= 0) return [];
+  // 1) 줌아웃 시 뭉쳐진 클러스터 대표 노드 목록 계산
+  const clusterNodes = useMemo(() => {
+    if (!isCollapsed) return [];
     
-    // 1) 각 커뮤니티별 대표 허브 문서(가장 weight가 높은 노드) 추출
+    // c -> { sumX, sumY, count }
     const commHubs: Record<number, { title: string; maxWeight: number }> = {};
-    const groups: Record<number, { sumX: number; sumY: number; count: number; points: Array<[number, number]> }> = {};
+    const groups: Record<number, { sumX: number; sumY: number; count: number }> = {};
     
     for (const n of nodes) {
       const c = (n as any).community;
       if (typeof c === "number" && c >= 0) {
-        // 그룹 좌표 데이터
         if (!groups[c]) {
-          groups[c] = { sumX: 0, sumY: 0, count: 0, points: [] };
+          groups[c] = { sumX: 0, sumY: 0, count: 0 };
         }
         const x = typeof n.x === "number" ? n.x : 0;
         const y = typeof n.y === "number" ? n.y : 0;
         groups[c].sumX += x;
         groups[c].sumY += y;
         groups[c].count += 1;
-        groups[c].points.push([x, y]);
 
-        // 허브 노드 후보 탐색
         const w = (n as any).weight ?? 0;
         if (!commHubs[c] || w > commHubs[c].maxWeight) {
           const t = (n as any).title ?? n.slug;
@@ -547,70 +547,108 @@ function GraphCanvasInner({
       const cx = data.sumX / data.count;
       const cy = data.sumY / data.count;
       
-      let sumDist = 0;
-      for (const [px, py] of data.points) {
-        sumDist += Math.hypot(px - cx, py - cy);
-      }
-      const avgDist = data.count > 1 ? sumDist / data.count : 40;
-      const radius = Math.max(85, Math.min(280, avgDist * 1.6));
-      
       const hub = commHubs[commId];
-      const clusterLabel = hub ? `${hub.title} 은하군` : `군집 #${commId}`;
+      // 끝에 은하군을 붙이지 않고, 대표 문서의 이름을 그대로 노출
+      const clusterLabel = hub ? hub.title : `클러스터 #${commId}`;
+      // 클러스터 문서 개수가 많을수록 대표 노드 크기를 더 크게 렌더링
+      const size = Math.max(18, Math.min(46, 14 + Math.sqrt(data.count) * 4.5));
       
       return {
-        id: `nebula-${commId}`,
-        type: "nebula" as const,
+        id: `cluster-${commId}`,
+        type: "obsidian" as const,
         position: { x: cx, y: cy },
-        draggable: false,
-        style: { zIndex: -10, pointerEvents: "none" as const },
         data: {
           color: COMMUNITY_PALETTE[commId % COMMUNITY_PALETTE.length],
-          radius,
-          opacity: nebulaOpacity,
-          label: clusterLabel,
+          size,
+          title: clusterLabel,
+          community: commId,
+          isClusterNode: true,
+          nodeCount: data.count,
         },
       };
     });
-  }, [nodes, nebulaOpacity]);
+  }, [nodes, isCollapsed]);
 
-  const displayNodes = useMemo(
-    () => [
-      ...nebulaNodes,
-      ...flowNodes.map((node) => {
-        const highlighted = focus.nodeIds.has(node.id);
-        const persistent = persistentHighlightNodeId === node.id;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            highlighted,
-            persistent,
-            dim: focus.active && !highlighted && !persistent,
-            opacity: !focus.active || highlighted || persistent ? 1 : 0.22,
-          },
-        };
-      })
-    ],
-    [nebulaNodes, flowNodes, focus, persistentHighlightNodeId]
-  );
+  // 2) 줌아웃 시 클러스터 간 연결선(Super Edge) 계산
+  const clusterEdges = useMemo(() => {
+    if (!isCollapsed) return [];
+    
+    const nodeCommMap = new Map<string, number>();
+    for (const n of nodes) {
+      const id = (n as any).id ?? n.slug;
+      const c = (n as any).community;
+      if (typeof c === "number" && c >= 0) {
+        nodeCommMap.set(id, c);
+      }
+    }
+    
+    const edgeCounts: Record<string, number> = {};
+    for (const e of edges) {
+      const s = (e as any).source ?? e.source_slug;
+      const t = (e as any).target ?? e.target_slug;
+      const c_src = nodeCommMap.get(s);
+      const c_tgt = nodeCommMap.get(t);
+      
+      if (c_src !== undefined && c_tgt !== undefined && c_src !== c_tgt) {
+        const pairKey = c_src < c_tgt ? `${c_src}-${c_tgt}` : `${c_tgt}-${c_src}`;
+        edgeCounts[pairKey] = (edgeCounts[pairKey] || 0) + 1;
+      }
+    }
+    
+    return Object.entries(edgeCounts).map(([pairKey, count], idx) => {
+      const [c_src, c_tgt] = pairKey.split("-").map(Number);
+      return {
+        id: `ce${idx}`,
+        source: `cluster-${c_src}`,
+        target: `cluster-${c_tgt}`,
+        type: "straight" as const,
+        style: {
+          stroke: "var(--graph-edge)",
+          strokeWidth: Math.min(2.5, 0.8 + Math.sqrt(count) * 0.45),
+          strokeOpacity: Math.min(0.55, 0.18 + count * 0.05),
+        },
+      };
+    });
+  }, [edges, nodes, isCollapsed]);
 
-  const displayEdges = useMemo(
-    () =>
-      flowEdges.map((edge) => {
-        const highlighted = focus.edgeIds.has(edge.id);
-        return {
-          ...edge,
-          animated: highlighted,
-          style: {
-            ...(edge.style ?? {}),
-            stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
-            strokeWidth: highlighted ? 1.35 : 0.65,
-            strokeOpacity: !focus.active ? 0.16 : highlighted ? 0.82 : 0.045,
-          },
-        };
-      }),
-    [flowEdges, focus]
-  );
+  const displayNodes = useMemo(() => {
+    if (isCollapsed) {
+      return clusterNodes;
+    }
+    return flowNodes.map((node) => {
+      const highlighted = focus.nodeIds.has(node.id);
+      const persistent = persistentHighlightNodeId === node.id;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          highlighted,
+          persistent,
+          dim: focus.active && !highlighted && !persistent,
+          opacity: !focus.active || highlighted || persistent ? 1 : 0.22,
+        },
+      };
+    });
+  }, [isCollapsed, clusterNodes, flowNodes, focus, persistentHighlightNodeId]);
+
+  const displayEdges = useMemo(() => {
+    if (isCollapsed) {
+      return clusterEdges;
+    }
+    return flowEdges.map((edge) => {
+      const highlighted = focus.edgeIds.has(edge.id);
+      return {
+        ...edge,
+        animated: highlighted,
+        style: {
+          ...(edge.style ?? {}),
+          stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
+          strokeWidth: highlighted ? 1.35 : 0.65,
+          strokeOpacity: !focus.active ? 0.16 : highlighted ? 0.82 : 0.045,
+        },
+      };
+    });
+  }, [isCollapsed, clusterEdges, flowEdges, focus]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
