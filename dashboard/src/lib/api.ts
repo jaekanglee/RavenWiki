@@ -148,7 +148,11 @@ export async function createPage(
   return r.json();
 }
 
-export async function updatePage(vault: string, slug: string, payload: { content: string }) {
+export async function updatePage(
+  vault: string,
+  slug: string,
+  payload: { content: string; title?: string; type?: string; tags?: string[] }
+) {
   const r = await fetch(`/api/vaults/${vault}/pages/${slug}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

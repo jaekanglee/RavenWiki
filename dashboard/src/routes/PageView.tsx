@@ -211,6 +211,7 @@ export function PageView() {
           <EditButton
             vault={vault}
             slug={page.slug}
+            title={page.title}
             content={page.content}
             onSaved={ctx?.refresh}
           />

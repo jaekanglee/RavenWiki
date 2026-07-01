@@ -32,7 +32,7 @@ describe("All modals use React Portal (v0.6.24)", () => {
 
   it("EditButton modal renders in document.body (when open)", () => {
     wrap(
-      <EditButton vault="test" slug="content/x" content="" />
+      <EditButton vault="test" slug="content/x" title="Test Title" content="" />
     );
     // EditButton의 트리거를 찾을 수 있으면 클릭해서 모달 확인
     const editBtn = screen.queryByRole("button", { name: /편집/ });

@@ -2,19 +2,23 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { updatePage } from "../lib/api";
 import { Button } from "./ui/Button";
+import { TextField } from "./ui/TextField";
 
 export function EditButton({
   vault,
   slug,
+  title,
   content,
   onSaved,
 }: {
   vault: string;
   slug: string;
+  title: string;
   content: string;
   onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [titleVal, setTitleVal] = useState(title);
   const [body, setBody] = useState(content);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -23,7 +27,7 @@ export function EditButton({
     setBusy(true);
     setMsg(null);
     try {
-      await updatePage(vault, slug, { content: body });
+      await updatePage(vault, slug, { content: body, title: titleVal });
       setMsg("✅ 저장 완료");
       setTimeout(() => {
         setOpen(false);
@@ -39,6 +43,7 @@ export function EditButton({
     <>
       <button
         onClick={() => {
+          setTitleVal(title);
           setBody(content);
           setOpen(true);
         }}
@@ -108,24 +113,39 @@ export function EditButton({
               </button>
             </div>
 
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              style={{
-                flex: 1,
-                width: "100%",
-                border: "1px solid var(--color-hairline-strong)",
-                borderRadius: "var(--radius-sm)",
-                padding: 16,
-                fontSize: 13,
-                fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                outline: "none",
-                resize: "none",
-                background: "var(--color-canvas)",
-                color: "var(--color-ink)",
-                lineHeight: 1.5,
-              }}
+            <TextField
+              label="제목"
+              value={titleVal}
+              onChange={(e) => setTitleVal(e.target.value)}
+              placeholder="문서 제목을 입력하세요"
+              required
+              disabled={busy}
             />
+
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, marginBottom: 16 }}>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "var(--color-ink)" }}>
+                본문
+              </span>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                disabled={busy}
+                style={{
+                  flex: 1,
+                  width: "100%",
+                  border: "1px solid var(--color-hairline-strong)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: 16,
+                  fontSize: 13,
+                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                  outline: "none",
+                  resize: "none",
+                  background: "var(--color-canvas)",
+                  color: "var(--color-ink)",
+                  lineHeight: 1.5,
+                }}
+              />
+            </div>
 
             {msg && (
               <div
