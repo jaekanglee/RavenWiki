@@ -258,6 +258,33 @@ export function GraphPage() {
     [graphInsights.typeBreakdown]
   );
 
+  // 클러스터 필터 옵션 구성 (각 커뮤니티 소속 문서의 수와 대표 문서(최대 weight) 타이틀 반영)
+  const communityOptions = useMemo(() => {
+    const commHubs: Record<number, { title: string; maxWeight: number; count: number }> = {};
+    for (const n of graph.nodes) {
+      const c = n.community;
+      if (typeof c === "number" && c >= 0) {
+        const w = n.weight ?? 0;
+        if (!commHubs[c]) {
+          commHubs[c] = { title: n.title ?? n.slug, maxWeight: w, count: 0 };
+        }
+        commHubs[c].count += 1;
+        if (w > commHubs[c].maxWeight) {
+          commHubs[c].title = n.title ?? n.slug;
+          commHubs[c].maxWeight = w;
+        }
+      }
+    }
+    
+    return [
+      { value: "all", label: "전체 클러스터" },
+      ...Object.entries(commHubs).map(([commIdStr, data]) => ({
+        value: commIdStr,
+        label: `${data.title} 은하군 (#${commIdStr}, ${data.count}개)`,
+      })),
+    ];
+  }, [graph.nodes]);
+
   const hasAnyNodes = graph.nodes.length > 0;
   const hasVisibleNodes = visibleNodes.length > 0;
   const hasActiveFilter =
@@ -283,6 +310,16 @@ export function GraphPage() {
         onChange={(e) => setSelectedType(e.target.value)}
         options={typeOptions}
         helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
+      />
+      <SelectField
+        label="클러스터 필터"
+        value={selectedCommunity === null ? "all" : String(selectedCommunity)}
+        onChange={(e) => {
+          const val = e.target.value;
+          setSelectedCommunity(val === "all" ? null : Number(val));
+        }}
+        options={communityOptions}
+        helper="관계(Modularity)로 묶인 은하군 단위로 필터링합니다."
       />
       <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
