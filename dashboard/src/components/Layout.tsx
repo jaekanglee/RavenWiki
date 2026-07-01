@@ -187,7 +187,7 @@ export function Layout() {
               <SearchBar
                 vault={vault}
                 onSelect={(s) => {
-                  window.location.assign(`/page/${s}`);
+                  window.location.assign(`/page/${vault}/${s}`);
                 }}
               />
             </div>

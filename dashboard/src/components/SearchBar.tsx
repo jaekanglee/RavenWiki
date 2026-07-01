@@ -82,7 +82,7 @@ export function SearchBar({
 
   const selectResult = (slug: string) => {
     if (onSelect) onSelect(slug);
-    else navigate(`/page/${slug}`);
+    else navigate(`/page/${vault}/${slug}`);
     setQ("");
     setActiveIndex(null);
     setOpen(false);

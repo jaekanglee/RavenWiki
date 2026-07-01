@@ -340,7 +340,7 @@ function LintCard({
                 {iss.id}
               </span>
               <Link
-                to={`/page/${iss.slug}`}
+                to={`/page/${vault}/${iss.slug}`}
                 className="link-ink"
                 style={{
                   fontFamily: "ui-monospace, SFMono-Regular, monospace",
