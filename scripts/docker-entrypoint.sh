@@ -27,11 +27,16 @@ case "$1" in
         exec python -m raven.api --host "$HOST" --port "$PORT_API"
         ;;
     mcp-http)
-        # v0.7.21+: --forwarded-allow-ips=* 로 프록시/Tailscale IP 신뢰
+        # v0.7.21+: --forwarded-allow-ips='*' 로 프록시/Tailscale IP 신뢰
         # - 421 Misdirected Request 회피 (uvicorn host validation)
         # - 보안: 인증 안 함, read-only 도구만 노출하면 안전
-        exec python -m raven.mcp.cli --transport http --host "$HOST" --port "$PORT_MCP_HTTP" \
-            --forwarded-allow-ips='*' --proxy-headers
+        #
+        # v0.7.36+: uvicorn 옵션(`forwarded_allow_ips`, `proxy_headers`,
+        #   `TrustedHostMiddleware`)은 cli.py가 내부에서 박아 호출함 (v0.7.23+).
+        # → entrypoint에서 Typer가 모르는 `--forwarded-allow-ips` /
+        #   `--proxy-headers` 를 던지지 마세요. wiki-mcp가 인식 못 해
+        #   `unrecognized arguments`로 exit 2 → 컨테이너 Restarting 루프.
+        exec python -m raven.mcp.cli --transport http --host "$HOST" --port "$PORT_MCP_HTTP"
         ;;
     mcp-stdio)
         exec python -m raven.mcp.cli --transport stdio

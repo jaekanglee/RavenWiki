@@ -50,3 +50,48 @@ def test_no_bare_raven_mcp_execution() -> None:
                 raise AssertionError(
                     f"{path.name}: bad pattern '{pat}' (use raven.mcp.cli instead)"
                 )
+
+
+def test_mcp_http_entrypoint_only_known_flags() -> None:
+    """v0.7.36 회귀 가드: docker-entrypoint.sh mcp-http 분기의
+    실제 exec 라인(raven.mcp.cli 호출)이 wiki-mcp가 인식 못하는 옵션을
+    던지지 않아야 함. Typer가 모르는 옵션 → exit 2 → container Restarting.
+
+    uvicorn 옵션(`forwarded_allow_ips=`, `proxy_headers=`,
+    `TrustedHostMiddleware`)은 raven/mcp/cli.py가 내부에서 박아 호출함 (v0.7.23+).
+    """
+    content = ENTRYPOINT.read_text(encoding="utf-8")
+
+    # mcp-http 분기 안에서 실제 raven.mcp.cli를 호출하는 exec 라인 추출
+    exec_lines = [
+        line.strip()
+        for line in content.splitlines()
+        if "raven.mcp.cli" in line and line.strip().startswith("exec")
+    ]
+    assert exec_lines, (
+        "docker-entrypoint.sh mcp-http branch must exec `python -m raven.mcp.cli`"
+    )
+
+    forbidden = (
+        "--forwarded-allow-ips",
+        "--proxy-headers",
+        "--forwarded_allow_ips",   # Typer는 underscores 안 받음
+        "--proxy_headers",
+    )
+    for exec_line in exec_lines:
+        for flag in forbidden:
+            assert flag not in exec_line, (
+                f"docker-entrypoint.sh mcp-http exec line must NOT pass {flag!r} "
+                f"to wiki-mcp — Typer doesn't recognize it (cli.py already "
+                f"sets these uvicorn options internally).\n"
+                f"  offending line: {exec_line}"
+            )
+
+    # 그리고 cli.py 자체에 인식 가능한 uvicorn 옵션이 박혀 있는지 sanity check
+    cli_content = MCP_CLI.read_text(encoding="utf-8")
+    assert "forwarded_allow_ips" in cli_content, (
+        "raven/mcp/cli.py must set forwarded_allow_ips for Tailscale host trust"
+    )
+    assert "proxy_headers=True" in cli_content, (
+        "raven/mcp/cli.py must set proxy_headers=True"
+    )
