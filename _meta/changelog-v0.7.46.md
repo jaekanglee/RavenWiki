@@ -16,6 +16,7 @@
   * **중력(Gravity)**: `0.022` → `0.035` (약 59% 증가)
   * **고립 노드(degree=0) `mass` 제한**: mass 최솟값 `1.0` ➡️ `0.3` (척력 배율 축소로 외곽 비산 억제 및 중력 응집 유도)
   * **Collision Guard (겹침 방지 탄성)**: 노드 간 거리 $d < 45px$ 구간에서 겹침 방지 탄성력(Collision Force)을 작동시켜 노드들이 뭉개지지 않고 동글동글하게 균일한 간격을 유지하며 옵시디언 그래프 감성을 정밀하게 구현합니다.
+  * **은하 중심 중력 (Community Centroid Gravity) 도입**: 동일 커뮤니티(구조적 군집) 소속 노드들이 색상뿐만 아니라 공간적으로도 끈끈하게 응집하여 '성단/은하'를 형성하도록, 매 시뮬레이션 iteration마다 실시간 계산된 커뮤니티 Centroid(무게중심)로 노드를 이끄는 커뮤니티 중력($0.065$)을 물리 계산 루프에 결합했습니다.
 * **`_spring_layout` (Fruchterman-Reingold - spring 레이아웃)**
   * **목표 간격(LAYOUT_IDEAL_DISTANCE)**: `200.0` → `130.0` (px)
   * **척력 배율(LAYOUT_REPULSION_GAIN)**: `10.0` → `6.5`
@@ -42,6 +43,12 @@
 ### 1-4. macOS 임시 경로 매칭 테스트 픽스 ([test_vault_repair.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/tests/test_vault_repair.py))
 * macOS 환경에서 `tempfile.mkdtemp` 반환 경로(`/var/folders/...`)가 런타임에 `/private/var/folders/...`로 해석되어 `test_vault_repair.py` 내 vault 복구(repair) 단언문에서 `AssertionError`가 발생하던 문제를 수정했습니다.
 * fixture 단계에서 `Path.resolve()`를 붙여 심볼릭 링크가 풀린 절대 경로로 고정하여 macOS 환경에서도 테스트가 안정적으로 수행되도록 개선했습니다.
+
+### 1-5. 줌 레벨 기반 점진적 세부 가시화 (Progressive Disclosure) 및 성운 가스 효과 구현 ([GraphCanvas.tsx](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/dashboard/src/components/GraphCanvas.tsx))
+* **Community Nebula Glow (성운 구름 오버레이)**: 각 커뮤니티의 Centroid와 반경을 기준으로 몽환적인 `radial-gradient` 성운 구름 노드(`NebulaNode`)를 캔버스 하단(zIndex=-10)에 동적으로 렌더링했습니다.
+* **줌 레벨별 페이드 아웃/인 연동**:
+  * **줌아웃(우주/은하 뷰)**: 노드 라벨 텍스트가 페이드아웃되어 텍스트 겹침 노이즈를 100% 제거하고, 은은한 성운 가스 구름이 드러나 거시적인 "은하단 군집" 구조를 직관적으로 파악할 수 있게 돕습니다.
+  * **줌인(성단/별 상세 뷰)**: 성운 구름이 투명하게 걷히고 개별 노드의 상세 텍스트 라벨이 서서히 페이드인되어, 별자리 하나하나의 디테일에 부드럽게 몰입하도록 구성했습니다.
 
 ---
 
