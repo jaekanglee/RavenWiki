@@ -5,7 +5,7 @@ description = "Build, lint, and maintain the ~/wiki SQLite query index"
 requires-python = ">=3.9"
 dependencies = [
     "python-frontmatter>=1.1.0",
-    "mcp[cli]>=1.x",
+    "mcp[cli]>=1.0",
 ]
 
 [project.optional-dependencies]

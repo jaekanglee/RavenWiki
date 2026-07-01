@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 created: 2026-06-25
-updated: 2026-06-30
+updated: 2026-07-01
 type: rule
 tags: [system, meta, index]
 sources: []
@@ -12,7 +12,7 @@ confidence: high
 
 > 코드베이스 자기 자신의 카탈로그. Raven은 사람 1차 local-first
 > Zettelkasten-inspired Markdown PKM이며, vault는 기본적으로 `~/Raven/<name>/`에 둔다.
-> 마지막 업데이트: 2026-06-30 (v0.7.x North Star + Lite bootstrap 표면 정렬)
+> 마지막 업데이트: 2026-07-01 (v0.7.x North Star + Lite bootstrap 표면 정렬)
 
 ---
 
@@ -52,9 +52,11 @@ confidence: high
 ### 운영/배포
 - [[deployment]] — VPS + Tailscale 배포 절차
 - [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
+- [[setup-guide]] — 클린 설치 & 언인스톨 가이드
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.44]] — 다른 PC로의 세팅 이식성 개선 및 설정 버그 수정
 - [[changelog-v0.7.36]] — 사용자 표면 SOT 동기화(AGENTS.md→README.md) + Docker 이미지 SHA 핀 + 운영 절차 명시
 - [[changelog-v0.7.35]] — 보관소 에이전트 가이드 명칭 변경 및 마이그레이션 실드 구축
 - [[changelog-v0.7.34]] — 린트 이슈 인라인 자동 수정(Quick Fix) 기능 구현

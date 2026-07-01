@@ -32,9 +32,9 @@ echo "📦 Repo:         $REPO"
 echo ""
 
 if [[ "${OSTYPE}" == "darwin"* ]]; then
-    source "$SCRIPT_DIR/install/macos.sh"
+    source "$SCRIPT_DIR/../install/macos.sh"
 elif [[ "${OSTYPE}" == "linux-gnu"* ]] || [[ "${OSTYPE}" == "linux"* ]]; then
-    source "$SCRIPT_DIR/install/linux.sh"
+    source "$SCRIPT_DIR/../install/linux.sh"
 else
     echo "❌ Unsupported OS: $OSTYPE"
     echo "   Supported: macOS (darwin*), Linux (linux*)"
