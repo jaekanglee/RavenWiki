@@ -810,6 +810,52 @@ def _constellation_layout(
     return _normalize_layout(ids, pos_x, pos_y)
 
 
+def _hierarchical_layout(
+    ids: list[str],
+    edges: list[tuple[str, str]],
+) -> dict[str, tuple[float, float]]:
+    """폴더 디렉토리 깊이와 구조에 기반한 계층형 트리 배치 알고리즘 (Hierarchical Tree Layout).
+
+    - Y 좌표: 파일 경로의 깊이 (depth)
+    - X 좌표: 동일 깊이 레이어 내의 노드 개수 대비 균등 분할 배치.
+    결정론적이고 안정적인 트리 구조를 반환합니다.
+    """
+    if not ids:
+        return {}
+
+    from collections import defaultdict
+    layers = defaultdict(list)
+    for node_id in ids:
+        parts = [p for p in node_id.split("/") if p]
+        d = len(parts)
+        layers[d].append(node_id)
+
+    # 사전식 순서로 정렬하여 배치 일관성 유지
+    for d in list(layers.keys()):
+        layers[d].sort()
+
+    coords = {}
+    max_d = max(layers.keys()) if layers else 1
+    min_d = min(layers.keys()) if layers else 1
+    d_range = max(1, max_d - min_d)
+
+    for d, node_list in layers.items():
+        count = len(node_list)
+        if d_range > 0:
+            y = -350.0 + ((d - min_d) / d_range) * 700.0
+        else:
+            y = 0.0
+
+        if count == 1:
+            coords[node_list[0]] = (0.0, y)
+        else:
+            for idx, node_id in enumerate(node_list):
+                x = -420.0 + (idx / (count - 1)) * 840.0
+                coords[node_id] = (x, y)
+
+    return coords
+
+
 def _forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
@@ -1210,6 +1256,8 @@ def vault_graph(
                 if layout == "spring"
                 else _constellation_layout(ids, edge_pairs, weights=weights)
                 if layout == "constellation"
+                else _hierarchical_layout(ids, edge_pairs)
+                if layout == "hierarchical"
                 else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
             )
             for node in nodes:
@@ -1308,6 +1356,8 @@ def vault_graph(
         if layout == "spring"
         else _constellation_layout(ids, edge_pairs, weights=weights)
         if layout == "constellation"
+        else _hierarchical_layout(ids, edge_pairs)
+        if layout == "hierarchical"
         else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
     )
     for node in nodes:
