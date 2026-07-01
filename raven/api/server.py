@@ -1713,15 +1713,15 @@ _DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "tmp" / "dashb
 @app.post("/api/debug-log")
 def post_debug_log(entry: DebugLogEntry):
     """Dashboard throw / error를 tmp/dashboard.log에 append. dev only."""
-    _DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{ts}] {entry.level.upper():5s} {entry.source:20s} vault={entry.vault or '-':12s} url={entry.url or '-'}\n"
-    line += f"  msg: {entry.message}\n"
-    if entry.stack:
-        for sl in entry.stack.splitlines()[:10]:
-            line += f"  at:  {sl}\n"
-    line += "\n"
     try:
+        _DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{ts}] {entry.level.upper():5s} {entry.source:20s} vault={entry.vault or '-':12s} url={entry.url or '-'}\n"
+        line += f"  msg: {entry.message}\n"
+        if entry.stack:
+            for sl in entry.stack.splitlines()[:10]:
+                line += f"  at:  {sl}\n"
+        line += "\n"
         with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as f:
             f.write(line)
     except OSError as e:
