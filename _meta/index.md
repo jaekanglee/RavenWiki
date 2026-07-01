@@ -57,6 +57,7 @@ confidence: high
 
 ### 최신 changelog
 - [[changelog-v0.7.44]] — 다른 PC로의 세팅 이식성 개선 및 설정 버그 수정
+- [[changelog-v0.7.38]] — multi-author vault lint 확장 (wikilink 형식 일관성 + log.md 추가 전용성 회귀 검출)
 - [[changelog-v0.7.37]] — vault 횡단 연결(read-only federation) + 도메인 격리(agents opt-in policy)
 - [[changelog-v0.7.36]] — 사용자 표면 SOT 동기화(AGENTS.md→README.md) + Docker 이미지 SHA 핀 + 운영 절차 명시
 - [[changelog-v0.7.35]] — 보관소 에이전트 가이드 명칭 변경 및 마이그레이션 실드 구축
