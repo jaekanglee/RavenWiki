@@ -1154,6 +1154,30 @@ def vault_graph(
                 }
                 for p in pages
             ]
+            # 각 노드의 markdown frontmatter에서 importance 수치를 파싱하여 하이브리드 가중치로 보정
+            for node in nodes:
+                slug = node["slug"]
+                node_fp = v.root / f"{slug}.md"
+                importance = 1
+                if node_fp.exists():
+                    try:
+                        text = node_fp.read_text(errors="replace")
+                        if text.startswith("---"):
+                            fm_part = text.split("---", 2)[1]
+                            for line in fm_part.splitlines():
+                                if ":" in line:
+                                    k, val = line.split(":", 1)
+                                    if k.strip() == "importance":
+                                        try:
+                                            importance = int(val.strip())
+                                        except Exception:
+                                            pass
+                                        break
+                    except Exception:
+                        pass
+                node["importance"] = importance
+                # 하이브리드 가중치 = in-degree 링크 수 + (importance - 1) * 3.5
+                node["weight"] = int(in_degree.get(slug, 0) + (importance - 1) * 3.5)
             # intent='auto' or 'broken' 만 edge로 (missing은 의도적 placeholder)
             edges_raw = db.execute(
                 "SELECT source_slug, target_slug FROM links WHERE intent IN ('auto', 'broken')"
@@ -1245,9 +1269,29 @@ def vault_graph(
             edges.append({"source": src, "target": tgt})
             in_degree[tgt] = in_degree.get(tgt, 0) + 1
 
-    # nodes에 weight 부착
+    # nodes에 weight 부착 및 importance 파싱
     for node in nodes:
-        node["weight"] = in_degree.get(node["id"], 0)
+        slug = node["slug"]
+        node_fp = v.root / f"{slug}.md"
+        importance = 1
+        if node_fp.exists():
+            try:
+                text = node_fp.read_text(errors="replace")
+                if text.startswith("---"):
+                    fm_part = text.split("---", 2)[1]
+                    for line in fm_part.splitlines():
+                        if ":" in line:
+                            k, val = line.split(":", 1)
+                            if k.strip() == "importance":
+                                try:
+                                    importance = int(val.strip())
+                                except Exception:
+                                    pass
+                                break
+            except Exception:
+                pass
+        node["importance"] = importance
+        node["weight"] = int(in_degree.get(node["id"], 0) + (importance - 1) * 3.5)
 
     # Patch A1 (v0.6.10+): force-directed 좌표 부착 (fallback 분기).
     ids = [n["id"] for n in nodes]
