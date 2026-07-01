@@ -112,3 +112,16 @@
 
 * v0.7.38+: (후보) Dashboard federated wikilink wire-in (의미 ① 의 user-visible 마무리).
 * 또는 사용자가 다음 사이클 다른 우선순위를 고를 수 있습니다.
+
+---
+
+## 7. 보강 핀 — `docker-compose.yml` 빌드 충돌 회피 (v0.7.37 follow-up)
+
+> 위 §1 변경 적용 후 사용자가 `docker compose build --build-arg GIT_SHA=...` 로 첫 핀 빌드를 시도했더니 **3개 서비스가 같은 image 태그(`raven:${GIT_SHA:-latest}`)를 동시에 export**하려다 `failed to solve: image "raven:<sha>": already exists` 충돌. yaml anchor `&raven_image` 가 `build` + `image:` 를 묶어 동시에 같은 산출물로 가는 게 원인.
+
+**변경 (compose 1 파일 + README 절차 1 단락)**: 핀 정책을 그대로 두고(`image: raven:${GIT_SHA:-latest}`), **사용자 명령 단계**에서 sequential build 를 강제하는 절차를 README "Docker 운영" 절에 추가. 핵심:
+
+* `docker compose build --build-arg "GIT_SHA=$SHA" api mcp-http dashboard` (서비스 명시 = sequential)
+* `make docker-build` 또는 `make docker-build-api` 등 개별 타깃도 동작 (`Makefile` 에 이미 있는 v0.7.17 헬퍼)
+
+운영 절차 외 코드 변경 0건. 박제 SHA 식별(`docker exec raven-api cat /app/.git_sha`)도 그대로 유효 — 핀이 유지되니 컨테이너 안에 어떤 커밋이 박혔는지 즉시 식별 가능.
