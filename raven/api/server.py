@@ -2347,6 +2347,217 @@ def release_lock(name: str, slug: str = Query(..., description="specific slug to
     return {"ok": True, "released": slug, "note": "lock not found"}
 
 
+# ────────────────────────── raw/ folder endpoints (v0.7.50+, ADR-2026-07-02) ──────────────────────────
+#
+# 사람 1차 운영 영역. 에이전트는 MCP wiki_read로만 read. wiki_ingest는
+# 사람 명시 호출 시에만. 5번째 진입점이 아닌 기존 HTTP API의 확장.
+# 패턴: list_pages / create_folder 와 동일 (slug_module.validate + HTTPException 4xx).
+
+
+class RawItem(BaseModel):
+    path: str = Field(..., description="vault-relative path under raw/, e.g. 'raw/articles/foo.md'")
+
+
+class RawContent(BaseModel):
+    content: str = Field(..., description="raw/ 파일 전체 본문 (utf-8)")
+
+
+def _raw_root_or_400(v: Vault) -> Path:
+    """Return <vault>/raw. 없으면 404."""
+    raw_root = v.root / "raw"
+    if not raw_root.exists():
+        raise HTTPException(status_code=404, detail=f"raw/ folder not found in vault {v.meta.name!r}")
+    return raw_root
+
+
+def _safe_raw_path_or_400(rel: str, raw_root: Path) -> Path:
+    """`rel` (raw/ 하위 경로, 예: 'articles/foo.md')가 raw_root 내부인지 검증 후 절대 경로 반환.
+
+    FastAPI 라우트 `/raw/{path:path}`는 path 파라미터에 raw_root relative 경로만 받음.
+    → client는 'raw/articles/foo.md' 가 아니라 'articles/foo.md' 만 보냄.
+    또한 FastAPI는 `..`을 자동 normalize하므로 'articles/../escape.md' → 'escape.md'로
+    매핑될 수 있음. defense-in-depth로 명시적 거부 + raw_root 내부 확인 둘 다 적용.
+
+    가드:
+      1) 명시적 `..` segment 거부 (FastAPI normalize 우회 방지)
+      2) slug_module.validate (절대/.. / NUL 차단)
+      3) defense-in-depth: resolved path가 raw_root 내부인지 확인
+    """
+    s = rel.strip().replace("\\", "/").lstrip("/")
+    if not s:
+        raise HTTPException(status_code=400, detail="raw path is empty")
+    # 1) 명시적 .. segment 차단 (FastAPI path normalization이 ..을 흡수하기 전에 거부)
+    parts = s.split("/")
+    if ".." in parts or any(p == "" for p in parts if p == ""):
+        # 빈 segment만 차단 (예: 'foo//bar' → 'foo/bar' 정규화는 slug_module이 처리)
+        # '..' 만 명시 거부
+        if ".." in parts:
+            raise HTTPException(status_code=400, detail=f"raw path contains '..': {rel!r}")
+    # 2) slug_module로 안전 검증 (페이지 slug와 동일 가드). raw_root.parent는 vault root.
+    try:
+        validated = slug_module.validate(f"raw/{s}", vault_root=raw_root.parent)
+    except slug_module.SlugError as e:
+        raise HTTPException(status_code=400, detail=f"invalid raw path: {e}")
+    # 3) defense-in-depth: resolved가 raw_root 내부
+    try:
+        validated_resolved = validated.resolve()
+        raw_resolved = raw_root.resolve()
+        validated_resolved.relative_to(raw_resolved)
+    except (ValueError, OSError):
+        raise HTTPException(status_code=400, detail=f"raw path escapes raw/ root: {rel!r}")
+    return validated
+
+
+@app.get("/api/vaults/{name}/raw")
+def list_raw(name: str):
+    """raw/ 트리 + 메타 (Dashboard `/raw` panel + Sidebar raw/ 노드용).
+
+    - 빈 폴더도 포함 (P32: OS directory = first-class).
+    - 응답: {
+        ok, vault, root: 'raw',
+        items: [{path, name, type: 'file'|'dir', size, modified, kind: 'raw'}]
+      }
+    """
+    v = _vault_or_404(name)
+    raw_root = _raw_root_or_400(v)
+    items: list[dict] = []
+    for fp in raw_root.rglob("*"):
+        rel = fp.relative_to(v.root)
+        rel_str = str(rel).replace("\\", "/")
+        if fp.is_dir():
+            items.append({
+                "path": rel_str,
+                "name": fp.name,
+                "type": "dir",
+                "kind": "raw",
+            })
+        else:
+            try:
+                stat = fp.stat()
+                size = stat.st_size
+                modified = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+            except OSError:
+                size = None
+                modified = None
+            items.append({
+                "path": rel_str,
+                "name": fp.name,
+                "type": "file",
+                "kind": "raw",
+                "size": size,
+                "modified": modified,
+            })
+    # 정렬: dir 먼저, 그 다음 파일, 알파벳
+    items.sort(key=lambda it: (it["type"] != "dir", it["path"]))
+    return {"ok": True, "vault": name, "root": "raw", "items": items}
+
+
+@app.get("/api/vaults/{name}/raw/{path:path}")
+def read_raw(name: str, path: str):
+    """raw/<rel> 파일 내용 조회. 사람은 read-only viewer, 에이전트는 wiki_read."""
+    v = _vault_or_404(name)
+    raw_root = _raw_root_or_400(v)
+    fp = _safe_raw_path_or_400(path, raw_root)
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"raw file not found: {path!r}")
+    if fp.is_dir():
+        raise HTTPException(status_code=400, detail=f"raw path is a directory, not a file: {path!r}")
+    try:
+        content = fp.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"failed to read raw file: {e}")
+    try:
+        stat = fp.stat()
+        size = stat.st_size
+        modified = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        size = None
+        modified = None
+    return {
+        "ok": True,
+        "vault": name,
+        "path": str(fp.relative_to(v.root)).replace("\\", "/"),
+        "content": content,
+        "size": size,
+        "modified": modified,
+    }
+
+
+@app.put("/api/vaults/{name}/raw/{path:path}")
+def write_raw(name: str, path: str, payload: RawContent):
+    """raw/<rel> 파일 작성/갱신. 사람 운영자 only. 에이전트 호출 ❌ (MCP는 wiki_ingest만).
+
+    - payload.content = 전체 본문 (overwrite).
+    - parent dir 없으면 자동 mkdir (P32: OS directory = first-class).
+    - 기존 파일 있으면 overwrite (raw는 사람 1차, 의도적 갱신 OK).
+    """
+    v = _vault_or_404(name)
+    raw_root = _raw_root_or_400(v)
+    fp = _safe_raw_path_or_400(path, raw_root)
+    if fp.is_dir():
+        raise HTTPException(status_code=400, detail=f"raw path is a directory: {path!r}")
+    # parent mkdir
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    existed = fp.exists()
+    try:
+        fp.write_text(payload.content, encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"failed to write raw file: {e}")
+    try:
+        stat = fp.stat()
+        size = stat.st_size
+    except OSError:
+        size = None
+    return {
+        "ok": True,
+        "vault": name,
+        "path": str(fp.relative_to(v.root)).replace("\\", "/"),
+        "size": size,
+        "existed": existed,
+    }
+
+
+@app.delete("/api/vaults/{name}/raw/{path:path}")
+def delete_raw(name: str, path: str):
+    """raw/<rel> 파일/빈 디렉토리 삭제. hard delete (raw는 immutable-to-LLM, 사람 의도적 삭제 OK).
+
+    - 파일: hard delete (undo 없음, OS 파일관리자 복구 가능).
+    - 빈 디렉토리만 삭제. 파일 있는 디렉토리는 409.
+    """
+    v = _vault_or_404(name)
+    raw_root = _raw_root_or_400(v)
+    fp = _safe_raw_path_or_400(path, raw_root)
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"raw path not found: {path!r}")
+    if fp.is_dir():
+        # 비어있는지 확인
+        try:
+            next(fp.iterdir())
+            has_children = True
+        except StopIteration:
+            has_children = False
+        if has_children:
+            raise HTTPException(
+                status_code=409,
+                detail=f"raw/ dir not empty (recurse manually or delete children first): {path!r}",
+            )
+        try:
+            fp.rmdir()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"failed to rmdir: {e}")
+    else:
+        try:
+            fp.unlink()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"failed to unlink: {e}")
+    return {
+        "ok": True,
+        "vault": name,
+        "path": str(fp.relative_to(v.root)).replace("\\", "/"),
+        "deleted": True,
+    }
+
+
 # ────────────────────────── local helpers ──────────────────────────
 
 
