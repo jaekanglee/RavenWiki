@@ -310,8 +310,9 @@ body {
   --shadow-base: rgba(0, 0, 0, 0.08);
   --shadow-overlay-color: rgba(0, 0, 0, 0.16);
 }
-  /* v0.7.59+: Layer 2 (Semantic) 다크 override — html.dark 클래스 또는
-     [data-color-mode="dark"] 속성으로 활성. 기존 :root의 라이트 정의 덮어씀. */
+
+[data-color-mode="dark"] {
+  /* v0.7.59+: Layer 2 (Semantic) 다크 override — html.dark 클래스 또는 [data-color-mode="dark"] 속성으로 활성. 기존 :root의 라이트 정의 덮어씀. */
   --bg-canvas: var(--slate-900);
   --bg-surface: var(--slate-800);
   --bg-soft: var(--slate-700);
