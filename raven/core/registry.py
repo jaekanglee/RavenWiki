@@ -83,6 +83,7 @@ class VaultMeta:
     allow_tier1_leak: bool = False   # v0.6.39+: opt-in for Tier 1 doc customization
     features: tuple = ()             # v0.6.39+: feature flags (e.g., {"llm_wiki": True})
     agents: tuple = ()               # v0.7.37+: opt-in write allowlist (empty = allow all)
+    workspace_path: str = ""         # associated local project workspace path
 
     @classmethod
     def from_json(cls, name: str, data: dict, default_name: str = "") -> "VaultMeta":
@@ -113,6 +114,7 @@ class VaultMeta:
             allow_tier1_leak=data.get("allow_tier1_leak", False),
             features=features,
             agents=agents,
+            workspace_path=data.get("workspace_path", ""),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -132,6 +134,8 @@ class VaultMeta:
         # v0.7.37+: only serialize agents when non-empty (opt-in surface).
         if self.agents:
             out["agents"] = list(self.agents)
+        if self.workspace_path:
+            out["workspace_path"] = self.workspace_path
         return out
 
 
@@ -226,6 +230,29 @@ class VaultRegistry:
             return False
         vaults[name]["path"] = str(new_path)
         self._save()
+        return True
+
+    def update_workspace_path(self, name: str, workspace_path: str) -> bool:
+        """Update workspace_path for a registered vault in the registry and its .vault.json."""
+        vaults = self._data.get("vaults", {})
+        if name not in vaults:
+            return False
+        if workspace_path:
+            vaults[name]["workspace_path"] = str(Path(workspace_path).expanduser().resolve())
+        else:
+            vaults[name].pop("workspace_path", None)
+        self._save()
+
+        # Also update the vault's own .vault.json if accessible
+        try:
+            vault_meta = VaultMeta.from_json(name, vaults[name], self._data.get("default", ""))
+            vault_dir = vault_meta.path
+            vjson = vault_dir / ".vault.json"
+            if vjson.exists():
+                vjson.write_text(json.dumps(vault_meta.to_json(), indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
         return True
 
 

@@ -33,6 +33,7 @@ export interface VaultMeta {
   mode: string;
   owner: string;
   default: boolean;
+  workspace_path?: string;
 }
 
 export interface GraphNode {

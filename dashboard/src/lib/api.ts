@@ -456,3 +456,60 @@ export async function deleteRaw(
   }
   return r.json();
 }
+
+// ────────────────────────── workspace & git (v0.7.54) ──────────────────────────
+
+export interface GitChange {
+  file: string;
+  status: string;
+}
+
+export interface GitStatusResult {
+  ok: boolean;
+  has_workspace: boolean;
+  workspace_path?: string;
+  is_git: boolean;
+  branch?: string;
+  commit?: string;
+  changes?: GitChange[];
+  error?: string;
+}
+
+export interface GitDiffResult {
+  ok: boolean;
+  workspace_path: string;
+  file?: string;
+  diff: string;
+  error?: string;
+}
+
+export async function fetchGitStatus(vault: string): Promise<GitStatusResult | null> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/git/status`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+export async function fetchGitDiff(vault: string, file?: string): Promise<GitDiffResult | null> {
+  const params = new URLSearchParams();
+  if (file) params.set("file", file);
+  const qs = params.toString();
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/git/diff${qs ? "?" + qs : ""}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+export async function updateWorkspace(
+  vault: string,
+  payload: { workspace_path: string; unlink?: boolean }
+): Promise<{ ok: boolean; workspace_path: string }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/workspace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `workspace update failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}

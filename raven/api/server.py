@@ -130,6 +130,7 @@ def list_vaults():
             "mode": v.mode,
             "owner": v.owner,
             "default": v.default,
+            "workspace_path": v.workspace_path,
         })
     return {
         "ok": True,
@@ -257,6 +258,7 @@ def vault_info(name: str):
             "created": v.meta.created,
             "pages": len(pages),
             "db_present": v.db_path.exists(),
+            "workspace_path": v.meta.workspace_path,
         },
     }
 
@@ -267,6 +269,148 @@ def select_vault(name: str):
     if not registry().set_default(name):
         raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
     return {"ok": True, "active": name}
+
+
+class WorkspacePayload(BaseModel):
+    workspace_path: str = ""
+    unlink: bool = False
+
+
+@app.post("/api/vaults/{name}/workspace")
+def associate_workspace(name: str, payload: WorkspacePayload):
+    """Associate or unlink a workspace directory with a vault."""
+    meta = registry().get(name)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
+
+    w_path = ""
+    if not payload.unlink and payload.workspace_path:
+        p = Path(payload.workspace_path).expanduser().resolve()
+        if not p.exists() or not p.is_dir():
+            raise HTTPException(status_code=400, detail=f"Not a directory: {p}")
+        w_path = str(p)
+
+    if registry().update_workspace_path(name, w_path):
+        return {"ok": True, "workspace_path": w_path}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to update workspace path")
+
+
+def _run_git(cwd: str, args: list[str]) -> tuple[bool, str]:
+    import subprocess
+    import shutil
+    if not shutil.which("git"):
+        return False, "git binary not found on the server"
+    try:
+        res = subprocess.run(
+            ["git"] + args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            errors="replace"
+        )
+        if res.returncode != 0:
+            return False, res.stderr.strip()
+        return True, res.stdout
+    except Exception as e:
+        return False, str(e)
+
+
+@app.get("/api/vaults/{name}/git/status")
+def git_status(name: str):
+    v = _vault_or_404(name)
+    w_path = v.meta.workspace_path
+    if not w_path:
+        return {"ok": True, "has_workspace": False, "is_git": False}
+
+    p = Path(w_path).expanduser().resolve()
+    if not p.exists() or not p.is_dir():
+        return {"ok": True, "has_workspace": True, "workspace_path": w_path, "is_git": False, "error": f"Workspace directory does not exist: {w_path}"}
+
+    success, stdout = _run_git(str(p), ["rev-parse", "--is-inside-work-tree"])
+    if not success or stdout.strip() != "true":
+        return {"ok": True, "has_workspace": True, "workspace_path": str(p), "is_git": False}
+
+    success, branch = _run_git(str(p), ["branch", "--show-current"])
+    branch = branch.strip() if success else ""
+    if not branch:
+        success, branch_det = _run_git(str(p), ["rev-parse", "--abbrev-ref", "HEAD"])
+        branch = branch_det.strip() if success else "detached"
+
+    success, commit_sha = _run_git(str(p), ["rev-parse", "--short", "HEAD"])
+    commit_sha = commit_sha.strip() if success else "unknown"
+
+    success, status_out = _run_git(str(p), ["status", "--porcelain"])
+    if not success:
+        return {"ok": False, "error": f"Failed to get git status: {status_out}"}
+
+    changes = []
+    for line in status_out.splitlines():
+        if len(line) >= 4:
+            status = line[:2]
+            filepath = line[3:]
+            changes.append({"file": filepath, "status": status})
+
+    return {
+        "ok": True,
+        "has_workspace": True,
+        "workspace_path": str(p),
+        "is_git": True,
+        "branch": branch,
+        "commit": commit_sha,
+        "changes": changes,
+    }
+
+
+@app.get("/api/vaults/{name}/git/diff")
+def git_diff(name: str, file: Optional[str] = Query(None, description="relative file path to show diff for")):
+    v = _vault_or_404(name)
+    w_path = v.meta.workspace_path
+    if not w_path:
+        raise HTTPException(status_code=400, detail="No workspace associated with this vault")
+
+    p = Path(w_path).expanduser().resolve()
+    if not p.exists() or not p.is_dir():
+        raise HTTPException(status_code=404, detail=f"Workspace directory does not exist: {w_path}")
+
+    args = ["diff", "HEAD"]
+    if file:
+        f_path = Path(file)
+        if not f_path.is_absolute():
+            f_path = (p / f_path).resolve()
+        else:
+            f_path = f_path.resolve()
+
+        try:
+            f_path.relative_to(p)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Access denied: file must be inside the workspace directory")
+
+        # Handle untracked file diff against empty
+        success, status_out = _run_git(str(p), ["status", "--porcelain", str(f_path)])
+        if success and status_out.startswith("??"):
+            _, diff_content = _run_git(str(p), ["diff", "--no-index", "/dev/null", str(f_path)])
+            return {
+                "ok": True,
+                "workspace_path": str(p),
+                "file": file,
+                "diff": diff_content or f"+++ b/{file}\n" + f_path.read_text(errors="replace")
+            }
+
+        args.append("--")
+        args.append(str(f_path))
+
+    success, diff_content = _run_git(str(p), args)
+    if not success and not diff_content:
+        return {"ok": False, "error": f"Failed to get git diff: {diff_content}"}
+
+    return {
+        "ok": True,
+        "workspace_path": str(p),
+        "file": file,
+        "diff": diff_content,
+    }
 
 
 class VaultCreate(BaseModel):
@@ -1280,7 +1424,12 @@ def vault_graph(
                 "edges": edges,
                 "stats": {"nodes": len(nodes), "edges": len(edges)},
             }
-        except Exception:
+        except Exception as e:
+            # Silent failure 방지 및 디버깅을 위한 에러 로깅
+            import sys
+            import traceback
+            sys.stderr.write(f"⚠️  [vault_graph] wiki.db load failed for vault {name}: {e}\n")
+            traceback.print_exc(file=sys.stderr)
             pass  # fallback to rglob
 
     # 2) wiki.db 없거나 실패 시 — rglob fallback (구 vault)
@@ -1318,13 +1467,19 @@ def vault_graph(
                 tgt = tgt[:-3]
             if tgt == src:
                 continue
+            # rglob fallback 짧은 slug 보정 (예: "purpose" -> "content/concept/purpose")
+            resolved_tgt = tgt
+            if tgt:
+                candidates = [n["id"] for n in nodes if n["id"] == tgt or n["id"].endswith("/" + tgt)]
+                if candidates:
+                    resolved_tgt = min(candidates, key=len)  # 가장 짧은 경로 우선
             # 양방향 상호 링킹 및 중복 엣지 제거 -> 단일 무방향 엣지로 정돈
-            key = (min(src, tgt), max(src, tgt))
+            key = (min(src, resolved_tgt), max(src, resolved_tgt))
             if key in edge_set:
                 continue
             edge_set.add(key)
-            edges.append({"source": src, "target": tgt})
-            in_degree[tgt] = in_degree.get(tgt, 0) + 1
+            edges.append({"source": src, "target": resolved_tgt})
+            in_degree[resolved_tgt] = in_degree.get(resolved_tgt, 0) + 1
 
     # nodes에 weight 부착 및 importance 파싱
     for node in nodes:
