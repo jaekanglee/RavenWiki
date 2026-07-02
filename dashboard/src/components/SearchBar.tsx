@@ -134,7 +134,7 @@ export function SearchBar({
           borderRadius: "var(--radius-full)",
           boxShadow: focused
             ? "var(--shadow-card)"
-            : "0 1px 2px rgba(0,0,0,0.04)",
+            : "0 1px 2px var(--shadow-base)",
           padding: "0 6px 0 24px",
           transition: "border-color 0.12s ease, box-shadow 0.12s ease",
         }}

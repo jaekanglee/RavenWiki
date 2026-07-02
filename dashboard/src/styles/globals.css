@@ -295,6 +295,21 @@ body {
   --nav-active-bg: var(--bg-soft);
   --nav-active-fg: var(--accent);
 
+  /* v0.7.59+ 확장: alpha가 있는 의미별 토큰 — 다양한 위계에 재사용.
+     라이트/다크 양쪽 정의. hex 인라인 rgba ❌ → 토큰 사용 권장. */
+  --danger-bg-soft: rgba(220, 38, 38, 0.1);
+  --danger-bg: rgba(220, 38, 38, 0.15);
+  --danger-bg-strong: rgba(220, 38, 38, 0.22);
+  --danger-border: rgba(220, 38, 38, 0.3);
+  --accent-soft: rgba(28, 105, 212, 0.2);
+  --accent-softest: rgba(59, 130, 246, 0.05);
+  --success-bg-soft: rgba(34, 197, 94, 0.1);
+  --success-bg-strong: rgba(34, 197, 94, 0.22);
+  --hover-overlay: rgba(0, 0, 0, 0.04);
+  --focus-overlay: rgba(28, 105, 212, 0.2);
+  --shadow-base: rgba(0, 0, 0, 0.08);
+  --shadow-overlay-color: rgba(0, 0, 0, 0.16);
+}
   /* v0.7.59+: Layer 2 (Semantic) 다크 override — html.dark 클래스 또는
      [data-color-mode="dark"] 속성으로 활성. 기존 :root의 라이트 정의 덮어씀. */
   --bg-canvas: var(--slate-900);
@@ -342,11 +357,26 @@ body {
   --graph-edge-highlight: var(--fg-ink);
   --graph-tooltip-bg: var(--slate-900);
   --graph-tooltip-border: var(--slate-700);
-
+  /* Sidebar / Navigation */
   --nav-bg: var(--bg-canvas);
   --nav-fg: var(--fg-ink);
   --nav-active-bg: var(--bg-soft);
   --nav-active-fg: var(--accent);
+
+  /* v0.7.59+ 확장: alpha가 있는 의미별 토큰 — 다양한 위계에 재사용.
+     라이트/다크 양쪽 정의. hex 인라인 rgba ❌ → 토큰 사용 권장. */
+  --danger-bg-soft: rgba(220, 38, 38, 0.1);
+  --danger-bg: rgba(220, 38, 38, 0.15);
+  --danger-bg-strong: rgba(220, 38, 38, 0.22);
+  --danger-border: rgba(220, 38, 38, 0.3);
+  --accent-soft: rgba(28, 105, 212, 0.2);
+  --accent-softest: rgba(59, 130, 246, 0.05);
+  --success-bg-soft: rgba(34, 197, 94, 0.1);
+  --success-bg-strong: rgba(34, 197, 94, 0.22);
+  --hover-overlay: rgba(0, 0, 0, 0.04);
+  --focus-overlay: rgba(28, 105, 212, 0.2);
+  --shadow-base: rgba(0, 0, 0, 0.08);
+  --shadow-overlay-color: rgba(0, 0, 0, 0.16);
 }
 
 [data-color-mode="dark"] {

@@ -149,7 +149,7 @@ export function VaultPicker({
             background: "var(--color-canvas)",
             border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
             borderRadius: 8,
-            boxShadow: "var(--shadow-overlay, 0 4px 16px rgba(0,0,0,0.12))",
+            boxShadow: "var(--shadow-overlay)",
             zIndex: 100,
             fontSize: 14,
           }}

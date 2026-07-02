@@ -210,14 +210,14 @@ export function WorkspacePage() {
           </div>
 
           {setupError && (
-            <div 
-              style={{ 
-                padding: "12px 16px", 
-                backgroundColor: "rgba(220, 38, 38, 0.1)", 
-                color: "#dc2626", 
-                borderRadius: "var(--radius-sm)", 
-                fontSize: 13, 
-                marginBottom: 20 
+            <div
+              style={{
+                padding: "12px 16px",
+                backgroundColor: "var(--danger-bg-soft)",
+                color: "var(--danger-fg)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: 13,
+                marginBottom: 20
               }}
             >
               ⚠ {setupError}
@@ -338,10 +338,10 @@ export function WorkspacePage() {
           >
             🔄 새로고침
           </button>
-          <button 
+          <button
             onClick={handleUnlink}
             className="btn-secondary"
-            style={{ fontSize: 12, padding: "6px 12px", height: 32, border: "1px solid rgba(220, 38, 38, 0.3)", color: "var(--color-danger)" }}
+            style={{ fontSize: 12, padding: "6px 12px", height: 32, border: "1px solid var(--danger-border)", color: "var(--color-danger)" }}
           >
             연결 해제
           </button>
@@ -448,10 +448,10 @@ export function WorkspacePage() {
             marginLeft: -6,
             marginRight: 4,
             transition: "background-color 0.2s ease",
-            backgroundColor: isResizing ? "rgba(28, 105, 212, 0.2)" : "transparent",
+            backgroundColor: isResizing ? "var(--focus-overlay)" : "transparent",
           }}
           onMouseEnter={(e) => {
-            if (!isResizing) e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
+            if (!isResizing) e.currentTarget.style.backgroundColor = "var(--hover-overlay)";
           }}
           onMouseLeave={(e) => {
             if (!isResizing) e.currentTarget.style.backgroundColor = "transparent";
@@ -521,11 +521,11 @@ function DiffViewer({ diff }: { diff: string }) {
       {lines.map((line, idx) => {
         let style: React.CSSProperties = {};
         if (line.startsWith("+")) {
-          style = { backgroundColor: "rgba(34, 197, 94, 0.22)", color: "var(--color-success-text)", display: "block" };
+          style = { backgroundColor: "var(--success-bg-strong)", color: "var(--color-success-text)", display: "block" };
         } else if (line.startsWith("-")) {
-          style = { backgroundColor: "rgba(239, 68, 68, 0.22)", color: "var(--color-danger)", display: "block" };
+          style = { backgroundColor: "var(--danger-bg-strong)", color: "var(--color-danger)", display: "block" };
         } else if (line.startsWith("@@")) {
-          style = { color: "var(--color-primary, #3b82f6)", opacity: 0.8, display: "block", backgroundColor: "rgba(59, 130, 246, 0.05)" };
+          style = { color: "var(--color-primary, #3b82f6)", opacity: 0.8, display: "block", backgroundColor: "var(--accent-softest)" };
         } else if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ")) {
           style = { fontWeight: "bold", color: "var(--color-muted)", display: "block" };
         }

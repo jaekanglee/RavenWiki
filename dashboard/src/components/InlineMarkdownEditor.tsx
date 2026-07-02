@@ -477,7 +477,7 @@
                      transition: "background 100ms ease-out, border-color 100ms ease-out",
                    }}
                    onMouseEnter={(e) => {
-                     e.currentTarget.style.background = "var(--color-surface, rgba(0,0,0,0.04))";
+                     e.currentTarget.style.background = "var(--btn-ghost-bg-hover)";
                      e.currentTarget.style.borderColor = "var(--color-hairline)";
                    }}
                    onMouseLeave={(e) => {
