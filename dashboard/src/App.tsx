@@ -11,6 +11,7 @@ import { DashboardDigest } from "./routes/DashboardDigest";
 import { VaultManage } from "./routes/VaultManage";
 import { GardenPage } from "./routes/GardenPage";
 import { RawPanel } from "./routes/RawPanel";
+import { WorkspacePage } from "./routes/WorkspacePage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/log" element={<LogPage />} />
           <Route path="/lint" element={<LintPage />} />
           <Route path="/garden" element={<GardenPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
           <Route path="/digest" element={<DashboardDigest />} />
