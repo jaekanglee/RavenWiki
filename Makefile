@@ -132,9 +132,9 @@ status: ## Show status of local background processes
 .PHONY: docker-restart rebuild restart-all
 docker-restart: docker-down docker-up ## Restart Raven via Docker compose
 rebuild: docker-build docker-restart ## Rebuild Docker images and restart Docker containers
-# v0.7.55+: DEPRECATED. Docker stack은 더 이상 기본이 아님 (local host stack = default).
-#           Default restart는 `make restart` (./raven.sh restart) 사용.
-#           이 타겟은 호환성 위해 유지 — Docker가 production에서 쓰이는 경우에만.
-#           신규 사용자는 raven.sh 또는 그냥 `make restart` 권장.
-restart-all: ## [DEPRECATED] Force-rebuild Docker images. Use `make restart` (local) instead.
+# v0.7.60+: Docker 무관. local host stack (./raven.sh)을 완전히 내리고
+#           모든 캐시(Vite pre-bundle / python __pycache__ / pytest / 구 로그)를
+#           비운 뒤 재시작. 디자인 시스템 토큰, CSS, node_modules 의존성 변경
+#           후 UI가 stale하게 갱신 안 될 때 사용. 기본 재시작은 `make restart`.
+restart-all: ## Full local restart: wipe caches (Vite/__pycache__/pytest/logs) + restart
 	@bash scripts/restart-all.sh
