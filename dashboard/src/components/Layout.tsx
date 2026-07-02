@@ -14,6 +14,7 @@ const NAV_TABS = [
   { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
   { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
   { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
+  { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
   { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
 ];
 

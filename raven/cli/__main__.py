@@ -141,6 +141,7 @@ def vault_create(
     description: str = typer.Option(""),
     bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="apply profile bootstrap (use --no-bootstrap for existing folders)"),
     profile: str = typer.Option("llm-wiki", "--profile", help="profile: 'basic' (WELCOME.md only) | 'llm-wiki' (5-file Lite bootstrap)"),
+    workspace: str = typer.Option("", "--workspace", "-w", help="associated project workspace directory path"),
 ) -> None:
     """Create new vault on disk and register it.
 
@@ -161,6 +162,7 @@ def vault_create(
         description=description,
         bootstrap=bootstrap,
         profile=profile,
+        workspace_path=workspace,
     )
     if bootstrap:
         if profile == "basic":
@@ -244,6 +246,7 @@ def vault_register(
     path: str,
     mode: str = typer.Option("personal"),
     owner: str = typer.Option("user"),
+    workspace: str = typer.Option("", "--workspace", "-w", help="associated project workspace directory path"),
 ) -> None:
     """Register an existing folder as a vault (no file changes)."""
     p = Path(path).expanduser().resolve()
@@ -251,9 +254,44 @@ def vault_register(
         typer.echo(f"❌ not a directory: {p}", err=True)
         raise typer.Exit(1)
     from raven.core.registry import VaultMeta
-    meta = VaultMeta(name=name, path=p, mode=mode, owner=owner)
+    meta = VaultMeta(name=name, path=p, mode=mode, owner=owner, workspace_path=workspace)
     registry().add(meta)
     typer.echo(f"✅ registered: {name} → {p}")
+
+
+@vault_app.command("workspace")
+def vault_workspace(
+    name: str = typer.Argument(..., help="vault name"),
+    workspace_path: Optional[str] = typer.Argument(None, help="workspace directory path to associate (or empty to show current)"),
+    unlink: bool = typer.Option(False, "--unlink", help="unlink the associated workspace"),
+) -> None:
+    """Associate, show, or unlink a workspace directory with a vault."""
+    reg = registry()
+    meta = reg.get(name)
+    if not meta:
+        typer.echo(f"❌ vault {name!r} not found", err=True)
+        raise typer.Exit(1)
+
+    if unlink:
+        reg.update_workspace_path(name, "")
+        typer.echo(f"✅ unlinked workspace for vault {name!r}")
+        return
+
+    if workspace_path is None:
+        if meta.workspace_path:
+            typer.echo(f"💻 associated workspace for {name!r}: {meta.workspace_path}")
+        else:
+            typer.echo(f"ℹ️  no workspace associated with vault {name!r}")
+        return
+
+    # Check if workspace path exists
+    w_path = Path(workspace_path).expanduser().resolve()
+    if not w_path.exists() or not w_path.is_dir():
+        typer.echo(f"❌ not a directory: {w_path}", err=True)
+        raise typer.Exit(1)
+
+    reg.update_workspace_path(name, str(w_path))
+    typer.echo(f"✅ workspace associated: {name!r} → {w_path}")
 
 
 @vault_app.command("clone")
