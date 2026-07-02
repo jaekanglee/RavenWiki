@@ -16,6 +16,60 @@ export function WorkspacePage() {
   const [setupError, setSetupError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Resize State & Logic
+  const [leftWidth, setLeftWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResize = (clientX: number) => {
+    setIsResizing(true);
+    const startWidth = leftWidth;
+    const startX = clientX;
+
+    const doResize = (moveX: number) => {
+      const deltaX = moveX - startX;
+      const newWidth = Math.max(200, Math.min(800, startWidth + deltaX));
+      setLeftWidth(newWidth);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      doResize(e.clientX);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        doResize(e.touches[0].clientX);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      setIsResizing(false);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    startResize(e.clientX);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      startResize(e.touches[0].clientX);
+    }
+  };
+
   const loadStatus = async () => {
     setLoading(true);
     try {
@@ -295,16 +349,26 @@ export function WorkspacePage() {
       </div>
 
       {/* Main Workspace split view */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0, gap: 16 }}>
+      <div 
+        style={{ 
+          display: "flex", 
+          flex: 1, 
+          minHeight: 0, 
+          gap: 0,
+          position: "relative",
+          userSelect: isResizing ? "none" : "auto"
+        }}
+      >
         {/* Left Side: Changes List */}
         <div 
           style={{ 
-            width: 320, 
+            width: leftWidth, 
             display: "flex", 
             flexDirection: "column", 
             borderRight: "1px solid var(--color-hairline)",
             paddingRight: 16,
-            overflowY: "auto"
+            overflowY: "auto",
+            flexShrink: 0
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-muted)", marginBottom: 12, textTransform: "uppercase" }}>
@@ -369,8 +433,43 @@ export function WorkspacePage() {
           )}
         </div>
 
+        {/* Resizer Divider Bar */}
+        <div
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          style={{
+            width: 12,
+            cursor: "col-resize",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            position: "relative",
+            zIndex: 10,
+            marginLeft: -6,
+            marginRight: 4,
+            transition: "background-color 0.2s ease",
+            backgroundColor: isResizing ? "rgba(28, 105, 212, 0.2)" : "transparent",
+          }}
+          onMouseEnter={(e) => {
+            if (!isResizing) e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
+          }}
+          onMouseLeave={(e) => {
+            if (!isResizing) e.currentTarget.style.backgroundColor = "transparent";
+          }}
+        >
+          <div
+            style={{
+              width: 2,
+              height: "40px",
+              borderRadius: 1,
+              backgroundColor: isResizing ? "var(--color-primary)" : "var(--color-hairline-strong)",
+              transition: "background-color 0.2s ease"
+            }}
+          />
+        </div>
+
         {/* Right Side: Diff Viewer */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, paddingLeft: 12 }}>
           {selectedFile ? (
             <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
