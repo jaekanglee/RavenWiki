@@ -21,9 +21,13 @@
   * `vault create` 및 `vault register` 명령어가 `--workspace` (`-w`) 옵션을 지원하도록 확장했습니다.
   * 새 명령어 `raven vault workspace <name> [workspace_path] [--unlink]`를 도입하여 CLI 환경에서 특정 볼트의 워크스페이스 연동을 확인, 변경 또는 해제할 수 있도록 했습니다.
 
-### 1-3. 로컬 호스트 통합 제어 스크립트 추가
+### 1-3. 로컬 호스트 통합 제어 스크립트 및 Makefile 단축 타겟 설정
 * [raven.sh](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven.sh)
   * 도커를 사용하지 않고 로컬 호스트 프로세스로 실행할 때, 백엔드 API 서버와 대시보드(Vite dev server)를 한 번에 올리고, 내리고, 재시작 및 상태 확인을 할 수 있는 통합 컨트롤 스크립트 `./raven.sh {start|stop|restart|status}`를 추가했습니다.
+* [Makefile](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/Makefile)
+  * 로컬 환경 실행을 기본(First-class)으로 삼기 위해, 기존 도커 전용이었던 `make up`, `make down`, `make restart` 명령을 로컬 호스트 스택 제어(`raven.sh` 호출)로 전환했습니다.
+  * `make status` 명령을 추가하여 로컬 스택 상태를 쉽게 확인할 수 있도록 개선했습니다.
+  * 기존 도커 제어 명령은 `make docker-up`, `make docker-down`, `make docker-restart` 등으로 정돈했습니다.
 
 ### 1-4. FastAPI 백엔드 Git 연동 엔드포인트 추가
 * [raven/api/server.py](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/raven/api/server.py)

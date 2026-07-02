@@ -116,23 +116,21 @@ nuke: ## ⚠️ Remove venv + ALL build artifacts (asks for confirmation)
 
 # ────────────────────────── run / stop shortcuts ──────────────────────────
 
-.PHONY: up down restart rebuild restart-all
-up: docker-up ## Start Raven via Docker compose (all services including Dashboard)
-down: docker-down ## Stop Raven via Docker compose
-restart: down up ## Restart Raven via Docker compose
-rebuild: docker-build restart ## Rebuild Docker images and restart all services
-restart-all: ## Force-rebuild images (no-cache + pull) and restart all services. vault data preserved.
-	@bash scripts/restart-all.sh
-
-.PHONY: run-local stop-local restart-local status-local
-run-local: venv-check ## Start Raven locally in the background (API + Dashboard dev server)
+.PHONY: up down restart status
+up: venv-check ## Start Raven locally in the background (API + Dashboard dev server)
 	@./raven.sh start
 
-stop-local: ## Stop local background processes (API + Dashboard)
+down: ## Stop local background processes (API + Dashboard)
 	@./raven.sh stop
 
-restart-local: ## Restart local background processes
+restart: ## Restart local background processes
 	@./raven.sh restart
 
-status-local: ## Show status of local background processes
+status: ## Show status of local background processes
 	@./raven.sh status
+
+.PHONY: docker-restart rebuild restart-all
+docker-restart: docker-down docker-up ## Restart Raven via Docker compose
+rebuild: docker-build docker-restart ## Rebuild Docker images and restart Docker containers
+restart-all: ## Force-rebuild images (no-cache + pull) and restart all services. vault data preserved.
+	@bash scripts/restart-all.sh
