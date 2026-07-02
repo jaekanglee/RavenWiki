@@ -280,6 +280,7 @@ def test_ingest_response_includes_provenance_keys(temp_vault: Path):
 
     result = wiki_ingest(
         source=str(src), project="proj", actor="iris", ctx=ctx,
+        user_command=True,  # v0.7.55+: 사람 명시 명령 (테스트는 사람 시나리오)
     )
     assert result["ok"] is True
     assert result["actor"] == "iris"
@@ -299,9 +300,11 @@ def test_ingest_idempotent_replay(temp_vault: Path):
     key = f"k-{uuid.uuid4().hex[:8]}"
 
     r1 = wiki_ingest(source=str(src), project="proj",
-                     actor="judy", idempotency_key=key, ctx=ctx)
+                     actor="judy", idempotency_key=key, ctx=ctx,
+                     user_command=True)
     r2 = wiki_ingest(source=str(src), project="proj",
-                     actor="judy", idempotency_key=key, ctx=ctx)
+                     actor="judy", idempotency_key=key, ctx=ctx,
+                     user_command=True)
     assert r1["pages_created"] == 1
     assert r2["pages_created"] == 1
     assert r2["_idempotent_replay"] is True
@@ -317,7 +320,8 @@ def test_ingest_log_entry(temp_vault: Path):
     src.write_text("# raw\n", encoding="utf-8")
     ctx = VaultContext(vault=temp_vault, mode=WRITE)
 
-    wiki_ingest(source=str(src), project="proj", actor="kim", ctx=ctx)
+    wiki_ingest(source=str(src), project="proj", actor="kim", ctx=ctx,
+                user_command=True)
     log = _read_log(temp_vault)
     assert "ingest" in log and "kim" in log
 

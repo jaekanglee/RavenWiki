@@ -64,7 +64,7 @@ python -m mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
 ### Write (requires `--mode write` or `--admin`)
 
 - `wiki_update(slug: str, content: str, frontmatter: dict | None = None) -> dict` — overwrite a vault page (slug must include a category, e.g. `concepts/wiki`).
-- `wiki_ingest(source: str, project: str | None = None, mode: str = "auto") -> dict` — copy a raw source into `<vault>/raw/<project>/`.
+- `wiki_ingest(source: str, project: str | None = None, mode: str = "auto", *, user_command: bool = False) -> dict` — copy a raw source into `<vault>/raw/<project>/`. **v0.7.55+ (ADR-2026-07-02): raw/ 폴더는 사람 1차 운영 영역이므로 `user_command=True` 필수.** 에이전트 자율 호출은 `error: "user_command_required"`로 거부. 사람은 `raven raw ingest` (CLI) / Dashboard `/raw` 패널 경유.
 
 ### Admin (requires `--mode admin`)
 
