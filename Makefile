@@ -116,41 +116,23 @@ nuke: ## ⚠️ Remove venv + ALL build artifacts (asks for confirmation)
 
 # ────────────────────────── run / stop shortcuts ──────────────────────────
 
-.PHONY: up down restart rebuild
+.PHONY: up down restart rebuild restart-all
 up: docker-up ## Start Raven via Docker compose (all services including Dashboard)
 down: docker-down ## Stop Raven via Docker compose
 restart: down up ## Restart Raven via Docker compose
 rebuild: docker-build restart ## Rebuild Docker images and restart all services
+restart-all: ## Force-rebuild images (no-cache + pull) and restart all services. vault data preserved.
+	@bash scripts/restart-all.sh
 
-.PHONY: run-local stop-local restart-local
+.PHONY: run-local stop-local restart-local status-local
 run-local: venv-check ## Start Raven locally in the background (API + Dashboard dev server)
-	@mkdir -p tmp
-	@if [ -f tmp/api.pid ] || [ -f tmp/dashboard.pid ]; then \
-		echo "⚠️  Already running? Run 'make stop-local' first."; \
-		exit 1; \
-	fi
-	@echo "🚀 Starting API server in background..."
-	@PYTHONPATH=. $(PY) -m raven.api > tmp/api.log 2>&1 & echo $$! > tmp/api.pid
-	@echo "🚀 Starting Dashboard Vite dev server in background..."
-	@cd dashboard && npm run dev > ../tmp/dashboard.log 2>&1 & echo $$! > ../tmp/dashboard.pid
-	@sleep 2
-	@echo ""
-	@echo "🟢 Raven local host stack running:"
-	@echo "   • API        → http://127.0.0.1:8765"
-	@echo "   • Dashboard  → http://localhost:5173"
-	@echo "   • Logs       → tail -f tmp/api.log tmp/dashboard.log"
-	@echo "🛑 To stop: make stop-local"
+	@./raven.sh start
 
 stop-local: ## Stop local background processes (API + Dashboard)
-	@echo "🛑 Stopping local background processes..."
-	@if [ -f tmp/api.pid ]; then \
-		kill $$(cat tmp/api.pid) 2>/dev/null || true; \
-		rm -f tmp/api.pid; \
-	fi
-	@if [ -f tmp/dashboard.pid ]; then \
-		kill $$(cat tmp/dashboard.pid) 2>/dev/null || true; \
-		rm -f tmp/dashboard.pid; \
-	fi
-	@echo "🔴 Stopped."
+	@./raven.sh stop
 
-restart-local: stop-local run-local ## Restart local background processes
+restart-local: ## Restart local background processes
+	@./raven.sh restart
+
+status-local: ## Show status of local background processes
+	@./raven.sh status
