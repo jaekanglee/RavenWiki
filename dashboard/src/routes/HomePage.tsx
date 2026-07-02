@@ -383,7 +383,7 @@ function ActionCard({
       onMouseEnter={(e) => {
         if (isMobile || disabled) return;
         const el = e.currentTarget as HTMLElement;
-        el.style.boxShadow = "var(--shadow-card, 0 2px 6px rgba(0,0,0,0.08))";
+        el.style.boxShadow = "var(--shadow-card)";
         el.style.transform = "translateY(-1px)";
       }}
       onMouseLeave={(e) => {
@@ -457,7 +457,7 @@ function VaultCard({
       onMouseEnter={(e) => {
         if (isMobile) return;
         const el = e.currentTarget as HTMLElement;
-        el.style.boxShadow = "var(--shadow-card, 0 2px 6px rgba(0,0,0,0.08))";
+        el.style.boxShadow = "var(--shadow-card)";
         el.style.transform = "translateY(-1px)";
       }}
       onMouseLeave={(e) => {
@@ -674,7 +674,7 @@ function NewPageCard({
       onMouseEnter={(e) => {
         if (isMobile || disabled) return;
         const el = e.currentTarget as HTMLElement;
-        el.style.boxShadow = "var(--shadow-card, 0 2px 6px rgba(0,0,0,0.08))";
+        el.style.boxShadow = "var(--shadow-card)";
         el.style.transform = "translateY(-1px)";
       }}
       onMouseLeave={(e) => {

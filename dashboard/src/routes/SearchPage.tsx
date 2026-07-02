@@ -57,7 +57,7 @@ export function SearchPage() {
             border: "1px solid var(--color-hairline-strong)",
             borderRadius: "var(--radius-full)",
             padding: "0 24px",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            boxShadow: "0 1px 2px var(--shadow-base)",
           }}
         >
           <input

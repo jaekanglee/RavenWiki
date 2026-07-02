@@ -62,7 +62,7 @@ export function EditButton({
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0, 0, 0, 0.4)",
+              background: "var(--bg-overlay)",
               zIndex: 99,
               backdropFilter: "blur(2px)",
             }}
