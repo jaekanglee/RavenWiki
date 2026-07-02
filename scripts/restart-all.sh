@@ -82,7 +82,8 @@ echo
 
 # ─── 2. down (안전) ─────────────────────────────────────
 echo "🛑 docker compose down…"
-docker compose down --remove-orphans 2>&1 | tail -5
+docker compose down --remove-orphans 2>&1 || true
+echo "   ✅ 기존 컨테이너 정리"
 echo
 
 # ─── 3. build (no-rebuild 옵션 시 skip) ─────────────────
@@ -98,9 +99,9 @@ if [[ "$NO_REBUILD" == false ]]; then
     # 임시 태그(`raven-${GIT_SHA}-stage-N`)로 빌드 → 마지막에 `docker tag`로
     # 통합 태그(`raven:${GIT_SHA}`) 생성 → dangling stage 이미지 정리.
     echo "🧹 stale raven 이미지 + dangling build cache 정리…"
-    docker images "raven*" -q 2>/dev/null | xargs -r docker rmi -f 2>&1 | tail -3 || true
-    docker builder prune -f 2>&1 | tail -2 || true
-    docker image prune -f 2>&1 | tail -2 || true
+    docker images "raven*" -q 2>/dev/null | xargs -r docker rmi -f 2>&1 || true
+    docker builder prune -f 2>&1 || true
+    docker image prune -f 2>&1 || true
     echo
 
     echo "🔨 docker build (multi-stage, sequential, stage별 임시 tag)…"
@@ -114,7 +115,8 @@ if [[ "$NO_REBUILD" == false ]]; then
         --target dashboard-build \
         --tag "${STAGE_TAGS[0]}" \
         --build-arg VITE_API_BASE=/api \
-        . 2>&1 | tail -5; then
+        --progress=plain \
+        . 2>&1; then
         echo "❌ stage 1 (dashboard-build) 실패"
         exit 1
     fi
@@ -122,14 +124,15 @@ if [[ "$NO_REBUILD" == false ]]; then
     if ! docker build \
         --tag "${STAGE_TAGS[1]}" \
         --build-arg GIT_SHA="$GIT_SHA" \
-        . 2>&1 | tail -10; then
+        --progress=plain \
+        . 2>&1; then
         echo "❌ stage 2 (runtime) 실패"
         exit 1
     fi
     # stage 1 이미지는 stage 2 build로 흡수됨 (multi-stage). 두 번째 결과
     # 이미지가 `raven:${GIT_SHA}`로 명명되지 않은 경우를 대비해 tag 생성.
-    docker tag "${STAGE_TAGS[1]}" "raven:${GIT_SHA}" 2>&1 | tail -2 || true
-    docker tag "${STAGE_TAGS[1]}" "raven:latest" 2>&1 | tail -2 || true
+    docker tag "${STAGE_TAGS[1]}" "raven:${GIT_SHA}" 2>&1 || true
+    docker tag "${STAGE_TAGS[1]}" "raven:latest" 2>&1 || true
     # stage 임시 tag 정리
     for tag in "${STAGE_TAGS[@]}"; do
         docker rmi "$tag" 2>/dev/null || true
@@ -143,7 +146,7 @@ fi
 
 # ─── 4. up -d ─────────────────────────────────────
 echo "🟢 docker compose up -d…"
-GIT_SHA="$GIT_SHA" docker compose up -d 2>&1 | tail -10
+GIT_SHA="$GIT_SHA" docker compose up -d 2>&1 || { echo "❌ docker compose up -d 실패"; exit 1; }
 echo
 
 # ─── 5. 헬스체크 (최대 60s) ─────────────────────────────
@@ -188,7 +191,7 @@ if ! $HEALTH_OK; then
         if docker ps -a --format '{{.Names}}' | grep -q "raven-$svc"; then
             echo
             echo "── raven-$svc (last 20 lines) ──"
-            docker logs --tail 20 "raven-$svc" 2>&1 | tail -20 || true
+            docker logs --tail 20 "raven-$svc" 2>&1 || true
         fi
     done
     echo "────────────────────────────────────"
