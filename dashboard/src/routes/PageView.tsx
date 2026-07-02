@@ -242,7 +242,7 @@ export function PageView() {
               wordBreak: "break-all",
             }}
           >
-            {page.filePath}
+            📄 물리 파일 경로: {page.filePath}
           </div>
         )}
 
