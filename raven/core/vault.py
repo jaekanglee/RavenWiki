@@ -156,6 +156,7 @@ class Vault:
         *,
         bootstrap: bool = True,
         profile: str = "llm-wiki",
+        workspace_path: str = "",
     ) -> "Vault":
         """Create a new vault on disk and register it.
 
@@ -171,6 +172,7 @@ class Vault:
 
                 Default is "llm-wiki" for backward compatibility with v0.6.31~36.
                 New users are encouraged to pass --profile basic.
+            workspace_path: associated local project workspace path.
         """
         path = Path(path).expanduser().resolve()
         path.mkdir(parents=True, exist_ok=True)
@@ -181,6 +183,7 @@ class Vault:
             owner=owner,
             created=__import__("datetime").date.today().isoformat(),
             description=description,
+            workspace_path=workspace_path,
         )
         # write per-vault meta
         (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
