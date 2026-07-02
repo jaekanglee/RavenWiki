@@ -5,9 +5,8 @@ import { FloatingGraphPanel } from "../components/FloatingGraphPanel";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { InlineMarkdownEditor } from "../components/InlineMarkdownEditor";
-import { DeleteButton } from "../components/DeleteButton";
 import { PageMetaRow } from "../components/PageMetaRow";
-import { fetchPage, getActiveVault } from "../lib/api";
+import { deletePage, fetchPage, getActiveVault } from "../lib/api";
 import type { Graph, Page } from "../types";
 
 interface Ctx {
@@ -247,54 +246,34 @@ export function PageView() {
           </div>
         )}
 
-        {/* Body — InlineMarkdownEditor (자체 title+actions+editor) 또는 fallback (related.body 있는 경우) */}
-        {related.body ? (
-          <>
-            <h1 className="page-header-title">{page.title}</h1>
-            <PageMetaRow
-              type={page.type}
-              slug={page.slug || page.path}
-              tags={page.tags || ""}
-              updated={page.updated}
-            />
-            <MarkdownView content={related.body} vault={vault} />
-          </>
-        ) : (
-          <InlineMarkdownEditor
-            vault={vault}
-            slug={page.slug}
-            title={page.title}
-            content={page.content}
-            onSaved={() => {
-              setReloadKey((k) => k + 1);
-              ctx?.refresh?.();
-            }}
-            onDelete={() => {
-              if (window.confirm(`'${page.slug}'을(를) 삭제할까요?`)) {
-                location.assign("/");
-              }
-            }}
-          />
-        )}
+        {/* Body — InlineMarkdownEditor (자체 title+actions+editor).
+            v0.7.51+ viewContent = 정돈된 본문 (related.body), 편집 모드 전환 시
+            전체 MD 원본(content) 안전 수정. onDeleted는 InlineMarkdownEditor
+            내부에서 deletePage 호출 — 성공 시 navigate("/"). */}
+        <InlineMarkdownEditor
+          vault={vault}
+          slug={page.slug}
+          title={page.title}
+          content={page.content}
+          viewContent={related.body}
+          onSaved={() => {
+            setReloadKey((k) => k + 1);
+            ctx?.refresh?.();
+          }}
+          onDeleted={() => {
+            ctx?.refresh?.();
+          }}
+        />
 
-        {/* Meta row은 InlineMarkdownEditor 외 분기에서만 별도 표시 (v0.7.51+). */}
-        {!related.body && (
-          <div style={{ marginTop: 12 }}>
-            <PageMetaRow
-              type={page.type}
-              slug={page.slug || page.path}
-              tags={page.tags || ""}
-              updated={page.updated}
-            />
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <DeleteButton
-                vault={vault}
-                slug={page.slug}
-                onDeleted={() => location.assign("/")}
-              />
-            </div>
-          </div>
-        )}
+        {/* Meta row은 InlineMarkdownEditor 하단에 별도 표시 */}
+        <div style={{ marginTop: 12 }}>
+          <PageMetaRow
+            type={page.type}
+            slug={page.slug || page.path}
+            tags={page.tags || ""}
+            updated={page.updated}
+          />
+        </div>
 
         {related.links.length > 0 && (
           <div className="page-related-links" aria-label="관련 문서">
