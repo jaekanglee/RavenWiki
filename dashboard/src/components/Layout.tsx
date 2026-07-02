@@ -37,23 +37,37 @@ export function Layout() {
   const location = useLocation();
 
   // ─── load theme ─────────────────────────────────────────────
+  // v0.7.59+: localStorage에 저장된 사용자 명시 선택이 항상 우선 (OS follows ❌).
+  // localStorage가 비어 있으면 OS `prefers-color-scheme` 폴백.
+  // html.dark + data-color-mode 양쪽 set (CSS 양쪽 selector 일관성).
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return "light";
+    try {
       const stored = window.localStorage.getItem("theme");
       if (stored === "dark" || stored === "light") return stored;
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+      // localStorage 접근 실패 (private mode 등) — OS 폴백
     }
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
     return "light";
   });
 
+  // theme 변경 시 즉시 localStorage 박기 + html.dark + data-color-mode 모두 set.
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const root = window.document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
+      root.setAttribute("data-color-mode", "dark");
     } else {
       root.classList.remove("dark");
+      root.setAttribute("data-color-mode", "light");
     }
-    window.localStorage.setItem("theme", theme);
+    try {
+      window.localStorage.setItem("theme", theme);
+    } catch {
+      // localStorage 쓰기 실패 — 무시
+    }
   }, [theme]);
 
   // ─── load all vaults ────────────────────────────────────────
