@@ -130,3 +130,19 @@ Layered architecture (v0.7.9+):
 ## 7. 시각화
 
 `_meta/diagrams/three-flows.png` — v0.7.8 그대로 (Flow 3 = "★ 표준, 단일" 강조). v0.7.9는 모듈 제거만, 다이어그램 갱신 ❌.
+---
+
+## [hotfix] 대시보드 워크스페이스 리사이저 + 에디터 빌드 수정 (2026-07-02)
+
+### 무엇을 했는가
+- `dashboard/src/routes/WorkspacePage.tsx`: 파일 목록↔파일 내용 구분 divider에 마우스/터치 드래그 리사이저 추가 (200px~800px, `leftWidth` state + window-level event 바인딩)
+- `dashboard/src/styles/globals.css`: diff 배경색 강화 (추가된 줄 초록 배경, 제거된 줄 붉은 배경, 불투명도 0.22)
+- `dashboard/src/components/InlineMarkdownEditor.tsx`: `metaRow`, `filePathRow` props 추가 (PageView.tsx 호환), `Toast` 컴포넌트 교체, `toastType` state 추가, 삭제 타임아웃 2400ms 통일
+
+### 왜 그렇게 했는가
+- 빌드 실패: `InlineMarkdownEditor`에 `filePathRow` prop 미선언으로 TS2322 에러 발생 → 수정
+- `Toast` inline div → 공통 `<Toast>` 컴포넌트로 교체 (AGENTS.md §13 재사용 컴포넌트 원칙)
+
+### 검증
+- `npm run build` ✅ (tsc + vite, 오류 없음)
+- `pytest tests/ -q` ✅ (550 passed, 2 skipped)
