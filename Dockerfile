@@ -72,6 +72,12 @@ COPY --chown=raven:raven dashboard/public ./dashboard/public
 COPY --chown=raven:raven dashboard/index.html ./dashboard/
 COPY --chown=raven:raven scripts/docker-entrypoint.sh /usr/local/bin/
 COPY --chown=raven:raven scripts/spa_server.py /usr/local/bin/
+# v0.7.39+: raven.core.db.build_db()가 canonical builder로 scripts/build_db.py
+# (SQLite v2.4 스키마: pages_fts FTS5 + links.intent)를 우선 찾는데, 이게
+# 이미지에 없어 매번 조용히 _inline_build() 미니멀 폴백(FTS5/intent 없음)으로
+# 떨어져 wiki_search/wiki_get_page/wiki_graph가 "no such table/column"으로
+# 실패했다. _repo_root()가 가리키는 /app/scripts/에 그대로 복사.
+COPY --chown=raven:raven scripts/build_db.py ./scripts/build_db.py
 RUN chmod 755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/spa_server.py
 
 # 환경변수 기본값 (.env로 override 가능)
