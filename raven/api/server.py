@@ -862,7 +862,9 @@ def _forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
     weights: dict[str, int] | None = None,
-    iterations: int = 320,
+    # v0.7.49+: iterations 기본값 320→400. community_hub 강화(repulsion↓)로
+    # 수렴 시간이 더 필요해짐. deterministic & iterations 상한(500) 내.
+    iterations: int = 400,
     communities: dict[str, int] | None = None,
 ) -> dict[str, tuple[float, float]]:
     """ForceAtlas2 / LinLog hybrid v2 — PKM 문서 그래프 가독성 우선.
@@ -938,7 +940,10 @@ def _forceatlas_layout(
     ]
 
     steps = max(40, min(iterations, 500))
-    repulsion = 1400.0
+    # v0.7.49+: 성운 군집화 강화. community_hub 0.10→0.25 (은하 핵 인력 2.5배),
+    # repulsion 1400→1100 (척력 약화 → 더 조밀). iterations 320→400 (수렴 안정).
+    # 결정론/normalize_layout contract 유지. frontend 무변경.
+    repulsion = 1100.0
     attraction = 0.15
     gravity = 0.045
     max_step0 = 28.0
@@ -1005,7 +1010,7 @@ def _forceatlas_layout(
             dx[j] += fx
             dy[j] += fy
 
-        # Gravity: center 방향으로 약한 인력 & 커뮤니티 중심 중력 (은하 중심 인력)
+        # Gravity: center 방향으로 약한 인력 & 커뮤니티 중심 중력 (은하 핵 인력)
         for i in range(n):
             dx[i] -= pos_x[i] * gravity
             dy[i] -= pos_y[i] * gravity
@@ -1013,9 +1018,11 @@ def _forceatlas_layout(
                 c = communities.get(ids[i], -1)
                 if c >= 0 and c in comm_centroids:
                     cx, cy, _ = comm_centroids[c]
-                    # 자신 소속 커뮤니티 중심(은하 핵)으로 인력 적용
-                    dx[i] -= (pos_x[i] - cx) * 0.10
-                    dy[i] -= (pos_y[i] - cy) * 0.10
+                    # v0.7.49+: 자신 소속 커뮤니티 중심(은하 핵)으로 인력 0.10→0.25.
+                    # 같은 community 노드들이 더 강하게 centroid로 빨려들어
+                    # "성운 군집" 효과가 뚜렷해진다.
+                    dx[i] -= (pos_x[i] - cx) * 0.25
+                    dy[i] -= (pos_y[i] - cy) * 0.25
 
         for i in range(n):
             disp = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
