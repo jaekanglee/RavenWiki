@@ -32,6 +32,7 @@
  import { preprocessWikilinks } from "../lib/wikilink";
  import { Button } from "./ui/Button";
  import { TextField } from "./ui/TextField";
+ import { Toast } from "./ui/Toast";
 
  // Lucide-style SVG icons (MIT, public domain). 16x16 viewBox, currentColor 사용
  // → var(--color-ink) / hover 시 var(--color-accent) 자동 적용.
@@ -100,7 +101,7 @@
    ),
    };
 
- interface InlineMarkdownEditorProps {
+  interface InlineMarkdownEditorProps {
    vault: string;
    slug: string;
    title: string;
@@ -111,8 +112,10 @@
    onSaved?: () => void;
    /** 삭제 후 콜백 (백엔드 deletePage + navigate). */
    onDeleted?: () => void;
+   metaRow?: React.ReactNode;
+   filePathRow?: React.ReactNode;
  }
-
+ 
  export function InlineMarkdownEditor({
    vault,
    slug,
@@ -121,6 +124,8 @@
    viewContent,
    onSaved,
    onDeleted,
+   metaRow,
+   filePathRow,
  }: InlineMarkdownEditorProps) {
    const [mode, setMode] = useState<"view" | "edit">("view");
    // edit 모드 draft = 전체 MD 원본 (content).
@@ -129,6 +134,7 @@
    const [titleVal, setTitleVal] = useState(title);
    const [busy, setBusy] = useState(false);
    const [toast, setToast] = useState<string | null>(null);
+   const [toastType, setToastType] = useState<"success" | "error">("success");
    const [showPreview, setShowPreview] = useState<boolean>(true);
    const [colorMode, setColorMode] = useState<"light" | "dark">(() => {
      if (typeof document === "undefined") return "light";
@@ -191,6 +197,7 @@
      try {
        await updatePage(vault, slug, { content: draft, title: titleVal });
        setToast("✅ 저장 완료");
+        setToastType("success");
        setTimeout(() => {
          setMode("view");
          setToast(null);
@@ -199,6 +206,7 @@
      } catch (e) {
        const msg = e instanceof Error ? e.message : String(e);
        setToast(`❌ 저장 실패: ${msg}`);
+        setToastType("error");
      } finally {
        setBusy(false);
      }
@@ -212,13 +220,15 @@
      try {
        await deletePage(vault, slug);
        setToast("🗑 삭제(아카이빙) 완료");
+        setToastType("success");
        setTimeout(() => {
          onDeleted?.();
          navigate("/");
-       }, 1200);
+       }, 2400);
      } catch (e) {
        const msg = e instanceof Error ? e.message : String(e);
        setToast(`❌ 삭제 실패: ${msg}`);
+        setToastType("error");
      } finally {
        setBusy(false);
      }
@@ -271,149 +281,148 @@
    const previewSource = preprocessWikilinks(draft, vault);
 
    return (
-     <div ref={containerRef} data-color-mode={colorMode}>
-       {/* v0.7.51+ Column 구조: Row(actions) + Text(title), 좌측 정렬.
-           flexDirection column + alignItems flex-start로 두 row가
-           모두 좌측 정렬되고, actions row 아래 자연스럽게 title row 배치. */}
+      <div ref={containerRef} data-color-mode={colorMode}>
+     {/* 타이틀과 액션 버튼을 가로 한 줄에 좌측 정렬 배치 */}
+     <div
+       style={{
+         display: "flex",
+         justifyContent: "flex-start",
+         alignItems: "center",
+         gap: 16,
+         marginBottom: 8,
+         flexWrap: "wrap",
+       }}
+     >
+       {/* Title - Left */}
+       <div style={{ flex: mode === "edit" ? 1 : "0 0 auto", minWidth: 0 }}>
+         {mode === "view" ? (
+           <h1
+             style={{
+               margin: 0,
+               fontSize: 32,
+               fontWeight: 800,
+               lineHeight: 1.25,
+               letterSpacing: "-0.5px",
+               color: "var(--color-ink)",
+             }}
+           >
+             {titleVal}
+           </h1>
+         ) : (
+           <TextField
+             label=""
+             value={titleVal}
+             onChange={(e) => setTitleVal(e.target.value)}
+             placeholder="문서 제목"
+             disabled={busy}
+             style={{ fontSize: 24, fontWeight: 800 }}
+           />
+         )}
+       </div>
+
+       {/* Actions - Right */}
+       <div
+         className="inline-md-actions"
+         style={{
+           display: "flex",
+           alignItems: "center",
+           gap: 6,
+           flexShrink: 0,
+           paddingTop: 4,
+         }}
+       >
+         {mode === "view" ? (
+           <>
+             <Button
+               type="button"
+               variant="primary"
+               size="sm"
+               onClick={() => setMode("edit")}
+               title="편집 (Cmd+E)"
+               aria-label="편집"
+               style={{ minWidth: 36, padding: "0 8px" }}
+             >
+               <Icon.Edit />
+             </Button>
+             <Button
+               type="button"
+               variant="ghost"
+               size="sm"
+               onClick={remove}
+               title="삭제 (아카이빙)"
+               aria-label="삭제"
+               disabled={busy}
+               style={{ minWidth: 36, padding: "0 8px" }}
+             >
+               <Icon.Trash />
+             </Button>
+           </>
+         ) : (
+           <>
+             <Button
+               type="button"
+               variant="primary"
+               size="sm"
+               onClick={save}
+               disabled={busy || !dirty}
+               title="저장 (Cmd+S)"
+               aria-label="저장"
+               style={{ minWidth: 36, padding: "0 8px" }}
+             >
+               <Icon.Save />
+             </Button>
+             <Button
+               type="button"
+               variant="ghost"
+               size="sm"
+               onClick={cancel}
+               disabled={busy}
+               title="취소 (Esc)"
+               aria-label="취소"
+               style={{ minWidth: 36, padding: "0 8px" }}
+             >
+               <Icon.X />
+             </Button>
+             {dirty && (
+               <span
+                 style={{
+                   fontSize: 12,
+                   color: "var(--color-warning, #c00)",
+                   fontWeight: 700,
+                   padding: "0 8px",
+                   marginLeft: 4,
+                 }}
+                 title="저장되지 않은 변경"
+                 aria-label="저장되지 않은 변경"
+               >
+                 ● 저장 안 됨
+               </span>
+             )}
+           </>
+         )}
+       </div>
+     </div>
+
+     {/* Meta & Path Sub-header (타이틀과 본문 사이에 깔끔하게 배치) */}
+     {(metaRow || filePathRow) && (
        <div
          style={{
            display: "flex",
            flexDirection: "column",
-           alignItems: "flex-start",
+           gap: 8,
+           marginTop: 4,
+           marginBottom: 20,
          }}
        >
-         {/* Actions row — 양쪽 모드 모두 primary → 보조 순서.
-             view:  [✏ 편집] [🗑]     (primary → destructive)
-             edit:  [💾 저장] [✕ 취소] (primary → cancel) */}
-         <div
-           className="inline-md-actions"
-           style={{
-             display: "flex",
-             alignItems: "center",
-             gap: 6,
-             marginBottom: 12,
-           }}
-         >
-           {mode === "view" ? (
-             <>
-               <Button
-                 type="button"
-                 variant="primary"
-                 size="sm"
-                 onClick={() => setMode("edit")}
-                 title="편집 (Cmd+E)"
-                 aria-label="편집"
-                 style={{ minWidth: 36, padding: "0 8px" }}
-               >
-                 <Icon.Edit />
-               </Button>
-               <Button
-                 type="button"
-                 variant="ghost"
-                 size="sm"
-                 onClick={remove}
-                 title="삭제 (아카이빙)"
-                 aria-label="삭제"
-                 disabled={busy}
-                 style={{ minWidth: 36, padding: "0 8px" }}
-               >
-                 <Icon.Trash />
-               </Button>
-             </>
-           ) : (
-             <>
-               <Button
-                 type="button"
-                 variant="primary"
-                 size="sm"
-                 onClick={save}
-                 disabled={busy || !dirty}
-                 title="저장 (Cmd+S)"
-                 aria-label="저장"
-                 style={{ minWidth: 36, padding: "0 8px" }}
-               >
-                 <Icon.Save />
-               </Button>
-               <Button
-                 type="button"
-                 variant="ghost"
-                 size="sm"
-                 onClick={cancel}
-                 disabled={busy}
-                 title="취소 (Esc)"
-                 aria-label="취소"
-                 style={{ minWidth: 36, padding: "0 8px" }}
-               >
-                 <Icon.X />
-               </Button>
-               {dirty && (
-                 <span
-                   style={{
-                     fontSize: 12,
-                     color: "var(--color-warning, #c00)",
-                     fontWeight: 700,
-                     padding: "0 8px",
-                     marginLeft: 4,
-                   }}
-                   title="저장되지 않은 변경"
-                   aria-label="저장되지 않은 변경"
-                 >
-                   ● 저장 안 됨
-                 </span>
-               )}
-             </>
-           )}
-         </div>
-
-         {/* Title row — view: h1, edit: TextField 입력. Column 내부라서 좌측 정렬 자동. */}
-         <div>
-           {mode === "view" ? (
-             <h1
-               style={{
-                 margin: 0,
-                 fontSize: 28,
-                 fontWeight: 700,
-                 lineHeight: 1.3,
-               }}
-             >
-               {titleVal}
-             </h1>
-           ) : (
-             <TextField
-               label=""
-               value={titleVal}
-               onChange={(e) => setTitleVal(e.target.value)}
-               placeholder="문서 제목"
-               disabled={busy}
-               style={{ fontSize: 22, fontWeight: 700 }}
-             />
-           )}
-         </div>
+         {filePathRow}
+         {metaRow}
        </div>
+     )}
 
-       {/* Toast */}
-       {toast && (
-         <div
-           role="status"
-           style={{
-             padding: "8px 12px",
-             marginBottom: 12,
-             background: toast.startsWith("❌")
-               ? "var(--color-danger-soft, #fee)"
-               : "var(--color-success-soft, #e6ffe6)",
-             color: toast.startsWith("❌")
-               ? "var(--color-danger, #c00)"
-               : "var(--color-success, #080)",
-             fontSize: 13,
-             borderRadius: 6,
-             border: "1px solid var(--color-hairline)",
-           }}
-         >
-           {toast}
-         </div>
-       )}
+     {/* Toast */}
+     <Toast open={Boolean(toast)} message={toast ?? ""} type={toastType} />
 
-       {/* Body: view vs edit */}
+{/* Body: view vs edit */}
        <div className="inline-md-body">
          {mode === "view" ? (
            <MDEditor.Markdown

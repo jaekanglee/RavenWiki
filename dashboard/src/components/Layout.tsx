@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
+import { Outlet, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
@@ -25,6 +25,7 @@ export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: 
 }
 
 export function Layout() {
+  const navigate = useNavigate();
   const [vault, setVault] = useState<string>(() => getActiveVault() || "");
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -224,7 +225,7 @@ export function Layout() {
               <SearchBar
                 vault={vault}
                 onSelect={(s) => {
-                  window.location.assign(`/page/${vault}/${s}`);
+                  navigate(`/page/${vault}/${s}`);
                 }}
               />
             </div>

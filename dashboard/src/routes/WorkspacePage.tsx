@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { fetchGitStatus, fetchGitDiff, updateWorkspace, type GitChange, type GitStatusResult } from "../lib/api";
+import { EmptyState } from "../components/ui/EmptyState";
 
 export function WorkspacePage() {
   const { vault } = useOutletContext<{ vault: string }>();
@@ -91,10 +92,10 @@ export function WorkspacePage() {
   // Status badges color & label helper
   const getBadgeStyle = (statusStr: string): React.CSSProperties => {
     const s = statusStr.trim();
-    if (s.includes("M")) return { background: "rgba(217, 119, 6, 0.15)", color: "#d97706" }; // Amber (Modified)
-    if (s.includes("A") || s.includes("?")) return { background: "rgba(22, 163, 74, 0.15)", color: "#16a34a" }; // Green (Added/Untracked)
-    if (s.includes("D")) return { background: "rgba(220, 38, 38, 0.15)", color: "#dc2626" }; // Red (Deleted)
-    return { background: "rgba(107, 114, 128, 0.15)", color: "#6b7280" }; // Gray
+    if (s.includes("M")) return { background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }; // Amber (Modified)
+    if (s.includes("A") || s.includes("?")) return { background: "var(--color-success-bg)", color: "var(--color-success-text)" }; // Green (Added/Untracked)
+    if (s.includes("D")) return { background: "var(--color-danger-bg)", color: "var(--color-danger)" }; // Red (Deleted)
+    return { background: "var(--color-surface-strong)", color: "var(--color-muted)" }; // Gray
   };
 
   if (loading) {
@@ -186,28 +187,29 @@ export function WorkspacePage() {
   if (status.error) {
     return (
       <div style={{ maxWidth: 640, margin: "40px auto 0", padding: "0 24px" }}>
-        <div className="card-flat" style={{ padding: 32, borderLeft: "4px solid #dc2626" }}>
-          <h2>⚠ 워크스페이스 디렉토리 오류</h2>
-          <p className="text-muted" style={{ margin: "12px 0 24px", fontSize: 14 }}>
-            설정된 경로 <code>{status.workspace_path}</code>가 로컬 시스템에 존재하지 않거나 접근이 거부되었습니다.
-          </p>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button 
-              onClick={() => { setWorkspaceInput(""); setStatus(null); }}
-              className="btn-primary"
-              style={{ fontSize: 13, padding: "8px 16px" }}
-            >
-              다른 폴더 연결
-            </button>
-            <button 
-              onClick={handleUnlink}
-              className="btn-secondary"
-              style={{ fontSize: 13, padding: "8px 16px" }}
-            >
-              연결 해제
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon="⚠"
+          title="워크스페이스 디렉토리 오류"
+          description={`설정된 경로 ${status.workspace_path}가 로컬 시스템에 존재하지 않거나 접근이 거부되었습니다.`}
+          action={
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button 
+                onClick={() => { setWorkspaceInput(""); setStatus(null); }}
+                className="btn-primary"
+                style={{ fontSize: 13, padding: "8px 16px" }}
+              >
+                다른 폴더 연결
+              </button>
+              <button 
+                onClick={handleUnlink}
+                className="btn-secondary"
+                style={{ fontSize: 13, padding: "8px 16px" }}
+              >
+                연결 해제
+              </button>
+            </div>
+          }
+        />
       </div>
     );
   }
@@ -216,30 +218,29 @@ export function WorkspacePage() {
   if (!status.is_git) {
     return (
       <div style={{ maxWidth: 640, margin: "40px auto 0", padding: "0 24px" }}>
-        <div className="card-flat" style={{ padding: 32, textAlign: "center" }}>
-          <span style={{ fontSize: 32 }}>ℹ</span>
-          <h2 style={{ marginTop: 16 }}>Git 저장소가 아님</h2>
-          <p className="text-muted" style={{ margin: "12px 0 24px", fontSize: 14 }}>
-            연동된 워크스페이스 폴더 <code>{status.workspace_path}</code>에서 Git 저장소를 찾을 수 없습니다. 
-            해당 폴더에서 <code>git init</code>을 수행하거나 Git 저장소인 폴더로 다시 연동해주세요.
-          </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <button 
-              onClick={() => { setWorkspaceInput(""); setStatus(null); }}
-              className="btn-primary"
-              style={{ fontSize: 13, padding: "8px 16px" }}
-            >
-              다른 폴더 연결
-            </button>
-            <button 
-              onClick={handleUnlink}
-              className="btn-secondary"
-              style={{ fontSize: 13, padding: "8px 16px" }}
-            >
-              연결 해제
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon="ℹ"
+          title="Git 저장소가 아님"
+          description={`연동된 워크스페이스 폴더 ${status.workspace_path}에서 Git 저장소를 찾을 수 없습니다. 해당 폴더에서 git init을 수행하거나 Git 저장소인 폴더로 다시 연동해주세요.`}
+          action={
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button 
+                onClick={() => { setWorkspaceInput(""); setStatus(null); }}
+                className="btn-primary"
+                style={{ fontSize: 13, padding: "8px 16px" }}
+              >
+                다른 폴더 연결
+              </button>
+              <button 
+                onClick={handleUnlink}
+                className="btn-secondary"
+                style={{ fontSize: 13, padding: "8px 16px" }}
+              >
+                연결 해제
+              </button>
+            </div>
+          }
+        />
       </div>
     );
   }
@@ -264,13 +265,15 @@ export function WorkspacePage() {
       >
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <h1 style={{ margin: 0, fontSize: 24 }}>Workspace Changes</h1>
+            <h1 style={{ margin: 0, fontSize: 24 }}>
+              워크스페이스 변경사항 <span style={{ color: "var(--color-muted)", fontSize: 14, fontWeight: "normal" }}>in {vault}</span>
+            </h1>
             <span style={{ color: "var(--color-muted)", fontSize: 13 }}>
               🌿 {status.branch} @ {status.commit}
             </span>
           </div>
           <p className="text-muted" style={{ fontSize: 13, marginTop: 4, marginBottom: 0 }}>
-            워크스페이스: <code>{status.workspace_path}</code>
+            워크스페이스 경로: <code>{status.workspace_path}</code>
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -284,7 +287,7 @@ export function WorkspacePage() {
           <button 
             onClick={handleUnlink}
             className="btn-secondary"
-            style={{ fontSize: 12, padding: "6px 12px", height: 32, border: "1px solid rgba(220, 38, 38, 0.3)", color: "#dc2626" }}
+            style={{ fontSize: 12, padding: "6px 12px", height: 32, border: "1px solid rgba(220, 38, 38, 0.3)", color: "var(--color-danger)" }}
           >
             연결 해제
           </button>
@@ -309,12 +312,11 @@ export function WorkspacePage() {
           </div>
 
           {changesList.length === 0 ? (
-            <div style={{ padding: "40px 16px", textAlign: "center", border: "1px dashed var(--color-hairline)", borderRadius: "var(--radius-md)" }}>
-              <span style={{ fontSize: 24 }}>✨</span>
-              <p className="text-muted" style={{ fontSize: 13, marginTop: 8, marginBottom: 0 }}>
-                변경 사항이 없습니다.<br />워크스페이스가 깨끗합니다.
-              </p>
-            </div>
+            <EmptyState
+              icon="✨"
+              title="변경 사항 없음"
+              description="워크스페이스가 깨끗합니다."
+            />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {changesList.map((c) => {
@@ -385,10 +387,11 @@ export function WorkspacePage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", flexDirection: "column", border: "1px dashed var(--color-hairline)", borderRadius: "var(--radius-md)", color: "var(--color-muted)" }}>
-              <span style={{ fontSize: 32, marginBottom: 12 }}>🔍</span>
-              <span style={{ fontSize: 13 }}>왼쪽 목록에서 변경된 파일을 클릭해 diff를 비교해보세요.</span>
-            </div>
+            <EmptyState
+              icon="🔍"
+              title="비교할 파일 선택"
+              description="왼쪽 목록에서 변경된 파일을 클릭해 diff를 비교해보세요."
+            />
           )}
         </div>
       </div>
@@ -419,9 +422,9 @@ function DiffViewer({ diff }: { diff: string }) {
       {lines.map((line, idx) => {
         let style: React.CSSProperties = {};
         if (line.startsWith("+")) {
-          style = { backgroundColor: "rgba(34, 197, 94, 0.12)", color: "#16a34a", display: "block" };
+          style = { backgroundColor: "rgba(34, 197, 94, 0.22)", color: "var(--color-success-text)", display: "block" };
         } else if (line.startsWith("-")) {
-          style = { backgroundColor: "rgba(239, 68, 68, 0.12)", color: "#dc2626", display: "block" };
+          style = { backgroundColor: "rgba(239, 68, 68, 0.22)", color: "var(--color-danger)", display: "block" };
         } else if (line.startsWith("@@")) {
           style = { color: "var(--color-primary, #3b82f6)", opacity: 0.8, display: "block", backgroundColor: "rgba(59, 130, 246, 0.05)" };
         } else if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ")) {
