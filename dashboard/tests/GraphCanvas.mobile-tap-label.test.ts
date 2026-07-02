@@ -68,19 +68,25 @@ describe("GraphCanvas v0.6.12 mobile tap label", () => {
     expect(["fixed", "absolute"]).toContain(overlayStyle.position);
   });
 
-  it("edge style은 조용한 기본 톤 — slate-400 / 0.65px / 0.16", () => {
-    // 컴포넌트에서 정의한 기본 edge style: 평소에는 별자리 배경처럼 흐리게 유지.
-    const edgeStyle = {
-      stroke: "#94a3b8",
-      strokeWidth: 0.65,
-      strokeOpacity: 0.16,
+  it("edge style은 dark mode 시인성 개선 적용 — slate 토큰 / 1px / 0.6 (v0.7.48+)", () => {
+    // 컴포넌트에서 정의한 기본 edge style: 토큰 + base opacity로 dark mode에서
+    // path가 보일 정도의 가시를 확보. focus 분기(L558)는 매 렌더 덮어쓰기로
+    // 평상시(!focus.active) 0.6, highlight 0.85, 비활성 0.18.
+    // v0.6.11 1차의 두꺼운 선(strokeWidth >= 1.5, opacity >= 0.8 두 가지 동시)으로
+    // 회귀하지 않도록 가드.
+    const baseEdge = {
+      stroke: "var(--graph-edge)",
+      strokeWidth: 1,
+      strokeOpacity: 0.6,
     };
-    // v0.6.12 1차/2차의 두꺼운 선으로 돌아가지 않도록 가드.
-    expect(edgeStyle.strokeWidth).toBeLessThan(1);
-    expect(edgeStyle.strokeOpacity).toBeLessThan(0.3);
-    expect(edgeStyle.stroke).toBe("#94a3b8");
-    expect(edgeStyle.strokeWidth).toBe(0.65);
-    expect(edgeStyle.strokeOpacity).toBe(0.16);
+    const dimOpacity = 0.6;
+    const highlightOpacity = 0.85;
+    const highlightWidth = 1.5;
+    expect(baseEdge.strokeWidth).toBeLessThan(1.5);
+    expect(baseEdge.strokeOpacity).toBeGreaterThanOrEqual(0.4);
+    expect(dimOpacity).toBe(0.6);
+    expect(highlightOpacity).toBeGreaterThan(baseEdge.strokeOpacity);
+    expect(highlightWidth).toBeGreaterThan(baseEdge.strokeWidth);
   });
 
   it("coarse pointer 검출: matchMedia('(pointer:coarse)') 매처 사용", () => {

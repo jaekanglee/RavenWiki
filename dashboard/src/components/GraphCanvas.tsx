@@ -419,10 +419,13 @@ function GraphCanvasInner({
         // 별자리 느낌을 위해 곡선 ❌ — 직선만 허용.
         type: "straight" as const,
         // Obsidian-style: relationship lines are quiet by default; hover reveals structure.
+        // v0.7.48+: dark mode 시인성 개선 — stroke 두께/투명도 강화. 토큰이
+        // opacity를 이미 들고 있어도 rfEdges에서 다시 0.16을 곱하면 사실상
+        // 안 보이게 되므로, base는 토큰과 독립적인 값을 박아서 "기본 가시" 확보.
         style: {
           stroke: "var(--graph-edge)",
-          strokeWidth: 0.65,
-          strokeOpacity: 0.16,
+          strokeWidth: 1,
+          strokeOpacity: 0.6,
         },
         // xyflow marker 정의 (선택): 끝점 화살표는 일단 생략 — 점 노드 중심에
         // 닿는 직선만으로도 관계 가시화에 충분.
@@ -552,8 +555,13 @@ function GraphCanvasInner({
     return flowEdges.map((edge) => {
       const highlighted = focus.edgeIds.has(edge.id);
 
-      const opacity = !focus.active ? 0.16 : highlighted ? 0.82 : 0.045;
-      const strokeWidth = highlighted ? 1.35 : 0.65;
+      // v0.7.48+: dark mode 시인성 개선 — base가 0.6/1px로 올라간 만큼 focus 분기도 비례 조정.
+      //   - 평상시(dim): 0.6 (사실상 hover 없는 상태 — 과거엔 0.16으로 흐려서 path가 안 보였음)
+      //   - highlight: 0.85 (지금까지 0.82 → 살짝 강화해 명확하게)
+      //   - 비활성(focus 활성인데 이 edge만 dim): 0.18 (focus 켰을 때 비활성 edge를 진짜로 가려주는 역할)
+      // strokeWidth: highlight 1.5, dim 1 — base와 일관. 사용자 노출 방지 위해 1 미만으로 떨어지지 않음.
+      const opacity = !focus.active ? 0.6 : highlighted ? 0.85 : 0.18;
+      const strokeWidth = highlighted ? 1.5 : 1;
 
       return {
         ...edge,
