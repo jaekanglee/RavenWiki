@@ -428,75 +428,91 @@ body {
   --focus-overlay: rgba(59, 130, 246, 0.25);
   --shadow-base: rgba(0, 0, 0, 0.4);
   --shadow-overlay-color: rgba(0, 0, 0, 0.5);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --color-primary: #3b82f6;          /* brighter blue for visibility */
-    --color-primary-active: #2563eb;
-    --color-primary-disabled: #1d4ed8;
-    --color-error-text: #f87171;
-    --color-danger: var(--color-error-text);
 
-    --color-ink: #f3f4f6;              /* near white */
-    --color-body: #d1d5db;             /* soft gray */
-    --color-muted: #9ca3af;            /* gray */
-    --color-muted-soft: #6b7280;       /* dark gray */
+  /* v0.7.60+ phase 3 — Legacy CDS / --color-* 토큰 다크 override.
+     v0.7.59에서 누락된 부분. 이전엔 `@media (prefers-color-scheme: dark) :root`
+     블록(L432-497)에만 박혀 있어서 OS dark 환경에서 [data-color-mode="light"] 토글이
+     무력화됨 (CSS cascade: media query 안 :root가 라이트 토큰 덮어씀).
+     Layout.tsx가 html.dark + data-color-mode 양쪽 set하므로 양쪽 selector에 동시
+     정의가 안전. 단일 진실 (single source of truth). */
+  color-scheme: dark;
+  --color-primary: #3b82f6;          /* brighter blue for visibility */
+  --color-primary-active: #2563eb;
+  --color-primary-disabled: #1d4ed8;
+  --color-error-text: #f87171;
+  --color-danger: var(--color-error-text);
 
-    --color-canvas: #0f172a;           /* Slate 900 background */
-    --color-surface-soft: #1e293b;     /* Slate 800 */
-    --color-surface-strong: #334155;   /* Slate 700 */
-    --color-hairline: #1e293b;
-    --color-hairline-strong: #475569;  /* Slate 600 */
-    --color-on-primary: #ffffff;
-    
-    --color-mark-bg: rgba(59, 130, 246, 0.25);
-    --cds-background-brand: rgba(59, 130, 246, 0.14);
-    --cds-field-hover: rgba(51, 65, 85, 0.9);
-    --cds-button-secondary: var(--color-surface-strong);
-    --cds-button-secondary-hover: var(--cds-field-hover);
-    --cds-button-secondary-text: var(--color-ink);
-    --cds-button-secondary-border: var(--color-hairline-strong);
-    --cds-danger: rgba(127, 29, 29, 0.3);
-    --cds-danger-border: rgba(248, 113, 113, 0.42);
-    --cds-danger-text: #fca5a5;
-    --cds-warning: rgba(120, 53, 15, 0.3);
-    --cds-warning-border: rgba(245, 158, 11, 0.45);
-    --cds-warning-text: #fcd34d;
-    --color-info-bg: rgba(30, 64, 175, 0.28);
-    --color-info-border: rgba(96, 165, 250, 0.38);
-    --color-info-text: #bfdbfe;
-    --color-success-bg: rgba(20, 83, 45, 0.34);
-    --color-success-border: rgba(74, 222, 128, 0.32);
-    --color-success-text: #bbf7d0;
-    --color-warning-bg: rgba(133, 77, 14, 0.34);
-    --color-warning-border: rgba(250, 204, 21, 0.28);
-    --color-warning-text: #fde68a;
-    --color-danger-bg: rgba(127, 29, 29, 0.34);
-    --color-danger-border: rgba(248, 113, 113, 0.32);
-    --color-danger-text: #fecaca;
-    --color-overlay: rgba(2, 6, 23, 0.7);
-    --graph-canvas-bg: #0a0e1a;
-    --graph-grid: #1f2937;
-    --graph-surface: rgba(17, 24, 39, 0.78);
-    --graph-surface-strong: rgba(15, 23, 42, 0.94);
-    --graph-border: rgba(148, 163, 184, 0.32);
-    --graph-text: #e5e7eb;
-    --graph-text-muted: #9ca3af;
-    --graph-node-outline: rgba(255, 255, 255, 0.22);
-    --graph-node-outline-hover: rgba(226, 232, 240, 0.6);
-    --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
-    --graph-label-color: rgba(226, 232, 240, 0.92);
-    --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
-    --graph-edge: rgba(148, 163, 184, 0.45);
-    --graph-edge-highlight: #e2e8f0;
-    --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
-    --graph-tooltip-border: #374151;
-    --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-  }
+  --color-ink: #f3f4f6;              /* near white */
+  --color-body: #d1d5db;             /* soft gray */
+  --color-muted: #9ca3af;            /* gray */
+  --color-muted-soft: #6b7280;       /* dark gray */
+
+  --color-canvas: #0f172a;           /* Slate 900 background */
+  --color-surface-soft: #1e293b;     /* Slate 800 */
+  --color-surface-strong: #334155;   /* Slate 700 */
+  --color-hairline: #1e293b;
+  --color-hairline-strong: #475569;  /* Slate 600 */
+  --color-on-primary: #ffffff;
+
+  --color-mark-bg: rgba(59, 130, 246, 0.25);
+  --cds-background-brand: rgba(59, 130, 246, 0.14);
+  --cds-field-hover: rgba(51, 65, 85, 0.9);
+  --cds-button-secondary: var(--color-surface-strong);
+  --cds-button-secondary-hover: var(--cds-field-hover);
+  --cds-button-secondary-text: var(--color-ink);
+  --cds-button-secondary-border: var(--color-hairline-strong);
+  --cds-danger: rgba(127, 29, 29, 0.3);
+  --cds-danger-border: rgba(248, 113, 113, 0.42);
+  --cds-danger-text: #fca5a5;
+  --cds-warning: rgba(120, 53, 15, 0.3);
+  --cds-warning-border: rgba(245, 158, 11, 0.45);
+  --cds-warning-text: #fcd34d;
+  --color-info-bg: rgba(30, 64, 175, 0.28);
+  --color-info-border: rgba(96, 165, 250, 0.38);
+  --color-info-text: #bfdbfe;
+  --color-success-bg: rgba(20, 83, 45, 0.34);
+  --color-success-border: rgba(74, 222, 128, 0.32);
+  --color-success-text: #bbf7d0;
+  --color-warning-bg: rgba(133, 77, 14, 0.34);
+  --color-warning-border: rgba(250, 204, 21, 0.28);
+  --color-warning-text: #fde68a;
+  --color-danger-bg: rgba(127, 29, 29, 0.34);
+  --color-danger-border: rgba(248, 113, 113, 0.32);
+  --color-danger-text: #fecaca;
+  --color-overlay: rgba(2, 6, 23, 0.7);
+  --graph-canvas-bg: #0a0e1a;
+  --graph-grid: #1f2937;
+  --graph-surface: rgba(17, 24, 39, 0.78);
+  --graph-surface-strong: rgba(15, 23, 42, 0.94);
+  --graph-border: rgba(148, 163, 184, 0.32);
+  --graph-text: #e5e7eb;
+  --graph-text-muted: #9ca3af;
+  --graph-node-outline: rgba(255, 255, 255, 0.22);
+  --graph-node-outline-hover: rgba(226, 232, 240, 0.6);
+  --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
+  --graph-label-color: rgba(226, 232, 240, 0.92);
+  --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
+  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge-highlight: #e2e8f0;
+  --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
+  --graph-tooltip-border: #374151;
+  --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
+
+/* ── v0.7.60+ DEPRECATED ───────────────────────────────────────────────────
+   이전엔 OS 다크 자동 팔로우 (Layout.tsx의 명시 선택보다 CSS가 이김).
+   v0.7.60에서 OS 팔로우는 Layout.tsx의 useState initializer (`prefers-color-scheme`
+   매치 → "dark" 폴백)로 옮겼고 CSS는 사용자 명시 선택만 따름. media query의
+   cascade 우선순위 이슈로 [data-color-mode="light"] 토글이 무력화되던 버그 해결.
+   ───────────────────────────────────────────────────────────────────────── */
+/* (이전 `@media (prefers-color-scheme: dark) { :root { ... } }` 블록 제거됨 —
+   위 `[data-color-mode="dark"]` 블록 안으로 흡수) */
 
 html.dark {
+  /* v0.7.60+: Layer 2/3 다크 토큰도 html.dark selector에 동시 정의.
+     Layout.tsx가 html.dark 클래스 + data-color-mode 속성 양쪽 set하므로
+     어느 한 쪽 selector만 정의되면 다른 한 쪽 박힐 때 토큰이 누락됨.
+     안전망: 둘 다 같은 다크 토큰을 갖도록. */
   color-scheme: dark;
   --color-primary: #3b82f6;
   --color-primary-active: #2563eb;
