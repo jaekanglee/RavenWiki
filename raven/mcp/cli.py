@@ -29,6 +29,7 @@ from mcp.server.fastmcp import FastMCP
 
 # Local package imports (our own `raven.mcp` module).
 from raven.mcp import db as db_module
+from raven.mcp.tools import VaultContext
 from raven.mcp.tools import read as read_tools
 from raven.mcp.tools import write as write_tools
 from raven.mcp.resources import register_resources
@@ -38,17 +39,38 @@ from raven.mcp.resources import register_resources
 
 
 def _resolve_vault(arg: Optional[Path]) -> Path:
-    """vault root: CLI flag → default (parent of raven/mcp/).
+    """vault root: CLI flag → `WIKI_VAULT` env → registry default → legacy fallback.
 
-    The default resolves to the directory containing the `raven/` package
-    (i.e. two `.parent` hops above `raven/mcp/cli.py`). This is the vault
-    root and matches `db._default_vault()`. Note that helpers living one
-    level deeper (e.g. `raven/mcp/tools/__init__.py`) need an extra
-    `.parent` hop to reach the same destination — see `tools.make_context`.
+    Mirrors the policy documented on `raven.core.vault.Vault`:
+    1. `--vault` flag (explicit override)
+    2. `WIKI_VAULT` env var (vault name, looked up in the registry)
+    3. registry's `default` vault
+
+    The legacy `__file__`-based fallback only applies when the registry
+    has no vaults yet (e.g. a fresh install before `raven vault create`)
+    — it assumes this file lives inside a single embedded vault, which is
+    not true for the multi-vault Docker deployment (`raven/` is installed
+    once at `/app/raven`, shared across every vault under `WIKI_VAULTS_DIR`).
     """
     if arg is not None:
         return Path(arg).resolve()
-    # parent.parent.parent = .../raven/mcp/cli.py → .../raven/mcp/ → .../raven/ → .../<vault-root>
+
+    import os
+
+    from raven.core.registry import registry
+
+    reg = registry()
+    env_name = os.environ.get("WIKI_VAULT", "").strip()
+    if env_name:
+        meta = reg.get(env_name)
+        if meta is not None:
+            return meta.path
+
+    default_meta = reg.default()
+    if default_meta is not None:
+        return default_meta.path
+
+    # No registry / no vaults yet — legacy single-vault fallback.
     return Path(__file__).resolve().parent.parent.parent
 
 
@@ -69,6 +91,13 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         "Concurrent writers face last-writer-wins. locks/queue/review are not implemented. "
         "Caller is responsible for sequencing. "
     )
+
+    # Shared context so every tool (not just wiki_search/wiki_get_page) uses
+    # the vault resolved in main() — passing ctx=ctx here previously made
+    # wiki_lint/wiki_graph/wiki_log/write tools silently fall back to
+    # db._default_vault(), which does not account for the multi-vault
+    # Docker layout.
+    ctx = VaultContext(vault=vault, mode=mode)
 
     # ─── 1. wiki_search ───
     @mcp.tool(
@@ -94,11 +123,11 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         name="wiki_lint",
         description=(
             EXPERIMENTAL_PREFIX
-            + "Run scripts/lint.py against wiki.db and return counts + structured issues."
+            + "Run the 14 vault lint checks and return counts + structured issues."
         ),
     )
     def wiki_lint() -> dict:
-        return read_tools.wiki_lint(ctx=None)
+        return read_tools.wiki_lint(ctx=ctx)
 
     # ─── 4. wiki_graph ───
     @mcp.tool(
@@ -112,7 +141,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         project: Optional[str] = None,
         fmt: Literal["json"] = "json",
     ) -> dict:
-        return read_tools.wiki_graph(project=project, fmt=fmt, ctx=None)
+        return read_tools.wiki_graph(project=project, fmt=fmt, ctx=ctx)
 
     # ─── 5. wiki_log ───
     @mcp.tool(
@@ -120,7 +149,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
         description=EXPERIMENTAL_PREFIX + "Last N non-empty log.md lines as structured entries.",
     )
     def wiki_log(tail_n: int = 20) -> list[dict]:
-        return read_tools.wiki_log(tail_n=tail_n, ctx=None)
+        return read_tools.wiki_log(tail_n=tail_n, ctx=ctx)
 
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
@@ -146,7 +175,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
                 frontmatter_data=frontmatter,
                 actor=actor,
                 idempotency_key=idempotency_key,
-                ctx=None,
+                ctx=ctx,
             )
 
         @mcp.tool(
@@ -168,7 +197,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
             return write_tools.wiki_ingest(
                 source=source, project=project, mode=mode,
                 actor=actor, idempotency_key=idempotency_key,
-                ctx=None,
+                ctx=ctx,
             )
 
     # ─── 7. wiki_delete / wiki_rename (admin only) ───
@@ -191,7 +220,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
                 slug=slug,
                 actor=actor,
                 idempotency_key=idempotency_key,
-                ctx=None,
+                ctx=ctx,
             )
 
         @mcp.tool(
@@ -212,7 +241,7 @@ def register_tools(mcp: Any, mode: str, vault: Path) -> None:
             return write_tools.wiki_rename(
                 old_slug=old_slug, new_slug=new_slug,
                 actor=actor, idempotency_key=idempotency_key,
-                ctx=None,
+                ctx=ctx,
             )
 
 

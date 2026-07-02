@@ -3,15 +3,12 @@
 Tools:
     wiki_search  — FTS5 BM25
     wiki_get_page — single page + backlinks/tags/outbound
-    wiki_lint    — reuse scripts/lint.py (subprocess to keep isolation)
+    wiki_lint    — raven.core.lint (14 checks), same runner as the REST API
     wiki_graph   — nodes + edges
     wiki_log     — last N log.md entries
 """
 from __future__ import annotations
 
-import json
-import subprocess
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -43,80 +40,29 @@ def wiki_get_page(slug: str, ctx: Optional[VaultContext] = None) -> Optional[dic
 
 
 def wiki_lint(ctx: Optional[VaultContext] = None) -> dict:
-    """Run scripts/lint.py against wiki.db; return structured summary.
+    """Run raven.core.lint (14 checks) against the vault; return structured summary.
 
-    Reuses the existing CLI (subprocess) to avoid importing lint as a
-    module (it has its own constants — keeps a clean boundary).
+    v0.7.x: previously shelled out to a per-vault `<vault>/scripts/lint.py`,
+    which only exists for vaults that opted into the standalone LLM-Wiki
+    script bundle — every other vault (including the default Docker-managed
+    ones) hit "lint.py not found". Calling `raven.core.lint.run_all()`
+    in-process matches what the REST API's `/lint` endpoint already does,
+    so behavior is consistent regardless of vault layout.
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
-    scripts_dir = ctx.vault / "scripts"
-    lint_script = scripts_dir / "lint.py"
-    if not lint_script.exists():
-        return {
-            "critical": 0,
-            "warning": 0,
-            "info": 0,
-            "total": 0,
-            "issues": [],
-            "error": f"lint.py not found at {lint_script}",
-        }
+    from raven.core.lint import run_all
+    from raven.core.registry import VaultMeta
+    from raven.core.vault import Vault
 
-    proc = subprocess.run(
-        [sys.executable, str(lint_script), "--db", str(ctx.vault / "wiki.db"),
-         "--vault", str(ctx.vault), "--quiet"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    # The --quiet flag prints only the summarize() headline.
-    # Parse: "📊 N critical, M warning, K info, T total"
-    headline = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout.strip() else ""
-    counts = {"critical": 0, "warning": 0, "info": 0, "total": 0}
-    if headline.startswith("📊"):
-        parts = headline.replace("📊", "").strip().split(",")
-        for part in parts:
-            k, _, v = part.strip().partition(" ")
-            if k in counts:
-                try:
-                    counts[k] = int(v)
-                except ValueError:
-                    pass
-
-    # For richer output, run a second time WITHOUT --quiet and parse the issues
-    proc2 = subprocess.run(
-        [sys.executable, str(lint_script), "--db", str(ctx.vault / "wiki.db"),
-         "--vault", str(ctx.vault)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    issues = []
-    for line in (proc2.stdout or "").splitlines():
-        if line.startswith(("🔴", "🟡", "🔵")):
-            # format: "<emoji> [severity] <path>: <message>"
-            try:
-                _, rest = line.split(" ", 1)  # strip emoji
-                severity = rest.split("]", 1)[0].lstrip("[").strip()
-                tail = rest.split("]", 1)[1].strip()
-                path, _, message = tail.partition(": ")
-                issues.append({
-                    "severity": severity,
-                    "path": path,
-                    "message": message,
-                })
-            except (ValueError, IndexError):
-                continue
-
-    result = {
-        "critical": counts["critical"],
-        "warning": counts["warning"],
-        "info": counts["info"],
-        "total": counts["total"],
-        "issues": issues,
+    vault_obj = Vault(meta=VaultMeta(name=ctx.vault.name, path=ctx.vault), root=ctx.vault)
+    result = run_all(vault_obj)
+    return {
+        "critical": result["counts"]["critical"],
+        "warning": result["counts"]["warning"],
+        "info": result["counts"]["info"],
+        "total": result["counts"]["total"],
+        "issues": result["issues"],
     }
-    if proc.returncode not in (0, 1):
-        result["error"] = proc.stderr or "lint exited unexpectedly"
-    return result
 
 
 # ─────────────── 4. wiki_graph ───────────────
