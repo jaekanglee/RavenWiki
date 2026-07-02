@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # scripts/restart-all.sh — Raven Docker 스택 안전 재시작 (강제 이미지 rebuild)
 #
+# v0.7.55+ DEPRECATED. Docker stack은 더 이상 기본이 아님 — local host stack (raven.sh)이 default.
+# 이 스크립트는 호환성 위해 유지되며, Docker가 production에서 쓰이는 경우에만 사용.
+# 신규 사용자는 `make restart` (= ./raven.sh restart) 사용 권장.
+#
 # 목적:
 #   - 백엔드(API/MCP) + Dashboard 전부 내렸다가 다시 올림
 #   - layer cache + base image cache 강제 무효화 (--no-cache --pull)
@@ -8,13 +12,19 @@
 #   - 각 서비스 헬스체크 (최대 60s) + 실패 시 로그 출력
 #
 # 사용법:
-#   ./scripts/restart-all.sh              # 강제 rebuild + 재시작
+#   ./scripts/restart-all.sh              # 강제 rebuild + 재시작 (DEPRECATED, Docker 전용)
 #   ./scripts/restart-all.sh --no-rebuild # rebuild 없이 재시작만 (코드 변경 없을 때)
+#
+# Local 호스트 stack (권장):
+#   make restart                         # ./raven.sh restart (local PID 관리)
 #
 # 주의:
 #   - vault 데이터는 volume이 아닌 호스트 bind mount → 절대 안 날아감
 #   - network 'raven_raven-net' 재생성 (다른 컨테이너와 통신 끊김 일시적)
 #   - 첫 실행은 base image pull + npm ci + build → 5-10분 소요 가능
+#
+# Local 권장 흐름 (v0.7.55+):
+#   make start / make restart / make stop  # raven.sh wrapper (local host stack)
 
 set -euo pipefail
 
