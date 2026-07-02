@@ -331,3 +331,29 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - `_meta/llm-wiki-scenario.md` — LLM Wiki 시나리오 walkthrough. "vault 만들고 → agent 4-file 첨부 → write → log → 4-pass 보고" 패턴. 하루모아 같은 신규 프로젝트 boilerplate.
 
 → **`docs/` 신설 불필요** — `_meta/`가 이미 그 역할. 신규 추가 시 `_meta/` 컨벤션 따르세요.
+
+---
+
+## 15. 에이전트 자가 평가 기준 (Self-Evaluation Criteria)
+
+에이전트가 볼트의 문서를 생성, 수정, 조회 및 관리하는 작업을 수행한 후, 다음의 자가 평가 기준에 따라 본인의 작업을 자율적으로 평가하고 최종 보고서에 결과를 포함해야 합니다.
+
+### 15.1 일반 평가 부문 (RAG 제외)
+*   **지식 밀도 및 생존력 (Value & Utility)**:
+    *   작업한 문서가 §5의 '저장 결정 4가지 신호(재사용성, 인수인계, 맥락 추적, 실패 기록)' 중 최소 1개 이상에 부합하는가?
+    *   단순히 일시적인 커밋 로그나 임시 작업 로그가 아니라, 훗날 다른 에이전트나 사람이 참고할 만큼 지식의 정보 밀도가 높은가?
+*   **형식 및 구조 일관성 (Structure & Conventions)**:
+    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되는가? ([RULES.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/RULES.md#L108-L112) 준수)
+    *   [SCHEMA.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/SCHEMA.md)에 지정된 8종 타입 및 태그 스키마에 부합하는가?
+*   **인간 중심 가독성 (Human-Centric UX)**:
+    *   본문 최상단에 BLUF(Bottom Line Up Front) 형식의 핵심 요약이 작성되어 있는가?
+    *   일지(`journal`)나 저널 성격의 문서는 `# 요약` 섹션(3줄 이내)을 명확히 작성했는가? ([RULES.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/RULES.md#L113-L116) 준수)
+*   **연결성 및 지식 그래프화 (Connectivity)**:
+    *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 `[[wikilink]]`를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
+
+### 15.2 RAG 및 지식 탐색 평가 부문 (Hermes Constitution 투영)
+RAG 및 검색 활용 시, `~/.hermes/SOUL.SHARE.md` 및 `~/.hermes/SOUL.SHARE.CORE.md`에 규정된 **Karpathy 4원칙 및 체계적 디버깅/조사 규율**을 RAG에 투영하여 평가합니다.
+*   **Think Before Searching (검색 전 사색 - Constitution §4.①)**: 뇌피셜로 지식이나 문서의 유무를 추정하지 않고, 가정을 검증하기 위해 `wiki_search`를 능동적으로 계획하여 활용했는가?
+*   **Surgical Retrieval (외과 수술식 조회 - Constitution §4.③)**: 필요한 영역에만 동화될 수 있도록 정확하고 최소한의 정밀한 키워드 및 multi-hop 탐색을 수행했는가? (불필요한 대량의 컨텍스트를 과도하게 가져오는 것 방지)
+*   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출 - Constitution §4.④)**: 단순히 검색 결과의 상위 텍스트를 나열하는 대신, 사용자가 지시한 문제 해결의 성공 기준에 직접적으로 trace되는 사실 정보만 정밀하게 추출하여 활용했는가?
+*   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사 - Constitution §7)**: 볼트 내의 문서들 간에 모순되거나 충돌하는 정보가 발견되었을 때, 임의로 추정하여 덮어쓰지 않고, 히스토리(log.md, _meta/ 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
