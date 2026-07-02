@@ -391,11 +391,17 @@ def git_diff(name: str, file: Optional[str] = Query(None, description="relative 
         success, status_out = _run_git(str(p), ["status", "--porcelain", str(f_path)])
         if success and status_out.startswith("??"):
             _, diff_content = _run_git(str(p), ["diff", "--no-index", "/dev/null", str(f_path)])
+            file_content = ""
+            if f_path.exists() and f_path.is_file():
+                try:
+                    file_content = f_path.read_text(errors="replace")
+                except Exception as e:
+                    file_content = f"// Error reading file: {e}\n"
             return {
                 "ok": True,
                 "workspace_path": str(p),
                 "file": file,
-                "diff": diff_content or f"+++ b/{file}\n" + f_path.read_text(errors="replace")
+                "diff": diff_content or f"+++ b/{file}\n" + file_content
             }
 
         args.append("--")

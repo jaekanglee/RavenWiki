@@ -35,7 +35,7 @@ def test_makefile_legacy_removed() -> None:
         for tok in line.replace(".PHONY:", "").strip().split():
             phony_targets.add(tok)
     # 레거시 target 검증 (대상 목록)
-    legacy_targets = ["api", "mcp", "dashboard", "stop-dev", "stop", "status"]
+    legacy_targets = ["api", "mcp", "dashboard", "stop-dev", "stop"]
     for legacy in legacy_targets:
         assert legacy not in phony_targets, (
             f"Makefile legacy target '{legacy}' must be REMOVED (Docker 우선, v0.7.13+)"

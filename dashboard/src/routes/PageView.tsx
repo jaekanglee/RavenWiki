@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useOutletContext } from "react-router-dom";
+import { useParams, useOutletContext, useNavigate } from "react-router-dom";
 import { MarkdownView } from "../components/MarkdownView";
 import { FloatingGraphPanel } from "../components/FloatingGraphPanel";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import { BacklinksPanel } from "../components/BacklinksPanel";
 import { InlineMarkdownEditor } from "../components/InlineMarkdownEditor";
 import { PageMetaRow } from "../components/PageMetaRow";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Button } from "../components/ui/Button";
 import { deletePage, fetchPage, getActiveVault } from "../lib/api";
 import type { Graph, Page } from "../types";
 
@@ -136,6 +138,7 @@ export function buildRelatedGraph(graph: Graph, centerSlug: string, relatedLinks
 
 export function PageView() {
   console.log("[Raven-Debug] PageView mount");
+  const navigate = useNavigate();
   const params = useParams();
   const slug = params["*"];
   // v0.6.9 (P15 fix): URL의 :vault 파라미터를 SOT로 사용. Layout의 ctx.vault가
@@ -215,37 +218,40 @@ export function PageView() {
   );
 
   if (page === undefined) {
-    return <div className="text-muted">Loading…</div>;
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "48px 24px",
+          color: "var(--color-muted)",
+          fontFamily: "var(--font-display)",
+          fontSize: 14,
+        }}
+      >
+        문서를 불러오는 중입니다...
+      </div>
+    );
   }
   if (page === null) {
     return (
-      <div>
-        <div style={{ color: "var(--color-error-text)", marginBottom: 12 }}>
-          Not found: {slug}
-        </div>
-        <div style={{ fontSize: 13, color: "var(--color-muted)" }}>{err}</div>
-      </div>
+      <EmptyState
+        icon="🔍"
+        title="문서를 찾을 수 없습니다"
+        description={`보관소 '${vault}'에서 '${slug}' 문서를 불러오지 못했습니다. 경로가 올바른지 확인해주세요.`}
+        action={
+          <Button type="button" variant="primary" size="sm" onClick={() => navigate("/")}>
+            홈으로 가기
+          </Button>
+        }
+      />
     );
   }
 
   return (
     <div className="page-grid">
       <article style={{ minWidth: 0 }}>
-        {/* v0.7.51+: 인라인 MD 편집 (Jira/Notion-style). 본문 같은 자리에서 즉시 편집. */}
-        {page.filePath && (
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: "ui-monospace, SFMono-Regular, monospace",
-              color: "var(--color-muted)",
-              marginBottom: 4,
-              wordBreak: "break-all",
-            }}
-          >
-            📄 물리 파일 경로: {page.filePath}
-          </div>
-        )}
-
         {/* Body — InlineMarkdownEditor (자체 title+actions+editor).
             v0.7.51+ viewContent = 정돈된 본문 (related.body), 편집 모드 전환 시
             전체 MD 원본(content) 안전 수정. onDeleted는 InlineMarkdownEditor
@@ -263,17 +269,29 @@ export function PageView() {
           onDeleted={() => {
             ctx?.refresh?.();
           }}
+          filePathRow={
+            page.filePath ? (
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                  color: "var(--color-muted)",
+                  wordBreak: "break-all",
+                }}
+              >
+                📄 물리 파일 경로: {page.filePath}
+              </div>
+            ) : null
+          }
+          metaRow={
+            <PageMetaRow
+              type={page.type}
+              slug={page.slug || page.path}
+              tags={page.tags || ""}
+              updated={page.updated}
+            />
+          }
         />
-
-        {/* Meta row은 InlineMarkdownEditor 하단에 별도 표시 */}
-        <div style={{ marginTop: 12 }}>
-          <PageMetaRow
-            type={page.type}
-            slug={page.slug || page.path}
-            tags={page.tags || ""}
-            updated={page.updated}
-          />
-        </div>
 
         {related.links.length > 0 && (
           <div className="page-related-links" aria-label="관련 문서">
@@ -285,7 +303,7 @@ export function PageView() {
                   key={link}
                   type="button"
                   className="page-related-chip"
-                  onClick={() => window.location.assign(`/page/${vault}/${resolved}`)}
+                  onClick={() => navigate(`/page/${vault}/${resolved}`)}
                 >
                   {node?.title ?? link}
                 </button>

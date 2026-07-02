@@ -36,7 +36,7 @@ export function PageMetaRow({ type, slug, tags, updated }: PageMetaRowProps) {
       style={{
         display: "flex",
         gap: 8,
-        marginBottom: 32,
+        marginBottom: 12,
         flexWrap: "wrap",
         alignItems: "center",
       }}
