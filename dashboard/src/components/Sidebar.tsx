@@ -533,6 +533,7 @@ function TreeLeaf({
           to={`/page/${vault}/${slug}`}
           className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
           style={{ marginLeft: depth * 14 }}
+          title={`물리 경로: ${node.path}`}
         >
           <span
             className="sidebar-tree-leaf-dot"
