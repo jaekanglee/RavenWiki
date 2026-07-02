@@ -10,6 +10,7 @@ import { NewVaultPage } from "./routes/NewVaultPage";
 import { DashboardDigest } from "./routes/DashboardDigest";
 import { VaultManage } from "./routes/VaultManage";
 import { GardenPage } from "./routes/GardenPage";
+import { RawPanel } from "./routes/RawPanel";
 
 export default function App() {
   return (
@@ -26,6 +27,8 @@ export default function App() {
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
           <Route path="/digest" element={<DashboardDigest />} />
+          {/* v0.7.50+: raw/ folder panel */}
+          <Route path="/raw/:vault/*" element={<RawPanel />} />
         </Route>
       </Routes>
     </BrowserRouter>

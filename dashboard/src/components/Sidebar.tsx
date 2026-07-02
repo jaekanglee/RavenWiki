@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
 import { NewFolderButton } from "./NewFolderButton";
 import { nodeColor } from "./GraphCanvas";
+import { RawTree } from "./RawTree";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
 interface SidebarProps {
   vaults: VaultMeta[];
   trees: Record<string, TNode | null>;
+  // v0.7.50+: raw/ 트리 (P32 OS directory = first-class). 없으면 null.
+  rawItems: Record<string, import("../lib/api").RawItem[]>;
   activeVault: string;
   onSelectVault: (name: string) => void;
   onRefresh?: () => void;
@@ -104,17 +107,30 @@ function filterTree(tree: TNode | null, query: string): TNode | null {
 }
 
 function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
-  const match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
-  if (!match) return null;
-  return {
-    vault: decodeURIComponent(match[1]),
-    slug: decodeURIComponent(match[2]),
-  };
+  // /page/{vault}/{slug...} (페이지)
+  let match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
+  if (match) {
+    return {
+      vault: decodeURIComponent(match[1]),
+      slug: decodeURIComponent(match[2]),
+    };
+  }
+  // v0.7.50+: /raw/{vault}/{relPath...} (raw 파일). slug = 'raw/<relPath>' (트리 매칭용).
+  match = pathname.match(/^\/raw\/([^/]+)\/(.+)$/);
+  if (match) {
+    return {
+      vault: decodeURIComponent(match[1]),
+      slug: `raw/${decodeURIComponent(match[2])}`,
+    };
+  }
+  // /raw/{vault} (raw 패널 진입, 파일 미선택) — null
+  return null;
 }
 
 export function Sidebar({
   vaults,
   trees,
+  rawItems,
   activeVault,
   onSelectVault,
   onRefresh,
@@ -124,6 +140,7 @@ export function Sidebar({
   onToggleTheme = () => {},
 }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const activePage = activePageFromPath(location.pathname);
   const [filter, setFilter] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
@@ -140,6 +157,7 @@ export function Sidebar({
 
   const activeVaultMeta = vaults.find((v) => v.name === activeVault);
   const activeTree = trees[activeVault] ?? null;
+  const activeRawItems = rawItems[activeVault] ?? [];
 
   return (
     <aside
@@ -294,6 +312,43 @@ export function Sidebar({
               보관소가 선택되지 않았습니다.
             </div>
           )
+        )}
+
+        {/* v0.7.50+: raw/ 섹션 (P32 OS directory = first-class) */}
+        {activeVaultMeta && activeRawItems.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div
+              className="sidebar-label"
+              style={{
+                padding: "0 0 6px",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.32px",
+                color: "var(--color-muted)",
+                fontFamily: "var(--font-display)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span>📂</span>
+              <span>raw</span>
+              <span style={{ marginLeft: "auto", fontWeight: 500, fontSize: 10 }}>
+                {activeRawItems.length}
+              </span>
+            </div>
+            <RawTree
+              items={activeRawItems}
+              selectedPath={activePage?.vault === activeVault ? activePage.slug : null}
+              onSelect={(path) => {
+                // raw/... → /raw/{vault}/<rel> (rel = 'raw/' 이후)
+                const rel = path.replace(/^raw\//, "");
+                navigate(`/raw/${activeVault}/${rel}`);
+                onClose();
+              }}
+              compact
+            />
+          </div>
         )}
       </div>
 

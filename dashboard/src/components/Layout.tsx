@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
-import { fetchVaults, fetchTree, getActiveVault, setActiveVault } from "../lib/api";
+import { fetchRawList, fetchVaults, fetchTree, getActiveVault, setActiveVault, type RawItem } from "../lib/api";
 import { useEffect, useState } from "react";
 import { VaultPicker } from "./VaultPicker";
 import type { TreeNode, VaultMeta } from "../types";
@@ -28,6 +28,8 @@ export function Layout() {
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [trees, setTrees] = useState<Record<string, TreeNode | null>>({});
+  // v0.7.50+: raw/ 폴더 트리 (P32 OS directory = first-class).
+  const [rawItems, setRawItems] = useState<Record<string, RawItem[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
@@ -89,6 +91,17 @@ export function Layout() {
       });
   }, [vaults, refreshKey]);
 
+  // v0.7.50+: fetch raw/ 트리 (각 vault마다). 404면 빈 배열 (raw/ 없는 vault).
+  useEffect(() => {
+    if (vaults.length === 0) return;
+    Promise.all(vaults.map((v) => fetchRawList(v.name)))
+      .then((results) => {
+        const map: Record<string, RawItem[]> = {};
+        for (let i = 0; i < vaults.length; i++) map[vaults[i].name] = results[i]?.items ?? [];
+        setRawItems(map);
+      });
+  }, [vaults, refreshKey]);
+
   // Track narrow viewport so the drawer width adapts on small screens.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -121,6 +134,7 @@ export function Layout() {
       <Sidebar
         vaults={vaults}
         trees={trees}
+        rawItems={rawItems}
         activeVault={vault}
         onSelectVault={(name) => {
           setVault(name);

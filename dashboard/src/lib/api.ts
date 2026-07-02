@@ -366,3 +366,93 @@ export async function fetchGarden(vault: string): Promise<GardenResult | null> {
   if (!r.ok) return null;
   return r.json();
 }
+
+
+// ────────────────────────── raw/ folder (v0.7.50+, ADR-2026-07-02) ──────────────────────────
+//
+// 사람 1차 운영 영역. 에이전트는 MCP wiki_read로만 read.
+// Dashboard raw panel + Sidebar raw/ 노드용 client.
+
+export interface RawItem {
+  path: string;
+  name: string;
+  type: "file" | "dir";
+  kind: "raw";
+  size?: number | null;
+  modified?: string | null;
+}
+
+export interface RawList {
+  ok: boolean;
+  vault: string;
+  root: "raw";
+  items: RawItem[];
+}
+
+export interface RawContent {
+  ok: boolean;
+  vault: string;
+  path: string;
+  content: string;
+  size?: number | null;
+  modified?: string | null;
+}
+
+/** raw/ 트리 + 메타. vault에 raw/ 없으면 null (404 silent). */
+export async function fetchRawList(vault: string): Promise<RawList | null> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+/** raw/ 파일 내용. 없으면 null. */
+export async function fetchRawContent(vault: string, relPath: string): Promise<RawContent | null> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+/** raw/ 파일 작성/갱신. content 전체 overwrite. */
+export async function writeRaw(
+  vault: string,
+  relPath: string,
+  content: string,
+): Promise<{ ok: boolean; path: string; size: number | null; existed: boolean }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!r.ok) {
+    let detail: string;
+    try {
+      const d = await r.json();
+      detail = d.detail || JSON.stringify(d);
+    } catch {
+      detail = `HTTP ${r.status}`;
+    }
+    throw new Error(`write raw failed: ${detail}`);
+  }
+  return r.json();
+}
+
+/** raw/ 파일/빈 dir 삭제. */
+export async function deleteRaw(
+  vault: string,
+  relPath: string,
+): Promise<{ ok: boolean; path: string; deleted: boolean }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    let detail: string;
+    try {
+      const d = await r.json();
+      detail = d.detail || JSON.stringify(d);
+    } catch {
+      detail = `HTTP ${r.status}`;
+    }
+    throw new Error(`delete raw failed: ${detail}`);
+  }
+  return r.json();
+}

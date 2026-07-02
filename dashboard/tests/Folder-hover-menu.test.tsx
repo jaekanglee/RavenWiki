@@ -41,6 +41,7 @@ describe("Sidebar folder hover menu (v0.6.22)", () => {
           onRefresh={() => {}}
           open={true}
           onClose={() => {}}
+          rawItems={{}}
         />
       </MemoryRouter>
     );
