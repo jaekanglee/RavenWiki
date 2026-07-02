@@ -159,7 +159,230 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Dark mode support (v0.7.20+) ── */
+/* ───────────────────────── v0.7.59+ 디자인 시스템 (3-layer) ─────────────────────────
+ * Layer 1 (Palette) — 원시 색상 (의미 ❌) — 라이트/다크 무관 base scale
+ * Layer 2 (Semantic) — 의미별 — Light/Dark 양쪽에 다르게 매핑
+ * Layer 3 (Component) — Layer 2의 별칭 — 컴포넌트 코드에서 사용 권장
+ *
+ * 적용 규칙 (AGENTS.md §13.2):
+ *   - 컴포넌트 코드에서 인라인 hex/rgba ❌
+ *   - Layer 3 별칭 우선 → `var(--bg-canvas)` 등
+ *   - 차수 구조 (display, padding, margin)만 인라인 허용, 컬러 ❌
+ *   - 상세 정책: _meta/design-system.md
+ *
+ * 마이그레이션 순서:
+ *   Phase 1 (현재): Layer 1+2+3 정의 (이 패치)
+ *   Phase 2: 컴포넌트 인라인 hex → Layer 3 별칭 (점진적)
+ *   Phase 3: 시각 검증 (Light/Dark 양쪽)
+ */
+
+/* ── Layer 1: Palette (원시 색상 — 의미 ❌, Tailwind-like 명명) ── */
+:root {
+  /* Slate (중성 회색) */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+
+  /* Sky (강조) */
+  --sky-300: #7dd3fc;
+  --sky-500: #0ea5e9;
+  --sky-700: #0369a1;
+
+  /* Green (성공) */
+  --green-100: #dcfce7;
+  --green-500: #22c55e;
+  --green-700: #15803d;
+
+  /* Red (위험) */
+  --red-100: #fee2e2;
+  --red-500: #ef4444;
+  --red-700: #b91c1c;
+
+  /* Amber (경고) */
+  --amber-100: #fef3c7;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+}
+
+/* ── Layer 2: Semantic (의미별, 라이트 기본값) ── */
+:root,
+[data-color-mode="light"] {
+  --bg-canvas: var(--slate-50);
+  --bg-surface: #ffffff;
+  --bg-soft: var(--slate-100);
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  --fg-ink: var(--slate-900);
+  --fg-default: var(--slate-700);
+  --fg-muted: var(--slate-500);
+  --fg-subtle: var(--slate-400);
+  --fg-on-accent: #ffffff;
+
+  --border-subtle: var(--slate-200);
+  --border-strong: var(--slate-300);
+  --border-focus: var(--sky-700);
+
+  --accent: var(--sky-700);
+  --accent-hover: var(--sky-500);
+
+  --success-fg: var(--green-700);
+  --success-bg: var(--green-100);
+  --danger-fg: var(--red-700);
+  --danger-bg: var(--red-100);
+  --warning-fg: var(--amber-700);
+  --warning-bg: var(--amber-100);
+}
+
+/* ── Layer 3: Component 별칭 (Layer 2 참조) ── */
+:root,
+[data-color-mode="light"] {
+  /* Button */
+  --btn-primary-bg: var(--accent);
+  --btn-primary-bg-hover: var(--accent-hover);
+  --btn-primary-fg: var(--fg-on-accent);
+  --btn-ghost-bg: transparent;
+  --btn-ghost-bg-hover: var(--bg-soft);
+  --btn-ghost-fg: var(--fg-ink);
+  --btn-danger-bg: var(--danger-bg);
+  --btn-danger-fg: var(--danger-fg);
+
+  /* Input / Field */
+  --field-bg: var(--bg-surface);
+  --field-bg-readonly: var(--bg-soft);
+  --field-border: var(--border-subtle);
+  --field-border-focus: var(--border-focus);
+  --field-fg: var(--fg-ink);
+
+  /* Toast / Alert (라이트: soft bg + saturated fg) */
+  --toast-success-bg: var(--success-bg);
+  --toast-success-fg: var(--success-fg);
+  --toast-error-bg: var(--danger-bg);
+  --toast-error-fg: var(--danger-fg);
+
+  /* Code (의도된 강한 대비 — 라이트에 어두운 배경) */
+  --code-inline-bg: var(--bg-soft);
+  --code-inline-fg: var(--accent);
+  --code-block-bg: var(--slate-800);
+  --code-block-fg: var(--slate-200);
+
+  /* Graph */
+  --graph-bg: var(--bg-soft);
+  --graph-grid: var(--border-subtle);
+  --graph-surface: rgba(255, 255, 255, 0.82);
+  --graph-text: var(--fg-ink);
+  --graph-text-muted: var(--fg-muted);
+  --graph-node-outline: rgba(15, 23, 42, 0.18);
+  --graph-node-outline-hover: rgba(59, 130, 246, 0.4);
+  --graph-node-glow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 0 14px rgba(59, 130, 246, 0.16);
+  --graph-label-color: var(--fg-ink);
+  --graph-label-shadow: 0 1px 3px rgba(255, 255, 255, 0.92);
+  --graph-edge: rgba(100, 116, 139, 0.28);
+  --graph-edge-highlight: var(--fg-ink);
+  --graph-tooltip-bg: var(--bg-surface);
+  --graph-tooltip-border: var(--border-subtle);
+  --graph-tooltip-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+
+  /* Sidebar / Navigation */
+  --nav-bg: var(--bg-canvas);
+  --nav-fg: var(--fg-ink);
+  --nav-active-bg: var(--bg-soft);
+  --nav-active-fg: var(--accent);
+
+  /* v0.7.59+: Layer 2 (Semantic) 다크 override — html.dark 클래스 또는
+     [data-color-mode="dark"] 속성으로 활성. 기존 :root의 라이트 정의 덮어씀. */
+  --bg-canvas: var(--slate-900);
+  --bg-surface: var(--slate-800);
+  --bg-soft: var(--slate-700);
+  --bg-overlay: rgba(0, 0, 0, 0.65);
+
+  --fg-ink: var(--slate-50);
+  --fg-default: var(--slate-200);
+  --fg-muted: var(--slate-400);
+  --fg-subtle: var(--slate-500);
+  --fg-on-accent: #ffffff;
+
+  --border-subtle: var(--slate-700);
+  --border-strong: var(--slate-600);
+  --border-focus: var(--sky-300);
+
+  --accent: var(--sky-300);
+  --accent-hover: var(--sky-500);
+
+  --success-fg: var(--green-100);
+  --success-bg: rgba(34, 197, 94, 0.15);
+  --danger-fg: var(--red-100);
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --warning-fg: var(--amber-100);
+  --warning-bg: rgba(245, 158, 11, 0.15);
+
+  /* v0.7.59+: Layer 3 (Component) 다크 override */
+  --code-inline-bg: var(--bg-soft);
+  --code-inline-fg: var(--sky-300);
+  --code-block-bg: var(--slate-900);
+  --code-block-fg: var(--slate-100);
+
+  --graph-bg: var(--slate-800);
+  --graph-grid: var(--slate-700);
+  --graph-surface: rgba(15, 23, 42, 0.82);
+  --graph-text: var(--fg-ink);
+  --graph-text-muted: var(--fg-muted);
+  --graph-node-outline: rgba(226, 232, 240, 0.18);
+  --graph-node-outline-hover: rgba(125, 211, 252, 0.6);
+  --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
+  --graph-label-color: var(--fg-ink);
+  --graph-label-shadow: 0 1px 3px rgba(10, 14, 26, 0.92);
+  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge-highlight: var(--fg-ink);
+  --graph-tooltip-bg: var(--slate-900);
+  --graph-tooltip-border: var(--slate-700);
+
+  --nav-bg: var(--bg-canvas);
+  --nav-fg: var(--fg-ink);
+  --nav-active-bg: var(--bg-soft);
+  --nav-active-fg: var(--accent);
+}
+
+[data-color-mode="dark"] {
+  /* 라이트 위에서 정의한 토큰을 다크로 override. html.dark과 동일. */
+  --bg-canvas: var(--slate-900);
+  --bg-surface: var(--slate-800);
+  --bg-soft: var(--slate-700);
+  --bg-overlay: rgba(0, 0, 0, 0.65);
+
+  --fg-ink: var(--slate-50);
+  --fg-default: var(--slate-200);
+  --fg-muted: var(--slate-400);
+  --fg-subtle: var(--slate-500);
+  --fg-on-accent: #ffffff;
+
+  --border-subtle: var(--slate-700);
+  --border-strong: var(--slate-600);
+  --border-focus: var(--sky-300);
+
+  --accent: var(--sky-300);
+  --accent-hover: var(--sky-500);
+
+  --success-fg: var(--green-100);
+  --success-bg: rgba(34, 197, 94, 0.15);
+  --danger-fg: var(--red-100);
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --warning-fg: var(--amber-100);
+  --warning-bg: rgba(245, 158, 11, 0.15);
+
+  --code-block-bg: var(--slate-900);
+  --code-block-fg: var(--slate-100);
+  --code-inline-fg: var(--sky-300);
+
+  --graph-bg: var(--slate-800);
+  --graph-edge: rgba(148, 163, 184, 0.45);
+}
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
