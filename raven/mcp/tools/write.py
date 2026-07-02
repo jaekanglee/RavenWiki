@@ -445,6 +445,10 @@ def wiki_ingest(
     ctx: Optional[VaultContext] = None,
     actor: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    # v0.7.55+, ADR-2026-07-02: raw/ 폴더는 사람 1차 운영 영역.
+    # 에이전트가 자율로 wiki_ingest를 호출하면 source of truth가 변조될 수 있으므로
+    # 사람 운영자의 명시 명령이 있을 때만 허용.
+    user_command: bool = False,
 ) -> dict:
     """Ingest a raw source into the vault.
 
@@ -461,14 +465,40 @@ def wiki_ingest(
             a write with the same key + same parameters returns the cached
             response without touching the file. Reusing a key with
             *different* parameters fails closed with an ``ok=False`` reply.
+        user_command: v0.7.55+, **필수**. 사람 운영자의 명시적 명령이 있음을
+            선언. False (기본값)이면 에이전트 자율 호출로 간주하고 거부.
+            CLI `raven raw ingest ...` 등 사람이 직접 호출하는 경로에서만
+            `user_command=True`로 설정.
 
     Returns:
         ``{"ok": bool, "message": str, "pages_created": int,
             "pages_updated": int, "actor": str,
             "idempotency_key": str|None, "timestamp": str}``
+
+    v0.7.55+ 권한 (ADR-2026-07-02):
+        - 사람 (CLI/Dashboard 직접 호출): user_command=True로 호출 가능
+        - 에이전트 (MCP wiki_ingest 자동 호출): user_command=False로 거부
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
     ctx.require("wiki_ingest")
+
+    # v0.7.55+: raw/ 쓰기 = 사람 1차 권한. 에이전트 자율 호출 차단.
+    if not user_command:
+        return {
+            "ok": False,
+            "message": (
+                "wiki_ingest requires user_command=True (ADR-2026-07-02). "
+                "raw/ is human-first; agent-driven ingest is blocked to prevent "
+                "source-of-truth mutation. Call via `raven raw ingest` (CLI) or "
+                "Dashboard /raw panel with explicit user authorization."
+            ),
+            "error": "user_command_required",
+            "pages_created": 0,
+            "pages_updated": 0,
+            "actor": normalize_actor(actor) if actor else "anonymous",
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+        }
 
     actor_norm = normalize_actor(actor)
     provenance = {

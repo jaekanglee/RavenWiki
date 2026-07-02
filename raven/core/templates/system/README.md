@@ -68,12 +68,19 @@ confidence: high
 
 에이전트(LLM)는 아래 표에 정의된 권한을 **물리적으로 강제** 적용받습니다. 허용되지 않은 쓰기 시도는 백엔드 API/MCP 수준에서 에러(`permission_denied`)와 함께 차단됩니다.
 
-| 경로 | 권한 (LLM 기준) | 용도 및 규칙 |
-|---|---|---|
-| `<vault>/raw/` | **READ ONLY** | **불변의 원본 소스 영역 (Immutable).** 에이전트의 직접 수정 및 쓰기 금지. |
-| `<vault>/content/` | **read / write** | 에이전트가 소유하고 작성하는 위키 지식 레이어 (자유) |
-| `<vault>/_meta/` | **READ ONLY** | 시스템 및 에이전트 행동 지침 가이드 영역 |
-| `<vault>/log.md` | **append only** | 작업 이력 (에이전트가 직접 수정 ❌, 도구가 자동 기록) |
+| 경로 | 주체 | 권한 | 용도 및 규칙 |
+|---|---|---|---|
+| `<vault>/raw/` | **사람 (1차)** | **full CRUD** | **사람이 1차로 관리하는 source-of-truth 영역.** Dashboard `/raw` panel, `raven raw ...` CLI, OS 파일관리자로 자유 CRUD. 사람이 검증한 자료만 raw/에 들어감. |
+| `<vault>/raw/` | **에이전트 (read-only)** | read only | `wiki_read` (raw slug 조회) 만 가능. 쓰기는 `wiki_ingest`로만 가능하며 **사람 명시 명령 필요** (v0.7.50+, ADR-2026-07-02). |
+| `<vault>/content/` | **에이전트** | read / write | 에이전트가 소유하고 작성하는 위키 지식 레이어 (자유) |
+| `<vault>/_meta/` | **사람 + 에이전트** | 사람: 자유, 에이전트: READ ONLY | 시스템 및 행동 지침 가이드 영역. 에이전트 직접 수정 ❌. |
+| `<vault>/log.md` | 도구 자동 | append only | 작업 이력 (에이전트가 직접 수정 ❌, 도구가 자동 기록) |
+
+**원칙 (v0.7.50+ raw/ 정책)**:
+- raw/ 는 **사람이 1차로 관리** — north star "사람 1차 사용자" 정렬.
+- 에이전트 자율 raw/ 쓰기 ❌ (source of truth 변조 방지).
+- 사람 ↔ 에이전트 권한이 다른 영역: raw/ (사람 write, 에이전트 read), content/ (둘 다 자유), _meta/ (사람 자유, 에이전트 read).
+- 자세한 권한 매트릭스 + 도구 표: `RULES.md`의 R6 섹션.
 
 위 영역 밖:
 - `.vault.json` — 도구가 관리 (직접 수정 ❌)

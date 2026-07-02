@@ -61,3 +61,24 @@ type: concept   # 9개 중 하나
 raven link check       # wikilink 깨진 거
 raven build            # DB 재빌드 + lint
 ```
+
+## R6. raw/ 폴더 권한 (v0.7.50+, ADR-2026-07-02)
+
+**raw/ 는 사람 1차 운영 영역, 에이전트는 read-only.**
+
+| 주체 | 권한 | 인터페이스 |
+|---|---|---|
+| **사람** (개발자 / 운영자) | **full CRUD** (조회 / 작성 / 수정 / 삭제 / 이동) | Dashboard `/raw` panel, `raven raw ...` CLI, OS 파일관리자 (직접) |
+| **단일 에이전트** (LLM client) | **read-only** | MCP `wiki_read` (raw slug 조회). 쓰기는 `wiki_ingest`로만 가능하며 **사람 명시 명령 필요** |
+| **멀티 에이전트** | **read-only** (단일 에이전트와 동일) | 동시성 보호 없음 — 사용자 책임 |
+
+### 규칙
+
+- **에이전트는 raw/ 에 자율 쓰기 금지**. `wiki_ingest` 호출은 사람 운영자의 명시 명령으로만.
+- **에이전트가 raw/ 를 수정하려 하면**: `wiki_update` 등 다른 도구는 raw/ 경로를 거부 (HTTP 400 / read-only).
+- **사람이 raw/ 를 직접 수정** (`vim`, Finder, Dashboard) 가능. OS 파일관리자 백업/복원으로 undo 가능.
+- **에이전트가 만든 wiki 페이지가 raw/ 를 참조**: `<vault>/content/...`에 작성, `[[raw/<slug>]]`로 wikilink만 가능.
+
+### 의도 (왜 사람 1차인가)
+
+`raw/` 는 **source of truth** — 외부 자료(논문, 웹클리핑, dump)의 원본. 에이전트가 자율로 변조하면 컴파일 결과(content/)의 신뢰성 붕괴. **사람이 검증한 자료만 raw/ 에 들어가야** 안전.

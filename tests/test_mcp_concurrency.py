@@ -156,7 +156,8 @@ def test_ingest_dest_slug_uses_lock(temp_vault: Path):
 
     dest_slug = "raw/proj/" + src.name
     acquire_lock(temp_vault, dest_slug, "alice")
-    r = wiki_ingest(source=str(src), project="proj", actor="bob", ctx=ctx)
+    r = wiki_ingest(source=str(src), project="proj", actor="bob", ctx=ctx,
+                    user_command=True)
 
     assert r["ok"] is False
     assert r["error"] == "lock_conflict"
@@ -170,7 +171,8 @@ def test_ingest_no_lock(temp_vault: Path):
     src.write_text("# raw\n", encoding="utf-8")
     ctx = VaultContext(vault=temp_vault, mode=WRITE)
 
-    r = wiki_ingest(source=str(src), project="proj", actor="alice", ctx=ctx)
+    r = wiki_ingest(source=str(src), project="proj", actor="alice", ctx=ctx,
+                    user_command=True)
     assert r["ok"] is True
     assert r["_lock_holder"] is None
 
