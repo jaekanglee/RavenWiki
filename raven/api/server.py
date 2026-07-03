@@ -28,6 +28,14 @@ from raven.core import log_module, digest_module
 from raven.core import contracts
 from raven.core.vault import Vault
 
+# v0.7.61+ workspace tree (read-only) — WorkspacePage OS 파일 트리 노출.
+from raven.api.workspace_tree import (
+    list_workspace_dir,
+    read_workspace_file,
+    MAX_DEPTH,
+    DEFAULT_DEPTH,
+)
+
 
 app = FastAPI(title="raven API", version="0.2.0")
 app.add_middleware(
@@ -294,6 +302,85 @@ def associate_workspace(name: str, payload: WorkspacePayload):
         return {"ok": True, "workspace_path": w_path}
     else:
         raise HTTPException(status_code=500, detail="Failed to update workspace path")
+
+
+# ─── v0.7.61+ Workspace tree (read-only) ────────────────────────────────
+# WorkspacePage에 OS 파일 트리 노출. READ-ONLY: raven은 절대 workspace 파일을
+# 수정하지 않음. 사용자가 외부에서 편집한 파일을 dashboard에서 바로 보고
+# .md 파일은 인라인 미리보기.
+
+
+@app.get("/api/vaults/{name}/workspace/tree")
+def workspace_tree_endpoint(
+    name: str,
+    path: str = Query("", description="workspace-relative directory path"),
+    depth: int = Query(DEFAULT_DEPTH, ge=1, le=MAX_DEPTH, description="recursion depth"),
+    hidden: bool = Query(False, description="include dotfiles (.git, .venv, etc)"),
+):
+    """워크스페이스 디렉토리 1단계 트리 (read-only).
+
+    보안: path는 workspace_root의 서브디렉토리만 허용. ../ 등 외부 traversal 거부.
+    """
+    v = _vault_or_404(name)
+    w_path = v.meta.workspace_path
+    if not w_path:
+        raise HTTPException(status_code=400, detail="No workspace associated with this vault")
+
+    root = Path(w_path).expanduser().resolve()
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workspace directory does not exist: {w_path}",
+        )
+
+    try:
+        result = list_workspace_dir(
+            workspace_root=root,
+            relative=path,
+            depth=depth,
+            include_hidden=hidden,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except NotADirectoryError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"ok": True, **result}
+
+
+@app.get("/api/vaults/{name}/workspace/file")
+def workspace_file_endpoint(
+    name: str,
+    path: str = Query(..., description="workspace-relative file path"),
+):
+    """워크스페이스 안 파일 read (인라인 미리보기 용).
+
+    최대 256KB. 큰 파일은 truncated. READ-ONLY.
+    """
+    v = _vault_or_404(name)
+    w_path = v.meta.workspace_path
+    if not w_path:
+        raise HTTPException(status_code=400, detail="No workspace associated with this vault")
+
+    root = Path(w_path).expanduser().resolve()
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workspace directory does not exist: {w_path}",
+        )
+
+    try:
+        result = read_workspace_file(workspace_root=root, relative=path)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except IsADirectoryError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"ok": True, **result}
 
 
 def _run_git(cwd: str, args: list[str]) -> tuple[bool, str]:

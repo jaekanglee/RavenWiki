@@ -513,3 +513,64 @@ export async function updateWorkspace(
   }
   return r.json();
 }
+
+// ────────────────────────── workspace OS tree (v0.7.61+, read-only) ──────────────────────────
+// WorkspacePage에 OS 파일 트리 노출. READ-ONLY: raven은 절대 워크스페이스 파일을 수정 안 함.
+// 사용자가 외부에서 편집한 파일을 dashboard에서 바로 보고 .md는 인라인 미리보기.
+
+export interface WorkspaceTreeNode {
+  name: string;
+  path: string;          // workspace-relative, POSIX separator
+  type: "dir" | "file";
+  size: number | null;
+  mtime: number;
+  is_hidden: boolean;
+  depth: number;
+  has_children: boolean; // dir + 자식 depth 여유 있으면 true (UI expand 마커)
+}
+
+export interface WorkspaceTreeResult {
+  ok: boolean;
+  workspace_path: string;
+  path: string;
+  nodes: WorkspaceTreeNode[];
+  total: number;
+  depth: number;
+}
+
+export async function fetchWorkspaceTree(
+  vault: string,
+  options: { path?: string; depth?: number; hidden?: boolean } = {}
+): Promise<WorkspaceTreeResult | null> {
+  const params = new URLSearchParams();
+  if (options.path) params.set("path", options.path);
+  if (options.depth != null) params.set("depth", String(options.depth));
+  if (options.hidden) params.set("hidden", "true");
+  const qs = params.toString();
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/workspace/tree${qs ? "?" + qs : ""}`
+  );
+  if (!r.ok) return null;
+  return r.json();
+}
+
+export interface WorkspaceFileResult {
+  ok: boolean;
+  workspace_path: string;
+  path: string;
+  size: number;
+  truncated: boolean;
+  is_binary: boolean;  // v0.7.61+: binary 감지 결과 (NUL byte / printable 비율 기반)
+  content: string;
+}
+
+export async function fetchWorkspaceFile(
+  vault: string,
+  path: string
+): Promise<WorkspaceFileResult | null> {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/workspace/file?path=${encodeURIComponent(path)}`
+  );
+  if (!r.ok) return null;
+  return r.json();
+}
