@@ -420,3 +420,11 @@ A  _meta/ai-roadmap.md
 - `install.sh` 가 sudo 권한 상승 시 `$HOME` 변경 문제 → 향후 `--user` 플래그 또는 `$SUDO_USER` 활용 강화
 - 백업 retention 정책 (7일) 외에 weekly/monthly 별도 보관은 미구현 (필요 시 추가)
 - deploy.sh 에서 git conflict 발생 시 수동 해결 필요 — 자동 stash/rebase 옵션 검토
+
+## [2026-07-03] update | WorkspacePage LeftTab Split (v0.7.64)
+- WorkspacePage.tsx의 우측 패널 탭(activeTab)을 제거하고 좌측 패널 탭(activeLeftTab: "workspace" | "changes")으로 이전
+- [🌳 워크스페이스] 선택 시: 좌측에 파일 트리 노출, 파일 클릭 시 우측에 미리보기 노출
+- [📋 변경사항] 선택 시: 좌측에 Git 변경 파일 목록 노출, 클릭 시 우측에 Git Diff 노출
+- 파일 클릭/디렉토리 이동 등 액션 발생 시 해당 좌측 탭이 자동으로 active 되도록 싱크 처리
+- activeTab 누락으로 발생하던 TypeScript 컴파일 에러 17건 해결 및 npm run build, npm test 통과 검증
+
