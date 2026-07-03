@@ -30,6 +30,8 @@ confidence: high
 ├── .vault.json         # vault 메타 (name, path)
 ├── log.md              # 작업 이력 (chronological, append-only)
 ├── content/            # ⭐ 사용자 컨텐츠 (slug = vault-relative path)
+│   ├── index.md        # 자동 카탈로그 (type별 _index/ 페이지로 링크)
+│   ├── _index/         # 자동 생성: type별 카탈로그 (content/_index/{type}.md)
 │   └── *.md
 ├── _meta/              # vault 운영 문서 (type: rule)
 │   └── system/
@@ -45,7 +47,7 @@ confidence: high
 ```yaml
 ---
 title: 페이지 제목         # 필수
-type: concept             # 필수: concept | person | comparison | project | tool | rule | query | journal | issue
+type: concept             # 필수: concept | person | comparison | project | tool | rule | query | journal | issue | index
 tags: [core, custom]      # 권장: core = lint 대상
 created: YYYY-MM-DD       # 자동
 updated: YYYY-MM-DD       # 자동
@@ -81,7 +83,7 @@ aliases: [old-slug-1]     # 선택
 ### Core Tags (lint 대상)
 **SCHEMA에 명시된 태그만 사용**:
 - 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`
-- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`, `issue`
+- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`, `issue`, `index`
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
 
 **lint 동작**: core에 없으면 🟡 warning ("not in core taxonomy")

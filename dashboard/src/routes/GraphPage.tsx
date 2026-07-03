@@ -9,7 +9,7 @@ import { TextField } from "../components/ui/TextField";
 import { SelectField } from "../components/ui/SelectField";
 import { Button } from "../components/ui/Button";
 
-type GraphLayout = "atlas" | "constellation" | "spring";
+type GraphLayout = "atlas" | "constellation" | "spring" | "hierarchical" | "radial";
 
 interface GraphFilterState {
   hideOrphans: boolean;
@@ -328,6 +328,7 @@ export function GraphPage() {
         options={[
           { value: "atlas", label: "별자리형 (네트워크)" },
           { value: "hierarchical", label: "트리형 (계층 구조)" },
+          { value: "radial", label: "방사형 (계층 트리)" },
         ]}
         helper="노드들의 배치 알고리즘을 변경합니다."
       />

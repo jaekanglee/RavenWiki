@@ -484,6 +484,27 @@ def test_api_vault_graph_xy_distinct_for_connected_nodes(client, isolated_env):
     assert dist > 1.0, f"a, b가 너무 가까이 (dist={dist:.2f}, 같을 수 없음)"
 
 
+def test_api_vault_graph_accepts_hierarchical_and_radial_layout_query(client, isolated_env):
+    """?layout=hierarchical / ?layout=radial 이 422 없이 좌표를 반환해야 한다.
+
+    회귀 방지: layout Query의 Literal이 "hierarchical"을 누락했던 적이 있어
+    프론트 드롭다운에서 트리형을 고르면 422가 나던 버그가 있었음.
+    """
+    target = isolated_env["target_root"] / "gv5"
+    client.post("/api/vaults/create", json={"name": "gv5", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/gv5/pages", json={"slug": "content/a", "title": "A"})
+    client.post("/api/vaults/gv5/pages", json={"slug": "content/b", "title": "B"})
+
+    for layout in ("hierarchical", "radial"):
+        resp = client.get(f"/api/vaults/gv5/graph?layout={layout}")
+        assert resp.status_code == 200, f"layout={layout} → {resp.status_code}: {resp.text}"
+        nodes = resp.json()["nodes"]
+        assert len(nodes) >= 2
+        for n in nodes:
+            assert isinstance(n["x"], (int, float))
+            assert isinstance(n["y"], (int, float))
+
+
 def test_spring_layout_handles_small_graph():
     """_spring_layout은 0/1/소형 그래프에서도 안정적으로 동작해야 한다."""
     from raven.api.server import _spring_layout
@@ -654,6 +675,71 @@ def test_constellation_layout_normalized_to_pm500_and_deterministic():
         assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
         assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
     assert max(max(abs(x), abs(y)) for x, y in out1.values()) > 0
+
+
+# ─── Graph Radial Hierarchical Layout ─────
+
+
+def test_radial_hierarchical_layout_normalized_and_deterministic():
+    """Radial hierarchical: 좌표 범위 ±500, 같은 입력은 항상 같은 좌표."""
+    from raven.api.server import _radial_hierarchical_layout
+
+    ids = ["a", "a/b", "a/c", "a/c/d", "x", "x/y"]
+    edges: list[tuple[str, str]] = []
+    out1 = _radial_hierarchical_layout(ids, edges)
+    out2 = _radial_hierarchical_layout(ids, edges)
+
+    assert out1 == out2
+    assert set(out1) == set(ids)
+    for slug, (x, y) in out1.items():
+        assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
+        assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
+
+
+def test_radial_hierarchical_layout_depth_maps_to_radius():
+    """Radial hierarchical: 경로가 깊을수록(하위 폴더) 중심에서 더 멀어야 한다."""
+    import math
+    from raven.api.server import _radial_hierarchical_layout
+
+    ids = ["top", "top/mid", "top/mid/deep"]
+    out = _radial_hierarchical_layout(ids, [])
+
+    r_top = math.hypot(*out["top"])
+    r_mid = math.hypot(*out["top/mid"])
+    r_deep = math.hypot(*out["top/mid/deep"])
+    assert r_top < r_mid < r_deep
+
+
+def test_radial_hierarchical_layout_siblings_cluster_by_parent():
+    """Radial hierarchical: 같은 부모 폴더를 공유하는 노드끼리 각도상 더 가까워야 한다."""
+    import math
+    from raven.api.server import _radial_hierarchical_layout
+
+    ids = ["a/1", "a/2", "a/3", "b/1", "b/2", "b/3"]
+    out = _radial_hierarchical_layout(ids, [])
+
+    def angle(slug: str) -> float:
+        x, y = out[slug]
+        return math.atan2(y, x)
+
+    def angular_gap(s1: str, s2: str) -> float:
+        diff = abs(angle(s1) - angle(s2)) % (2 * math.pi)
+        return min(diff, 2 * math.pi - diff)
+
+    within_a = angular_gap("a/1", "a/2")
+    within_b = angular_gap("b/1", "b/2")
+    cross = angular_gap("a/1", "b/1")
+    assert within_a < cross
+    assert within_b < cross
+
+
+def test_radial_hierarchical_layout_handles_empty_and_single():
+    """Radial hierarchical: 0/1개 노드에서도 안정적으로 동작해야 한다."""
+    from raven.api.server import _radial_hierarchical_layout
+
+    assert _radial_hierarchical_layout([], []) == {}
+    out = _radial_hierarchical_layout(["solo"], [])
+    assert out == {"solo": (0.0, 0.0)}
 
 
 def test_api_vault_graph_default_layout_is_atlas():

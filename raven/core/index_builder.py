@@ -2,6 +2,11 @@
 
 Scans the compiled SQLite DB index to rebuild the markdown catalog index
 inside <vault>/content/index.md, preserving custom welcome headers.
+
+Per-type pages are not linked directly from the root index — that made
+content/index a graph hub with out-degree == page count. Instead, each type
+gets its own content/_index/{type}.md catalog page, and the root index links
+only to those (see docs/architecture.md D10).
 """
 from __future__ import annotations
 
@@ -14,7 +19,7 @@ from .vault import Vault
 
 
 def build_index(vault: Vault) -> bool:
-    """Rebuild <vault>/content/index.md.
+    """Rebuild <vault>/content/index.md and its content/_index/{type}.md catalog pages.
     Returns True on success, False otherwise.
     """
     index_path = vault.root / "content" / "index.md"
@@ -37,13 +42,14 @@ def build_index(vault: Vault) -> bool:
         return False
 
     # 2. Filter & Group pages
-    # Exclude index itself and WIP/scratch/system files
+    # Exclude index itself, per-type category index pages, and WIP/scratch/system files
     pages = []
     for slug, title, ptype, created, updated, content in rows:
         slug_lower = slug.lower()
         if (
             slug_lower == "index" or
             slug_lower == "content/index" or
+            slug_lower.startswith("content/_index/") or
             slug_lower.startswith("wip/") or
             slug_lower.startswith("content/wip/") or
             slug_lower.startswith("scratch/") or
@@ -70,27 +76,52 @@ def build_index(vault: Vault) -> bool:
     for gtype in sorted_types:
         groups[gtype].sort(key=lambda x: x["title"].lower())
 
-    # 3. Generate auto-index markdown block
+    # 3. 타입별 카테고리 인덱스 페이지 생성 (content/_index/{type}.md).
+    #    이전엔 루트 index.md가 모든 페이지에 직접 링크해 그래프에서 out-degree가
+    #    페이지 수만큼 커지는 거대 허브 노드가 됐다. 타입별로 링크를 나눠서
+    #    허브 하나에 부채꼴로 몰리는 걸 막는다.
     today = dt.date.today().isoformat()
+    index_dir = vault.root / "content" / "_index"
+    if pages:
+        index_dir.mkdir(parents=True, exist_ok=True)
+        for gtype in sorted_types:
+            cat_lines = [
+                "---",
+                f"title: {gtype.capitalize()} 목록",
+                "type: index",
+                "tags: [index]",
+                f"created: {today}",
+                f"updated: {today}",
+                "---",
+                "",
+                f"# {gtype.capitalize()} 목록",
+                "",
+                f"마지막 자동 갱신: `{today}`",
+                "",
+            ]
+            for p in groups[gtype]:
+                summary_suffix = f" — *{p['summary']}*" if p["summary"] else ""
+                cat_lines.append(f"- [[{p['slug']}]] — {p['title']}{summary_suffix}")
+            cat_path = index_dir / f"{gtype}.md"
+            cat_path.write_text("\n".join(cat_lines) + "\n", encoding="utf-8")
+
+    # 4. Generate root index.md auto-index block — 카테고리 페이지로만 링크.
     lines = [
         "## 📚 지식 카탈로그 (Auto-compiled)",
         f"마지막 자동 갱신: `{today}`",
         "",
     ]
-    
+
     if not pages:
         lines.append("*아직 등록된 정제 페이지가 없습니다.*")
     else:
         for gtype in sorted_types:
-            lines.append(f"### 📁 {gtype.capitalize()}s ({len(groups[gtype])})")
-            for p in groups[gtype]:
-                summary_suffix = f" — *{p['summary']}*" if p["summary"] else ""
-                lines.append(f"- [[{p['slug']}]] — {p['title']}{summary_suffix}")
-            lines.append("")
+            lines.append(f"- [[content/_index/{gtype}]] — 📁 {gtype.capitalize()}s ({len(groups[gtype])})")
+        lines.append("")
 
     auto_index_content = "\n".join(lines).strip()
 
-    # 4. Load or initialize index.md with hybrid placeholders
+    # 5. Load or initialize index.md with hybrid placeholders
     # If the directory doesn't exist, create it (e.g. fresh basic vault)
     index_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -137,7 +168,7 @@ updated: {today}
     replacement = f"\\1\n\n{auto_index_content}\n\n\\3"
     updated_text = pattern.sub(replacement, raw_text)
 
-    # 5. Save updated file
+    # 6. Save updated file
     try:
         index_path.write_text(updated_text, encoding="utf-8")
         print(f"[index_builder] successfully updated {index_path}")
