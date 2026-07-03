@@ -7,14 +7,16 @@ pattern instead of pinning the whole server to a single vault at startup.
 """
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 
 import pytest
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
-from raven.mcp.tools.read import wiki_log, wiki_get_page
-from raven.mcp.tools.write import wiki_update
-from raven.mcp.resources import wiki_schema
-from raven.core.registry import VaultMeta, VaultRegistry
+from raven.mcp.cli import register_tools
+from raven.mcp.resources import register_resources
 
 
 def _make_vault(root: Path, name: str, log_text: str, schema_text: str) -> Path:
@@ -29,6 +31,7 @@ def _make_vault(root: Path, name: str, log_text: str, schema_text: str) -> Path:
 def two_vaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     """Register two distinct vaults ("alpha", "beta") in a temp registry."""
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
+    from raven.core.registry import VaultMeta, VaultRegistry
 
     alpha = _make_vault(tmp_path, "alpha", "## alpha entry\n", "# alpha schema\n")
     beta = _make_vault(tmp_path, "beta", "## beta entry\n", "# beta schema\n")
@@ -39,9 +42,31 @@ def two_vaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, P
     return alpha, beta
 
 
+def _call_tool_result(mcp: FastMCP, name: str, arguments: dict):
+    """Normalize `call_tool`'s return shape back to the tool's plain value.
+
+    FastMCP returns a bare content list for scalar/dict returns but a
+    `(content, {"result": ...})` tuple when the return type is a richer
+    structure (e.g. `list[dict]`) — unwrap either into the original value.
+    """
+    result = asyncio.run(mcp.call_tool(name, arguments))
+    if isinstance(result, tuple):
+        _, structured = result
+        return structured["result"]
+    return json.loads(result[0].text)
+
+
+def _read_resource_text(mcp: FastMCP, uri: str) -> str:
+    contents = list(asyncio.run(mcp.read_resource(uri)))
+    return contents[0].content
+
+
 def test_wiki_log_routes_by_vault_name(two_vaults):
-    alpha_lines = wiki_log(vault="alpha", tail_n=5)
-    beta_lines = wiki_log(vault="beta", tail_n=5)
+    mcp = FastMCP("wiki")
+    register_tools(mcp, "read")
+
+    alpha_lines = _call_tool_result(mcp, "wiki_log", {"vault": "alpha", "tail_n": 5})
+    beta_lines = _call_tool_result(mcp, "wiki_log", {"vault": "beta", "tail_n": 5})
 
     assert any("alpha entry" in d["line"] for d in alpha_lines)
     assert not any("alpha entry" in d["line"] for d in beta_lines)
@@ -49,8 +74,11 @@ def test_wiki_log_routes_by_vault_name(two_vaults):
 
 
 def test_wiki_schema_resource_routes_by_vault_name(two_vaults):
-    alpha_text = wiki_schema(vault="alpha")
-    beta_text = wiki_schema(vault="beta")
+    mcp = FastMCP("wiki")
+    register_resources(mcp)
+
+    alpha_text = _read_resource_text(mcp, "wiki://alpha/schema")
+    beta_text = _read_resource_text(mcp, "wiki://beta/schema")
 
     assert "alpha schema" in alpha_text
     assert "beta schema" in beta_text
@@ -61,7 +89,12 @@ def test_wiki_update_only_touches_the_named_vault(two_vaults):
     (alpha / "page.md").write_text("---\ntitle: p\n---\n\noriginal\n", encoding="utf-8")
     (beta / "page.md").write_text("---\ntitle: p\n---\n\noriginal\n", encoding="utf-8")
 
-    wiki_update(vault="alpha", slug="page", content="changed")
+    mcp = FastMCP("wiki")
+    register_tools(mcp, "write")
+
+    asyncio.run(mcp.call_tool(
+        "wiki_update", {"vault": "alpha", "slug": "page", "content": "changed"},
+    ))
 
     assert "changed" in (alpha / "page.md").read_text(encoding="utf-8")
     assert "original" in (beta / "page.md").read_text(encoding="utf-8")
@@ -69,8 +102,11 @@ def test_wiki_update_only_touches_the_named_vault(two_vaults):
 
 
 def test_unknown_vault_name_raises_clear_error(two_vaults):
-    with pytest.raises(ValueError) as excinfo:
-        wiki_log(vault="nope", tail_n=5)
+    mcp = FastMCP("wiki")
+    register_tools(mcp, "read")
+
+    with pytest.raises(ToolError) as excinfo:
+        asyncio.run(mcp.call_tool("wiki_log", {"vault": "nope"}))
 
     message = str(excinfo.value)
     assert "nope" in message
