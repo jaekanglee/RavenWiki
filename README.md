@@ -292,7 +292,7 @@ Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다
 | **Tier 2** (사용자 vault) | `<vault>/_meta/system/` | vault 직접 read | vault 데이터 운영 규칙 |
 
 - `vault clone` 기본 = **content only** (Tier 1 leak 방지)
-- Tier 2 Lite = **5종 고정** (`SCHEMA.md` / `RULES.md` / `AGENTS.md` / `PROJECT-WORKFLOW.md` / `log.md`)
+- Tier 2 Lite = **5종 고정** (`SCHEMA.md` / `RULES.md` / `README.md` / `PROJECT-WORKFLOW.md` / `log.md`)
 - Tier 1 ↔ Tier 2 혼동 시 `raven vault verify <name>`로 진단
 
 ---

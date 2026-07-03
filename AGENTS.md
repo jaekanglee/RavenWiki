@@ -178,7 +178,7 @@ Codex 1라운드 critique 결과 (한국 원티드 사이트 레퍼런스 분석
 ### 문서 작성 기법 (자가 사용 표준)
 
 - **BLUF** (Bottom Line Up Front) — 모든 페이지 첫 줄에 결론/결정 1문장
-- **Diátaxis** — type 8종을 4종(Explanation/How-to/Reference/Tutorial)에 매핑
+- **Diátaxis** — type 9종을 4종(Explanation/How-to/Reference/Tutorial)에 매핑
 - **Progressive Disclosure** — 한 줄 요약 → 본문 → "더 보기" wikilink navigation
 - **Pyramid Principle** — ADR은 결론 → 맥락 → 결과 위계
 
@@ -247,10 +247,10 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - ❌ 5번째 진입점 추가 ❌ (Telegram, Slack 등)
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)
 - ❌ `raven/mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌 회피를 위해 v0.6.0+ 고정)
-- ❌ SCHEMA.md 8종 외 type 정의 ❌
+- ❌ SCHEMA.md 9종 외 type 정의 ❌
 - ❌ Lite bootstrap 5종 (사용자 표면 가이드)에 raven 내부 정책/Tier 1 leak/vendor 예시 ❌ — v0.7.3+
 - ❌ 의존성 추가 without 사용자 승인 ❌
-- ❌ 타이틀과 1:1 매핑되지 않는 임의의 마크다운 파일명(Slug) 지정 ❌ (반드시 Frontmatter의 `title`을 소문자화하고 공백/특수문자를 하이픈`-`으로 치환한 파일명 사용)
+- ❌ 타이틀과 1:1 매핑되지 않는 임의의 마크다운 파일명(Slug) 지정 ❌ (파일명은 `title`을 그대로 슬러그화 — 공백/특수문자는 하이픈`-`으로 치환, 영문은 소문자화. **`title`의 언어를 임의로 번역/음차 금지**: 한글 title → 한글 파일명, 영문 title → 영문 파일명)
 - ❌ 내용과 무관하거나 사람이 이해하기 힘든 기계적/임의적 타이틀 부여 ❌ (반드시 파일의 핵심 역할을 사람이 직관적으로 바로 파악할 수 있는 명료한 요약형 타이틀을 사용해야 함)
 - ❌ 기계적인 태스크 코드 및 빌드 메시지에 의존한 난해한 본문 서술 ❌ (본문 역시 기계적 태스크 번호 대신 구체적인 기술/기능 중심 명사구 용어를 사용하여 사람이 직관적으로 맥락을 파악할 수 있게 설명해야 하며, 저널/일기 문서는 본문 최상단에 `# 요약` 섹션 작성이 강제됨)
 
@@ -313,7 +313,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 
 | 파일 | 역할 | SOT |
 |---|---|---|
-| `_meta/SCHEMA.md` | vault 내부 frontmatter v2.4 (type 8종, tag taxonomy) | ✅ |
+| `_meta/SCHEMA.md` | vault 내부 frontmatter v2.4 (type 9종, tag taxonomy) | ✅ |
 | `_meta/RULES.md` | cross-cutting 운영 정책 (M1) | ✅ |
 | `_meta/ai-roadmap.md` | M3-M6 로드맵 | ✅ |
 | `_meta/deployment.md` | VPS/Tailscale 배포 | ✅ |
@@ -343,11 +343,11 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
     *   작업한 문서가 §5의 '저장 결정 4가지 신호(재사용성, 인수인계, 맥락 추적, 실패 기록)' 중 최소 1개 이상에 부합하는가?
     *   단순히 일시적인 커밋 로그나 임시 작업 로그가 아니라, 훗날 다른 에이전트나 사람이 참고할 만큼 지식의 정보 밀도가 높은가?
 *   **형식 및 구조 일관성 (Structure & Conventions)**:
-    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되는가? ([RULES.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/RULES.md#L108-L112) 준수)
-    *   [SCHEMA.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/SCHEMA.md)에 지정된 8종 타입 및 태그 스키마에 부합하는가?
+    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되고, 언어(한글/영문)까지 title과 동일하게 유지되는가? ([RULES.md](_meta/RULES.md) §8 준수)
+    *   [SCHEMA.md](_meta/SCHEMA.md)에 지정된 9종 타입 및 태그 스키마에 부합하는가?
 *   **인간 중심 가독성 (Human-Centric UX)**:
     *   본문 최상단에 BLUF(Bottom Line Up Front) 형식의 핵심 요약이 작성되어 있는가?
-    *   일지(`journal`)나 저널 성격의 문서는 `# 요약` 섹션(3줄 이내)을 명확히 작성했는가? ([RULES.md](file:///Users/jaekanglee/Desktop/Dev/Project/Raven/_meta/RULES.md#L113-L116) 준수)
+    *   일지(`journal`)나 저널 성격의 문서는 `# 요약` 섹션(3줄 이내)을 명확히 작성했는가? ([RULES.md](_meta/RULES.md) §8 준수)
 *   **연결성 및 지식 그래프화 (Connectivity)**:
     *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 `[[wikilink]]`를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
 
