@@ -1214,7 +1214,8 @@ def export(
     if result.get("ok"):
         typer.echo(f"✅ exported: {result.get('out_dir')} (vault={v.meta.name})")
     else:
-        typer.echo(f"❌ export failed: {result.get('reason', '?')}", err=True)
+        reason = result.get("reason") or result.get("stdout_tail") or "?"
+        typer.echo(f"❌ export failed: {reason.strip()}", err=True)
         typer.echo(result.get("stderr_tail", ""), err=True)
         raise typer.Exit(1)
 
