@@ -99,14 +99,18 @@ def _serialize(obj: Any) -> str:
 # ---------- main export ----------
 
 
-def export(vault: Path) -> int:
-    """Vault 데이터를 dashboard/public/api/*.json으로 export. 반환: 페이지 수."""
+def export(vault: Path, out_dir: Optional[Path] = None) -> Optional[int]:
+    """Vault 데이터를 out_dir/*.json으로 export.
+
+    반환: 페이지 수. wiki.db가 없으면 None (실패 — 성공 위장 금지).
+    """
     db_path = vault / "wiki.db"
     if not db_path.exists():
-        print(f"❌ {db_path} 없음. build_db.py 먼저 실행하세요.")
-        return 0
+        print(f"❌ {db_path} 없음. `raven build` 먼저 실행하세요.")
+        return None
 
-    out_dir = vault / "dashboard" / "public" / "api"
+    if out_dir is None:
+        out_dir = vault / "dashboard" / "public" / "api"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(str(db_path))
@@ -219,11 +223,22 @@ def export(vault: Path) -> int:
     conn.close()
 
     print(
-        f"✅ Exported {n_pages} pages + graph + tree + index → {out_dir.relative_to(vault)}/"
+        f"✅ Exported {n_pages} pages + graph + tree + index → {out_dir}/"
     )
     return n_pages
 
 
 if __name__ == "__main__":
-    vault = Path(__file__).resolve().parent.parent
-    export(vault)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="vault → 정적 JSON export")
+    parser.add_argument(
+        "vault", nargs="?", default=str(Path(__file__).resolve().parent.parent),
+        help="vault 루트 경로 (기본: 저장소 루트 — legacy 호환)",
+    )
+    parser.add_argument("--out", default=None, help="출력 디렉토리")
+    args = parser.parse_args()
+
+    n = export(Path(args.vault), Path(args.out) if args.out else None)
+    if n is None:
+        sys.exit(1)
