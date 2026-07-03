@@ -48,36 +48,45 @@ python -m mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
 | `--transport` | `stdio` | `stdio` (local) or `http` (remote) |
 | `--host` | `127.0.0.1` | HTTP bind host (use Tailscale IP for remote) |
 | `--port` | `8765` | HTTP bind port |
-| `--vault` | parent of `mcp/` | vault root path |
-| `--mode` | `read` | `read` / `write` / `admin` |
+| `--mode` | `read` | `read` / `write` / `admin` — access level for this process, applies across every vault it serves |
+
+**v0.7.6x+: no `--vault` flag.** One server process serves every vault the
+registry knows about (`WIKI_VAULTS_DIR`/`.registry.json`) — each tool call
+picks its target vault via the `vault` argument (registered vault name),
+mirroring `raven.api.server`'s `/api/vaults/{name}/...` routes. See
+[ADR-2026-07-03](../../_meta/decisions/adr-2026-07-03-mcp-multi-vault.md).
 
 ## Tools (9)
 
+Every tool takes `vault: str` (a name from `raven vault list`) as its first
+argument; an unregistered name fails with a message listing what *is*
+registered.
+
 ### Read (always available)
 
-- `wiki_search(query: str, top_k: int = 10) -> list[dict]` — FTS5 BM25 search.
-- `wiki_get_page(slug: str) -> dict | None` — single page with content, frontmatter, backlinks, outbound links, tags.
-- `wiki_lint() -> dict` — run `scripts/lint.py` and return `{critical, warning, info, total, issues[]}`.
-- `wiki_graph(project: str | None = None, fmt: str = "json") -> dict` — full link graph; optional substring filter on slug.
-- `wiki_log(tail_n: int = 20) -> list[dict]` — last N non-empty log.md lines.
+- `wiki_search(vault: str, query: str, top_k: int = 10) -> list[dict]` — FTS5 BM25 search.
+- `wiki_get_page(vault: str, slug: str) -> dict | None` — single page with content, frontmatter, backlinks, outbound links, tags.
+- `wiki_lint(vault: str) -> dict` — run `scripts/lint.py` and return `{critical, warning, info, total, issues[]}`.
+- `wiki_graph(vault: str, project: str | None = None, fmt: str = "json") -> dict` — full link graph; optional substring filter on slug.
+- `wiki_log(vault: str, tail_n: int = 20) -> list[dict]` — last N non-empty log.md lines.
 
 ### Write (requires `--mode write` or `--admin`)
 
-- `wiki_update(slug: str, content: str, frontmatter: dict | None = None) -> dict` — overwrite a vault page (slug must include a category, e.g. `concepts/wiki`).
-- `wiki_ingest(source: str, project: str | None = None, mode: str = "auto", *, user_command: bool = False) -> dict` — copy a raw source into `<vault>/raw/<project>/`. **v0.7.55+ (ADR-2026-07-02): raw/ 폴더는 사람 1차 운영 영역이므로 `user_command=True` 필수.** 에이전트 자율 호출은 `error: "user_command_required"`로 거부. 사람은 `raven raw ingest` (CLI) / Dashboard `/raw` 패널 경유.
+- `wiki_update(vault: str, slug: str, content: str, frontmatter: dict | None = None) -> dict` — overwrite a vault page (slug must include a category, e.g. `concepts/wiki`).
+- `wiki_ingest(vault: str, source: str, project: str | None = None, mode: str = "auto", *, user_command: bool = False) -> dict` — copy a raw source into `<vault>/raw/<project>/`. **v0.7.55+ (ADR-2026-07-02): raw/ 폴더는 사람 1차 운영 영역이므로 `user_command=True` 필수.** 에이전트 자율 호출은 `error: "user_command_required"`로 거부. 사람은 `raven raw ingest` (CLI) / Dashboard `/raw` 패널 경유.
 
 ### Admin (requires `--mode admin`)
 
-- `wiki_delete(slug: str) -> dict` — archives the page to `_archive/<slug>-<timestamp>.md` and rebuilds `wiki.db`. Reversible (revert via git, then rebuild).
-- `wiki_rename(old_slug: str, new_slug: str) -> dict` — moves the file, rewrites every inbound `[[old_slug]]` wikilink across the vault, and rebuilds `wiki.db`. Adds an `aliases:` entry to the renamed file's frontmatter so old links resolve.
+- `wiki_delete(vault: str, slug: str) -> dict` — archives the page to `_archive/<slug>-<timestamp>.md` and rebuilds `wiki.db`. Reversible (revert via git, then rebuild).
+- `wiki_rename(vault: str, old_slug: str, new_slug: str) -> dict` — moves the file, rewrites every inbound `[[old_slug]]` wikilink across the vault, and rebuilds `wiki.db`. Adds an `aliases:` entry to the renamed file's frontmatter so old links resolve.
 
 ## Resources (5, always read-only)
 
-- `wiki://index` — full page catalog.
-- `wiki://page/{slug}` — one page with envelope `{found, slug, page}`.
-- `wiki://graph` — full link graph + counts.
-- `wiki://log/recent` — last 5000 chars of `log.md`.
-- `wiki://schema` — raw `SCHEMA.md` text.
+- `wiki://{vault}/index` — full page catalog.
+- `wiki://{vault}/page/{slug}` — one page with envelope `{found, slug, page}`.
+- `wiki://{vault}/graph` — full link graph + counts.
+- `wiki://{vault}/log/recent` — last 5000 chars of `log.md`.
+- `wiki://{vault}/schema` — raw `SCHEMA.md` text.
 
 ## Permission model
 
