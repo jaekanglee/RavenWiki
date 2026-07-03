@@ -6,7 +6,12 @@ import {
   splitRelatedSection,
   stripLeadingTitleHeading,
 } from "../src/routes/PageView";
-import { deriveGraphInsights, deriveNodeDetail, filterGraphView } from "../src/routes/GraphPage";
+import {
+  deriveCommunityOptions,
+  deriveGraphInsights,
+  deriveNodeDetail,
+  filterGraphView,
+} from "../src/routes/GraphPage";
 import type { Graph } from "../src/types";
 
 const graph: Graph = {
@@ -209,6 +214,26 @@ describe("GraphPage helpers", () => {
 
     expect(filtered.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b"]);
     expect(filtered.edges).toEqual([{ source_slug: "a", target_slug: "b" }]);
+  });
+
+  it("deriveCommunityOptions excludes orphan-only communities when hideOrphans is on", () => {
+    // 회귀 방지: orphan 1개짜리 나 홀로 커뮤니티(예: 링크 없는 _meta/* 문서)가
+    // 옵션엔 "(1개)"로 뜨는데, 실제로 골라보면 hideOrphans가 그 1개를 가려서
+    // 결과가 0개가 되는 버그가 있었음.
+    const graph: Graph = {
+      nodes: [
+        { id: "a", slug: "a", title: "Alpha", community: 0, weight: 3 },
+        { id: "b", slug: "b", title: "Beta", community: 0, weight: 1 },
+        { id: "orphan", slug: "orphan", title: "Orphan", community: 1, weight: 0 },
+      ],
+      edges: [{ source_slug: "a", target_slug: "b" }],
+    };
+
+    const withHideOrphans = deriveCommunityOptions(graph, true);
+    expect(withHideOrphans.map((o) => o.value)).toEqual(["all", "0"]);
+
+    const withoutHideOrphans = deriveCommunityOptions(graph, false);
+    expect(withoutHideOrphans.map((o) => o.value).sort()).toEqual(["0", "1", "all"]);
   });
 });
 

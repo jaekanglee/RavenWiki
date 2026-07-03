@@ -98,6 +98,44 @@ export function deriveNodeDetail(graph: Graph, nodeId: string): GraphNodeDetail 
   return { node, inbound, outbound, neighbors };
 }
 
+interface CommunityOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * 클러스터 필터 드롭다운 옵션. hideOrphans와 같은 기준(weight===0 제외)으로
+ * 걸러야 한다 — 안 그러면 orphan 1개짜리 나 홀로 커뮤니티(예: 링크 없는
+ * _meta/* 운영 문서, Louvain이 단독 커뮤니티로 분류)가 "(1개)"로 뜨는데,
+ * 실제로 골라보면 hideOrphans가 그 1개를 가려서 결과가 0개가 된다.
+ */
+export function deriveCommunityOptions(graph: Graph, hideOrphans: boolean): CommunityOption[] {
+  const commHubs: Record<number, { title: string; maxWeight: number; count: number }> = {};
+  for (const n of graph.nodes) {
+    const c = n.community;
+    const w = n.weight ?? 0;
+    if (hideOrphans && w === 0) continue;
+    if (typeof c === "number" && c >= 0) {
+      if (!commHubs[c]) {
+        commHubs[c] = { title: n.title ?? n.slug, maxWeight: w, count: 0 };
+      }
+      commHubs[c].count += 1;
+      if (w > commHubs[c].maxWeight) {
+        commHubs[c].title = n.title ?? n.slug;
+        commHubs[c].maxWeight = w;
+      }
+    }
+  }
+
+  return [
+    { value: "all", label: "전체 클러스터" },
+    ...Object.entries(commHubs).map(([commIdStr, data]) => ({
+      value: commIdStr,
+      label: `${data.title} (#${commIdStr}, ${data.count}개)`,
+    })),
+  ];
+}
+
 export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph {
   const visibleByType = graph.nodes.filter((node) => {
     if (filters.hideOrphans && (node.weight ?? 0) === 0) return false;
@@ -254,32 +292,10 @@ export function GraphPage() {
     [graphInsights.typeBreakdown]
   );
 
-  // 클러스터 필터 옵션 구성 (각 커뮤니티 소속 문서의 수와 대표 문서(최대 weight) 타이틀 반영)
-  const communityOptions = useMemo(() => {
-    const commHubs: Record<number, { title: string; maxWeight: number; count: number }> = {};
-    for (const n of graph.nodes) {
-      const c = n.community;
-      if (typeof c === "number" && c >= 0) {
-        const w = n.weight ?? 0;
-        if (!commHubs[c]) {
-          commHubs[c] = { title: n.title ?? n.slug, maxWeight: w, count: 0 };
-        }
-        commHubs[c].count += 1;
-        if (w > commHubs[c].maxWeight) {
-          commHubs[c].title = n.title ?? n.slug;
-          commHubs[c].maxWeight = w;
-        }
-      }
-    }
-    
-    return [
-      { value: "all", label: "전체 클러스터" },
-      ...Object.entries(commHubs).map(([commIdStr, data]) => ({
-        value: commIdStr,
-        label: `${data.title} (#${commIdStr}, ${data.count}개)`,
-      })),
-    ];
-  }, [graph.nodes]);
+  const communityOptions = useMemo(
+    () => deriveCommunityOptions(graph, hideOrphans),
+    [graph, hideOrphans]
+  );
 
   const hasAnyNodes = graph.nodes.length > 0;
   const hasVisibleNodes = visibleNodes.length > 0;
