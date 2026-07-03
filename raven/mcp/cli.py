@@ -128,7 +128,8 @@ def register_tools(mcp: Any, mode: str) -> None:
             name="wiki_update",
             description=(
                 EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-                + "Overwrite a vault markdown page. Requires --write or --admin. "
+                + "Create or overwrite a vault markdown page (upsert; new pages "
+                "must pass the vault schema guard). Requires --write or --admin. "
                 "Optional M4/F1 kwargs: actor (caller identity), "
                 "idempotency_key (retry-suppression token)."
             ),
