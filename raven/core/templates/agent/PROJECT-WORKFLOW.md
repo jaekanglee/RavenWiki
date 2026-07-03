@@ -1,520 +1,143 @@
 ---
-title: Project Workflow — 사용자 정의 작업 흐름
+title: Project Workflow — 운영 사실
 created: 2026-06-30
-updated: 2026-07-01
+updated: 2026-07-03
 type: rule
 tags: [system, workflow, meta]
-audience: human, agent
+audience: agent
 confidence: high
 ---
 
-# Project Workflow — 사용자 정의 작업 흐름
+# Project Workflow — 운영 사실
 
-> 📌 **사람 + 에이전트 공통 가이드.** 이 vault에서 일할 때 (사람/에이전트 누구든) 다음을 따르세요.
->
-> 🔧 **Tool note.** Raven은 이 문서의 내용을 강제하지 않습니다 — 사용자가 직접 작성/유지합니다.
-> 다만 **에이전트에게 "이 vault에서 작업할 때 따라야 할 규칙"**을 알려주는 표준 위치입니다.
+> "Raven is the IDE; the LLM is the programmer; the wiki is the codebase."
+> 사람이 원본 소스를 공급하면, 당신은 이를 정돈하고 요약해 기존 지식과
+> 연결·누적합니다. 아래는 이 vault/도구를 다룰 때 필요한 사실입니다.
 
----
+## 0. 이 vault를 맡았을 때 읽는 순서 (고정)
 
-## 🔎 0. 특정 vault를 맡았을 때 먼저 할 일
+1. `log.md` 최근 5-10줄 (`grep "^## \[" log.md | tail -5`)
+2. (있다면) `content/index.md` — vault 전체 구조 카탈로그
+3. 요청과 직접 관련된 폴더/페이지 3-5개 (`project`, `issue`, 결정 기록(`type: rule`), 최근 `journal`)
+4. `_meta/agents/SCHEMA.md` — 데이터 계약
 
-> 📝 **사람**: 에이전트에게 "이 vault 참고해서 해"라고 말할 때, 무엇을 기준으로 읽어야 하는지 먼저 고정합니다.
-> 🤖 **Agent**: 특정 vault / 특정 프로젝트를 맡았을 때는 아래 읽기 순서를 먼저 수행하고, 그 결과를 기준으로 판단합니다.
+→ 이 순서를 건너뛰고 컨텍스트를 가정하지 마세요. 폴더명만 보고 도메인을
+추측하지 말고, 이미 쓰이는 용어/분류/구조를 이 vault 기준으로 재사용하세요.
+기준이 모호하면 새 구조를 만들기 전에 사용자에게 확인합니다.
 
-### 0.1 읽는 순서 (고정)
+### 파악 완료 기준
 
-1. `log.md` 최근 5-10줄
-2. `content/index.md` 또는 루트 카탈로그 페이지 (있다면)
-3. 요청과 직접 관련된 폴더의 대표 문서 3-5개
-   - `project`
-   - `issue`
-   - 결정 기록 페이지 (`type: rule`인 경우가 많음)
-   - 최근 `journal`
-4. `_meta/system/README.md` — vault 운영 원칙
-5. 이 `PROJECT-WORKFLOW.md` — 팀/프로젝트 특유의 분업, 금지사항, 문서 스타일
-6. `_meta/system/SCHEMA.md`, `_meta/system/RULES.md` — 형식/편집 규약
+"파악했다"고 말하기 전에 최소한 다음은 설명 가능해야 합니다:
+- 이 vault/프로젝트의 현재 목표
+- 최근 무엇이 바뀌었는지
+- 어떤 폴더/페이지를 source of truth로 봤는지
+- 바로 수정해도 되는지, 먼저 물어야 하는지
 
-### 0.2 읽고 나서 먼저 정리할 것
+## 1. 4가지 명령 키워드 → MCP 도구 매핑
 
-- 지금 다루는 대상이 **무슨 프로젝트/주제**인지
-- 어디까지가 **이미 합의된 기준**인지
-- 어떤 페이지/폴더가 **source of truth**인지
-- 내가 새로 만들기보다 **기존 구조를 재사용**해야 하는지
+| 키워드 | 의미 | MCP 도구 |
+|---|---|---|
+| `save` | 한 건의 노트 저장 | `wiki_update` |
+| `ingest` | 외부 자료 일괄 정리 | `wiki_ingest` |
+| `query` | 검색/조회 | `wiki_search`, `wiki_get_page` |
+| `lint` | 무결성 검사 | `wiki_lint` |
 
-### 0.3 금지
+MCP 연결 정보(엔드포인트/포트)와 전체 도구 목록은 `raven docs show agent-tools` 참고.
 
-- ❌ 폴더명만 보고 도메인 추측
-- ❌ 비슷해 보인다고 다른 vault의 구조를 그대로 이식
-- ❌ 기존 `project` / `issue` / 결정 기록(`type: rule`인 경우가 많음) 문서를 안 읽고 새 분류 생성
-- ❌ "대충 이런 팀일 것 같다" 식으로 태그, 타입, 섹션 이름 임의 생성
+## 2. 권한 — vault 내부 영역
 
----
+| 경로 | 주체 | 권한 |
+|---|---|---|
+| `raw/` | 사람 | full CRUD |
+| `raw/` | 에이전트 | read-only (`wiki_ingest`는 사람 명시 명령 시에만) |
+| `content/` | 에이전트 | read/write (자유) |
+| `_meta/` | 에이전트 | read-only (직접 수정 금지 — `raven meta sync`만, `index.md`는 `raven build`) |
+| `log.md` | 에이전트 | append만 (도구가 자동 기록, 직접 수정 금지) |
 
-## 📌 1. 작성 가이드 — BLUF (Bottom Line Up First)
+허용되지 않은 쓰기 시도는 API/MCP 수준에서 `permission_denied`로 차단됩니다.
+상세 데이터 계약은 `SCHEMA.md` 참조.
 
-> 📝 **사람**: 모든 페이지 첫 줄에 결론/결정 1문장.
-> 🤖 **Agent**: BLUF가 없으면 페이지 quality 떨어짐 → vault 노이즈 증가.
+## 3. 저장 결정 — 4가지 신호
 
-### 1.1 결론 (Conclusion)
+`save`/`ingest` 받으면 페이지 만들기 **전에** 다음 4문항 확인:
 
-> 📝 **사람**: 페이지 첫 줄에 무엇인지 1줄.
-> 🤖 **Agent**: `[BLUF] {결론 1문장}` 패턴 권장.
+1. **재사용 가능성** — 다시 찾게 될 정보인가?
+2. **인수인계 필요성** — 다음 세션/사람/에이전트에게 전달이 필요한가?
+3. **결정 근거** — 왜 그렇게 했는지 추적이 필요한가?
+4. **실패/리스크 기록** — 같은 실수 반복 방지를 위한가?
 
-- ✅ 예: `# harumoa 제품 백엔드 = Spring Boot 3.2 + Kotlin`
-- ✅ 예: `# 2026-06-30 결정: API rate limit 100/min/user로 변경`
-- ❌ 반: `# 메모` (무엇에 대한 메모?)
+모두 "아니오"면 저장하지 마세요. vault는 신호 대 잡음비가 높은 공간입니다.
 
-### 1.2 분업 (Division of Labor)
-
-> 📝 **사람**: 사람/에이전트 각각 무엇을 하는지 결정.
-> 🤖 **Agent**: 사람 review 영역 vs 자동 영역 구분 명확히.
+## 4. 분업 / 트리거 (사실)
 
 - 사람: 결정(rule), 컨셉(concept), 사람(person) — 사람 review 후
 - 에이전트: 저널(journal), 빌드/링크체크 — 자동 가능
-- 자동화 스크립트: 마이그레이션, 백업, lint
+- 트리거: 사용자 "X 정리해줘" → journal/concept 작성(사람 confirm) / 새 raw/ 파일 → 사람 명시 명령 시 compile / 새 결정 → 관련 페이지에 wikilink 추가
 
-### 1.3 트리거 (Triggers)
+## 5. 형식 요구사항
 
-> 📝 **사람**: 어떤 신호 → 어떤 동작. 본인이 외울 수 있게.
-> 🤖 **Agent**: 트리거 목록은 자동화 가능.
+- **BLUF**: 페이지 첫 줄에 결론/결정 1문장
+- frontmatter는 구조화, 본문은 자연스러운 문장으로 작성
+- 필수 섹션 최소화(`요약`/`내용`/`관련` 정도), 타입별 상세 섹션은 선택
+- **빈 섹션 생성 금지**: 채울 내용 없으면 섹션 자체를 삭제 (`TBD`/`N/A` 금지)
+- 본문에 `actor`/`run_id`/`tool`/`idempotency_key` 같은 운영 메타 노출 금지
+- 헤더는 순수 자연어 (`## 결론`, 영문 괄호 병기 금지)
+- 위키링크는 맥락 설명과 함께: `- [[content/x]] — 이 링크가 본문과 어떤 관계인지 1줄`
 
-- 사용자 "X 정리해줘" → journal/concept 자동 작성 (사람 confirm)
-- 새 raw/ 파일 → 자동 compile (raw → content/compiled)
-- 12시간 idle → 자동 build + lint
-- 새 결정 → 관련 concept/journal 페이지에 wikilink 자동 추가
+## 6. 폴더 구조 권장
 
-### 1.4 금지 (Forbidden)
-
-> 📝 **사람**: 이 팀/프로젝트에서 절대 안 되는 것.
-> 🤖 **Agent**: 자기 검증 (lint가 catch 못 하는 것).
-
-- ❌ 도메인 추측 (모르면 사용자에게 묻기)
-- ❌ raw/ 자동 수정
-- ❌ vault 외부 write
-- ❌ 특정 vendor/tool 강요 (vendor-neutral)
-- ❌ user vault 데이터 write (운영자 영역)
-- ❌ 한글 `title` 문서를 영문/로마자 파일명으로 저장 (파일명은 `title`의 언어를 그대로 따름 — `_meta/system/RULES.md` R7 참고)
-
----
-
-## 📝 2. 사람 우선 문서 원칙 (Human-First Writing)
-
-> 📝 **사람**: 문서는 위키처럼 자연스럽게 읽혀야 합니다. 에이전트 운영 메타가 본문에 튀어나오면 읽기 어려워집니다.
-> 🤖 **Agent**: 구조는 frontmatter와 얇은 섹션으로 확보하고, 본문은 자연어 중심으로 씁니다.
-
-### 2.1 기본 원칙
-
-- **frontmatter는 구조화**, 본문은 자연스러운 문장으로 작성
-- **필수 섹션은 최소화**: 보통 `요약`, `내용`, `관련` 정도의 최소 공통 뼈대만 사용하고, 각 타입별 상세 섹션은 선택 사항(Optional)입니다.
-- **빈 섹션 생성 금지 (Anti-Placeholder)**: 템플릿에 명시된 상세 섹션이라도, 작성할 내용이 없을 경우 `TBD`, `N/A`, `없음` 등으로 채우지 말고 **해당 섹션 자체를 삭제**하여 문서의 노이즈를 줄입니다.
-- **사람이 먼저 읽는 제목 사용**: 제목에 날짜(`YYYY-MM-DD`)나 기계적 분류 접두사(`Decision:`, `Question:`, `Project:`)를 포함하지 않습니다. 프런트매터의 `created`와 `type`이 이미 구조적 정보를 담고 있습니다.
-
-### 2.2 맥락이 있는 위키링크 (Contextualization)
-
-- 단순히 하단에 `[[link]]` 목록만 나열하는 포맷을 지양합니다.
-- 각 위키링크 옆에는 **이 링크가 본문과 어떤 관계가 있는지 1줄의 맥락적 설명**을 동반하여 작성합니다.
-  - ✅ 예: `- [[content/concept-mcp]] — Raven과 에이전트 간의 통신 프로토콜 표준`
-  - ❌ 예: `- [[content/concept-mcp]]`
-
-### 2.3 본문 내 출처 표기 (Citation)
-
-- 에이전트가 합성한 정보의 사실 여부 검증을 위해, 핵심 주장이나 세부 사실 옆에 `raw/` 1차 출처 각주 마커를 표시합니다.
-  - ✅ 예: `Raven은 v0.7.3에서 Lite bootstrap 5종을 표준 규격으로 확립했습니다^[raw/articles/release-v0.7.3.md].`
-
-### 2.4 본문에 과하게 노출하지 말 것
-
-- ❌ `actor`, `run_id`, `tool`, `idempotency_key` 같은 운영 메타를 본문에 쓰기
-- ❌ JSON, 체크리스트, 내부 추론 흔적을 본문 상단에 노출
-- ❌ "에이전트가 판단했다" 같은 기계 중심 문장 반복
-- ✅ 한 줄 요약 → 설명 → 관련 링크 순서 유지
-
-### 2.5 최소 공통 뼈대
-
-모든 타입에 완전 고정 템플릿을 강제하지 말고, 아래 3개 정도를 기본으로 삼습니다:
-
-```
-# {제목}
-
-> {BLUF: 이 문서가 말하는 핵심 1문장}
-
-## 내용
-{사람이 읽기 쉬운 설명}
-
-## 관련
-- [[related-page]] — 이 페이지가 참조하는 관련 리소스
-```
-
----
-
-## 📝 3. 페이지 작성 템플릿 (Type 9종)
-
-> 📝 **사람**: vault 자유지만 권장 구조.
-> 🤖 **Agent**: 섹션 자동 생성 시 이 템플릿을 따르되, **적을 내용이 없는 상세 섹션은 생성하지 말고 삭제**하십시오.
-
-### 📝 3.1 `concept` (Concept)
-
-```
-# {Concept Name}
-
-> {BLUF: 1-line definition}
-
-## 내용
-{핵심 설명. 다른 개념과 연결되면 wikilink 및 맥락 추가.}
-
-## 왜 중요한가 (Optional)
-{이 개념이 왜 필요한지 2-3줄 요약.}
-
-## 반대 입장 / 한계 (Optional)
-{이 개념이나 기술의 한계점. 필요할 때만 작성.}
-
-## 관련
-- [[related-concept-1]] — 연관 개념에 대한 맥락 설명
-```
-
-### 📝 3.2 결정 기록 (Decision Record, 보통 `type: rule`)
-
-```
-# {Title}
-
----
-type: rule
----
-
-> {BLUF: 1-line decision}
-
-> [!NOTE] (선택 - 이 결정이 폐기/대체된 경우에만 작성)
-> ⚠️ **대체됨**: 이 결정은 [[replacement-rule-or-issue]]에 의해 대체되었습니다.
-
-## 맥락
-{결정이 필요하게 된 배경과 문제 상황.}
-
-## 결정
-{최종 선택과 핵심 논거. 결론을 먼저 제시하고 근거를 붙입니다.}
-
-## 영향 (Optional)
-{이 결정으로 인해 시스템이나 프로젝트에 미치는 영향.}
-
-## 관련
-- [[related-page]] — 관련 설계 문서 또는 후속 작업 페이지
-```
-
-> 🤖 **Agent Note**: "결정"은 이 vault의 문서 목적/스타일이지 별도 `type`이 아닐 수 있습니다. 별도 타입이 없으면 보통 `type: rule`로 기록하고, 진행 중 문제 해결 맥락이면 `type: issue`, 프로젝트 범위/상태 문맥이면 `type: project` 안에 녹입니다.
-
-### 📝 3.3 `journal` (Journal / Daily Note)
-
-```
-# {Title}
-
-> {BLUF: What happened today, 1 line}
-
-## 한 일
-- 작업 내용 요약 및 1차 출처 링크
-
-## 메모 (Optional)
-- 필요한 관찰 / 결정 / 이슈 사항
-
-## 관련 / 다음
-- [[related-project]] — 진행 중인 프로젝트 페이지
-```
-> 🤖 **Agent Note**: 저널에 작성된 내용 중 영구적으로 보존 및 누적될 가치가 있는 핵심 지식(새 개념, 결정, 규칙 등)은 별도의 `concept`, `rule`, `issue` 페이지로 컴파일하여 추출하고, 저널에는 링크만 남겨 지식을 정제하십시오.
-
-### 📝 3.4 `rule` (Rule / Policy)
-
-```
-# {Rule Name}
-
-> {BLUF: What this rule is, 1 line}
-
-## 적용 범위
-{규칙이 적용되는 대상 및 예외 대상.}
-
-## 규칙
-{구체적인 규칙 세부사항 및 가이드.}
-
-## 예외 (Optional)
-{규칙이 적용되지 않는 특수 사례.}
-```
-
-### 📝 3.5 `person` (Person)
-
-```
-# {Name}
-
-> {BLUF: Who they are, 1 line}
-
-## 역할
-{담당하는 역할 및 전문 분야.}
-
-## 주요 작업 (Optional)
-{해당 인물이 진행한/진행 중인 주요 태스크.}
-
-## 관련
-- [[project-x]] — 참여 중인 프로젝트
-```
-
-### 📝 3.6 `tool` (Tool)
-
-```
-# {Tool Name}
-
-> {BLUF: What this tool is, 1 line}
-
-## 용도
-{도구의 핵심 목적 및 특징.}
-
-## 사용법 (Optional)
-{간단한 셋업 및 실행 명령어.}
-
-## 대안 (Optional)
-{대체할 수 있는 다른 도구들과의 차이점.}
-
-## 관련
-```
-
-### 📝 3.7 `comparison` (Comparison)
-
-```
-# {A} vs {B}
-
-> {BLUF: Conclusion — which is better, 1 line}
-
-## 기준
-{비교를 수행하는 주요 평가 축 설명.}
-
-## Comparison
-| Criteria | {A} | {B} |
-|---|---|---|
-| ... | ... | ... |
-
-## 결론
-{평가 결과를 바탕으로 한 최종 제안 및 추천.}
-```
-
-### 📝 3.8 `query` (Question)
-
-```
-# {Title}
-
-> {BLUF: Core of the question, 1 line}
-
-## 맥락
-{이 질문이 발생하게 된 배경과 필요성.}
-
-## 후보 답 (Optional)
-- Candidate 1: ...
-- Candidate 2: ...
-
-## 열린 이슈 (Optional)
-{아직 해결되지 않고 남아 있는 쟁점.}
-
-## 관련
-- [[related-page]] — 질문과 관련된 다른 참고 페이지
-```
-> 🤖 **Agent Note**: 질문이 명확히 해결되는 경우, 해당 내용을 바탕으로 `concept` 또는 `rule` 문서로 리팩토링하거나 최종 지식 문서를 생성하고, 이 query 문서는 아카이브(혹은 해결 완료 링크를 남김) 처리하여 위키의 정합성을 유지하십시오.
-
-### 📝 3.9 `project` (Project)
-
-```
-# {Name}
-
-> {BLUF: What this project is, 1 line}
-
-## 목표
-{프로젝트의 최종 마일스톤 및 성공 기준.}
-
-## 현재 상태 (Optional)
-{현재 진행 상황 및 핵심 병목 지점.}
-
-## 범위 / 비범위 (Optional)
-- **In Scope**: 포함 영역
-- **Out of Scope**: 제외 영역
-
-## 관련
-- [[decision-or-issue-page]] — 관련 의사결정 문서 및 이슈 트래커
-```
-
-### 📝 3.10 `issue` (Issue)
-
-```
-# {Issue Title}
-
-> {BLUF: 이 이슈의 핵심 원인 및 상태 1줄 요약}
-
-## 상태
-{열림(Open) / 진행중(In Progress) / 해결됨(Resolved)}
-
-## 문제 상황
-{발생한 문제의 현상 및 재현 경로.}
-
-## 원인 분석
-{문제의 근본 원인(Root Cause) 분석.}
-
-## 해결 방안 (Optional)
-{적용했거나 고려 중인 패치/해결책.}
-
-## 관련
-- [[project-x]] — 관련된 프로젝트
-```
-
----
-
-## ✅ 4. 일관성 체크리스트 (Consistency Checklist)
-
-페이지 작성 후 다음 6개 확인:
-
-- [ ] **첫 줄이 결론/결정 1문장** (BLUF)
-- [ ] **frontmatter**: `title`, `type`, `created`, `updated` 채워짐
-- [ ] **type이 9종 중 하나** (`concept`, `person`, `comparison`, `project`, `tool`, `rule`, `query`, `journal`, `issue`)
-- [ ] **wikilink ≥ 1** (관련 페이지 연결) 및 링크 옆 **맥락적 설명** 추가됨
-- [ ] **본문이 사람 문장으로 읽힘** (운영 메타 / JSON / 내부 추론 흔적 / 빈 TBD 플레이스홀더 ❌)
-- [ ] **저장 신호 4가지 통과** (재사용 가능성, 인수인계 필요성, 결정 근거, 실패/리스크)
-
----
-
-## 🔗 5. 참고 (References)
-
-- 📝 vault 운영 일반 규칙: `_meta/system/README.md` (\"Vault User Guide\")
-- 🤖 데이터 구조: `_meta/system/SCHEMA.md`
-- 🤖 편집 규칙: `_meta/system/RULES.md`
-- 🤖 LLM Wiki +α 가이드: `docs/vault-patterns.md`
-
-> **에이전트 기준 파일 구분**
->
-> | 파일 | 역할 | 에이전트 행동 |
-> |---|---|---|
-> | `_meta/system/RULES.md` | **형식/편집 규칙** (frontmatter 구조, slug, type taxonomy, link intent) | 작업 전에 읽어두고, 최종적으로는 `raven build` / lint로 재검증 |
-> | `_meta/agents/PROJECT-WORKFLOW.md` | **에이전트 작업 방식 SOT** (읽기 순서, 분업, 트리거, 템플릿) | **이 파일이 작업 기준** — 특정 vault 파악 요청을 받으면 `system/README.md` 다음에 읽기 |
-
-### 5.1 "특정 vault 참고해서 파악" 요청의 기본 해석
-
-이 요청은 단순히 파일 몇 개를 열어보라는 뜻이 아닙니다. 에이전트는 아래를 먼저 해석해야 합니다.
-
-1. 이 vault에서 이미 쓰는 **용어와 분류**가 무엇인지
-2. 어떤 페이지가 **현재 상태를 대표**하는지
-3. 어떤 폴더가 **활성 작업 공간**인지
-4. 무엇이 **확정 규칙**이고 무엇이 **최근 작업 메모**인지
-
-→ 위 4개를 구분하지 못했으면 아직 "파악 완료"가 아닙니다.
-
----
-
-## 💡 6. 예시 (참고용, 사용자 팀에 맞게 수정)
-
-```
-# harumoa팀 워크플로우
-
-## 결론
-- 사람은 결정/원칙만
-- 에이전트는 compile/journal/raw 정리
-- 도메인 추측 ❌ (사용자에게 묻기)
-
-## 분업
-- 사람: 결정(rule), 컨셉(concept) 페이지
-- 에이전트: 저널(journal) 자동, raw/ → content/ 컴파일
-
-## 트리거
-- 사용자: "X 정리해줘" → journal/concept 자동 작성
-- 새 raw/ 파일 → 자동 compile (사람 confirm 후)
-
-## 금지
-- 도메인 추측 ❌
-- raw/ 자동 수정 ❌
-- vault 외부 write ❌
-```
-
----
-
-## 📌 7. 작성자 가이드 — 순수 자연어 헤더
-
-> 📝 **사람**: 섹션 제목은 사람이 바로 읽히는 자연어를 우선합니다.
-> 🤖 **Agent**: 영문 ID를 헤더에 노출하지 말고, 한글 제목과 문맥으로 구조를 따릅니다.
-
-권장:
-
-```
-## 결론
-## 분업
-## 트리거
-```
-
-비권장:
-
-```
-## 결론 (BLUF)
-## 분업 (Division)
-```
-
-→ 기계 식별용 영어 괄호는 시각적 노이즈가 되므로 문서 본문에서 제거합니다.
-
----
-
-## ⚠️ 8. 폴더 구조 권장 (vault 자유지만 일관성)
-
-- `content/` — 자유 (사용자)
-- `content/decisions/` — 결정 페이지
-- `content/concepts/` — 컨셉 페이지
-- `content/journal/` — 저널/일지
-- `content/issues/` — 이슈 분석
-- `content/projects/` — 프로젝트별
-- `content/people/` — 사람별
+- `content/decisions/`, `content/concepts/`, `content/journal/`, `content/issues/`, `content/projects/`, `content/people/`
 - `raw/` — source material (LLM Wiki +α 켠 경우)
+- vault가 이미 다른 구조면 그 구조를 따르세요 (강제 아님)
 
-→ vault가 이미 다른 구조면 **그 구조 따르기** (강제 ❌).
+## 7. 일관성 체크리스트
 
----
+페이지 작성 후 확인:
 
-## 🤖 9. 멀티 에이전트 협업 규칙 (Multi-Agent Collaboration)
+- [ ] 첫 줄이 결론/결정 1문장 (BLUF)
+- [ ] frontmatter: `title`/`type`/`created`/`updated` 채워짐
+- [ ] type이 9종 중 하나
+- [ ] wikilink ≥ 1 + 맥락 설명
+- [ ] 본문이 사람 문장으로 읽힘 (운영 메타/JSON/빈 TBD 금지)
+- [ ] §3 저장 신호 4가지 통과
 
-> 📌 **멀티 에이전트 공통 가이드.** 한 보관소 내에서 여러 에이전트 프로필이 동시에 또는 독립적으로 일할 때 발생할 수 있는 충돌을 방지하고 지식의 정합성을 유지하기 위한 규칙입니다.
+## 8. 멀티 에이전트 협업 규칙
 
-### 9.1 작업 폴더 분리 (Folder-Based Isolation)
-* 각 에이전트 프로필은 `content/` 하위에 지정된 전용 서브폴더(예: `content/{profile_name}/`) 내에서만 파일 작성 및 수정 권한을 가집니다.
-* 타 프로필의 작업 영역 하위 문서를 직접 수정하는 것은 원칙적으로 금지되며, 수정이 필요할 경우 사용자 승인을 받거나 `_meta/system/` 영역에 교차 참조 문서를 작성합니다.
+- **폴더 분리**: 프로필별 `content/{profile_name}/` 전용 서브폴더 내에서만 작성. 타 프로필 영역 수정 필요 시 사용자 승인 또는 `_meta/`에 교차 참조.
+- **락/재시도**: MCP 쓰기 도구의 락 획득 상태/에러 반환을 확인하고, 실패 시 백오프 후 재시도. 병렬 작업이 빈번하면 프로필별 독립 브랜치/워크트리 후 순차 통합.
+- **log.md**: 액션 뒤에 프로필 식별자 접두사 (`## [YYYY-MM-DD] create | slug [profile-name]`). 동시 대량 작업 시 기록 시점을 미세하게 엇갈리게.
+- **wiki.db**: 직접 SQL 수정 금지 — 반드시 `raven build`로 마크다운에서 재컴파일.
+- **`_meta/index.md`**: 직접 파싱/수정 금지 — `raven build`의 index builder만 갱신 가능.
+- **`SCHEMA.md`**: 에이전트가 임의 수정 금지 — 변경 필요 시 사용자 승인 또는 `type: issue` 문서로 발의.
+- **`_meta/collections.yaml`**: 변경 전 `raven collection validate` 필수.
 
-### 9.2 동시성 락 및 충돌 회피 (Lock & Concurrency Management)
-* Raven은 단일 SQLite `wiki.db`와 하나의 `log.md`를 사용하므로, 에이전트 간 동시 쓰기(Concurrent Writes) 시 파일 락 충돌이 발생할 수 있습니다.
-* 에이전트는 파일 쓰기 작업 수행 시 MCP 쓰기 도구의 락 획득 상태 또는 에러 반환 여부를 확인하고, 실패 시 백오프(Backoff) 후 재시도하는 로직을 가집니다.
-* 병렬 작업이 빈번할 경우, 각 에이전트 프로필별로 독립적인 Git 브랜치 또는 작업 트리(Worktree)를 생성하여 작업한 후 순차적으로 통합(Merge/PR)을 수행합니다.
+## 9. 하지 말 것
 
-### 9.3 공유 로그 및 인덱스 파일 작성 규약 (Shared Files Protocol)
-여러 에이전트가 공통으로 읽고 쓸 수밖에 없는 자원에 대해서는 아래의 규칙을 준수하여 충돌을 차단합니다.
+- ❌ 도메인/팀/프로젝트를 임의로 가정 (모르면 사용자에게 묻기)
+- ❌ raw/ 자율 쓰기
+- ❌ `_meta/` 직접 수정 (`raven meta sync`만, `index.md`는 `raven build`)
+- ❌ `log.md` 기존 줄 삭제/수정
+- ❌ type 9종 외 새 타입 정의
+- ❌ §3 저장 신호 모두 미통과 노트 작성
+- ❌ vault 외부 시스템/폴더 수정
+- ❌ 한글 title 문서를 영문/로마자 파일명으로 저장
 
-1. **`log.md` (공동 작업 로그)**:
-   * **식별자 명시**: 로그 이력을 추가할 때 주체 식별을 위해 액션 뒤에 프로필 식별자를 접두사로 붙여 기재합니다.
-     * *예: `## [YYYY-MM-DD] create | content/teambuilder/infra-spec [teambuilder]`*
-   * **지터링(Jittering)**: 여러 에이전트가 동시에 대량의 작업을 진행할 때는 커밋 및 파일 끝 쓰기 충돌 방지를 위해 기록 시점을 미세하게 엇갈리게(임의 대기 시간 부여) 조율합니다.
-2. **`wiki.db` (SQLite 인덱스 데이터베이스)**:
-   * **수동 수정 금지**: 에이전트는 `wiki.db`를 직접 SQL 쿼리로 수정(`INSERT/UPDATE/DELETE`)해서는 안 됩니다. 데이터 정합성을 위해 반드시 `raven build` API/CLI 명령어를 호출하여 마크다운 파일 내용 기반으로 인덱스가 컴파일되도록 해야 합니다. (언제나 마크다운 파일이 단일 진실 원천(SOT)입니다).
-3. **`_meta/index.md` (공통 지식 카탈로그/인덱스 페이지)**:
-   * **빌더 위임**: 개별 에이전트가 `_meta/index.md`를 직접 파싱하고 수정하지 않습니다. 인덱스 페이지는 `raven build` 시 구동되는 내부 인덱스 빌더(`index_builder.py`)에 의해서만 컴파일되는 읽기 전용(Read-Only) 자원으로 취급합니다.
-4. **`_meta/system/SCHEMA.md` & `RULES.md` (공통 스키마 및 가이드)**:
-   * **제어권 분리**: 이 문서들은 보관소의 글로벌 헌법이므로 에이전트가 임의로 수정해서는 안 됩니다. 태그 추가 등 스키마 변경이 필요한 경우, 에이전트는 직접 문서를 고치지 않고 사용자에게 승인을 요청하거나 이슈 문서(`type: issue`)를 발의하여 조율해야 합니다.
-5. **`_meta/collections.yaml` (공통 콜렉션 설정)**:
-   * **사전 검증**: 콜렉션 추가/수정 시 스키마 무결성 보장을 위해 반드시 `raven collection validate`를 돌려 자가 검증을 마친 뒤 변경 사항을 통합해야 합니다.
+## 10. 다음 단계
 
----
+LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md/_meta/agents opt-in 확장).
 
-## 🤖 10. 에이전트 자가 평가 기준 (Self-Evaluation Criteria)
+## 이 문서에 없는 것 — 에이전트 스스로 판단/기억할 영역
 
-에이전트가 이 보관소(Vault)에서 문서를 다룰 때(생성, 수정, 조회 및 관리), 작업의 완료 단계에서 본인의 작업을 자율적으로 평가하고 최종 보고서에 결과를 포함해야 합니다.
+아래는 이 vault 문서가 의도적으로 다루지 않는 영역입니다. Raven은 "무엇이
+있는지(사실)"까지만 알려주고, "언제/어떻게 판단할지"는 당신 자신의 운영
+원칙(soul) 또는 메모리 시스템에 있어야 합니다. 그런 판단 기준이 아직
+없다면, 이 vault가 아니라 당신 자신의 메모리에 저장하십시오.
 
-### 10.1 일반 평가 부문 (RAG 제외)
-*   **지식 밀도 및 생존력**:
-    *   작업한 문서가 `_meta/system/README.md`에 정해진 '저장 결정 4가지 신호(재사용성, 인수인계, 맥락 추적, 실패 기록)' 중 최소 1개 이상에 부합하는가?
-    *   훗날 다른 에이전트나 사람이 참고할 만큼 지식의 정보 밀도가 높은가? (임시 작업 로그나 찌꺼기 데이터가 아닌가?)
-*   **형식 및 구조 일관성**:
-    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되고, 언어(한글/영문)까지 title과 동일하게 유지되는가? (`_meta/system/RULES.md` R7 준수)
-    *   스키마 규약(`_meta/system/SCHEMA.md`)에 지정된 9종 타입 및 태그 스키마에 부합하는가?
-*   **인간 중심 가독성**:
-    *   본문 최상단에 BLUF 형식의 핵심 요약(요약 또는 한 줄 결론)이 명확히 작성되어 있는가?
-    *   일지(`journal`)나 저널 성격의 문서는 최상단에 BLUF 1줄 요약(`> {BLUF: ...}`, 본 문서 §3.3 참고)이 명확히 작성되어 있는가?
-*   **연결성 및 지식 그래프화**:
-    *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 위키링크(`[[wikilink]]`)를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
-
-### 10.2 RAG 및 지식 탐색 평가 부문 (Hermes Constitution 투영)
-*   **Think Before Searching (검색 전 사색)**: 뇌피셜로 지식이나 문서의 유무를 추정하지 않고, 가정을 검증하기 위해 `wiki_search`를 능동적으로 계획하여 활용했는가?
-*   **Surgical Retrieval (외과 수술식 조회)**: 필요한 영역에만 동화될 수 있도록 정확하고 최소한의 정밀한 키워드 및 multi-hop 탐색을 수행했는가? (불필요하게 방대한 컨텍스트를 과도하게 가져오는 것 방지)
-*   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출)**: 단순히 검색 결과의 상위 텍스트를 나열하는 대신, 문제 해결의 성공 기준에 직접적으로 trace되는 사실 정보만 정밀하게 추출하여 활용했는가?
-*   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사)**: 볼트 내의 문서들 간에 모순되거나 충돌하는 정보가 발견되었을 때, 임의로 추정하여 덮어쓰지 않고, 히스토리를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
-
+- **검색 판단**: `wiki_search`가 있다는 사실은 여기 있지만, "새 페이지
+  쓰기 전에 중복을 확인할지"는 당신의 판단입니다.
+- **정리/폐기 판단**: `raven garden --stale/--orphan`, `raven curator run`이
+  있다는 사실은 여기 있지만, "언제 돌릴지"는 당신의 판단입니다.
+- **글쓰기 품질 판단**: 이 vault는 BLUF로 시작하는 형식을 요구하지만,
+  "왜 그게 좋은 글쓰기인가"는 여기서 가르치지 않습니다.
+- 이 vault를 반복해서 다루며 얻은 **이 vault 특유의 교훈**은 문서를
+  직접 고치지 말고 당신의 메모리에 쌓으십시오.

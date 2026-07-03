@@ -1,7 +1,7 @@
 """Tests for Vault.create bootstrap behavior (v2026-06-26, Lite policy).
 
 Tier 1 ↔ Tier 2 boundary: user vault never receives raven-internal docs.
-Lite bootstrap copies ONLY: _meta/system/SCHEMA.md, _meta/system/RULES.md, log.md.
+Lite bootstrap copies ONLY: _meta/agents/SCHEMA.md, _meta/agents/PROJECT-WORKFLOW.md, log.md.
 """
 from __future__ import annotations
 
@@ -50,16 +50,14 @@ def test_bootstrap_creates_content_and_meta_dirs(isolated_vaults_root, isolated_
 
 
 def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
-    """Lite bootstrap: user-facing schema/rules/guides/log are copied."""
+    """Lite bootstrap: agent-facing schema/workflow/log are copied."""
     v = Vault.create("smoke2", isolated_target / "smoke2", bootstrap=True)
     # Must exist (Lite whitelist)
-    assert (v.root / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (v.root / "_meta" / "system" / "RULES.md").is_file()
-    assert (v.root / "_meta" / "system" / "README.md").is_file()
+    assert (v.root / "_meta" / "agents" / "SCHEMA.md").is_file()
     assert (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     assert (v.root / "log.md").is_file()
     # content sanity
-    schema = (v.root / "_meta" / "system" / "SCHEMA.md").read_text()
+    schema = (v.root / "_meta" / "agents" / "SCHEMA.md").read_text()
     assert "Source of Truth" in schema
     assert "wikilink" in schema.lower()
 
@@ -81,7 +79,7 @@ def test_bootstrap_does_not_copy_raven_internals(isolated_vaults_root, isolated_
 def test_bootstrap_lite_idempotent_does_not_overwrite(isolated_vaults_root, isolated_target):
     """Re-running _bootstrap_lite must not overwrite user-edited files."""
     v = Vault.create("idem", isolated_target / "idem", bootstrap=True)
-    custom = v.root / "_meta" / "system" / "RULES.md"
+    custom = v.root / "_meta" / "agents" / "SCHEMA.md"
     custom.write_text("# My custom rules\n")
     Vault._bootstrap_lite(v.root)
     assert custom.read_text() == "# My custom rules\n"
@@ -97,15 +95,15 @@ def test_no_bootstrap_creates_empty_dirs_but_no_template_files(
 
     v0.5.5+ silent-write fix: Vault.create() 가 log.md 를 보장하고 create entry 를
     1개 남기므로 --no-bootstrap 라도 log.md 가 존재한다 (silent write). 단, Lite
-    bootstrap (SCHEMA/RULES) 은 여전히 복사되지 않음을 검증.
+    bootstrap (SCHEMA/PROJECT-WORKFLOW) 은 여전히 복사되지 않음을 검증.
     """
     v = Vault.create("existing1", isolated_target / "existing1", bootstrap=False)
     assert (v.root / ".vault.json").is_file()
     assert (v.root / "content").is_dir()   # empty, exists
     assert (v.root / "_meta").is_dir()     # empty, exists
     # no Lite bootstrap templates copied
-    assert not (v.root / "_meta" / "system" / "SCHEMA.md").exists()
-    assert not (v.root / "_meta" / "system" / "RULES.md").exists()
+    assert not (v.root / "_meta" / "agents" / "SCHEMA.md").exists()
+    assert not (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").exists()
     # silent-write fix: log.md is auto-created by Vault.create() with 1 create entry
     # (this is the v0.5.5+ behavior — log.md is now guaranteed, not a bootstrap artifact)
     assert (v.root / "log.md").is_file()
@@ -133,12 +131,10 @@ def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
     다시 복사하지 않고 skipped 에 들어간다. 나머지 Lite 파일은 bootstrap=False 라 미존재
     → copied.
     """
-    # bootstrap=False so SCHEMA/RULES don't exist yet
+    # bootstrap=False so SCHEMA/PROJECT-WORKFLOW don't exist yet
     v = Vault.create("sync1", isolated_target / "sync1", bootstrap=False)
     result = v.sync_meta()  # lite=True default
-    assert "_meta/system/SCHEMA.md" in result["copied"]
-    assert "_meta/system/RULES.md" in result["copied"]
-    assert "_meta/system/README.md" in result["copied"]
+    assert "_meta/agents/SCHEMA.md" in result["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
     # log.md already exists (silent-write by Vault.create) → skipped, not copied
     assert "log.md" not in result["copied"]
@@ -156,9 +152,7 @@ def test_sync_meta_lite_no_op_when_already_bootstrapped(
     result = v.sync_meta()  # everything already exists
     assert result["copied"] == []
     # All Lite files in 'skipped' (because they exist)
-    assert "_meta/system/SCHEMA.md" in result["skipped"]
-    assert "_meta/system/RULES.md" in result["skipped"]
-    assert "_meta/system/README.md" in result["skipped"]
+    assert "_meta/agents/SCHEMA.md" in result["skipped"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["skipped"]
     assert "log.md" in result["skipped"]
 
@@ -166,29 +160,27 @@ def test_sync_meta_lite_no_op_when_already_bootstrapped(
 def test_sync_meta_does_not_overwrite_by_default(isolated_vaults_root, isolated_target):
     """sync_meta() default does NOT overwrite user-edited files."""
     v = Vault.create("sync2", isolated_target / "sync2", bootstrap=True)
-    custom = v.root / "_meta" / "system" / "RULES.md"
+    custom = v.root / "_meta" / "agents" / "SCHEMA.md"
     custom.write_text("# My custom rules\n")
     result = v.sync_meta()
     # Should be in 'skipped', not 'copied'
-    assert "_meta/system/RULES.md" not in result["copied"]
-    assert "_meta/system/RULES.md" in result["skipped"]
+    assert "_meta/agents/SCHEMA.md" not in result["copied"]
+    assert "_meta/agents/SCHEMA.md" in result["skipped"]
     assert custom.read_text() == "# My custom rules\n"
 
 
 def test_sync_meta_full_copies_raven_internals(isolated_vaults_root, isolated_target):
-    """v0.7.6+: sync_meta(full=True, force=True) = lite 5종 only (Tier 1 leak ❌).
+    """v0.7.6+: sync_meta(full=True, force=True) = lite 3종 only (Tier 1 leak ❌).
 
     v0.7.1+ Lite bootstrap 정책: 사용자 vault는 도구 표면만.
     full 옵션은 deprecated (lite와 동일) — Tier 1 internal sync 거부.
     옛 테스트의 의도 (Tier 1 internal sync)는 v0.6.39+ Tier 1 leak 정책과 충돌.
     """
     v = Vault.create("sync3", isolated_target / "sync3", bootstrap=True)
-    # With force=True, full mode now overwrites lite 5종 (Tier 1 internal ❌)
+    # With force=True, full mode now overwrites lite 3종 (Tier 1 internal ❌)
     result = v.sync_meta(lite=False, force=True)
-    # Lite 5종만 복사
-    assert "_meta/system/SCHEMA.md" in result["copied"]
-    assert "_meta/system/RULES.md" in result["copied"]
-    assert "_meta/system/README.md" in result["copied"]
+    # Lite 3종만 복사
+    assert "_meta/agents/SCHEMA.md" in result["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
     assert "log.md" in result["copied"]
     # Tier 1 internal ❌ (v0.7.1+ Lite bootstrap 정책)
@@ -205,11 +197,11 @@ def test_sync_meta_full_refuses_to_overwrite_without_force(
 ):
     """sync_meta(full=True) without --force must refuse if any target exists.
 
-    v0.7.6+: lite와 동일 5종 기준. Tier 1 internal은 sync 대상 ❌.
+    v0.7.6+: lite와 동일 3종 기준. Tier 1 internal은 sync 대상 ❌.
     """
     v = Vault.create("sync4", isolated_target / "sync4", bootstrap=True)
-    # Lite creates _meta/system/RULES.md
-    assert (v.root / "_meta" / "system" / "RULES.md").is_file()
+    # Lite creates _meta/agents/SCHEMA.md
+    assert (v.root / "_meta" / "agents" / "SCHEMA.md").is_file()
     # Full mode without force should raise (safety check)
     with pytest.raises(ValueError, match="force=True"):
         v.sync_meta(lite=False, force=False)
@@ -281,8 +273,8 @@ def test_clone_copies_content_only_with_data_only(isolated_vaults_root, isolated
     # _meta/ created (empty) but no copy of src's custom
     assert (dst.root / "_meta").is_dir()
     assert not (dst.root / "_meta" / "custom.md").exists()
-    # _meta/system/SCHEMA.md NOT copied (data_only + no bootstrap)
-    assert not (dst.root / "_meta" / "system" / "SCHEMA.md").exists()
+    # _meta/agents/SCHEMA.md NOT copied (data_only + no bootstrap)
+    assert not (dst.root / "_meta" / "agents" / "SCHEMA.md").exists()
 
 
 def test_clone_copies_meta_by_default(isolated_vaults_root, isolated_target):
@@ -294,9 +286,8 @@ def test_clone_copies_meta_by_default(isolated_vaults_root, isolated_target):
         path=isolated_target / "dst2",
         copy_meta=True,
     )
-    # _meta/system/ copied
-    assert (dst.root / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (dst.root / "_meta" / "system" / "RULES.md").is_file()
+    # _meta/agents/ copied
+    assert (dst.root / "_meta" / "agents" / "SCHEMA.md").is_file()
     # Note: even src has no raven-internals (Lite bootstrap), so dst has none either
     assert not (dst.root / "_meta" / "system" / "OPERATIONS.md").exists()
 

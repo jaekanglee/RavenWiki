@@ -52,8 +52,7 @@ def test_api_vault_create_with_bootstrap(client, isolated_env):
     assert data["ok"] is True
     assert data["vault"]["bootstrapped"] is True
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "system" / "RULES.md").is_file()
+    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
 
 
 def test_api_vault_create_no_bootstrap(client, isolated_env):
@@ -65,7 +64,7 @@ def test_api_vault_create_no_bootstrap(client, isolated_env):
     # v0.4: empty dirs exist, but templates not copied
     assert (target / "content").is_dir()
     assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "system" / "SCHEMA.md").exists()
+    assert not (target / "_meta" / "agents" / "SCHEMA.md").exists()
 
 
 def test_api_vault_create_duplicate_name(client, isolated_env):
@@ -191,7 +190,7 @@ def test_api_page_update_rejects_bad_slug(client, isolated_env):
 def test_api_page_update_rejects_protected_log_path(client, isolated_env):
     target = isolated_env["target_root"] / "vp7log"
     client.post("/api/vaults/create", json={"name": "vp7log", "path": str(target), "bootstrap": True})
-    resp = client.put("/api/vaults/vp7log/pages/_meta/system/README", json={"content": "x"})
+    resp = client.put("/api/vaults/vp7log/pages/_meta/agents/SCHEMA", json={"content": "x"})
     assert resp.status_code == 403
 
 

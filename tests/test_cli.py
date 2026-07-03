@@ -47,8 +47,7 @@ def test_cli_vault_create_bootstrap(fresh_env):
     assert "created" in result.stdout
     assert "bootstrapped" in result.stdout
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "system" / "RULES.md").is_file()
+    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
 
 
 def test_cli_vault_create_no_bootstrap(fresh_env):
@@ -64,7 +63,7 @@ def test_cli_vault_create_no_bootstrap(fresh_env):
     # v0.4: empty dirs are created (so users have a writable starting point)
     assert (target / "content").is_dir()
     assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "system" / "SCHEMA.md").exists()
+    assert not (target / "_meta" / "agents" / "SCHEMA.md").exists()
     # but existing files are not touched
     assert (target / "old-doc.md").read_text() == "# old\n"
 
@@ -229,9 +228,7 @@ def test_cli_meta_sync_copies_when_missing(fresh_env):
     # Lite sync_meta default copies user-facing bootstrap files.
     result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
     assert result.exit_code == 0, result.stderr
-    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "system" / "README.md").is_file()
+    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     # No internal agent/ subdir created (Lite policy)
     assert not (target / "_meta" / "agent").exists()
@@ -243,13 +240,13 @@ def test_cli_meta_sync_does_not_overwrite_by_default(fresh_env):
     """Default sync_meta is Lite + no-force (does NOT overwrite)."""
     target = fresh_env["target_root"] / "v13"
     runner.invoke(app, ["vault", "create", "v13", str(target)])
-    # customize RULES.md in new location
-    rules_path = target / "_meta" / "system" / "RULES.md"
-    rules_path.write_text("# CUSTOM OLD\n")
+    # customize SCHEMA.md in new location
+    schema_path = target / "_meta" / "agents" / "SCHEMA.md"
+    schema_path.write_text("# CUSTOM OLD\n")
     result = runner.invoke(app, ["meta", "sync", "--vault", "v13"])
     assert result.exit_code == 0, result.stderr
     # NOT overwritten (Lite policy: user-edited protected)
-    assert "# CUSTOM OLD" in rules_path.read_text()
+    assert "# CUSTOM OLD" in schema_path.read_text()
 
 
 def test_cli_meta_sync_json_out(fresh_env):
@@ -259,10 +256,8 @@ def test_cli_meta_sync_json_out(fresh_env):
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     # Lite: user-facing files copied (no internal agent/, no OPERATIONS, no raven-policy)
-    # v0.5.5+ silent-write fix: log.md already exists from Vault.create() → skipped, not copied
-    assert "_meta/system/SCHEMA.md" in data["copied"]
-    assert "_meta/system/RULES.md" in data["copied"]
-    assert "_meta/system/README.md" in data["copied"]
+    # log.md already exists from Vault.create() (llm-wiki profile) → skipped, not copied
+    assert "_meta/agents/SCHEMA.md" in data["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in data["copied"]
     assert "log.md" not in data["copied"]
     assert "log.md" in data["skipped"]
@@ -280,10 +275,8 @@ def test_cli_meta_sync_full_with_force(fresh_env):
     runner.invoke(app, ["vault", "create", "vfull", str(target), "--no-bootstrap"])
     result = runner.invoke(app, ["meta", "sync", "--full", "--force", "--vault", "vfull"])
     assert result.exit_code == 0, result.stderr
-    # Lite 5종만 복사
-    assert (target / "_meta" / "system" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "system" / "RULES.md").is_file()
-    assert (target / "_meta" / "system" / "README.md").is_file()
+    # Lite 3종만 복사
+    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
     assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
     assert (target / "log.md").is_file()
     # Tier 1 internal ❌ (Tier 1 leak 방지)
@@ -312,7 +305,7 @@ def test_cli_vault_clone_copies_content_only_by_default(fresh_env):
     assert (dst / "content" / "hello.md").is_file()
     assert (dst / "content" / "sub" / "nested.md").is_file()
     # _meta/ NOT copied (Lite policy)
-    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
+    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
     # registered
     reg_list = runner.invoke(app, ["vault", "list", "--json"])
     names = [v["name"] for v in json.loads(reg_list.stdout)]
@@ -330,7 +323,7 @@ def test_cli_vault_clone_default_is_lite(fresh_env):
     assert (dst / "content").is_dir()
     # _meta/ exists but empty (Lite: no copy)
     assert (dst / "_meta").is_dir()
-    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
+    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
 
 
 def test_cli_vault_clone_explicit_copy_meta(fresh_env):
@@ -342,8 +335,8 @@ def test_cli_vault_clone_explicit_copy_meta(fresh_env):
         app, ["vault", "clone", "src2b", "dst2b", str(dst), "--copy-meta"]
     )
     assert result.exit_code == 0
-    # _meta/system/SCHEMA.md copied
-    assert (dst / "_meta" / "system" / "SCHEMA.md").is_file()
+    # _meta/agents/SCHEMA.md copied
+    assert (dst / "_meta" / "agents" / "SCHEMA.md").is_file()
 
 
 def test_cli_vault_clone_data_only(fresh_env):
@@ -357,7 +350,7 @@ def test_cli_vault_clone_data_only(fresh_env):
     assert result.exit_code == 0
     assert (dst / "content").is_dir()
     assert (dst / "_meta").is_dir()
-    assert not (dst / "_meta" / "system" / "SCHEMA.md").exists()
+    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
 
 
 def test_cli_vault_clone_duplicate_name_rejected(fresh_env):

@@ -34,13 +34,10 @@ if TYPE_CHECKING:
     from .verify import BootstrapVerifyResult
 
 
-# Lite bootstrap whitelist — only files every user needs.
-# These are user-facing schema/rules, NOT raven internals.
-# v0.7.3+: 5 entries — must match template_map in _bootstrap_lite().
+# Lite bootstrap whitelist — agent-facing operational essentials only.
+# v0.7.65+: 3 entries — must match template_map in _bootstrap_lite().
 _LITE_BOOTSTRAP_FILES = (
-    "_meta/system/SCHEMA.md",
-    "_meta/system/RULES.md",
-    "_meta/system/README.md",
+    "_meta/agents/SCHEMA.md",
     "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
@@ -164,14 +161,12 @@ class Vault:
             name, path, mode, owner, description: standard vault meta.
             bootstrap: if True (default), apply the profile bootstrap.
                 Use False when registering an existing folder.
-            profile: v0.6.38+ bootstrap profile selector.
-                - "basic" (default for new users): Obsidian-style human-first
-                  vault. Only copies WELCOME.md (1 file). No SCHEMA/RULES/AGENTS.
-                - "llm-wiki": project/agent-ready vault. Copies 5-file Lite
-                  bootstrap (SCHEMA + RULES + AGENTS + PROJECT-WORKFLOW + log.md).
-
-                Default is "llm-wiki" for backward compatibility with v0.6.31~36.
-                New users are encouraged to pass --profile basic.
+            profile: v0.6.38+ bootstrap profile selector. Default is "llm-wiki".
+                - "llm-wiki" (default): project/agent-ready vault. Copies 2-file
+                  Lite bootstrap (SCHEMA + PROJECT-WORKFLOW) + log.md.
+                - "basic": Obsidian-style human-first vault. Only copies
+                  WELCOME.md (1 file). No SCHEMA/RULES/agent workflow — user
+                  opts in later if they want LLM Wiki patterns.
             workspace_path: associated local project workspace path.
         """
         path = Path(path).expanduser().resolve()
@@ -274,7 +269,7 @@ class Vault:
             WELCOME.md                   (human-friendly welcome guide)
 
         Does NOT copy:
-            SCHEMA.md, RULES.md, README.md, PROJECT-WORKFLOW.md, log.md
+            SCHEMA.md, PROJECT-WORKFLOW.md, log.md
             → user enables LLM Wiki patterns manually if desired
         """
         from importlib import resources
@@ -305,20 +300,23 @@ class Vault:
 
     @classmethod
     def _bootstrap_lite(cls, path: Path) -> None:
-        """Lite bootstrap (v2026-06-26): copy ONLY the user-facing essentials.
+        """Lite bootstrap (v0.7.65+: agent-only 2-file set): copy ONLY the
+        agent-facing operational essentials.
 
         Creates:
-            content/                     (empty)
-            _meta/system/SCHEMA.md          (frontmatter/type/tag/wikilink 규약)
-            _meta/system/RULES.md           (편집 규칙)
-            _meta/system/README.md          (vault 사용자 가이드)
-            _meta/agents/PROJECT-WORKFLOW.md (프로젝트 작업 에이전트 공통 워크플로우)
-            log.md                          (빈 로그 헤더)
+            content/                          (empty)
+            _meta/agents/SCHEMA.md            (데이터 계약: frontmatter/type/tag/wikilink/raw 권한/lint)
+            _meta/agents/PROJECT-WORKFLOW.md  (운영 사실: 읽기순서/MCP매핑/권한/저장신호/협업규칙)
+            log.md                            (빈 로그 헤더)
 
         Does NOT copy:
             OPERATIONS.md  → raven internal docs, use `raven docs operations`
             agent/*        → raven LLM agent behavior, use `raven docs agent`
             raven-policy.md → raven internal policy, use `raven docs policy`
+
+        v0.7.65+: dropped `_meta/system/{SCHEMA,RULES,README}.md` — merged into
+        the 2 files above. No human-manual content is injected into the vault;
+        only facts an agent needs to operate this vault/tool correctly.
 
         Idempotent: existing files are NOT overwritten. To refresh templates
         after raven upgrade, use `raven meta sync --lite`.
@@ -327,19 +325,17 @@ class Vault:
 
         content_dir = path / "content"
         meta_dir = path / "_meta"
-        system_dir = meta_dir / "system"
+        agents_dir = meta_dir / "agents"
 
         content_dir.mkdir(parents=True, exist_ok=True)
         meta_dir.mkdir(parents=True, exist_ok=True)
-        system_dir.mkdir(parents=True, exist_ok=True)
+        agents_dir.mkdir(parents=True, exist_ok=True)
 
         # Map: target relative path → template resource path
         template_map = {
-            "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
-            "_meta/system/RULES.md":           "templates/system/RULES.md",
-            "_meta/system/README.md":          "templates/system/README.md",
-            "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
-            "log.md":                          "templates/log.md",
+            "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
+            "_meta/agents/PROJECT-WORKFLOW.md":  "templates/agent/PROJECT-WORKFLOW.md",
+            "log.md":                            "templates/log.md",
         }
 
         for rel_target, tmpl_path in template_map.items():
@@ -361,60 +357,48 @@ class Vault:
         """Re-copy meta templates into the vault.
 
         Args:
-            lite: if True (default), copy only the Lite whitelist
-                  (SCHEMA, RULES, log). If False, copy full set including
-                  raven-internal docs (OPERATIONS, agent/*, raven-policy).
-                  Default lite=True to enforce Tier 1 ↔ Tier 2 boundary.
+            lite: if True (default), copy the 2-file agent-facing set
+                  (SCHEMA.md, PROJECT-WORKFLOW.md) + log.md. If False
+                  ("full"), copies the identical set — v0.7.65+ removed
+                  the old superset that injected Tier 1 internal docs
+                  (OPERATIONS, agent/*, raven-policy), since that has
+                  been banned since v0.7.1 (Tier 1 ↔ Tier 2 boundary).
+                  The only behavioral difference for lite=False is the
+                  safety check below.
             force: if False (default), do not overwrite existing files
                    (user-edited protection). If True, overwrite.
 
         Returns dict with counts of copied/skipped files.
 
         Raises:
-            ValueError: if --force is combined with full set on a vault that
-                        has user-edited internal docs (safety check).
+            ValueError: if lite=False and force=False and any target file
+                        already exists — safety check protecting
+                        user-edited files on the explicit non-lite path.
         """
         from importlib import resources
 
         # Determine target files based on lite flag
-        if lite:
-            file_map = {
-                "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
-                "_meta/system/RULES.md":           "templates/system/RULES.md",
-                "_meta/system/README.md":          "templates/system/README.md",
-                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
-                "log.md":                          "templates/log.md",
-            }
-        else:
-            # v0.7.6+: full set = lite 5종 + Tier 1 internal docs.
-            # ⚠️ Tier 1 문서 (OPERATIONS, raven-policy, agent/*) 복사 시
-            # Tier 1 leak 발생 → v0.6.39+ allow_tier1_leak=False면 critical.
-            # 현재 정책 (v0.7.1+): 사용자 vault는 도구 표면만, Tier 1 leak ❌.
-            # → full 옵션은 deprecated, lite와 동일하게 처리.
-            file_map = {
-                "_meta/system/SCHEMA.md":          "templates/system/SCHEMA.md",
-                "_meta/system/RULES.md":           "templates/system/RULES.md",
-                "_meta/system/README.md":          "templates/system/README.md",
-                "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
-                "log.md":                          "templates/log.md",
-            }
-            if not force:
-                # Safety: full set without force could overwrite user-edited
-                # raven-internal files. Refuse unless force=True.
-                for rel_target in file_map:
-                    target = self.root / rel_target
-                    if target.exists():
-                        raise ValueError(
-                            f"sync_meta(full): target exists at {target}. "
-                            f"Refusing to overwrite without force=True. "
-                            f"This protects user-edited raven-internal docs."
-                        )
+        # v0.7.65+: lite and full are now identical (2-file agent-only set) —
+        # `full` no longer adds Tier 1 internal docs (that policy predates
+        # v0.7.1's Tier 1 leak ban and was already dead code).
+        file_map = {
+            "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
+            "_meta/agents/PROJECT-WORKFLOW.md":  "templates/agent/PROJECT-WORKFLOW.md",
+            "log.md":                            "templates/log.md",
+        }
+        if not lite and not force:
+            # Safety: full set without force could overwrite user-edited files.
+            for rel_target in file_map:
+                target = self.root / rel_target
+                if target.exists():
+                    raise ValueError(
+                        f"sync_meta(full): target exists at {target}. "
+                        f"Refusing to overwrite without force=True. "
+                        f"This protects user-edited raven-internal docs."
+                    )
 
-        system_dir = self.meta_root / "system"
-        agent_dir = self.meta_root / "agent"
-        system_dir.mkdir(parents=True, exist_ok=True)
-        if not lite:
-            agent_dir.mkdir(parents=True, exist_ok=True)
+        agents_dir = self.meta_root / "agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
 
         out = {"copied": [], "skipped": [], "errors": []}
 

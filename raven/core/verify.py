@@ -3,9 +3,8 @@
 After `Vault.create()` copies the Lite bootstrap templates into a new vault,
 this module verifies that:
 
-  1. Each of the 5 Lite bootstrap files exists in the vault.
-  2. The 4 *template* files (SCHEMA.md, RULES.md, README.md,
-     PROJECT-WORKFLOW.md) match the
+  1. Each of the 3 Lite bootstrap files exists in the vault.
+  2. The 2 *template* files (SCHEMA.md, PROJECT-WORKFLOW.md) match the
      source templates byte-for-byte (SHA256 hash).
   3. `log.md` exists and is non-empty (it's an append-only working file,
      not a static template — so hash comparison would always fail once
@@ -38,18 +37,14 @@ from typing import Optional
 # canonical write side). We keep it duplicated here (read-only) instead of
 # importing, so `verify` is independent of any side-effects in `vault.py`.
 LITE_BOOTSTRAP_FILES: tuple[str, ...] = (
-    "_meta/system/SCHEMA.md",
-    "_meta/system/RULES.md",
-    "_meta/system/README.md",
+    "_meta/agents/SCHEMA.md",
     "_meta/agents/PROJECT-WORKFLOW.md",
     "log.md",
 )
 
 # Template source paths inside `raven.core` package.
 TEMPLATE_MAP: dict[str, str] = {
-    "_meta/system/SCHEMA.md": "templates/system/SCHEMA.md",
-    "_meta/system/RULES.md":  "templates/system/RULES.md",
-    "_meta/system/README.md": "templates/system/README.md",
+    "_meta/agents/SCHEMA.md": "templates/agent/SCHEMA.md",
     "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
     "log.md": "templates/log.md",
 }
@@ -72,7 +67,7 @@ class FileCheck:
       - "template_error" — could not read template resource (programmer error).
     """
 
-    rel_path: str          # vault-relative path, e.g. "_meta/system/SCHEMA.md"
+    rel_path: str          # vault-relative path, e.g. "_meta/agents/SCHEMA.md"
     status: str            # "ok" | "missing" | "mismatch" | "empty" | "template_error"
     expected_sha256: Optional[str] = None
     actual_sha256: Optional[str] = None
@@ -161,7 +156,7 @@ def verify_bootstrap(path: Path | str) -> BootstrapVerifyResult:
     (template resource missing, type errors).
 
     Verification rules per file:
-      - Static templates (SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW): must exist AND be
+      - Static templates (SCHEMA, PROJECT-WORKFLOW): must exist AND be
         byte-identical to the source template (SHA256 match).
       - Append-only working file (log.md): must exist AND be non-empty.
         (Its content will diverge from the template as soon as the first

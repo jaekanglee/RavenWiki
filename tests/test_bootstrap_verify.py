@@ -58,15 +58,13 @@ def fresh_vault(isolated_vaults_root, isolated_target):
 # ─── constants & structure ─────────────────────────────────────────
 
 
-def test_lite_bootstrap_files_constant_lists_5_files():
-    """`LITE_BOOTSTRAP_FILES` (verify.py side) MUST list all 5 canonical
+def test_lite_bootstrap_files_constant_lists_3_files():
+    """`LITE_BOOTSTRAP_FILES` (verify.py side) MUST list all 3 canonical
     Lite bootstrap files. This is the read-side mirror of the
     write-side `_bootstrap_lite` template_map.
     """
     assert set(LITE_BOOTSTRAP_FILES) == {
-        "_meta/system/SCHEMA.md",
-        "_meta/system/RULES.md",
-        "_meta/system/README.md",
+        "_meta/agents/SCHEMA.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
@@ -106,10 +104,10 @@ def test_verify_bootstrap_fresh_vault_is_ok(fresh_vault):
     result = verify_bootstrap(fresh_vault.root)
     assert isinstance(result, BootstrapVerifyResult)
     assert result.ok is True
-    assert len(result.checks) == 5
+    assert len(result.checks) == 3
     static_checks = [c for c in result.checks if c.rel_path != "log.md"]
     append_checks = [c for c in result.checks if c.rel_path == "log.md"]
-    # Static templates (SCHEMA, RULES, AGENTS): byte-identical to source
+    # Static templates (SCHEMA, PROJECT-WORKFLOW): byte-identical to source
     for c in static_checks:
         assert c.status == "ok", f"{c.rel_path}: {c.status} ({c.detail})"
         assert c.expected_sha256 is not None
@@ -134,13 +132,13 @@ def test_vault_verify_bootstrap_method_matches_free_function(fresh_vault):
 
 def test_verify_bootstrap_detects_missing_file(fresh_vault):
     """If a bootstrap file is removed, verify_bootstrap flags it `missing`."""
-    target = fresh_vault.root / "_meta" / "system" / "SCHEMA.md"
+    target = fresh_vault.root / "_meta" / "agents" / "SCHEMA.md"
     target.unlink()
     result = verify_bootstrap(fresh_vault.root)
     assert result.ok is False
     bad = result.failures()
     assert len(bad) == 1
-    assert bad[0].rel_path == "_meta/system/SCHEMA.md"
+    assert bad[0].rel_path == "_meta/agents/SCHEMA.md"
     assert bad[0].status == "missing"
     assert bad[0].expected_sha256 is not None
     assert bad[0].actual_sha256 is None
@@ -149,27 +147,28 @@ def test_verify_bootstrap_detects_missing_file(fresh_vault):
 def test_verify_bootstrap_detects_content_mismatch(fresh_vault):
     """If a STATIC template file is edited, verify_bootstrap flags it `mismatch`.
 
-    We target _meta/system/RULES.md (static template) — log.md is append-only
-    so its content legitimately differs from the template after any write.
+    We target _meta/agents/PROJECT-WORKFLOW.md (static template) — log.md is
+    append-only so its content legitimately differs from the template after
+    any write.
     """
-    target = fresh_vault.root / "_meta" / "system" / "RULES.md"
+    target = fresh_vault.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md"
     target.write_text("# user-edited rules\n")
     result = verify_bootstrap(fresh_vault.root)
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert "_meta/system/RULES.md" in bad
-    assert bad["_meta/system/RULES.md"].status == "mismatch"
-    assert bad["_meta/system/RULES.md"].expected_sha256 != bad["_meta/system/RULES.md"].actual_sha256
+    assert "_meta/agents/PROJECT-WORKFLOW.md" in bad
+    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
+    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].expected_sha256 != bad["_meta/agents/PROJECT-WORKFLOW.md"].actual_sha256
 
 
 def test_verify_bootstrap_detects_corrupt_file(fresh_vault):
     """Truncation also triggers `mismatch` (not `missing`)."""
-    target = fresh_vault.root / "_meta" / "system" / "RULES.md"
+    target = fresh_vault.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md"
     target.write_bytes(b"# trunc\n")
     result = verify_bootstrap(fresh_vault.root)
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert bad["_meta/system/RULES.md"].status == "mismatch"
+    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
 
 
 def test_verify_bootstrap_handles_missing_directory():
@@ -179,7 +178,7 @@ def test_verify_bootstrap_handles_missing_directory():
         shutil.rmtree(bogus)
     result = verify_bootstrap(bogus)
     assert result.ok is False
-    assert len(result.checks) == 5
+    assert len(result.checks) == 3
     assert all(c.status == "missing" for c in result.checks)
     assert result.missing == list(LITE_BOOTSTRAP_FILES)
 
@@ -247,12 +246,12 @@ def test_vault_create_does_not_raise_on_corrupt_template(
     # Create normally
     v = Vault.create("ok", isolated_target / "ok", bootstrap=True)
     # Now corrupt one of the bootstrap files (simulating external mutation)
-    (v.root / "_meta" / "system" / "README.md").write_text("# corrupt\n")
+    (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text("# corrupt\n")
     # Run verify directly — should report mismatch, NOT raise
     result = v.verify_bootstrap()
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert bad["_meta/system/README.md"].status == "mismatch"
+    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
 
 
 # ─── CLI: raven vault verify ────────────────────────────────────────
@@ -282,7 +281,7 @@ def test_cli_vault_verify_detects_corruption(isolated_vaults_root, isolated_targ
     from raven.cli.__main__ import app
 
     v = Vault.create("clibad", isolated_target / "clibad", bootstrap=True)
-    (v.root / "_meta" / "system" / "SCHEMA.md").write_text("# corrupted\n")
+    (v.root / "_meta" / "agents" / "SCHEMA.md").write_text("# corrupted\n")
     runner = CliRunner()
     result = runner.invoke(app, ["vault", "verify", "clibad"])
     assert result.exit_code == 1, result.stdout + result.stderr
@@ -301,7 +300,7 @@ def test_cli_vault_verify_json_output(isolated_vaults_root, isolated_target):
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["ok"] is True
-    assert len(data["checks"]) == 5
+    assert len(data["checks"]) == 3
 
 
 # ─── API: POST /api/vaults/{name}/verify ───────────────────────────
@@ -318,7 +317,7 @@ def test_api_verify_vault_bootstrap_endpoint(isolated_vaults_root, isolated_targ
     assert r.status_code == 200, r.text
     payload = r.json()
     assert payload["ok"] is True
-    assert len(payload["checks"]) == 5
+    assert len(payload["checks"]) == 3
 
 
 def test_api_verify_returns_409_on_mismatch(isolated_vaults_root, isolated_target):
@@ -327,14 +326,14 @@ def test_api_verify_returns_409_on_mismatch(isolated_vaults_root, isolated_targe
     from raven.api.server import app
 
     v = Vault.create("apibad", isolated_target / "apibad", bootstrap=True)
-    (v.root / "_meta" / "system" / "SCHEMA.md").write_text("# bad\n")
+    (v.root / "_meta" / "agents" / "SCHEMA.md").write_text("# bad\n")
     client = TestClient(app)
     r = client.post("/api/vaults/apibad/verify")
     assert r.status_code == 409, r.text
     payload = r.json()["detail"]
     assert payload["ok"] is False
     bad = {c["file"]: c for c in payload["checks"]}
-    assert bad["_meta/system/SCHEMA.md"]["status"] == "mismatch"
+    assert bad["_meta/agents/SCHEMA.md"]["status"] == "mismatch"
 
 
 def test_api_verify_returns_404_on_unknown_vault(isolated_vaults_root):

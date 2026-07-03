@@ -4,7 +4,7 @@
 
 vault create 시 --profile 옵션:
   - basic (사람 1차 Obsidian-style): WELCOME.md 1장만
-  - llm-wiki (project/agent-ready): SCHEMA+RULES+AGENTS+PROJECT-WORKFLOW+log.md (5종)
+  - llm-wiki (project/agent-ready): SCHEMA+PROJECT-WORKFLOW+log.md (2종+log.md)
 
 회귀 가드 (v0.6.38):
   1. WELCOME.md 템플릿 존재
