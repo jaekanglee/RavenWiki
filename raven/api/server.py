@@ -771,8 +771,8 @@ def list_pages(
 
 class GraphLayoutParams(BaseModel):
     iterations: int = Field(500, ge=1, le=2000, description="spring iterations (FR-style)")
-    layout: Literal["atlas", "constellation", "spring"] = Field(
-        "atlas", description="graph layout: atlas, constellation, or spring"
+    layout: Literal["atlas", "constellation", "spring", "hierarchical", "radial"] = Field(
+        "atlas", description="graph layout: atlas, constellation, spring, hierarchical, or radial"
     )
 
 
@@ -1095,6 +1095,92 @@ def _hierarchical_layout(
     return _normalize_layout(ids, pos_x, pos_y)
 
 
+def _radial_hierarchical_layout(
+    ids: list[str],
+    edges: list[tuple[str, str]],
+) -> dict[str, tuple[float, float]]:
+    """폴더 경로 트리를 극좌표로 펼치는 방사형 계층 배치 (Radial Hierarchical Layout).
+
+    - 반지름: 경로 깊이(depth) — 얕을수록 중심에 가까움.
+    - 각도: 부모 폴더의 각도 구간(sector) 안에서 subtree 크기(페이지 수)에
+      비례해 재귀적으로 분배. 같은 부모를 공유하는 노드끼리 각도상 인접해,
+      _hierarchical_layout(직교좌표, 레이어별 균등분할)과 달리 부모-자식
+      연결선이 서로 다른 가지 사이에서 교차하는 일이 적다.
+
+    다른 레이아웃과 달리 _normalize_layout(bounding-box 중심 정렬)을 쓰지
+    않는다 — 방사형 배치는 "루트=원점"이 핵심 불변식인데, bbox 중심은
+    노드 분포가 한쪽으로 치우치면 원점에서 벗어나 루트가 중앙을 벗어나
+    버린다. 대신 원점을 고정한 채 스케일만 ±500에 맞춘다.
+    """
+    import math
+
+    if not ids:
+        return {}
+    if len(ids) == 1:
+        return {ids[0]: (0.0, 0.0)}
+
+    INNER_RADIUS = 220.0
+    RADIUS_STEP = 220.0
+
+    # trie: path segment tuple -> {"children": {segment: child_path}, "id": id 또는 None}
+    trie: dict[tuple[str, ...], dict] = {(): {"children": {}, "id": None}}
+
+    def ensure(path: tuple[str, ...]) -> None:
+        if not path or path in trie:
+            return
+        trie[path] = {"children": {}, "id": None}
+        ensure(path[:-1])
+        trie[path[:-1]]["children"][path[-1]] = path
+
+    for node_id in ids:
+        parts = tuple(p for p in node_id.split("/") if p) or (node_id,)
+        ensure(parts)
+        trie[parts]["id"] = node_id
+
+    size_cache: dict[tuple[str, ...], int] = {}
+
+    def subtree_count(path: tuple[str, ...]) -> int:
+        if path in size_cache:
+            return size_cache[path]
+        node = trie[path]
+        total = 1 if node["id"] is not None else 0
+        for child_path in node["children"].values():
+            total += subtree_count(child_path)
+        size_cache[path] = total
+        return total
+
+    coords: dict[str, tuple[float, float]] = {}
+
+    def assign(path: tuple[str, ...], angle_start: float, angle_end: float) -> None:
+        node = trie[path]
+        depth = len(path)
+        if node["id"] is not None:
+            angle_mid = (angle_start + angle_end) / 2.0
+            r = 0.0 if depth == 0 else INNER_RADIUS + (depth - 1) * RADIUS_STEP
+            coords[node["id"]] = (math.cos(angle_mid) * r, math.sin(angle_mid) * r)
+
+        children = sorted(node["children"].items())
+        if not children:
+            return
+        sizes = [subtree_count(child_path) for _, child_path in children]
+        total = sum(sizes) or 1
+        span = angle_end - angle_start
+        cursor = angle_start
+        for (_, child_path), size in zip(children, sizes):
+            child_span = span * (size / total)
+            assign(child_path, cursor, cursor + child_span)
+            cursor += child_span
+
+    assign((), 0.0, 2.0 * math.pi)
+
+    max_r = max((math.hypot(x, y) for x, y in coords.values()), default=0.0) or 1.0
+    scale = 500.0 / max_r
+    return {
+        node_id: (round(x * scale, 1), round(y * scale, 1))
+        for node_id, (x, y) in coords.items()
+    }
+
+
 def _forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
@@ -1397,8 +1483,8 @@ def _spring_layout(
 def vault_graph(
     name: str,
     iterations: int = Query(500, ge=1, le=2000, description="spring iterations"),
-    layout: Literal["atlas", "constellation", "spring"] = Query(
-        "atlas", description="layout: atlas, constellation, or spring"
+    layout: Literal["atlas", "constellation", "spring", "hierarchical", "radial"] = Query(
+        "atlas", description="layout: atlas, constellation, spring, hierarchical, or radial"
     ),
     community: Literal["none", "modularity"] = Query(
         "none",
@@ -1504,6 +1590,8 @@ def vault_graph(
                 if layout == "constellation"
                 else _hierarchical_layout(ids, edge_pairs)
                 if layout == "hierarchical"
+                else _radial_hierarchical_layout(ids, edge_pairs)
+                if layout == "radial"
                 else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
             )
             for node in nodes:
@@ -1615,6 +1703,8 @@ def vault_graph(
         if layout == "constellation"
         else _hierarchical_layout(ids, edge_pairs)
         if layout == "hierarchical"
+        else _radial_hierarchical_layout(ids, edge_pairs)
+        if layout == "radial"
         else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
     )
     for node in nodes:

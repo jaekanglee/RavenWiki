@@ -591,6 +591,8 @@ function GraphCanvasInner({
   // - mount 시 (rfNodes[0] 한 번 fit)
   // - orphan toggle / vault 변경 / force-directed 재계산 후 자동 재중심.
   // - 이전 mount 1회 한정 → 빈 화면.
+  // - layout 전환 시에도 재호출 — 노드/엣지 개수는 그대로인데 좌표만 바뀌므로
+  //   length만 보면 fit이 안 걸려 이전 레이아웃의 확대/이동 상태가 남는다.
   useEffect(() => {
     if (flowNodes.length === 0) return;
     // 다음 tick에 호출 — xyflow가 viewport 측정을 끝낸 후 fitView가 동작.
@@ -598,7 +600,7 @@ function GraphCanvasInner({
       fitView({ duration: 300, padding: 0.32, minZoom: 0.01, maxZoom: 1.2 });
     }, 50);
     return () => window.clearTimeout(id);
-  }, [flowNodes.length, flowEdges.length, fitView]);
+  }, [flowNodes.length, flowEdges.length, layout, fitView]);
 
   // hover 시 GraphNode 메타 + screen 좌표 계산
   const handleNodeEnter = useCallback(

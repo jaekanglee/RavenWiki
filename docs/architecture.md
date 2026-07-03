@@ -1,7 +1,7 @@
 ---
 title: Raven System Architecture (v0.7.x)
 created: 2026-06-30
-updated: 2026-06-30
+updated: 2026-07-03
 type: reference
 tags: [system, architecture, meta, wiki]
 confidence: high
@@ -205,5 +205,10 @@ sequenceDiagram
   * 여러 독립된 vault를 동시에 관리할 수 있도록 중앙 인덱스 파일(`~/.registry.json`)을 두어 CLI와 GUI가 유연하게 볼트를 탐색 및 격리할 수 있도록 구성했습니다.
 * **D9: 에이전트 표준 인터페이스로서의 MCP 일원화 (v0.7.8+)**
   * 에이전트가 직접 Python 파일에 접근하거나 날것의 API를 다룰 때 생기는 에러를 최소화하고 안전망(Path Scope, Allowed/Deny Paths)을 강화하기 위해 **MCP를 에이전트 전용 단일 표준 채널**로 선언했습니다. (Python Adapter 모듈은 사람/스크립트용 헬퍼로 격하 및 제거).
+* **D10: 자동 카탈로그(index_builder)의 타입별 분산 (content/_index/{type}.md)**
+  * 문제: `build_index()`가 모든 페이지를 루트 `content/index.md`에 직접 링크하는 flat fan-out 구조였다. 실사용 vault(hub-control-room, 31페이지/105엣지)에서 `content/index` 하나가 out-degree 26(전체 엣지의 25%)을 가진 거대 허브 노드가 됐고, radial/hierarchical처럼 노드 위치를 구조(폴더/깊이)로만 정하는 레이아웃에서 이 허브의 부채꼴 엣지가 화면 전체를 가로질러 도형(원/트리)을 가려버리는 문제로 이어졌다.
+  * 원인: 이건 vault 콘텐츠 실수가 아니라 **Raven이 새 vault에 주입하는 부트스트랩 산출물(`build_index`)의 설계 자체**가 "타입 하나당 페이지 N개 → 루트에 N개 직접 링크"였기 때문 — vault 규모가 커질수록 허브 degree가 그만큼 커지는 구조적 한계.
+  * 조치: `raven/core/index_builder.py`가 타입별로 `content/_index/{type}.md` 카탈로그 페이지를 따로 생성하고, 루트 `content/index.md`는 그 카탈로그 페이지에만 링크하도록 변경 (out-degree가 페이지 수가 아니라 타입 수에 비례). `raven/core/templates/system/SCHEMA.md` 템플릿에 `type: index` / 태그 `index`를 코어 taxonomy로 추가해, 신규 vault도 처음부터 이 구조로 부트스트랩된다.
+  * 한계: 이 구조는 "루트 인덱스" 허브 문제만 완화한다 — 콘텐츠 페이지끼리 실제 위키링크(예: `content/index`가 아니라 개별 개념 문서 간 상호링크)가 촘촘한 경우엔 여전히 그래프가 복잡해 보일 수 있다. 이건 별개 이슈(콘텐츠 상호연결 밀도)이며 이번 조치 범위 밖.
 * **Lite Bootstrap & Tier Boundary Policy (v0.7.1+)**
   * 코어 도구 문서(Tier 1: `OPERATIONS.md`, `agent/*`)가 사용자 지식 vault(Tier 2) 내부로 유출/복사되지 않도록 철저히 차단하며, 새 vault 생성 시에는 최소한의 사용자용 가이드(SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW, log.md) 5종만 scaffold 형태로 제공합니다. (Profile `--profile basic` 선택 시 단 1장의 WELCOME.md만 복사).
