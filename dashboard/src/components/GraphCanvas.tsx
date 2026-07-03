@@ -17,7 +17,6 @@ import type { GraphNode, GraphEdge } from "../types";
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
-  layout?: string; // 레이아웃 모드 추가 (atlas, hierarchical 등)
   /** hover/click 시 선택 노드 메타를 상위 UI에 전달 */
   onNodeInspect?: (node: GraphNode) => void;
   /** single click — 데스크탑 전용 (페이지 이동), 모바일에서는 no-op (라벨 토글) */
@@ -310,7 +309,6 @@ const graphButtonStyle = {
 function GraphCanvasInner({
   nodes,
   edges,
-  layout = "atlas",
   onNodeInspect,
   onNodeClick,
   onNodeDoubleClick,
@@ -591,8 +589,6 @@ function GraphCanvasInner({
   // - mount 시 (rfNodes[0] 한 번 fit)
   // - orphan toggle / vault 변경 / force-directed 재계산 후 자동 재중심.
   // - 이전 mount 1회 한정 → 빈 화면.
-  // - layout 전환 시에도 재호출 — 노드/엣지 개수는 그대로인데 좌표만 바뀌므로
-  //   length만 보면 fit이 안 걸려 이전 레이아웃의 확대/이동 상태가 남는다.
   useEffect(() => {
     if (flowNodes.length === 0) return;
     // 다음 tick에 호출 — xyflow가 viewport 측정을 끝낸 후 fitView가 동작.
@@ -600,7 +596,7 @@ function GraphCanvasInner({
       fitView({ duration: 300, padding: 0.32, minZoom: 0.01, maxZoom: 1.2 });
     }, 50);
     return () => window.clearTimeout(id);
-  }, [flowNodes.length, flowEdges.length, layout, fitView]);
+  }, [flowNodes.length, flowEdges.length, fitView]);
 
   // hover 시 GraphNode 메타 + screen 좌표 계산
   const handleNodeEnter = useCallback(
@@ -780,7 +776,7 @@ function GraphCanvasInner({
         // Patch 6: zoom 범위 완화 — pinch zoom out 시 노드 사라짐 방지.
         minZoom={0.005}
         maxZoom={8}
-        // Patch 7: translateExtent 확장 — 서버 spring layout 결과 (±10000)에 여유.
+        // Patch 7: translateExtent 확장 — 서버 layout 좌표(±500)에 여유.
         //   xyflow v12는 viewport를 translateExtent로 clamp하므로 너무 작으면
         //   노드가 viewport 밖으로 밀려나 사라짐.
         translateExtent={[

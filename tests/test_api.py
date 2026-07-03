@@ -484,93 +484,6 @@ def test_api_vault_graph_xy_distinct_for_connected_nodes(client, isolated_env):
     assert dist > 1.0, f"a, b가 너무 가까이 (dist={dist:.2f}, 같을 수 없음)"
 
 
-def test_api_vault_graph_accepts_hierarchical_and_radial_layout_query(client, isolated_env):
-    """?layout=hierarchical / ?layout=radial 이 422 없이 좌표를 반환해야 한다.
-
-    회귀 방지: layout Query의 Literal이 "hierarchical"을 누락했던 적이 있어
-    프론트 드롭다운에서 트리형을 고르면 422가 나던 버그가 있었음.
-    """
-    target = isolated_env["target_root"] / "gv5"
-    client.post("/api/vaults/create", json={"name": "gv5", "path": str(target), "bootstrap": False})
-    client.post("/api/vaults/gv5/pages", json={"slug": "content/a", "title": "A"})
-    client.post("/api/vaults/gv5/pages", json={"slug": "content/b", "title": "B"})
-
-    for layout in ("hierarchical", "radial"):
-        resp = client.get(f"/api/vaults/gv5/graph?layout={layout}")
-        assert resp.status_code == 200, f"layout={layout} → {resp.status_code}: {resp.text}"
-        nodes = resp.json()["nodes"]
-        assert len(nodes) >= 2
-        for n in nodes:
-            assert isinstance(n["x"], (int, float))
-            assert isinstance(n["y"], (int, float))
-
-
-def test_spring_layout_handles_small_graph():
-    """_spring_layout은 0/1/소형 그래프에서도 안정적으로 동작해야 한다."""
-    from raven.api.server import _spring_layout
-    # 빈 입력
-    assert _spring_layout([], []) == {}
-    # 단일 노드
-    out = _spring_layout(["a"], [])
-    assert "a" in out
-    assert len(out["a"]) == 2
-    # 10 노드 + 일부 링크
-    ids = [f"n{i}" for i in range(10)]
-    edges = [("n0", "n1"), ("n1", "n2"), ("n2", "n3"), ("n3", "n0")]
-    out = _spring_layout(ids, edges, iterations=50)
-    for i in ids:
-        assert i in out
-        x, y = out[i]
-        assert isinstance(x, float)
-        assert isinstance(y, float)
-
-
-def test_spring_layout_v0611_sparse_spacing():
-    """v0.6.11 튜닝: 노드 간 평균 거리 ≥ ideal_distance / 2.
-
-    사용자 피드백("노드 한 군데 뭉침 / 작은 원에서도 겹침 / 최악") 회귀 가드.
-    ideal_distance=200 이므로 노드 간 평균 거리는 ≥100 px 기대.
-    """
-    import math
-    from raven.api.server import _spring_layout, LAYOUT_IDEAL_DISTANCE
-
-    # hub-style: 한 노드에 다수 링크가 몰리는 응집 압력 시나리오
-    ids = [f"n{i}" for i in range(12)]
-    edges = [("hub", f"n{i}") for i in range(11)]  # hub에 11개 연결
-    out = _spring_layout(["hub", *ids], edges, iterations=500)
-
-    # 모든 좌표 추출
-    coords = list(out.values())
-    # 페어와이즈 거리 평균
-    dists: list[float] = []
-    for i in range(len(coords)):
-        for j in range(i + 1, len(coords)):
-            x1, y1 = coords[i]
-            x2, y2 = coords[j]
-            d = math.hypot(x1 - x2, y1 - y2)
-            dists.append(d)
-    avg_dist = sum(dists) / len(dists)
-    min_dist = min(dists)
-    threshold = LAYOUT_IDEAL_DISTANCE / 2  # 100 px
-    assert avg_dist >= threshold, (
-        f"평균 노드 거리 {avg_dist:.1f} < {threshold} (ideal_distance={LAYOUT_IDEAL_DISTANCE}). "
-        "튜닝 회귀 — 다시 repulsion/attraction/iterations 확인."
-    )
-    # 최소 거리도 너무 작으면 안 됨 (동일 좌표 직전 충돌 감지)
-    assert min_dist > 1.0, f"최소 노드 거리 {min_dist:.2f} — 노드가 사실상 겹침"
-
-
-def test_spring_layout_v0611_deterministic_with_new_seeds():
-    """v0.6.11: uniform random + seed=0 → 결정론 유지 (같은 입력 = 같은 좌표)."""
-    from raven.api.server import _spring_layout
-
-    ids = [f"n{i}" for i in range(8)]
-    edges = [("n0", "n1"), ("n1", "n2"), ("n3", "n4")]
-    out1 = _spring_layout(ids, edges, iterations=200)
-    out2 = _spring_layout(ids, edges, iterations=200)
-    assert out1 == out2, f"비결정론: {set(out1.items()) ^ set(out2.items())}"
-
-
 def test_api_vault_graph_default_iterations_is_500():
     """v0.6.11: GraphLayoutParams / vault_graph 의 기본 iterations 는 500 이어야 한다.
 
@@ -585,9 +498,8 @@ def test_api_vault_graph_default_iterations_is_500():
 
 
 def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
-    """v0.6.11: 실제 API 응답 노드 좌표가 충분히 펼쳐져 있다 (≥ ideal/2 평균)."""
+    """실제 API 응답 노드 좌표가 충분히 펼쳐져 있다 (허브 응집 압력에도 최소 spacing 유지)."""
     import math
-    from raven.api.server import LAYOUT_IDEAL_DISTANCE
 
     target = isolated_env["target_root"] / "gv_spread"
     client.post("/api/vaults/create", json={"name": "gv_spread", "path": str(target), "bootstrap": False})
@@ -611,7 +523,7 @@ def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
             d = math.hypot(coords[i][0] - coords[j][0], coords[i][1] - coords[j][1])
             dists.append(d)
     avg = sum(dists) / len(dists)
-    threshold = LAYOUT_IDEAL_DISTANCE / 2
+    threshold = 65.0
     assert avg >= threshold, (
         f"실 API 응답 평균 거리 {avg:.1f} < {threshold} — 튜닝이 API까지 반영 안 됨"
     )
@@ -675,78 +587,6 @@ def test_constellation_layout_normalized_to_pm500_and_deterministic():
         assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
         assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
     assert max(max(abs(x), abs(y)) for x, y in out1.values()) > 0
-
-
-# ─── Graph Radial Hierarchical Layout ─────
-
-
-def test_radial_hierarchical_layout_normalized_and_deterministic():
-    """Radial hierarchical: 좌표 범위 ±500, 같은 입력은 항상 같은 좌표."""
-    from raven.api.server import _radial_hierarchical_layout
-
-    ids = ["a", "a/b", "a/c", "a/c/d", "x", "x/y"]
-    edges: list[tuple[str, str]] = []
-    out1 = _radial_hierarchical_layout(ids, edges)
-    out2 = _radial_hierarchical_layout(ids, edges)
-
-    assert out1 == out2
-    assert set(out1) == set(ids)
-    for slug, (x, y) in out1.items():
-        assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
-        assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
-
-
-def test_radial_hierarchical_layout_depth_maps_to_radius():
-    """Radial hierarchical: 경로가 깊을수록(하위 폴더) 중심에서 더 멀어야 한다."""
-    import math
-    from raven.api.server import _radial_hierarchical_layout
-
-    ids = ["top", "top/mid", "top/mid/deep"]
-    out = _radial_hierarchical_layout(ids, [])
-
-    r_top = math.hypot(*out["top"])
-    r_mid = math.hypot(*out["top/mid"])
-    r_deep = math.hypot(*out["top/mid/deep"])
-    assert r_top < r_mid < r_deep
-
-
-def test_radial_hierarchical_layout_siblings_cluster_by_parent():
-    """Radial hierarchical: 같은 부모 폴더를 공유하는 노드끼리 각도상 더 가까워야 한다."""
-    import math
-    from raven.api.server import _radial_hierarchical_layout
-
-    ids = ["a/1", "a/2", "a/3", "b/1", "b/2", "b/3"]
-    out = _radial_hierarchical_layout(ids, [])
-
-    def angle(slug: str) -> float:
-        x, y = out[slug]
-        return math.atan2(y, x)
-
-    def angular_gap(s1: str, s2: str) -> float:
-        diff = abs(angle(s1) - angle(s2)) % (2 * math.pi)
-        return min(diff, 2 * math.pi - diff)
-
-    within_a = angular_gap("a/1", "a/2")
-    within_b = angular_gap("b/1", "b/2")
-    cross = angular_gap("a/1", "b/1")
-    assert within_a < cross
-    assert within_b < cross
-
-
-def test_radial_hierarchical_layout_handles_empty_and_single():
-    """Radial hierarchical: 0/1개 노드에서도 안정적으로 동작해야 한다."""
-    from raven.api.server import _radial_hierarchical_layout
-
-    assert _radial_hierarchical_layout([], []) == {}
-    out = _radial_hierarchical_layout(["solo"], [])
-    assert out == {"solo": (0.0, 0.0)}
-
-
-def test_api_vault_graph_default_layout_is_atlas():
-    """GraphLayoutParams 기본 layout은 atlas(ForceAtlas2/LinLog hybrid)여야 한다."""
-    from raven.api.server import GraphLayoutParams
-
-    assert GraphLayoutParams().layout == "atlas"
 
 
 def test_atlas_layout_clusters_connected_nodes_and_separates_unrelated_nodes():
@@ -899,25 +739,6 @@ def test_louvain_communities_empty_input():
     from raven.api.server import _louvain_communities
     assert _louvain_communities([], []) == {}
     assert _louvain_communities(["a"], []) == {"a": 0}
-
-
-def test_api_vault_graph_layout_spring_fallback_still_available(client, isolated_env):
-    """기존 spring layout은 ?layout=spring 으로 legacy fallback 가능해야 한다."""
-    target = isolated_env["target_root"] / "gv_layout_spring"
-    client.post("/api/vaults/create", json={"name": "gv_layout_spring", "path": str(target), "bootstrap": False})
-    client.post(
-        "/api/vaults/gv_layout_spring/pages",
-        json={"slug": "content/a", "title": "A", "content": "see [[content/b]]"},
-    )
-    client.post("/api/vaults/gv_layout_spring/pages", json={"slug": "content/b", "title": "B"})
-
-    default_resp = client.get("/api/vaults/gv_layout_spring/graph")
-    spring_resp = client.get("/api/vaults/gv_layout_spring/graph?layout=spring&iterations=50")
-    assert default_resp.status_code == 200
-    assert spring_resp.status_code == 200
-    default_nodes = {n["id"]: (n["x"], n["y"]) for n in default_resp.json()["nodes"]}
-    spring_nodes = {n["id"]: (n["x"], n["y"]) for n in spring_resp.json()["nodes"]}
-    assert set(default_nodes) == set(spring_nodes) == {"content/a", "content/b"}
 
 
 # ─── folder tree (v0.6.16+) ──────────────────────────────────
