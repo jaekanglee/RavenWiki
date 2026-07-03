@@ -94,6 +94,7 @@ confidence: high
 - ❌ vault 외부 write
 - ❌ 특정 vendor/tool 강요 (vendor-neutral)
 - ❌ user vault 데이터 write (운영자 영역)
+- ❌ 한글 `title` 문서를 영문/로마자 파일명으로 저장 (파일명은 `title`의 언어를 그대로 따름 — `_meta/system/RULES.md` R7 참고)
 
 ---
 
@@ -503,11 +504,11 @@ type: rule
     *   작업한 문서가 `_meta/system/README.md`에 정해진 '저장 결정 4가지 신호(재사용성, 인수인계, 맥락 추적, 실패 기록)' 중 최소 1개 이상에 부합하는가?
     *   훗날 다른 에이전트나 사람이 참고할 만큼 지식의 정보 밀도가 높은가? (임시 작업 로그나 찌꺼기 데이터가 아닌가?)
 *   **형식 및 구조 일관성**:
-    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되는가? ([_meta/system/RULES.md](file://_meta/system/RULES.md#L108-L112) 준수)
-    *   스키마 규약([_meta/system/SCHEMA.md](file://_meta/system/SCHEMA.md))에 지정된 8종 타입 및 태그 스키마에 부합하는가?
+    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되고, 언어(한글/영문)까지 title과 동일하게 유지되는가? (`_meta/system/RULES.md` R7 준수)
+    *   스키마 규약(`_meta/system/SCHEMA.md`)에 지정된 9종 타입 및 태그 스키마에 부합하는가?
 *   **인간 중심 가독성**:
     *   본문 최상단에 BLUF 형식의 핵심 요약(요약 또는 한 줄 결론)이 명확히 작성되어 있는가?
-    *   일지(`journal`)나 저널 성격의 문서는 `# 요약` 섹션(3줄 이내)을 성실하게 채웠는가? ([_meta/system/RULES.md](file://_meta/system/RULES.md#L113-L116) 준수)
+    *   일지(`journal`)나 저널 성격의 문서는 최상단에 BLUF 1줄 요약(`> {BLUF: ...}`, 본 문서 §3.3 참고)이 명확히 작성되어 있는가?
 *   **연결성 및 지식 그래프화**:
     *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 위키링크(`[[wikilink]]`)를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
 

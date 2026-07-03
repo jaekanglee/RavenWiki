@@ -106,8 +106,10 @@ python3 scripts/rename_slug.py --from docker-deploy --to deployment/docker
 ## 8. 파일명, 타이틀 및 본문 가독성 규칙 (v2.5)
 
 - **1:1 대응 원칙**: 마크다운 파일명(Slug)과 Frontmatter의 `title`은 반드시 1:1 대응되어야 합니다.
-  - 물리 파일명(확장자 제외)은 문서 타이틀을 소문자화하고 공백 및 특수문자를 하이픈(`-`)으로 치환한 형태(Slugify)여야 합니다.
-  - 예: `title: Vault Git Sync Setup` $\rightarrow$ 파일명: `vault-git-sync-setup.md`
+  - 물리 파일명(확장자 제외)은 문서 타이틀을 그대로 슬러그화(Slugify)한 형태여야 합니다: 공백 및 특수문자는 하이픈(`-`)으로 치환하고, 영문은 소문자화합니다.
+  - **언어 보존 (필수)**: `title`의 언어를 파일명에서 임의로 번역하거나 로마자로 음차하지 않습니다. 한글 `title` → 한글 파일명, 영문 `title` → 영문 파일명.
+    - 예: `title: Vault Git Sync Setup` $\rightarrow$ 파일명: `vault-git-sync-setup.md`
+    - 예: `title: 볼트 깃 동기화 설정` $\rightarrow$ 파일명: `볼트-깃-동기화-설정.md` (❌ `vault-git-sync-setup.md`로 번역 금지)
   - 타이틀의 의미와 무관하게 지어진 임의의 파일명이나 기계적인 이름(예: `note-1234.md` 등) 지정을 금지합니다.
 - **직관적인 요약형 타이틀**: 에이전트가 문서를 자동 생성/요약할 때는 본문의 내용을 대표하여 사람이 한눈에 무슨 역할을 하는 파일인지 직관적으로 이해할 수 있는 명료한 요약형 타이틀을 부여해야 합니다.
 - **본문 내용의 인간 중심 서술 및 요약 강제**:
