@@ -6,9 +6,7 @@ Tier 1 (raven package internal — never copied to vault):
     raven-policy.md
 
 Tier 2 (user vault — Lite bootstrap):
-    _meta/system/SCHEMA.md
-    _meta/system/RULES.md
-    _meta/system/README.md
+    _meta/agents/SCHEMA.md
     _meta/agents/PROJECT-WORKFLOW.md
     log.md
 
@@ -86,9 +84,7 @@ def test_lite_bootstrap_files_excludes_tier1():
 def test_lite_bootstrap_files_size_matches_documented_whitelist():
     """Sanity: the whitelist must be the canonical user-facing Lite set."""
     canonical_lite = {
-        "_meta/system/SCHEMA.md",
-        "_meta/system/RULES.md",
-        "_meta/system/README.md",
+        "_meta/agents/SCHEMA.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
@@ -126,8 +122,8 @@ def test_clone_data_only_excludes_tier1(isolated_vaults_root, isolated_target):
     )
     for tier1 in TIER1_FILES:
         assert not (dst.root / tier1).exists(), f"Tier 1 leak in clone(data_only): {tier1}"
-    # And dst has no _meta/system/ files at all (data_only skips _meta entirely)
-    assert not (dst.root / "_meta" / "system" / "SCHEMA.md").exists()
+    # And dst has no _meta/ files at all (data_only skips _meta entirely)
+    assert not (dst.root / "_meta" / "agents" / "SCHEMA.md").exists()
 
 
 def test_clone_with_tier1_in_src_still_excluded_by_default(
@@ -209,9 +205,7 @@ def test_tier1_dir_not_in_bootstrap(isolated_vaults_root, isolated_target):
 def test_bootstrap_path_constants_use_user_surface_dirs():
     """All Lite bootstrap paths MUST live under approved Tier 2 locations."""
     allowed_files = {
-        "_meta/system/SCHEMA.md",
-        "_meta/system/RULES.md",
-        "_meta/system/README.md",
+        "_meta/agents/SCHEMA.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
         "log.md",
     }
