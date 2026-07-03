@@ -715,7 +715,7 @@ export function VaultManage() {
       >
         {confirmBootstrap && (
           <div style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.5 }}>
-            <strong>{confirmBootstrap}</strong> 보관소의 지침 파일들(<code>SCHEMA.md</code>, <code>RULES.md</code>, <code>README.md</code>, <code>PROJECT-WORKFLOW.md</code>, <code>log.md</code>)을 Raven 소스코드에 포함된 최신 템플릿 원본으로 덮어씁니다.<br/>
+            <strong>{confirmBootstrap}</strong> 보관소의 지침 파일들(<code>SCHEMA.md</code>, <code>PROJECT-WORKFLOW.md</code>, <code>log.md</code>)을 Raven 소스코드에 포함된 최신 템플릿 원본으로 덮어씁니다.<br/>
             <span style={{ fontSize: 13, color: "var(--color-warning-text)", display: "block", marginTop: 8 }}>
               ⚠️ 이미 직접 수정한 지침 내용이 있다면 덮어쓰기되어 손실될 수 있습니다. 진행하시겠습니까?
             </span>

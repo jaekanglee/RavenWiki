@@ -21,7 +21,7 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/Raven/<name>/` (v0.6.3+) |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
-| **CLI** (사람/자동화) | Typer 9 commands | `raven/cli/` |
+| **CLI** (사람/자동화) | Typer 5 top-level commands + 12 subcommand groups | `raven/cli/` |
 | **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
 | **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
@@ -94,59 +94,53 @@ raven link check
 raven export                      # GUI 정적 JSON 재생성
 ```
 
-### Lite bootstrap (v0.5.5+) — `raven vault create` 시 자동 복사
+### Lite bootstrap (v0.7.65+) — `raven vault create` 시 자동 복사
 
-새 vault를 `--profile llm-wiki`로 만들면 다음 **5종**이 vault 폴더에 자동 복사됩니다:
+새 vault를 `--profile llm-wiki`(기본값)로 만들면 다음 **2종 + log.md**가
+vault 폴더에 자동 복사됩니다. 사람 안내문은 없음 — 에이전트가 이 vault를
+Raven의 LLM Wiki 방식으로 운영하는 데 필요한 사실만 담습니다:
 
 | 파일 | 용도 |
 |---|---|
-| `_meta/system/SCHEMA.md` | frontmatter / type / tag / wikilink 규약 |
-| `_meta/system/RULES.md` | 편집 5규칙 |
-| `_meta/system/README.md` | vault 운영자 가이드 ("Vault User Guide", v0.7.35+ 리네임) |
-| `_meta/agents/PROJECT-WORKFLOW.md` | 프로젝트 작업 에이전트 공통 워크플로우 |
+| `_meta/agents/SCHEMA.md` | 데이터 계약: frontmatter/type/tag/wikilink/slug/raw 권한/lint 14개 |
+| `_meta/agents/PROJECT-WORKFLOW.md` | 운영 사실: 읽기 순서, MCP 도구 매핑, 권한 매트릭스, 저장 결정 4신호, 멀티 에이전트 협업 규칙 |
 | `log.md` | 작업 이력 (append-only) |
 
 **Tier 1 문서** (`OPERATIONS.md` / `agent/*` / `raven-policy.md`)는 raven 패키지 내부에 있으며 vault에 **복사되지 않습니다**. 접근은 `raven docs show <topic>`. `vault clone` 기본 = content only (Tier 1 leak 방지).
 
 ---
 
-## Docker 운영 (v0.7.36+: 이미지 SHA 핀)
+## 로컬 스택 운영 (v0.7.55+: Docker deprecated, 기본은 local host stack)
 
-Raven은 4 진입점(CLI/API/MCP/Dashboard) 모두 Docker로 띄울 수 있습니다. **코드 변경 후 반드시 이미지 재빌드 + 컨테이너 재기동** — stale 이미지 캐시가 옛 `_bootstrap_lite`(예: `_meta/system/AGENTS.md` 참조)를 들고 있으면 새로 만든 vault가 즉시 깨질 수 있습니다 (silent failure 사고 사례: v0.7.35 리네임 후 stale 이미지로 `Lite bootstrap failed` 발생).
+Raven은 `raven.sh`(API + Dashboard dev server를 PID로 관리)가 기본 운영 방식입니다. **Docker는 deprecated** — production에서 컨테이너가 필요한 경우에만 호환성 목적으로 남겨둡니다.
 
 ```bash
-# 0. 환경 (.env에 RAVEN_VAULTS_DIR, PORT_*, HOST 등 정의)
 cd ~/Desktop/Dev/Project/Raven
 
-# 1. 코드 변경 후 → 반드시 SHA 이미지로 재빌드
-# ⚠️ IMPORTANT: 3개 서비스가 같은 image: raven:${GIT_SHA} 태그를 공유하므로
-#    반드시 **서비스를 explicit 나열**해 sequential build 해야 합니다.
-#    `docker compose build`(서비스 인자 없음) 는 병렬 빌드 → 3개 레이어가
-#    같은 태그를 동시에 export 시도 → "image already exists" 충돌.
-GIT_SHA=$(git rev-parse --short HEAD)
-docker compose build --build-arg "GIT_SHA=$GIT_SHA" api mcp-http dashboard
+# 시작 / 중지 / 재시작 / 상태 확인
+make up            # = ./raven.sh start
+make down          # = ./raven.sh stop
+make restart       # = ./raven.sh restart (PID만 재시작)
+make status        # = ./raven.sh status
 
-# 2. 이전 컨테이너/이미지 정리 후 재기동
-docker compose down
-docker compose up -d
-
-# 3. 어떤 SHA가 박힌 이미지인지 즉시 확인
-docker exec raven-api cat /app/.git_sha
-# → fa65226 같은 7자 SHA가 보이면 OK. 보이지 않으면 stale.
+# 토큰/CSS/의존성 변경 후 UI가 stale하게 갱신 안 될 때 (캐시 완전 초기화)
+make restart-all   # = scripts/restart-all.sh — Vite pre-bundle / __pycache__ / pytest cache / 구 로그 전부 wipe 후 재시작
 ```
 
-**이미지 핀 정책 (왜 필요한가)**: docker-compose는 `image: raven:latest` 만 쓰면 캐시된 이전 레이어를 재사용합니다. 한 번 rename/리팩토 후에도 컨테이너는 옛 코드/템플릿을 들고 있어 vault 생성이 깨지는 일이 발생합니다. **이미지 태그를 GIT SHA로 핀** (`image: raven:${GIT_SHA:-latest}`)하면, 코드 변경 → 다른 태그 → 이전 이미지로 자동 다운그레이드되는 사고가 차단됩니다.
+`make restart-all`은 `wiki.db`, `node_modules/`, `scripts/.venv/`, 사용자 vault 데이터는 건드리지 않습니다. `wiki.db`까지 지우고 bootstrap을 재생성하려면 `scripts/restart-all.sh --wipe-db`.
 
-**병렬 빌드 충돌 회피**: yaml anchor `&raven_image` 가 `build` + `image:` 를 묶어 3개 서비스가 동일 정의(`<<: *raven_image`)를 공유합니다. 같은 `image:` 태그로 parallel export 하면 Docker가 `image "raven:<sha>": already exists` 에러로 한두 서비스 빌드가 죽습니다. 위 명령처럼 **서비스 이름을 explicit 나열**해 sequential build 하면 회피됩니다. 대안으로 `make docker-build-{api,mcp-http,dashboard}` (Makefile에 이미 존재) 도 동일한 sequential 동작입니다.
+### Docker (deprecated, 호환성 유지용)
 
-**Makefile 단축 명령** (changelog-v0.7.17의 `docker-build-{api,mcp-http,dashboard}` 패턴 활용):
+`docker-compose.yml` / `Dockerfile`은 저장소에 남아있지만 **신규 사용자는 사용하지 마세요**. production에서 컨테이너가 필요한 경우에만:
+
 ```bash
-GIT_SHA=$(git rev-parse --short HEAD) make docker-build
-# 또는 한 줄씩:
-GIT_SHA=$(git rev-parse --short HEAD) make docker-build-api
-GIT_SHA=$(git rev-parse --short HEAD) make docker-build-mcp-http
-GIT_SHA=$(git rev-parse --short HEAD) make docker-build-dashboard
+GIT_SHA=$(git rev-parse --short HEAD)
+docker compose build --build-arg "GIT_SHA=$GIT_SHA" api mcp-http dashboard   # 서비스 explicit 나열 필수 (병렬 빌드 충돌 회피)
+docker compose down && docker compose up -d
+docker exec raven-api cat /app/.git_sha   # 이미지에 박힌 SHA 확인
 ```
+
+Makefile 단축: `make docker-build`, `make docker-up`, `make docker-down`, `make docker-restart`.
 
 ---
 
@@ -165,7 +159,7 @@ WIKI_VAULT=agent-output raven page ls
 
 ---
 
-## 핵심 명령 (CLI 9)
+## 핵심 명령 (CLI — 5 top-level + 12 서브커맨드 그룹)
 
 ```bash
 raven where                                 # 환경 표시
@@ -184,6 +178,28 @@ raven page delete <slug> [--vault N] [--force]
 raven link check [--vault N] [--json]       # broken/missing wikilink
 raven build [--vault N] [--db PATH] [--lint]   # wiki.db 빌드
 raven export [--vault N] [--out DIR]          # GUI 정적 JSON
+
+raven garden [--vault N] [--stale] [--orphan]   # stale/orphan 문서 정리
+raven ingest <source_path> [--vault N]          # 외부 소스 파일/디렉토리 ingest
+
+raven meta sync [--vault N]                     # Lite bootstrap 문서 최신화
+
+raven archive list|clean|restore [--vault N]    # 삭제된 페이지 조회/정리/복원
+
+raven log list|show|append|rotate|status [--vault N]   # log.md 조회/회전 (append-only)
+
+raven lint run|summary|check [--vault N]        # lint 14개 실행/요약/체크
+
+raven migrate plan|apply|categories [--vault N] # 스키마/구조 마이그레이션 (dry-run 기본)
+
+raven note decision|concept|lesson|journal|rule|issue|gate <slug> ...   # type별 새 노트 shortcut
+
+raven collection sync|validate|add [--vault N]  # 컬렉션 동기화/검증/추가
+
+raven curator run|stats [--vault N]             # stale/orphan 자동 큐레이션
+
+raven docs list                                 # Tier 1 내부 문서 목록
+raven docs show <topic>                         # Tier 1 문서 조회 (OPERATIONS.md 등)
 ```
 
 ---
@@ -239,13 +255,10 @@ MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 ```
 
 ```bash
-# Raven MCP server 띄우기
-make rebuild          # Docker image rebuild + restart
-# 또는 이미 빌드된 상태면
-make docker-up
-
-# stdio client용 MCP는 컨테이너에서 실행
-docker compose exec api docker-entrypoint.sh mcp-stdio
+# Raven MCP server 띄우기 (local, v0.7.55+ 기본)
+source scripts/.venv/bin/activate
+python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode read   # HTTP (원격/Dashboard client, 기본 포트 8765이므로 --port 명시 필수)
+python -m raven.mcp.cli --mode read                                                  # stdio (desktop MCP client)
 ```
 
 > **자세한 도식**: `_meta/diagrams/three-flows.png`
@@ -289,10 +302,10 @@ Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다
 | Tier | 위치 | 접근 | 용도 |
 |---|---|---|---|
 | **Tier 1** (raven 패키지 내부) | `raven/agent/`, `raven-policy.md`, `OPERATIONS.md` | `raven docs show <topic>` | raven CLI/API 운영 매뉴얼 |
-| **Tier 2** (사용자 vault) | `<vault>/_meta/system/` | vault 직접 read | vault 데이터 운영 규칙 |
+| **Tier 2** (사용자 vault) | `<vault>/_meta/agents/` | vault 직접 read | vault 데이터 운영 규칙 |
 
 - `vault clone` 기본 = **content only** (Tier 1 leak 방지)
-- Tier 2 Lite = **5종 고정** (`SCHEMA.md` / `RULES.md` / `README.md` / `PROJECT-WORKFLOW.md` / `log.md`)
+- Tier 2 Lite = **2종 + log.md 고정** (`SCHEMA.md` / `PROJECT-WORKFLOW.md` / `log.md`)
 - Tier 1 ↔ Tier 2 혼동 시 `raven vault verify <name>`로 진단
 
 ---
@@ -375,13 +388,11 @@ raven build && raven link check
 │   │   ├── export.py                ← GUI 정적 JSON
 │   │   └── link.py                  ← wikilink 파싱/감사
 │   ├── cli/
-│   │   └── __main__.py              ← Typer 9 commands
-│   ├── api/
-│   │   ├── server.py                ← FastAPI app
-│   │   ├── main.py                  ← uvicorn entry
-│   │   └── __main__.py
-│   └── agents/
-│       └── agent.py                 ← Agent + AgentVault
+│   │   └── __main__.py              ← Typer 5 top-level + 12 서브커맨드 그룹
+│   └── api/
+│       ├── server.py                ← FastAPI app
+│       ├── main.py                  ← uvicorn entry
+│       └── __main__.py
 ├── dashboard/                        ← React 19 SPA
 │   ├── src/
 │   │   ├── components/              ← Sidebar, VaultPicker, EditButton, ...
@@ -452,8 +463,8 @@ cd dashboard && npm install
 ## 관련 문서
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
-- `~/Raven/<vault>/_meta/system/README.md` — vault 운영자 가이드 (Lite bootstrap 자동 복사, +α opt-in)
-- `~/Raven/<vault>/_meta/agents/PROJECT-WORKFLOW.md` — 프로젝트 에이전트 공통 작업 지시 템플릿
+- `~/Raven/<vault>/_meta/agents/SCHEMA.md` — vault 데이터 계약 (Lite bootstrap 자동 복사)
+- `~/Raven/<vault>/_meta/agents/PROJECT-WORKFLOW.md` — 프로젝트 에이전트 공통 작업 지시 템플릿 (Lite bootstrap 자동 복사)
 - `docs/vault-patterns.md` — **Karpathy LLM Wiki +α 가이드** (v0.7.0+) — raw/ log.md _meta/agents/ opt-in 패턴, 사용자 자유
 - `_meta/decisions/adr-2026-06-30-llm-wiki-plus-alpha.md` — **+α 결정 ADR** (v0.7.0+)
 - `_meta/changelog-v0.5*.md` — 변경 이력
@@ -481,7 +492,7 @@ cd dashboard && npm install
 
 ## 라이선스 / 상태
 
-- v0.5.5 (Lite bootstrap with AGENTS.md, templates → _deprecated)
+- v0.7.65 (Lite bootstrap 2종+log.md, agent-only: SCHEMA/PROJECT-WORKFLOW/log.md)
 - 단일 사용자 가정 (auth 없음, 127.0.0.1 기본 바인딩)
 - 멀티 에이전트 write는 **experimental** (scope 명시 + 동시성 사용자 책임)
 - Not production-ready for multi-tenant (CORS open, no auth)

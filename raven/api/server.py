@@ -515,8 +515,8 @@ class VaultCreate(BaseModel):
     bootstrap: bool = Field(
         True,
         description=(
-            "Lite bootstrap policy: if True, copy ONLY user-facing essentials "
-            "(SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW, log.md). Tier 1 raven-internal "
+            "Lite bootstrap policy: if True, copy ONLY agent-facing essentials "
+            "(SCHEMA, PROJECT-WORKFLOW, log.md). Tier 1 raven-internal "
             "docs (OPERATIONS, agent/*, raven-policy) are NEVER auto-copied. "
             "Use `raven docs` command to read raven-internal docs."
         ),

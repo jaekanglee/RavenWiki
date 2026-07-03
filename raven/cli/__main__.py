@@ -145,11 +145,9 @@ def vault_create(
 ) -> None:
     """Create new vault on disk and register it.
 
-    Profiles (v0.6.38+):
-      - basic: Obsidian-style human-first vault, only WELCOME.md
-      - llm-wiki: project/agent-ready vault, SCHEMA+RULES+AGENTS+PROJECT-WORKFLOW+log.md
-
-    For new users, --profile basic is recommended.
+    Profiles (v0.6.38+, default: llm-wiki):
+      - llm-wiki (default): project/agent-ready vault, SCHEMA+RULES+README+PROJECT-WORKFLOW+log.md
+      - basic: Obsidian-style human-first vault, only WELCOME.md (opt into LLM Wiki patterns later)
     """
     if profile not in ("basic", "llm-wiki"):
         typer.echo(f"❌ invalid profile: {profile!r} (use 'basic' or 'llm-wiki')", err=True)
@@ -170,7 +168,7 @@ def vault_create(
             typer.echo(f"   profile: basic (WELCOME.md only, human-first Obsidian-style)")
         else:
             typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/system, _meta/agents, log.md)")
+            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/agents, log.md)")
     else:
         typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
 

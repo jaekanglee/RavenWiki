@@ -46,8 +46,8 @@ notes stay untouched.
 
 ## Need more structure?
 
-If you want the full Lite bootstrap (SCHEMA.md / RULES.md / AGENTS.md /
-PROJECT-WORKFLOW.md / log.md), re-create with `--profile llm-wiki`:
+If you want the full Lite bootstrap (SCHEMA.md / PROJECT-WORKFLOW.md /
+log.md), re-create with `--profile llm-wiki`:
 
 ```bash
 raven vault create <name> <path> --profile llm-wiki

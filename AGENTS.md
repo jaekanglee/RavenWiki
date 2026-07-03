@@ -11,7 +11,7 @@ confidence: high
 
 > AI 에이전트(자율 코딩 도구든, 자동화 스크립트든, 사람 보조자든)가 **이 Raven 코드베이스를 다룰 때** 따라야 하는 규약.
 >
-> 사람 운영자 가이드는 `README.md`, vault 데이터 운영 규칙은 사용자 vault 내부 `_meta/system/README.md` 참조 (Lite bootstrap으로 자동 복사됨).
+> 사람 운영자 가이드는 `README.md`. vault 데이터 운영 규칙(에이전트용)은 사용자 vault 내부 `_meta/agents/PROJECT-WORKFLOW.md` 참조 (Lite bootstrap으로 자동 복사됨). 사람 안내문은 vault에 주입하지 않음 (v0.7.65+).
 
 ---
 
@@ -86,17 +86,15 @@ raven-policy.md     → raven 내부 정책 (Lite/Full 동작 정의)
 
 접근: `raven docs show <topic>` (CLI 진입점)
 
-### Tier 2 — user vault (Lite bootstrap ✅, v0.7.3+: 5종 표면화)
+### Tier 2 — user vault (Lite bootstrap ✅, v0.7.65+: 2종 + log.md, agent-only)
 
 ```
-| `_meta/system/SCHEMA.md`    → vault 데이터 구조 (frontmatter/type/tag/wikilink) — 사용자 표면
-|_meta/system/RULES.md     → 편집 규칙 — 사용자 표면
-|_meta/system/README.md    → "Vault User Guide" — 도구 표면 (v0.7.35+ 리네임, v0.7.1+ 재작성)
-|_meta/agents/PROJECT-WORKFLOW.md → 프로젝트 작업 에이전트 공통 워크플로우 — 도구 표면
-|log.md                    → 작업 이력 (append-only) — 사용자 표면
+|_meta/agents/SCHEMA.md            → 데이터 계약 (frontmatter/type/tag/wikilink/raw 권한/lint) — 에이전트 표면
+|_meta/agents/PROJECT-WORKFLOW.md  → 운영 사실 (읽기순서/MCP매핑/권한/저장신호/협업규칙) — 에이전트 표면
+|log.md                            → 작업 이력 (append-only) — 인프라
 ```
 
-→ **v0.7.3+ Lite bootstrap 5종 모두 도구 표면만**. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지) ❌. 사용자가 vault에서 자기 프로덕트를 자유롭게 문서화.
+→ **v0.7.65+ Lite bootstrap은 사람 안내문 없음, 에이전트가 이 vault/도구를 운영하는 데 필요한 사실만**. "에이전트 스스로 판단/기억해야 할 영역"(검색 시점, 정리 시점, 글쓰기 철학)은 vault에 담지 않고 명시적으로 경계 선언만 함 — 에이전트 자신의 soul/memory에 있어야 함. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지, 다른 에이전트 프로필의 constitution) ❌.
 → Tier 1 ↔ Tier 2 경계: `vault clone` 기본 = content only (Tier 1 leak 방지, **이건 raven 도구 내부 안전망** — 사용자에겐 안 보임).
 
 ### 4.5 Audience 라우팅 표 (v0.6.35+)
@@ -105,7 +103,7 @@ Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진�
 
 | 독자 | 시작 문서 | 예시 |
 |---|---|---|
-| **사람 (운영자)** | `README.md` (CLI/사용법) + 사용자 vault `_meta/system/README.md` | vault 운영, 페이지 작성, 검색 |
+| **사람 (운영자)** | `README.md` (CLI/사용법) — vault 안은 Obsidian처럼 자유 탐색, 별도 안내문 없음 (v0.7.65+) | vault 운영, 페이지 작성, 검색 |
 | **Raven 개발팀 (당신)** | `AGENTS.md` (이 문서) + `_meta/changelog-v*.md` | 코드 변경, lint, ADR |
 | **LLM agent (vault에서 일함)** | `raven/core/templates/agent/README.md` + `TOOLS.md` + `WORKFLOW.md` + `SAFETY.md` (4개 묶음) | vault write, cross-reference, log.md |
 
@@ -230,7 +228,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 `bootstrap=True`인데 파일이 silent하게 누락되는 류의 버그 (v0.5.5에서 발견):
 
 - **detection**: 메시지/문서와 실제 동작 불일치 시 즉시 hotfix 대상
-- **verification**: `raven vault create /tmp/test-x`로 실제 5종 확인
+- **verification**: `raven vault create /tmp/test-x`로 실제 2종+log.md 확인
 - **fix 우선순위**: silent failure > 잘못된 메시지 > 메시지 누락
 
 → Codex/Claude 리뷰에서 "정책 문서 ≠ 코드" 지적 시 **P0 즉시 패치**.
@@ -248,7 +246,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - ❌ 멀티 에이전트 write를 "안정 지원"이라 표현 ❌ (over-promise)
 - ❌ `raven/mcp/` 패키지 이름 변경 없이 import 추가 ❌ (네임스페이스 충돌 회피를 위해 v0.6.0+ 고정)
 - ❌ SCHEMA.md 9종 외 type 정의 ❌
-- ❌ Lite bootstrap 5종 (사용자 표면 가이드)에 raven 내부 정책/Tier 1 leak/vendor 예시 ❌ — v0.7.3+
+- ❌ Lite bootstrap 2종+log.md (에이전트 표면)에 raven 내부 정책/Tier 1 leak/vendor 예시/다른 에이전트 프로필의 constitution ❌ — v0.7.65+
 - ❌ 의존성 추가 without 사용자 승인 ❌
 - ❌ 타이틀과 1:1 매핑되지 않는 임의의 마크다운 파일명(Slug) 지정 ❌ (파일명은 `title`을 그대로 슬러그화 — 공백/특수문자는 하이픈`-`으로 치환, 영문은 소문자화. **`title`의 언어를 임의로 번역/음차 금지**: 한글 title → 한글 파일명, 영문 title → 영문 파일명)
 - ❌ 내용과 무관하거나 사람이 이해하기 힘든 기계적/임의적 타이틀 부여 ❌ (반드시 파일의 핵심 역할을 사람이 직관적으로 바로 파악할 수 있는 명료한 요약형 타이틀을 사용해야 함)

@@ -9,7 +9,7 @@ MCP server process can serve every vault the registry knows about
     wiki://{vault}/page/{slug}        — one page (content + frontmatter + links)
     wiki://{vault}/graph              — full link graph (nodes + edges)
     wiki://{vault}/log/recent         — last ~5KB of log.md
-    wiki://{vault}/schema             — SCHEMA.md text
+    wiki://{vault}/schema             — _meta/agents/SCHEMA.md text
 
 Resources are always read-only — no permission gating needed.
 """
@@ -79,8 +79,8 @@ def register_resources(mcp: Any) -> None:
     # ─── wiki://{vault}/schema ───
     @mcp.resource("wiki://{vault}/schema")
     def wiki_schema(vault: str) -> str:
-        """Raw text of SCHEMA.md."""
-        schema_path = resolve_vault_path(vault) / "SCHEMA.md"
+        """Raw text of _meta/agents/SCHEMA.md."""
+        schema_path = resolve_vault_path(vault) / "_meta" / "agents" / "SCHEMA.md"
         if not schema_path.exists():
-            return "(no SCHEMA.md at vault root)"
+            return "(no _meta/agents/SCHEMA.md in this vault)"
         return schema_path.read_text(encoding="utf-8")
