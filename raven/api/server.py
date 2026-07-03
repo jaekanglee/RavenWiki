@@ -771,23 +771,6 @@ def list_pages(
 
 class GraphLayoutParams(BaseModel):
     iterations: int = Field(500, ge=1, le=2000, description="spring iterations (FR-style)")
-    layout: Literal["atlas", "constellation", "spring", "hierarchical", "radial"] = Field(
-        "atlas", description="graph layout: atlas, constellation, spring, hierarchical, or radial"
-    )
-
-
-# Graph A2 (v0.6.11+): layout 튜닝 상수.
-# 사용자 피드백 — "노드 한 군데 뭉침 / 작은 원에서도 겹침 / 최악" 대응.
-# - iterations 120→500: 충분히 안정화, 작은 vault에서도 노드 간 spacing 확보
-# - repulsion ×10: hub가 인접 노드를 끌어당기는 힘 > 비인접 척력 불균형 해소
-# - attraction ×0.3: hub 중심으로 응집 압력 완화
-# - ideal_distance=200 (FR의 k로 강제): vault 크기와 무관하게 일정 spacing 목표
-# - uniform random 초기 위치 (FR 알고리즘 정석; 격자는 hub가 중앙에 모이는 패턴 유발)
-# - t0 100→50: 초기 변위 폭 절반으로 좁혀서 미세 조정 위주로 수렴
-LAYOUT_IDEAL_DISTANCE = 130.0  # 노드 간 목표 간격 (px)
-LAYOUT_REPULSION_GAIN = 6.5  # FR 기본 척력(k^2/d) 대비 배율
-LAYOUT_ATTRACTION_GAIN = 0.45  # FR 기본 인력(d^2/k) 대비 배율
-LAYOUT_T0 = 50.0  # 초기 temperature (이전 100의 절반)
 
 
 def _normalize_layout(
@@ -1047,140 +1030,6 @@ def _constellation_layout(
     return _normalize_layout(ids, pos_x, pos_y)
 
 
-def _hierarchical_layout(
-    ids: list[str],
-    edges: list[tuple[str, str]],
-) -> dict[str, tuple[float, float]]:
-    """폴더 디렉토리 깊이와 구조에 기반한 계층형 트리 배치 알고리즘 (Hierarchical Tree Layout).
-
-    - Y 좌표: 파일 경로의 깊이 (depth)
-    - X 좌표: 동일 깊이 레이어 내의 노드 개수 대비 균등 분할 배치.
-    결정론적이고 안정적인 트리 구조를 반환합니다.
-    """
-    if not ids:
-        return {}
-
-    from collections import defaultdict
-    layers = defaultdict(list)
-    for node_id in ids:
-        parts = [p for p in node_id.split("/") if p]
-        d = len(parts)
-        layers[d].append(node_id)
-
-    # 사전식 순서로 정렬하여 배치 일관성 유지
-    for d in list(layers.keys()):
-        layers[d].sort()
-
-    coords = {}
-    max_d = max(layers.keys()) if layers else 1
-    min_d = min(layers.keys()) if layers else 1
-    d_range = max(1, max_d - min_d)
-
-    for d, node_list in layers.items():
-        count = len(node_list)
-        if d_range > 0:
-            y = -350.0 + ((d - min_d) / d_range) * 700.0
-        else:
-            y = 0.0
-
-        if count == 1:
-            coords[node_list[0]] = (0.0, y)
-        else:
-            for idx, node_id in enumerate(node_list):
-                x = -420.0 + (idx / (count - 1)) * 840.0
-                coords[node_id] = (x, y)
-
-    pos_x = [coords.get(s, (0.0, 0.0))[0] for s in ids]
-    pos_y = [coords.get(s, (0.0, 0.0))[1] for s in ids]
-    return _normalize_layout(ids, pos_x, pos_y)
-
-
-def _radial_hierarchical_layout(
-    ids: list[str],
-    edges: list[tuple[str, str]],
-) -> dict[str, tuple[float, float]]:
-    """폴더 경로 트리를 극좌표로 펼치는 방사형 계층 배치 (Radial Hierarchical Layout).
-
-    - 반지름: 경로 깊이(depth) — 얕을수록 중심에 가까움.
-    - 각도: 부모 폴더의 각도 구간(sector) 안에서 subtree 크기(페이지 수)에
-      비례해 재귀적으로 분배. 같은 부모를 공유하는 노드끼리 각도상 인접해,
-      _hierarchical_layout(직교좌표, 레이어별 균등분할)과 달리 부모-자식
-      연결선이 서로 다른 가지 사이에서 교차하는 일이 적다.
-
-    다른 레이아웃과 달리 _normalize_layout(bounding-box 중심 정렬)을 쓰지
-    않는다 — 방사형 배치는 "루트=원점"이 핵심 불변식인데, bbox 중심은
-    노드 분포가 한쪽으로 치우치면 원점에서 벗어나 루트가 중앙을 벗어나
-    버린다. 대신 원점을 고정한 채 스케일만 ±500에 맞춘다.
-    """
-    import math
-
-    if not ids:
-        return {}
-    if len(ids) == 1:
-        return {ids[0]: (0.0, 0.0)}
-
-    INNER_RADIUS = 220.0
-    RADIUS_STEP = 220.0
-
-    # trie: path segment tuple -> {"children": {segment: child_path}, "id": id 또는 None}
-    trie: dict[tuple[str, ...], dict] = {(): {"children": {}, "id": None}}
-
-    def ensure(path: tuple[str, ...]) -> None:
-        if not path or path in trie:
-            return
-        trie[path] = {"children": {}, "id": None}
-        ensure(path[:-1])
-        trie[path[:-1]]["children"][path[-1]] = path
-
-    for node_id in ids:
-        parts = tuple(p for p in node_id.split("/") if p) or (node_id,)
-        ensure(parts)
-        trie[parts]["id"] = node_id
-
-    size_cache: dict[tuple[str, ...], int] = {}
-
-    def subtree_count(path: tuple[str, ...]) -> int:
-        if path in size_cache:
-            return size_cache[path]
-        node = trie[path]
-        total = 1 if node["id"] is not None else 0
-        for child_path in node["children"].values():
-            total += subtree_count(child_path)
-        size_cache[path] = total
-        return total
-
-    coords: dict[str, tuple[float, float]] = {}
-
-    def assign(path: tuple[str, ...], angle_start: float, angle_end: float) -> None:
-        node = trie[path]
-        depth = len(path)
-        if node["id"] is not None:
-            angle_mid = (angle_start + angle_end) / 2.0
-            r = 0.0 if depth == 0 else INNER_RADIUS + (depth - 1) * RADIUS_STEP
-            coords[node["id"]] = (math.cos(angle_mid) * r, math.sin(angle_mid) * r)
-
-        children = sorted(node["children"].items())
-        if not children:
-            return
-        sizes = [subtree_count(child_path) for _, child_path in children]
-        total = sum(sizes) or 1
-        span = angle_end - angle_start
-        cursor = angle_start
-        for (_, child_path), size in zip(children, sizes):
-            child_span = span * (size / total)
-            assign(child_path, cursor, cursor + child_span)
-            cursor += child_span
-
-    assign((), 0.0, 2.0 * math.pi)
-
-    max_r = max((math.hypot(x, y) for x, y in coords.values()), default=0.0) or 1.0
-    scale = 500.0 / max_r
-    return {
-        node_id: (round(x * scale, 1), round(y * scale, 1))
-        for node_id, (x, y) in coords.items()
-    }
-
-
 def _forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],
@@ -1200,6 +1049,13 @@ def _forceatlas_layout(
         군집 간 분리가 시작되게 한다. 그 후 force로 다듬는다.
       - iterations 220 → 320 (deterministic, 출력 안정).
       - output은 기존 graph contract: center=0, scale=±500.
+
+    v0.7.6x+ (다른 layout 전부 제거하고 atlas 단일화하며 밀도 튠업):
+      - mass의 degree cap 6→12: 촘촘한 실사용 vault(평균 degree 6.8)에서
+        degree 8~17인 진짜 허브가 cap 6짜리와 동급 취급되어 이웃을 충분히
+        못 밀어내던 문제 수정.
+      - repulsion이 그래프 평균 degree에 비례해서 커짐 (1100 * (1+avg/20)) —
+        성긴 그래프는 기존과 거의 동일, 촘촘한 그래프는 그만큼 더 벌어짐.
     결정론: random 없음. 입력과 시드가 같으면 같은 좌표.
     """
     import math
@@ -1256,9 +1112,13 @@ def _forceatlas_layout(
         degree[idx[s]] += 1
         degree[idx[t]] += 1
     # 고립 노드(degree=0)는 척력을 극히 덜 받게 하여 중심부 중력으로 묶이게 mass를 0.3으로 억제
+    # v0.7.6x+: degree cap 6→12. PKM 위키는 평균 degree가 6~7대까지 촘촘한 경우가
+    # 흔한데(hub-control-room 실측 6.8), cap이 6이면 degree 8~17짜리 진짜 허브가
+    # degree 6짜리와 똑같은 mass를 받아 이웃을 충분히 못 밀어냄 — 허브 주변만
+    # 유독 빽빽해지는 원인이었다. cap을 올려서 진짜 허브가 이웃을 더 세게 밀어내게.
     mass = [
         0.3 if degree[i] == 0 else
-        1.0 + min(degree[i], 6) * 0.55 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.6
+        1.0 + min(degree[i], 12) * 0.55 + math.sqrt(max(int(weights.get(ids[i], 0) or 0), 0)) * 0.6
         for i in range(n)
     ]
 
@@ -1266,10 +1126,20 @@ def _forceatlas_layout(
     # v0.7.49+: 성운 군집화 강화. community_hub 0.10→0.25 (은하 핵 인력 2.5배),
     # repulsion 1400→1100 (척력 약화 → 더 조밀). iterations 320→400 (수렴 안정).
     # 결정론/normalize_layout contract 유지. frontend 무변경.
-    repulsion = 1100.0
+    # v0.7.6x+: repulsion을 그래프 밀도(평균 degree)에 비례해서 올림. 성긴
+    # 그래프(평균 degree ≲2)는 기존 1100 근처를 유지하고, 촘촘한 그래프일수록
+    # (attraction이 그만큼 많은 edge로 강하게 당기므로) 더 벌어지게 보정한다.
+    avg_degree = (sum(degree) / n) if n else 0.0
+    repulsion = 1100.0 * (1.0 + avg_degree / 20.0)
     attraction = 0.15
     gravity = 0.045
-    max_step0 = 28.0
+    # v0.7.6x+: 28→50. repulsion을 올린 것만으론 부족했다 — 실측(hub-control-room,
+    # 36 nodes) 결과 max_step0=28 그대로면 iterations=500 예산 안에서 더 강해진
+    # 힘이 충분히 수렴 못 해 오히려 튜닝 전보다 더 뭉쳐 보였다(회귀). max_step0을
+    # 같이 올려야 같은 iterations 예산으로도 새 힘의 크기에 맞게 수렴한다.
+    # (iterations 자체를 올리는 방향은 O(n²)이라 n=300에서 20s, n=600에서 82s로
+    # 폭증해 기각 — 성능 예산은 그대로 두고 수렴 속도만 개선.)
+    max_step0 = 50.0
 
     edge_indices = [(idx[s], idx[t]) for s, t in valid_edges]
 
@@ -1358,134 +1228,10 @@ def _forceatlas_layout(
     return _normalize_layout(ids, pos_x, pos_y)
 
 
-def _spring_layout(
-    ids: list[str],
-    edges: list[tuple[str, str]],
-    iterations: int = 500,
-) -> dict[str, tuple[float, float]]:
-    """Fruchterman-Reingold 스타일의 force-directed layout (v0.6.11 튜닝).
-
-    의존성 최소화 (networkx/dagre ❌). FR 알고리즘 직접 구현:
-    - 인접 노드간 인력 (attractive, ×0.3), 비인접 노드간 척력 (repulsive, ×10)
-    - ideal_distance=200 으로 spacing 목표 명시 (sparse layout)
-    - uniform random 초기 위치 (FR 정석; 격자 시작은 hub가 중앙 모이게 함)
-    - 결정론: 시드 0 고정 → 같은 vault에서 같은 위치 재현
-
-    Returns: {slug: (x, y)} dict.
-    """
-    import math
-    import random as _r
-    rng = _r.Random(0)  # 결정론
-    idx = {s: i for i, s in enumerate(ids)}
-    n = len(ids)
-    if n == 0:
-        return {}
-    # 초기 위치 — uniform random (FR 알고리즘 정석).
-    # 이전 격자 시작은 hub 노드가 중앙에 모이는 패턴을 유발했음.
-    # 스케일은 ideal_distance × sqrt(n) 정도로 잡아서 초기부터 적정 간격 근처.
-    spread = LAYOUT_IDEAL_DISTANCE * math.sqrt(max(n, 1))
-    pos_x = [rng.uniform(-spread, spread) for _ in range(n)]
-    pos_y = [rng.uniform(-spread, spread) for _ in range(n)]
-
-    # 인접 리스트 (인덱스 기반)
-    adj: list[set[int]] = [set() for _ in range(n)]
-    for s, t in edges:
-        si, ti = idx.get(s), idx.get(t)
-        if si is not None and ti is not None and si != ti:
-            adj[si].add(ti)
-            adj[ti].add(si)
-
-    # ideal_distance 를 k 로 직접 사용 (vault 크기와 무관하게 일정 spacing 목표).
-    k = LAYOUT_IDEAL_DISTANCE
-    k2 = k * k
-
-    # 온도 스케줄 (v0.6.11: t0 100→50, 점진 감쇠)
-    t0 = LAYOUT_T0
-    t_min = 1.0
-
-    for it in range(iterations):
-        temp = t0 * ((t_min / t0) ** (it / max(iterations - 1, 1)))
-        # displacement 버퍼
-        dx = [0.0] * n
-        dy = [0.0] * n
-        # 1) 모든 쌍 척력 & 겹침 방지 충돌 가드
-        for i in range(n):
-            i_isolated = len(adj[i]) == 0
-            for j in range(i + 1, n):
-                j_isolated = len(adj[j]) == 0
-                d_x = pos_x[i] - pos_x[j]
-                d_y = pos_y[i] - pos_y[j]
-                d2 = d_x * d_x + d_y * d_y
-                if d2 < 0.01:
-                    d2 = 0.01
-                d = math.sqrt(d2)
-                
-                # FR 척력
-                force = (k2 / d) * LAYOUT_REPULSION_GAIN
-                
-                # 고립 노드가 끼어있으면 척력을 줄여 불필요한 비산 억제 및 중력 응집 유도
-                if i_isolated or j_isolated:
-                    force *= 0.3
-                
-                # 양쪽으로 분리
-                fx = (d_x / d) * force
-                fy = (d_y / d) * force
-                
-                # Collision Guard: 겹침 방지 (최소 45px 보장)
-                min_dist = 45.0
-                if d < min_dist:
-                    overlap = min_dist - d
-                    col_f = (overlap * overlap) * 8.0
-                    fx += (d_x / d) * col_f
-                    fy += (d_y / d) * col_f
-                
-                dx[i] += fx
-                dy[i] += fy
-                dx[j] -= fx
-                dy[j] -= fy
-        # 2) 인접 노드 인력 — d^2 / k × attraction_gain (×0.3)
-        for i in range(n):
-            for j in adj[i]:
-                if j < i:
-                    continue  # 쌍 한 번만
-                d_x = pos_x[i] - pos_x[j]
-                d_y = pos_y[i] - pos_y[j]
-                d2 = d_x * d_x + d_y * d_y
-                if d2 < 0.01:
-                    d2 = 0.01
-                d = math.sqrt(d2)
-                force = ((d * d) / k) * LAYOUT_ATTRACTION_GAIN
-                fx = (d_x / d) * force
-                fy = (d_y / d) * force
-                dx[i] -= fx
-                dy[i] -= fy
-                dx[j] += fx
-                dy[j] += fy
-        # 적용 — 변위를 온도로 클램핑 후 누적 위치
-        for i in range(n):
-            disp_mag = math.sqrt(dx[i] * dx[i] + dy[i] * dy[i])
-            scale = min(disp_mag, temp) / max(disp_mag, 0.001)
-            pos_x[i] += dx[i] * scale
-            pos_y[i] += dy[i] * scale
-    # 정규화 (v0.6.12 Patch 1): xyflow fitView가 viewport에 잡도록 좌표를
-    # 항상 center=0, scale=±500으로 transform. 이전 min≥0 정규화는 vault마다
-    # 스케일이 들쭉날쭉해서 fitView가 viewport 밖에 있는 노드를 놓쳤다.
-    # - center = (min + max) / 2 → 모든 좌표의 centroid를 origin으로
-    # - scale  = max(|min - center|, |max - center|) → 가장 먼 노드를 정확히 ±500
-    # - x_new  = (x - center) / scale * 500  (y 동일)
-    # 특수 케이스:
-    #   n == 1 → (0, 0)
-    #   모든 노드가 같은 좌표 (scale == 0) → (0, 0)
-    return _normalize_layout(ids, pos_x, pos_y)
-
-
 @app.get("/api/vaults/{name}/graph")
 def vault_graph(
     name: str,
     iterations: int = Query(500, ge=1, le=2000, description="spring iterations"),
-    layout: Literal["atlas", "constellation", "spring", "hierarchical", "radial"] = Query(
-        "atlas", description="layout: atlas, constellation, spring, hierarchical, or radial"
-    ),
     community: Literal["none", "modularity"] = Query(
         "none",
         description="community detection (v0.6.15+): 'modularity' attaches a "
@@ -1496,7 +1242,9 @@ def vault_graph(
     """vault 페이지 + wikilink edges + graph layout 좌표를 반환.
 
     v0.6.10+: nodes[i].x, nodes[i].y = 서버 계산 graph layout 좌표.
-    v0.6.14+: default layout = atlas (constellation/spring은 query fallback).
+    v0.7.6x+: layout은 atlas(ForceAtlas2/LinLog hybrid) 고정 — 다른 레이아웃은
+        노드 위치가 실제 위키링크 구조와 무관해 허브 뭉침/레이어 크로우딩
+        문제가 있어 제거함 (docs/architecture.md D10/D11 참고).
     v0.6.15+: ?community=modularity attaches nodes[i].community = Louvain-style
         community id (0..K-1). 'none' (default) skips the call.
 
@@ -1583,16 +1331,8 @@ def vault_graph(
             for node in nodes:
                 node["community"] = comm_map.get(node["id"], -1)
 
-            layout_coords = (
-                _spring_layout(ids, edge_pairs, iterations=iterations)
-                if layout == "spring"
-                else _constellation_layout(ids, edge_pairs, weights=weights)
-                if layout == "constellation"
-                else _hierarchical_layout(ids, edge_pairs)
-                if layout == "hierarchical"
-                else _radial_hierarchical_layout(ids, edge_pairs)
-                if layout == "radial"
-                else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
+            layout_coords = _forceatlas_layout(
+                ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
             )
             for node in nodes:
                 xy = layout_coords.get(node["id"], (0.0, 0.0))
@@ -1696,16 +1436,8 @@ def vault_graph(
     for node in nodes:
         node["community"] = comm_map.get(node["id"], -1)
 
-    layout_coords = (
-        _spring_layout(ids, edge_pairs, iterations=iterations)
-        if layout == "spring"
-        else _constellation_layout(ids, edge_pairs, weights=weights)
-        if layout == "constellation"
-        else _hierarchical_layout(ids, edge_pairs)
-        if layout == "hierarchical"
-        else _radial_hierarchical_layout(ids, edge_pairs)
-        if layout == "radial"
-        else _forceatlas_layout(ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map)
+    layout_coords = _forceatlas_layout(
+        ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
     )
     for node in nodes:
         xy = layout_coords.get(node["id"], (0.0, 0.0))

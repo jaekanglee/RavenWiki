@@ -9,8 +9,6 @@ import { TextField } from "../components/ui/TextField";
 import { SelectField } from "../components/ui/SelectField";
 import { Button } from "../components/ui/Button";
 
-type GraphLayout = "atlas" | "constellation" | "spring" | "hierarchical" | "radial";
-
 interface GraphFilterState {
   hideOrphans: boolean;
   query: string;
@@ -157,16 +155,15 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
 /**
  * GraphPage — dark xyflow canvas + orphan hide toggle + community color toggle.
  * v0.6.10+: 백엔드가 nodes[i].x/y force-directed 좌표 제공.
- * v0.6.14+: default layout = atlas.
  * v0.6.15+: ?community=modularity 옵션. 켜면 노드 색상이 type 대신 Louvain
  *   community id별로 결정 (구조 기반 색). hover 시 같은 community 노드도 highlight.
- * v0.7.35+: search/type/layout controls + insight cards for graph exploration.
+ * v0.7.35+: search/type controls + insight cards for graph exploration.
+ * v0.7.6x+: layout은 atlas(ForceAtlas2/LinLog hybrid) 고정 — 선택 UI 제거.
  */
 export function GraphPage() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [hideOrphans, setHideOrphans] = useState(true);
   const [useCommunity, setUseCommunity] = useState(false);
-  const [layout, setLayout] = useState<GraphLayout>("atlas");
   const [query, setQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCommunity, setSelectedCommunity] = useState<number | null>(null);
@@ -183,7 +180,6 @@ export function GraphPage() {
     setQuery("");
     setSelectedType("all");
     setSelectedCommunity(null);
-    setLayout("atlas");
     setHideOrphans(true);
     setUseCommunity(false);
     setSelectedNodeId(null);
@@ -195,7 +191,7 @@ export function GraphPage() {
     if (!vault) return;
     setLoading(true);
     setLoadError(false);
-    const url = `/api/vaults/${encodeURIComponent(vault)}/graph?layout=${layout}&community=${
+    const url = `/api/vaults/${encodeURIComponent(vault)}/graph?community=${
       useCommunity ? "modularity" : "none"
     }`;
     fetch(url)
@@ -210,7 +206,7 @@ export function GraphPage() {
 
   useEffect(() => {
     loadGraph();
-  }, [vault, useCommunity, layout]);
+  }, [vault, useCommunity]);
 
   const filteredGraph = useMemo(
     () =>
@@ -291,7 +287,6 @@ export function GraphPage() {
     query.trim().length > 0 ||
     selectedType !== "all" ||
     selectedCommunity !== null ||
-    layout !== "atlas" ||
     !hideOrphans ||
     useCommunity;
 
@@ -320,17 +315,6 @@ export function GraphPage() {
         }}
         options={communityOptions}
         helper="관계(Modularity)로 묶인 은하군 단위로 필터링합니다."
-      />
-      <SelectField
-        label="레이아웃 모드"
-        value={layout}
-        onChange={(e) => setLayout(e.target.value as any)}
-        options={[
-          { value: "atlas", label: "별자리형 (네트워크)" },
-          { value: "hierarchical", label: "트리형 (계층 구조)" },
-          { value: "radial", label: "방사형 (계층 트리)" },
-        ]}
-        helper="노드들의 배치 알고리즘을 변경합니다."
       />
       <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
@@ -472,7 +456,6 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
-            layout={layout}
             onNodeInspect={(node) => setSelectedNodeId(node.id ?? node.slug)}
             onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
