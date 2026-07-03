@@ -95,6 +95,30 @@ def make_context(
     return VaultContext(vault=Path(vault), mode=mode)
 
 
+def resolve_vault_path(name: str) -> Path:
+    """Look up a registered vault's root path by name.
+
+    Mirrors ``raven.api.server._vault_or_404`` so the MCP server can serve
+    every vault the registry knows about (one process, many vaults) instead
+    of being pinned to a single vault at startup.
+
+    Raises:
+        ValueError: ``name`` is not in the registry. Message lists the
+            currently registered vault names so the caller (an LLM agent)
+            can self-correct.
+    """
+    from raven.core.registry import registry
+
+    reg = registry()
+    meta = reg.get(name)
+    if meta is None:
+        available = ", ".join(sorted(v.name for v in reg.list())) or "(none registered)"
+        raise ValueError(
+            f"vault {name!r} not found. Available vaults: {available}"
+        )
+    return meta.path
+
+
 # ─────────────── M4 / F1 — provenance + idempotency ───────────────
 
 
