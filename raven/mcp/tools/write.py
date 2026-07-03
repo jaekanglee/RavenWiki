@@ -295,7 +295,8 @@ def wiki_update(
         slug: vault slug (e.g. ``"concepts/wiki"``, ``"SCHEMA"``,
               ``"_meta/system/SCHEMA.md"``). Top-level slugs (no ``/``) are
               allowed — the file simply lives at the vault root.
-        content: raw markdown body (without frontmatter)
+        content: raw markdown body. 선두에 frontmatter 블록(``---``)이 있으면
+            본문에 남기지 않고 메타로 승격해 검증에 사용한다 (v0.7.66+).
         frontmatter_data: optional dict to serialize as YAML frontmatter
         ctx: VaultContext; defaults to read/write/admin per the CLI
         actor: optional caller identity (M4/F1 provenance). Defaults to
@@ -326,10 +327,9 @@ def wiki_update(
     actor_norm = normalize_actor(actor)
     vault_path = Path(ctx.vault).expanduser()
 
-    # Idempotency precheck. Only meaningful when the file exists, because
-    # the cached response is keyed on (slug, content, frontmatter_data) —
-    # if the file was deleted between calls the cache should not hide the
-    # "does not exist" error.
+    # Idempotency precheck. Only meaningful when the file exists — a fresh
+    # create (upsert, v0.7.66+) should run the schema guard instead of
+    # replaying a cached response for a file that no longer exists.
     abs_path = _resolve_md_path(vault_path, slug)
     if _is_immutable_agent_path(slug):
         rel = abs_path.relative_to(vault_path)
@@ -370,22 +370,34 @@ def wiki_update(
             "_lock_holder": holder,
         }
 
-    if not abs_path.exists():
-        return {
-            "ok": False,
-            "message": (
-                f"file does not exist: {abs_path.relative_to(vault_path)}. "
-                "Use wiki_ingest for new pages."
-            ),
-            "path": str(abs_path.relative_to(vault_path)),
-            "actor": actor_norm,
-            "idempotency_key": idempotency_key,
-            "timestamp": now_iso(),
-        }
+    # v0.7.66 (평가 P0#2): 신규 slug는 upsert로 생성한다. raw/, _meta/, log.md는
+    # 위 immutable 가드가 이미 차단하고, is_llm_wiki vault면 아래 스키마 검증을
+    # 통과해야 실제 파일이 생긴다. (구 동작은 "Use wiki_ingest for new pages"로
+    # 안내했으나 wiki_ingest는 raw/ 전용 + 사람 명시 명령 필수라 모순 — ADR-2026-07-02)
+    creating = not abs_path.exists()
 
-    # Read existing frontmatter if caller didn't supply one
-    existing = frontmatter.load(abs_path)
-    meta = dict(frontmatter_data) if frontmatter_data else dict(existing.metadata)
+    # v0.7.66 (평가 P0#3): content 선두의 frontmatter 블록은 본문이 아니라 메타.
+    # 승격하지 않으면 검증은 기존 메타로 통과하면서 블록이 본문에 이중 기록되어
+    # SoT가 조용히 오염된다.
+    embedded_meta: dict = {}
+    stripped = content.lstrip()
+    if stripped.startswith("---"):
+        parsed = frontmatter.loads(stripped)
+        if parsed.metadata:
+            embedded_meta = dict(parsed.metadata)
+            content = parsed.content
+
+    # 메타 우선순위: 명시 frontmatter_data > content 임베디드 > 기존 파일
+    if frontmatter_data:
+        meta = dict(frontmatter_data)
+    elif embedded_meta:
+        meta = embedded_meta
+    elif creating:
+        meta = {}
+    else:
+        meta = dict(frontmatter.load(abs_path).metadata)
+    if creating and not meta.get("created"):
+        meta["created"] = dt.date.today().isoformat()
     meta["updated"] = dt.date.today().isoformat()
     # M4/F1: actor provenance on the page itself.
     meta["actor"] = actor_norm
@@ -415,16 +427,17 @@ def wiki_update(
             }
 
     post = frontmatter.Post(content, **meta)
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
     rel = abs_path.relative_to(vault_path)
     response = {
         "ok": True,
-        "message": f"updated {rel}",
+        "message": f"{'created' if creating else 'updated'} {rel}",
         "path": str(rel),
         "rewritten_files": 0,
     }
     return _finalize_write(
-        tool="wiki_update", vault=vault_path, action="update",
+        tool="wiki_update", vault=vault_path, action="create" if creating else "update",
         subject=str(rel), actor=actor_norm,
         idempotency_key=idempotency_key,
         params={"slug": slug, "content": content,
