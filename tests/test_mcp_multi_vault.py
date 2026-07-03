@@ -23,7 +23,9 @@ def _make_vault(root: Path, name: str, log_text: str, schema_text: str) -> Path:
     vault_dir = root / name
     vault_dir.mkdir()
     (vault_dir / "log.md").write_text(log_text, encoding="utf-8")
-    (vault_dir / "SCHEMA.md").write_text(schema_text, encoding="utf-8")
+    agents_dir = vault_dir / "_meta" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "SCHEMA.md").write_text(schema_text, encoding="utf-8")
     return vault_dir
 
 
@@ -86,8 +88,12 @@ def test_wiki_schema_resource_routes_by_vault_name(two_vaults):
 
 def test_wiki_update_only_touches_the_named_vault(two_vaults):
     alpha, beta = two_vaults
-    (alpha / "page.md").write_text("---\ntitle: p\n---\n\noriginal\n", encoding="utf-8")
-    (beta / "page.md").write_text("---\ntitle: p\n---\n\noriginal\n", encoding="utf-8")
+    # type: concept required — two_vaults' _meta/agents/SCHEMA.md makes both
+    # vaults is_llm_wiki=True, so contracts.write_page enforces valid
+    # frontmatter type on non-WIP pages (raven/core/contracts.py's
+    # validate_gardening_schema).
+    (alpha / "page.md").write_text("---\ntitle: p\ntype: concept\n---\n\noriginal\n", encoding="utf-8")
+    (beta / "page.md").write_text("---\ntitle: p\ntype: concept\n---\n\noriginal\n", encoding="utf-8")
 
     mcp = FastMCP("wiki")
     register_tools(mcp, "write")

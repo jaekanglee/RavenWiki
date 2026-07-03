@@ -83,6 +83,7 @@ COG_GOV_CONFIDENCE_LEVELS: frozenset[str] = frozenset({"high", "medium", "low"})
 CORE_TAGS_FALLBACK = {
     # 시스템
     "system", "tool", "ui", "search", "viewer", "schema", "mcp", "dashboard",
+    "meta", "workflow",
     # 컨텐츠
     "concept", "person", "comparison", "project", "rule", "query", "journal", "issue",
     # 도메인
