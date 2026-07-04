@@ -13,6 +13,25 @@ from . import db as db_module
 from .lint import _orphan_grace_days, STALE_DAYS
 
 
+def db_is_stale(vault: Vault) -> bool:
+    """wiki.db가 마크다운 SoT보다 오래됐는지.
+
+    v0.7.66 (평가 P1#12): garden은 DB를 읽는데 lint는 파일시스템을 읽어서,
+    빌드가 낡으면 garden이 경고 없이 "정리 대상 없음"으로 거짓 안심을 줬음.
+    """
+    db = vault.db_path
+    if not db.exists():
+        return True
+    db_mtime = db.stat().st_mtime
+    for fp in vault.content_root.rglob("*.md"):
+        try:
+            if fp.stat().st_mtime > db_mtime:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def get_stale_pages(vault: Vault) -> List[Dict[str, Any]]:
     """Get pages that haven't been updated for STALE_DAYS (90 days).
     Excludes rule types and _meta/ directory.
