@@ -99,6 +99,40 @@ def find_missing(vault: Vault, slug: Optional[str] = None) -> list[dict]:
     return out
 
 
+def rewrite_links(
+    vault: Vault,
+    old_slug: str,
+    new_slug: str,
+    *,
+    excluded: Optional[set[str]] = None,
+) -> int:
+    """Rewrite every inbound ``[[old_slug]]`` wikilink to ``[[new_slug]]``.
+
+    Preserves the optional intent suffix (``!``/``?``). Returns the number
+    of occurrences rewritten across the vault. Relocated from
+    ``raven.mcp.tools.write.wiki_rename`` (v0.7.68, 평가 B#2) — pure file
+    I/O with no MCP-specific state, so CLI/MCP rename share one implementation.
+    """
+    excluded = excluded or {"raw", "_archive", "scripts", "node_modules", ".venv", ".git", "dashboard"}
+    pattern = re.compile(r"\[\[" + re.escape(old_slug) + r"(!|\?)?\]\]")
+    rewritten = 0
+    for md in vault.root.rglob("*.md"):
+        if any(part in excluded for part in md.relative_to(vault.root).parts):
+            continue
+        try:
+            content = md.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        new_content, n = pattern.subn(
+            lambda m: "[[" + new_slug + (m.group(1) or "") + "]]",
+            content,
+        )
+        if n > 0:
+            md.write_text(new_content, encoding="utf-8")
+            rewritten += n
+    return rewritten
+
+
 def find_broken_intent(vault: Vault, slug: Optional[str] = None) -> list[dict]:
     """#2: `[[x]]!` 인데 target 존재 → CRITICAL (잘못된 intent).
 

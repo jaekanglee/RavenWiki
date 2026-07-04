@@ -30,7 +30,7 @@ def client():
 
 @pytest.fixture
 def raw_vault(monkeypatch):
-    """정식 흐름: WIKI_VAULTS_DIR 임시 redirect + /api/vaults/create로 raw/ 포함 vault 생성.
+    """정식 흐름: WIKI_VAULTS_DIR 임시 redirect + /api/vaults로 raw/ 포함 vault 생성.
 
     raw/ 폴더와 content/, _meta/system/ 까지 갖춘 vault를 만들어 registry에 등록한다.
     """
@@ -61,7 +61,7 @@ def raw_vault(monkeypatch):
 
     # 정식 create endpoint 통해 등록 (bootstrap=False로 raw 구조 보존)
     c = TestClient(app)
-    r = c.post("/api/vaults/create", json={
+    r = c.post("/api/vaults", json={
         "name": "raw-test-vault",
         "path": str(v_root),
         "bootstrap": False,
@@ -110,7 +110,7 @@ def test_list_raw_404_when_no_raw_folder(client, monkeypatch):
         "name": "no-raw-vault", "path": str(v_root), "mode": "personal", "owner": "user",
     }))
     c = TestClient(app)
-    r = c.post("/api/vaults/create", json={
+    r = c.post("/api/vaults", json={
         "name": "no-raw-vault", "path": str(v_root), "bootstrap": False,
     })
     assert r.status_code == 200

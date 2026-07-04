@@ -9,20 +9,16 @@ the diff after a batch of writes. Tools only mutate files.
 """
 from __future__ import annotations
 
-import datetime as dt
-import re
 import shutil
 import sys
 from pathlib import Path
 from typing import Optional
 
-import frontmatter
-
 from raven.core import archive as archive_module
 from raven.core import db as core_db
 from raven.core import frontmatter as core_frontmatter
 from raven.core import slug as slug_module
-from raven.core.contracts import write_page
+from raven.core.contracts import rename_page, write_page
 from raven.core.registry import VaultMeta
 from raven.core.vault import Vault
 from raven.mcp import db
@@ -870,84 +866,22 @@ def wiki_rename(
             "_lock_holder": new_holder,
         }
 
-    try:
-        old_path = _resolve_md_path(vault_path, old_slug)
-        new_path = _resolve_md_path(vault_path, new_slug)
-    except slug_module.SlugError as e:
-        return fail(f"invalid slug: {e}", error="invalid_slug")
-    if not old_path.exists():
-        return fail(f"{old_slug} not found")
-
-    if new_path.exists() and new_path != old_path:
-        return fail(f"{new_slug} already exists")
-
-    # 1+2+3: rewrite frontmatter and move file.
-    text = old_path.read_text(encoding="utf-8")
-    post = frontmatter.Post("")
-    body = text
-    try:
-        post = frontmatter.loads(text)
-        meta = dict(post.metadata)
-        body = post.content
-    except Exception:
-        meta = {}
-
-    meta["slug"] = new_slug
-    aliases = list(meta.get("aliases") or [])
-    if old_slug not in aliases:
-        aliases.insert(0, old_slug)
-    meta["aliases"] = aliases
-    meta["updated"] = dt.date.today().isoformat()
-    # M4/F1 provenance — v0.7.67 (평가 A#1): 스칼라 `actor:` 키 대신 CLI/API와
-    # 동일한 `agents:` 이력 리스트로 통일 (append, 기존 이력 보존).
-    agents_hist = list(meta.get("agents") or [])
-    agents_hist.append({
-        "name": actor_norm,
-        "timestamp": now_iso(),
-        "intent": f"rename {old_slug} -> {new_slug}",
-    })
-    meta["agents"] = agents_hist
-
-    if body.startswith("---\n"):
-        # safety: re-strip frontmatter if loader missed it
-        body = re.sub(r"^---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
-
-    new_post = frontmatter.Post(body, **meta)
-    new_path.parent.mkdir(parents=True, exist_ok=True)
-    new_path.write_text(frontmatter.dumps(new_post) + "\n", encoding="utf-8")
-
-    # Remove the old file (unless rename is a no-op overwrite-in-place).
-    if old_path != new_path:
-        old_path.unlink()
-
-    # 4: rewrite every inbound [[old_slug]] → [[new_slug]] across the vault.
-    # Capture the optional intent char (!/?) and re-emit it intact, so
-    # [[old]]! / [[old]]? stay syntactically equivalent after rename.
-    pattern = re.compile(r"\[\[" + re.escape(old_slug) + r"(!|\?)?\]\]")
-    rewritten = 0
-    excluded = {"raw", "_archive", "scripts", "node_modules", ".venv", ".git", "dashboard"}
-    for md in vault_path.rglob("*.md"):
-        if any(part in excluded for part in md.relative_to(vault_path).parts):
-            continue
-        try:
-            content = md.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        new_content, n = pattern.subn(
-            lambda m: "[[" + new_slug + (m.group(1) or "") + "]]",
-            content,
-        )
-        if n > 0:
-            md.write_text(new_content, encoding="utf-8")
-            rewritten += n
+    # 1-4: file move + frontmatter update + link rewrite — shared contract
+    # (v0.7.68, 평가 B#2): CLI's `page rename` calls the same
+    # `contracts.rename_page()`, so this recipe lives in one place.
+    vault_obj = _load_vault(vault_path)
+    result = rename_page(vault_obj, old_slug, new_slug, actor=actor_norm)
+    if not result.ok:
+        extra = {"error": result.error} if result.error else {}
+        return fail(result.message, **extra)
 
     # 5: rebuild DB
     _rebuild_db(vault_path)
 
     response = {
         "ok": True,
-        "message": f"renamed {old_slug} → {new_slug} ({rewritten} wikilinks rewritten)",
-        "rewritten_files": rewritten,
+        "message": result.message,
+        "rewritten_files": result.rewritten_files,
         "old_slug": old_slug,
         "new_slug": new_slug,
     }
@@ -957,6 +891,6 @@ def wiki_rename(
         actor=actor_norm, idempotency_key=idempotency_key,
         params={"old_slug": old_slug, "new_slug": new_slug},
         response=response,
-        extras=[f"wikilinks_rewritten: {rewritten}"],
+        extras=[f"wikilinks_rewritten: {result.rewritten_files}"],
         slugs=[old_slug, new_slug],
     )

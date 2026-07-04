@@ -35,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -113,24 +114,64 @@ def _repo_root() -> Optional[Path]:
     return Path(__file__).resolve().parents[2]
 
 
+class _ScanCache:
+    """run_all() 1회 호출 동안만 유효한 파일 스캔/파싱 캐시 (v0.7.68, 평가 B#8).
+
+    이전엔 체크 14개가 각각 독립적으로 vault를 rglob하고(~11회) frontmatter를
+    재파싱해(~6회) 쓰기 1회 = lint 1회에 파일 I/O가 크게 중복됐다. 캐시는
+    thread-local이라 동시 요청 간에 서로의 결과를 보지 않고, run_all()의
+    try/finally로만 채워지고 비워져 run_all() 호출 경계 밖(개별 check_* 직접
+    호출, 파일 변경 후 재호출되는 run_all())에는 절대 공유되지 않는다.
+    """
+
+    def __init__(self) -> None:
+        self.pages: Optional[list[Path]] = None
+        self.text: dict[Path, str] = {}
+        self.frontmatter: dict[Path, dict] = {}
+
+
+_scan_local = threading.local()
+
+
 def _all_pages(vault: Vault) -> list[Path]:
     """vault 안 모든 .md 페이지 (content/ + _meta/)."""
+    cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
+    if cache is not None and cache.pages is not None:
+        return cache.pages
     out = list(vault.content_root.rglob("*.md"))
     meta_dir = vault.meta_root
     if meta_dir.exists():
         out.extend(meta_dir.rglob("*.md"))
-    return sorted(out)
+    result = sorted(out)
+    if cache is not None:
+        cache.pages = result
+    return result
 
 
 def _slug_of(vault: Vault, fp: Path) -> str:
     return str(fp.relative_to(vault.root))[:-3]
 
 
+def _read_text(fp: Path) -> str:
+    """`fp` 전체 텍스트 읽기 (run_all() 스캔 동안 캐시)."""
+    cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
+    if cache is not None and fp in cache.text:
+        return cache.text[fp]
+    text = fp.read_text(errors="replace")
+    if cache is not None:
+        cache.text[fp] = text
+    return text
+
+
 def _parse_fm(fp: Path) -> dict:
     """frontmatter parse (없으면 {})."""
+    cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
+    if cache is not None and fp in cache.frontmatter:
+        return cache.frontmatter[fp]
     from . import frontmatter as fm_mod
-    text = fp.read_text(errors="replace")
-    meta, _ = fm_mod.parse(text)
+    meta, _ = fm_mod.parse(_read_text(fp))
+    if cache is not None:
+        cache.frontmatter[fp] = meta
     return meta
 
 
@@ -199,7 +240,7 @@ def check_orphans(vault: Vault) -> list[dict]:
     # inbound map (slug → count)
     inbound: dict[str, int] = {}
     for fp in _all_pages(vault):
-        text = fp.read_text(errors="replace")
+        text = _read_text(fp)
         src_slug = _slug_of(vault, fp)
         for lnk in link_module.parse(text):
             if lnk.intent != "auto":
@@ -540,7 +581,7 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
         if slug.startswith("content/wip/") or slug.startswith("content/scratch/") or slug.startswith("wip/") or slug.startswith("scratch/"):
             continue
         try:
-            text = fp.read_text(errors="replace")
+            text = _read_text(fp)
         except Exception:
             continue
         meta, body = _split_fm_body(text)
@@ -733,22 +774,29 @@ def run_all(vault: Vault) -> dict:
     """14 check 모두 실행. counts + issues list 반환.
 
     v0.6.33+: #14 tier_integrity 추가 — Karpathy 3-Layer 분리를 lint로 자동 검증.
+    v0.7.68 (평가 B#8): 이 호출 동안만 파일 스캔/frontmatter 파싱을 캐시한다
+    (`_ScanCache`) — 개별 check_* 직접 호출이나 다른 run_all() 호출로는 절대
+    새지 않아, 파일이 바뀐 뒤 재실행하는 기존 호출 패턴을 그대로 보존한다.
     """
-    issues: list[dict] = []
-    # #1-3 link
-    issues.extend(_legacy_link_issues(vault))
-    # #4-14
-    issues.extend(check_orphans(vault))
-    issues.extend(check_contradictions(vault))
-    issues.extend(check_confidence_low(vault))
-    issues.extend(check_stale(vault))
-    issues.extend(check_page_size(vault))
-    issues.extend(check_tag_audit(vault))
-    issues.extend(check_frontmatter_completeness(vault))
-    issues.extend(check_index_completeness(vault))
-    issues.extend(check_log_size(vault))
-    issues.extend(check_cognitive_governance(vault))
-    issues.extend(check_tier_integrity(vault))  # v0.6.33+
+    _scan_local.cache = _ScanCache()
+    try:
+        issues: list[dict] = []
+        # #1-3 link
+        issues.extend(_legacy_link_issues(vault))
+        # #4-14
+        issues.extend(check_orphans(vault))
+        issues.extend(check_contradictions(vault))
+        issues.extend(check_confidence_low(vault))
+        issues.extend(check_stale(vault))
+        issues.extend(check_page_size(vault))
+        issues.extend(check_tag_audit(vault))
+        issues.extend(check_frontmatter_completeness(vault))
+        issues.extend(check_index_completeness(vault))
+        issues.extend(check_log_size(vault))
+        issues.extend(check_cognitive_governance(vault))
+        issues.extend(check_tier_integrity(vault))  # v0.6.33+
+    finally:
+        _scan_local.cache = None
 
     counts = {"critical": 0, "warning": 0, "info": 0, "total": 0}
     by_check: dict[str, int] = {}

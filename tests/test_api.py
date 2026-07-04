@@ -1,6 +1,6 @@
 """Tests for raven.api — REST endpoints after v0.3.1 migration.
 
-Covers the 5 write endpoints (vaults/create, pages POST/PUT/DELETE) plus
+Covers the 5 write endpoints (POST vaults, pages POST/PUT/DELETE) plus
 slug validation, frontmatter unification, and archive mirror.
 """
 from __future__ import annotations
@@ -44,7 +44,7 @@ def client():
 
 def test_api_vault_create_with_bootstrap(client, isolated_env):
     target = isolated_env["target_root"] / "v1"
-    resp = client.post("/api/vaults/create", json={
+    resp = client.post("/api/vaults", json={
         "name": "v1", "path": str(target), "mode": "personal", "bootstrap": True,
     })
     assert resp.status_code == 200, resp.text
@@ -57,7 +57,7 @@ def test_api_vault_create_with_bootstrap(client, isolated_env):
 
 def test_api_vault_create_no_bootstrap(client, isolated_env):
     target = isolated_env["target_root"] / "v2"
-    resp = client.post("/api/vaults/create", json={
+    resp = client.post("/api/vaults", json={
         "name": "v2", "path": str(target), "bootstrap": False,
     })
     assert resp.status_code == 200
@@ -69,8 +69,8 @@ def test_api_vault_create_no_bootstrap(client, isolated_env):
 
 def test_api_vault_create_duplicate_name(client, isolated_env):
     target = isolated_env["target_root"] / "v3"
-    client.post("/api/vaults/create", json={"name": "v3", "path": str(target)})
-    resp = client.post("/api/vaults/create", json={"name": "v3", "path": str(target)})
+    client.post("/api/vaults", json={"name": "v3", "path": str(target)})
+    resp = client.post("/api/vaults", json={"name": "v3", "path": str(target)})
     assert resp.status_code == 409
 
 
@@ -79,7 +79,7 @@ def test_api_vault_create_duplicate_name(client, isolated_env):
 
 def test_api_page_create_auto_prefix(client, isolated_env):
     target = isolated_env["target_root"] / "vp"
-    client.post("/api/vaults/create", json={"name": "vp", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp", "path": str(target), "bootstrap": False})
     resp = client.post("/api/vaults/vp/pages", json={
         "slug": "hello", "title": "Hello", "type": "concept", "tags": ["a", "b"],
     })
@@ -90,7 +90,7 @@ def test_api_page_create_auto_prefix(client, isolated_env):
 
 def test_api_page_create_explicit_meta(client, isolated_env):
     target = isolated_env["target_root"] / "vp2"
-    client.post("/api/vaults/create", json={"name": "vp2", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp2", "path": str(target), "bootstrap": False})
     resp = client.post("/api/vaults/vp2/pages", json={
         "slug": "_meta/welcome", "title": "W",
     })
@@ -100,7 +100,7 @@ def test_api_page_create_explicit_meta(client, isolated_env):
 
 def test_api_page_create_rejects_protected_raw_path(client, isolated_env):
     target = isolated_env["target_root"] / "vp2raw"
-    client.post("/api/vaults/create", json={"name": "vp2raw", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp2raw", "path": str(target), "bootstrap": False})
     resp = client.post("/api/vaults/vp2raw/pages", json={
         "slug": "raw/source", "title": "S",
     })
@@ -110,7 +110,7 @@ def test_api_page_create_rejects_protected_raw_path(client, isolated_env):
 
 def test_api_page_create_rejects_parent_traversal(client, isolated_env):
     target = isolated_env["target_root"] / "vp3"
-    client.post("/api/vaults/create", json={"name": "vp3", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp3", "path": str(target), "bootstrap": False})
     resp = client.post("/api/vaults/vp3/pages", json={
         "slug": "../../etc/passwd", "title": "X",
     })
@@ -120,7 +120,7 @@ def test_api_page_create_rejects_parent_traversal(client, isolated_env):
 
 def test_api_page_create_rejects_absolute(client, isolated_env):
     target = isolated_env["target_root"] / "vp4"
-    client.post("/api/vaults/create", json={"name": "vp4", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp4", "path": str(target), "bootstrap": False})
     resp = client.post("/api/vaults/vp4/pages", json={
         "slug": "/etc/passwd", "title": "X",
     })
@@ -129,7 +129,7 @@ def test_api_page_create_rejects_absolute(client, isolated_env):
 
 def test_api_page_create_duplicate(client, isolated_env):
     target = isolated_env["target_root"] / "vp5"
-    client.post("/api/vaults/create", json={"name": "vp5", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp5", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/vp5/pages", json={"slug": "dup", "title": "X"})
     resp = client.post("/api/vaults/vp5/pages", json={"slug": "dup", "title": "Y"})
     assert resp.status_code == 409
@@ -140,7 +140,7 @@ def test_api_page_create_duplicate(client, isolated_env):
 
 def test_api_page_update_preserves_created(client, isolated_env):
     target = isolated_env["target_root"] / "vp6"
-    client.post("/api/vaults/create", json={"name": "vp6", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp6", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/vp6/pages", json={"slug": "u", "title": "Original"})
 
     # First update — should preserve created (set by create)
@@ -169,7 +169,7 @@ def test_api_page_get_maps_container_internal_root_to_host_path(client, isolated
     monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
 
     target = internal_root / "vp_hostmap"
-    client.post("/api/vaults/create", json={"name": "vp_hostmap", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp_hostmap", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/vp_hostmap/pages", json={"slug": "u", "title": "Original"})
 
     get_resp = client.get("/api/vaults/vp_hostmap/pages/content/u")
@@ -179,7 +179,7 @@ def test_api_page_get_maps_container_internal_root_to_host_path(client, isolated
 
 def test_api_page_update_rejects_bad_slug(client, isolated_env):
     target = isolated_env["target_root"] / "vp7"
-    client.post("/api/vaults/create", json={"name": "vp7", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp7", "path": str(target), "bootstrap": False})
     # URL `..` is normalized by starlette before reaching the route → 404 (which is also safe).
     # We test a slug that survives URL encoding but is still bad: tilde expansion
     resp = client.put("/api/vaults/vp7/pages/~/.ssh-test", json={"content": "x"})
@@ -189,7 +189,7 @@ def test_api_page_update_rejects_bad_slug(client, isolated_env):
 
 def test_api_page_update_rejects_protected_log_path(client, isolated_env):
     target = isolated_env["target_root"] / "vp7log"
-    client.post("/api/vaults/create", json={"name": "vp7log", "path": str(target), "bootstrap": True})
+    client.post("/api/vaults", json={"name": "vp7log", "path": str(target), "bootstrap": True})
     resp = client.put("/api/vaults/vp7log/pages/_meta/agents/SCHEMA", json={"content": "x"})
     assert resp.status_code == 403
 
@@ -199,7 +199,7 @@ def test_api_page_update_rejects_protected_log_path(client, isolated_env):
 
 def test_api_page_delete_archives_with_mirror(client, isolated_env):
     target = isolated_env["target_root"] / "vp8"
-    client.post("/api/vaults/create", json={"name": "vp8", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp8", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/vp8/pages", json={"slug": "content/sub/nested", "title": "N"})
     resp = client.delete("/api/vaults/vp8/pages/content/sub/nested")
     assert resp.status_code == 200
@@ -214,7 +214,7 @@ def test_api_page_delete_archives_with_mirror(client, isolated_env):
 
 def test_api_page_delete_rejects_bad_slug(client, isolated_env):
     target = isolated_env["target_root"] / "vp9"
-    client.post("/api/vaults/create", json={"name": "vp9", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp9", "path": str(target), "bootstrap": False})
     # Tilde expansion in URL survives starlette routing
     resp = client.delete("/api/vaults/vp9/pages/~/.ssh-test")
     assert resp.status_code == 400
@@ -223,7 +223,7 @@ def test_api_page_delete_rejects_bad_slug(client, isolated_env):
 
 def test_api_page_delete_missing(client, isolated_env):
     target = isolated_env["target_root"] / "vp10"
-    client.post("/api/vaults/create", json={"name": "vp10", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp10", "path": str(target), "bootstrap": False})
     resp = client.delete("/api/vaults/vp10/pages/content/missing")
     assert resp.status_code == 404
 
@@ -233,7 +233,7 @@ def test_api_page_delete_missing(client, isolated_env):
 
 def test_api_list_pages_still_works(client, isolated_env):
     target = isolated_env["target_root"] / "vp11"
-    client.post("/api/vaults/create", json={"name": "vp11", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vp11", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/vp11/pages", json={"slug": "content/a", "title": "A"})
     client.post("/api/vaults/vp11/pages", json={"slug": "content/b", "title": "B"})
     resp = client.get("/api/vaults/vp11/pages")
@@ -246,7 +246,7 @@ def test_api_list_pages_still_works(client, isolated_env):
 
 def test_api_vaults_list(client, isolated_env):
     target = isolated_env["target_root"] / "vl"
-    client.post("/api/vaults/create", json={"name": "vl", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "vl", "path": str(target), "bootstrap": False})
     resp = client.get("/api/vaults")
     assert resp.status_code == 200
     names = [v["name"] for v in resp.json()["vaults"]]
@@ -260,7 +260,7 @@ def test_api_vault_create_persists_host_display_path(client, isolated_env, monke
     monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
 
     display_target = host_root / "alpha"
-    resp = client.post("/api/vaults/create", json={
+    resp = client.post("/api/vaults", json={
         "name": "alpha",
         "path": str(display_target),
         "bootstrap": False,
@@ -281,7 +281,7 @@ def test_api_vault_create_persists_host_display_path(client, isolated_env, monke
 
 def test_api_clone_vault_copies_content(client, isolated_env):
     src = isolated_env["target_root"] / "csrc"
-    client.post("/api/vaults/create", json={"name": "csrc", "path": str(src), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "csrc", "path": str(src), "bootstrap": False})
     (src / "content").mkdir(parents=True, exist_ok=True)  # bootstrap=False didn't create it
     (src / "content" / "hello.md").write_text("# Hi\n")
     dst = isolated_env["target_root"] / "cdst"
@@ -295,8 +295,8 @@ def test_api_clone_vault_copies_content(client, isolated_env):
 def test_api_clone_vault_duplicate_name_rejected(client, isolated_env):
     src = isolated_env["target_root"] / "csrc2"
     dst = isolated_env["target_root"] / "cdst2"
-    client.post("/api/vaults/create", json={"name": "csrc2", "path": str(src), "bootstrap": False})
-    client.post("/api/vaults/create", json={"name": "cdst2", "path": str(dst), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "csrc2", "path": str(src), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "cdst2", "path": str(dst), "bootstrap": False})
     resp = client.post("/api/vaults/clone", json={"src": "csrc2", "name": "cdst2", "path": str(dst)})
     assert resp.status_code == 409
 
@@ -314,7 +314,7 @@ def test_api_clone_unknown_src_rejected(client, isolated_env):
 
 def test_api_archive_list_empty(client, isolated_env):
     target = isolated_env["target_root"] / "av1"
-    client.post("/api/vaults/create", json={"name": "av1", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "av1", "path": str(target), "bootstrap": False})
     resp = client.get("/api/vaults/av1/archive")
     assert resp.status_code == 200
     assert resp.json()["count"] == 0
@@ -323,7 +323,7 @@ def test_api_archive_list_empty(client, isolated_env):
 def test_api_archive_clean_dry_run(client, isolated_env):
     import datetime as _dt
     target = isolated_env["target_root"] / "av2"
-    client.post("/api/vaults/create", json={"name": "av2", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "av2", "path": str(target), "bootstrap": False})
     ts = (_dt.datetime.now() - _dt.timedelta(days=100)).strftime("%Y%m%d-%H%M%S")
     (target / "_archive" / "content").mkdir(parents=True)
     (target / "_archive" / "content" / f"old-{ts}.md").write_text("# old\n")
@@ -339,7 +339,7 @@ def test_api_archive_clean_dry_run(client, isolated_env):
 def test_api_archive_restore_basic(client, isolated_env):
     import datetime as _dt
     target = isolated_env["target_root"] / "av3"
-    client.post("/api/vaults/create", json={"name": "av3", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "av3", "path": str(target), "bootstrap": False})
     ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     (target / "_archive" / "content").mkdir(parents=True)
     (target / "_archive" / "content" / f"foo-{ts}.md").write_text("# foo\n")
@@ -355,7 +355,7 @@ def test_api_archive_restore_basic(client, isolated_env):
 def test_api_get_page_rejects_tilde_traversal(client, isolated_env):
     """get_page()는 tilde slug를 400으로 거부해야 한다 (path traversal 방어)."""
     target = isolated_env["target_root"] / "rg1"
-    client.post("/api/vaults/create", json={"name": "rg1", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "rg1", "path": str(target), "bootstrap": False})
     resp = client.get("/api/vaults/rg1/pages/~/.ssh-target")
     assert resp.status_code == 400
     assert "invalid slug" in resp.text.lower()
@@ -364,7 +364,7 @@ def test_api_get_page_rejects_tilde_traversal(client, isolated_env):
 def test_api_get_page_rejects_absolute_slug(client, isolated_env):
     """get_page()는 절대 경로 slug를 400으로 거부해야 한다."""
     target = isolated_env["target_root"] / "rg2"
-    client.post("/api/vaults/create", json={"name": "rg2", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "rg2", "path": str(target), "bootstrap": False})
     # Starlette strips leading slash before route matching, so test a slug
     # that reaches the handler with a leading slash via percent-encoding.
     # The important check: any slug that slug_module rejects → HTTP 400.
@@ -375,7 +375,7 @@ def test_api_get_page_rejects_absolute_slug(client, isolated_env):
 def test_api_get_page_happy_path(client, isolated_env):
     """정상 slug에 대해 get_page()가 200 + 내용을 반환해야 한다."""
     target = isolated_env["target_root"] / "rg3"
-    client.post("/api/vaults/create", json={"name": "rg3", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "rg3", "path": str(target), "bootstrap": False})
     client.post("/api/vaults/rg3/pages", json={"slug": "content/hello", "title": "Hello"})
     resp = client.get("/api/vaults/rg3/pages/content/hello")
     assert resp.status_code == 200
@@ -396,7 +396,7 @@ def test_api_vault_graph_nodes_carry_weight_field(client, isolated_env):
     회귀 가드로 0이라도 명시적으로 존재해야 한다.
     """
     target = isolated_env["target_root"] / "gv1"
-    client.post("/api/vaults/create", json={"name": "gv1", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv1", "path": str(target), "bootstrap": False})
     # content 페이지 2개 작성 → graph에 노드 2개
     client.post("/api/vaults/gv1/pages", json={"slug": "content/a", "title": "A"})
     client.post("/api/vaults/gv1/pages", json={"slug": "content/b", "title": "B"})
@@ -416,7 +416,7 @@ def test_api_vault_graph_weight_matches_in_degree(client, isolated_env):
     a → b wikilink를 만들면 b.weight >= 1 (a는 outbound만).
     """
     target = isolated_env["target_root"] / "gv2"
-    client.post("/api/vaults/create", json={"name": "gv2", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv2", "path": str(target), "bootstrap": False})
     # a에서 b로 wikilink 1개 — content 필드에 wikilink 작성
     client.post(
         "/api/vaults/gv2/pages",
@@ -438,7 +438,7 @@ def test_api_vault_graph_nodes_carry_xy_coordinates(client, isolated_env):
     결정론 보장: seed=0 + 동일 slug 순서 → 같은 vault 항상 같은 좌표.
     """
     target = isolated_env["target_root"] / "gv3"
-    client.post("/api/vaults/create", json={"name": "gv3", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv3", "path": str(target), "bootstrap": False})
     for slug in ["content/a", "content/b", "content/c"]:
         client.post(f"/api/vaults/gv3/pages", json={"slug": slug, "title": slug.split("/")[-1].upper()})
     # a → b, b → c 링크
@@ -470,7 +470,7 @@ def test_api_vault_graph_nodes_carry_xy_coordinates(client, isolated_env):
 def test_api_vault_graph_xy_distinct_for_connected_nodes(client, isolated_env):
     """A1: 링크된 노드 a, b는 서로 다른 좌표에 있어야 한다 (force-directed가 의미있는 위치 배정)."""
     target = isolated_env["target_root"] / "gv4"
-    client.post("/api/vaults/create", json={"name": "gv4", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv4", "path": str(target), "bootstrap": False})
     client.post(
         "/api/vaults/gv4/pages",
         json={"slug": "content/a", "title": "A", "content": "[[content/b]]"},
@@ -501,7 +501,7 @@ def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
     import math
 
     target = isolated_env["target_root"] / "gv_spread"
-    client.post("/api/vaults/create", json={"name": "gv_spread", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv_spread", "path": str(target), "bootstrap": False})
     # 8 페이지 + 링크 몇 개
     slugs = [f"content/p{i}" for i in range(8)]
     for slug in slugs:
@@ -538,7 +538,7 @@ def test_api_vault_graph_xy_normalized_to_pm500(client, isolated_env):
     viewport 밖에 있는 노드를 놓침. 이제 항상 center=0, scale=±500.
     """
     target = isolated_env["target_root"] / "gv_norm"
-    client.post("/api/vaults/create", json={"name": "gv_norm", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv_norm", "path": str(target), "bootstrap": False})
     for slug in ["content/a", "content/b", "content/c", "content/d"]:
         client.post(f"/api/vaults/gv_norm/pages", json={"slug": slug, "title": slug.split("/")[-1].upper()})
     resp = client.get("/api/vaults/gv_norm/graph")
@@ -746,7 +746,7 @@ def test_louvain_communities_empty_input():
 def test_folder_first_class_create_then_tree_includes_it(client, isolated_env):
     """Folder create 후 tree에 빈 폴더로 표시되어야 한다 (메타데이터 파일 없음)."""
     target = isolated_env["target_root"] / "fv1"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "fv1", "path": str(target), "bootstrap": False,
     })
 
@@ -789,7 +789,7 @@ def test_folder_first_class_create_then_tree_includes_it(client, isolated_env):
 def test_folder_create_conflict_with_existing_page(client, isolated_env):
     """page가 이미 있는 경로에 folder 생성 시 409."""
     target = isolated_env["target_root"] / "fv2"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "fv2", "path": str(target), "bootstrap": False,
     })
     client.post("/api/vaults/fv2/pages", json={
@@ -802,7 +802,7 @@ def test_folder_create_conflict_with_existing_page(client, isolated_env):
 
 def test_folder_create_rejects_path_traversal(client, isolated_env):
     target = isolated_env["target_root"] / "fv3"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "fv3", "path": str(target), "bootstrap": False,
     })
     resp = client.post("/api/vaults/fv3/folders", json={"path": "../escape"})
@@ -813,7 +813,7 @@ def test_folder_create_rejects_path_traversal(client, isolated_env):
 def test_folder_create_is_idempotent(client, isolated_env):
     """같은 path로 두 번 호출해도 OK (두 번째는 existed=true)."""
     target = isolated_env["target_root"] / "fv4"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "fv4", "path": str(target), "bootstrap": False,
     })
     first = client.post("/api/vaults/fv4/folders", json={"path": "content/dup"})
@@ -827,7 +827,7 @@ def test_folder_create_is_idempotent(client, isolated_env):
 def test_get_page_includes_backlinks(client, isolated_env):
     """get_page가 backlinks 리스트를 포함하는지 검증."""
     target = isolated_env["target_root"] / "bl1"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "bl1", "path": str(target), "bootstrap": False,
     })
     # 1. 대상 페이지 (target) 생성
@@ -852,7 +852,7 @@ def test_locks_api_list_and_delete(client, isolated_env):
     """/api/vaults/{name}/locks GET & DELETE API 검증."""
     from raven.mcp.tools import acquire_lock
     target = isolated_env["target_root"] / "lk1"
-    client.post("/api/vaults/create", json={
+    client.post("/api/vaults", json={
         "name": "lk1", "path": str(target), "bootstrap": False,
     })
     # 1. 락 획득
@@ -887,7 +887,7 @@ def test_api_delete_vault(client, isolated_env):
 
     # 2. 볼트는 등록되어 있으나 실제 디스크 경로가 유실된 경우 -> 에러 없이 unregister 성공해야 함
     target = isolated_env["target_root"] / "del1"
-    resp = client.post("/api/vaults/create", json={
+    resp = client.post("/api/vaults", json={
         "name": "del1", "path": str(target), "bootstrap": False,
     })
     assert resp.status_code == 200
@@ -904,7 +904,7 @@ def test_api_delete_vault(client, isolated_env):
 
     # 3. 콘텐트가 있는 볼트 삭제 시도 -> force=True 없이는 실패
     target2 = isolated_env["target_root"] / "del2"
-    resp = client.post("/api/vaults/create", json={
+    resp = client.post("/api/vaults", json={
         "name": "del2", "path": str(target2), "bootstrap": True,
     })
     assert resp.status_code == 200
@@ -912,9 +912,8 @@ def test_api_delete_vault(client, isolated_env):
     (target2 / "content" / "hello.md").write_text("Hello", encoding="utf-8")
 
     resp = client.delete("/api/vaults/del2")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["ok"] is False
+    assert resp.status_code == 409
+    data = resp.json()["detail"]
     assert data["reason"] == "vault contains content"
     assert data["stats"]["pages"] == 1
 

@@ -2,7 +2,7 @@
  * NewVaultWizard — v0.6.6: 2-step wizard (3 step → 2 step).
  *
  *   Step 1 — 이름 (path/mode/template 자동)
- *   Step 2 — 확인 + 만들기 (요약 → POST /api/vaults/create → redirect)
+ *   Step 2 — 확인 + 만들기 (요약 → POST /api/vaults → redirect)
  *
  * v0.6.6 simplifications (4가지 user pain 해소):
  *   1. "PWA 캐시/이전 세션 이슈, 강제 reload 안내"
@@ -108,7 +108,7 @@ export function NewVaultWizard() {
     setError(null);
     setSubmitting(true);
     try {
-      const r = await fetch("/api/vaults/create", {
+      const r = await fetch("/api/vaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
