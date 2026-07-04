@@ -454,13 +454,15 @@ def test_cli_archive_restore_basic(fresh_env):
     assert not fp.exists()
 
 
-def test_cli_archive_restore_outside_archive_rejected(fresh_env):
+def test_cli_archive_restore_unknown_slug_rejected(fresh_env):
+    """v0.7.66 (평가 P1#7): _archive/ 밖 경로는 원래 slug로 해석 —
+    아카이브가 없으면 명확한 에러로 거부."""
     target = fresh_env["target_root"] / "ar2"
     runner.invoke(app, ["vault", "create", "ar2", str(target)])
     result = runner.invoke(app, ["archive", "restore", "content/foo.md", "--vault", "ar2"])
     assert result.exit_code == 1
     combined = (result.stdout or "") + (result.stderr or "")
-    assert "not under _archive" in combined
+    assert "no archived file" in combined
 
 
 def test_cli_archive_json_output(fresh_env):

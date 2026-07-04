@@ -75,6 +75,10 @@ def search_fts(
             "FROM pages_fts "
             "JOIN pages p ON p.rowid = pages_fts.rowid "
             "WHERE pages_fts MATCH ? "
+            # v0.7.66 (평가 P1#8): 자동 생성 카탈로그는 검색 제외.
+            # LIKE의 `_`는 단일문자 와일드카드라 ESCAPE 필수.
+            "  AND p.slug != 'content/index' "
+            "  AND p.slug NOT LIKE 'content/\\_index/%' ESCAPE '\\' "
             "ORDER BY bm25(pages_fts) LIMIT ?",
             (query, top_k),
         ).fetchall()

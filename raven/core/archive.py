@@ -190,15 +190,35 @@ def restore_archived(vault: Vault, archive_rel_path: str) -> RestoreResult:
     Args:
         vault: target vault.
         archive_rel_path: vault-relative path of the archived file, e.g.
-                          "_archive/content/foo-20260625-123456.md"
+                          "_archive/content/foo-20260625-123456.md" — 또는
+                          원래 slug (e.g. "content/foo", v0.7.66+). slug면
+                          최신 아카이브 본을 선택한다.
 
     Returns:
         RestoreResult with original_slug and restored_to path.
 
     Raises no exception — returns RestoreResult(ok=False, error=...) on failure.
     """
-    # validate input lives under _archive/
     archive_root = vault.root / "_archive"
+
+    # v0.7.66 (평가 P1#7): 원래 slug로도 복원 가능. `raven archive list`가
+    # "아카이브 → 원본 slug" 매핑을 보여주면서 정작 restore는 전체 경로만
+    # 받던 마찰 해소.
+    if not archive_rel_path.replace("\\", "/").startswith("_archive/"):
+        slug = archive_rel_path[:-3] if archive_rel_path.endswith(".md") else archive_rel_path
+        matches = [e for e in list_archived(vault) if e.original_slug == slug]
+        if not matches:
+            return RestoreResult(
+                ok=False,
+                error=(
+                    f"no archived file for slug: {slug!r} "
+                    "(`raven archive list`로 아카이브 목록을 확인하세요)"
+                ),
+            )
+        matches.sort(key=lambda e: e.timestamp or _dt.datetime.min)
+        archive_rel_path = matches[-1].rel_path
+
+    # validate input lives under _archive/
     candidate = (vault.root / archive_rel_path).resolve()
     try:
         candidate.relative_to(archive_root.resolve())
