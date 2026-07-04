@@ -191,11 +191,23 @@ def test_restore_target_exists_rejected(isolated_env):
     assert (v.root / "content" / "foo.md").exists()
 
 
-def test_restore_rejects_path_outside_archive(isolated_env):
+def test_restore_by_slug_picks_latest(isolated_env):
+    """v0.7.66 (평가 P1#7): 원래 slug로 복원 — 여러 벌이면 최신본."""
     v = isolated_env["vault"]
-    result = restore_archived(v, "content/foo.md")  # not under _archive/
+    old = _make_archived(v.root, "content/foo", _dt.datetime(2026, 1, 1, 0, 0, 0))
+    new = _make_archived(v.root, "content/foo", _dt.datetime(2026, 6, 1, 0, 0, 0))
+    result = restore_archived(v, "content/foo")
+    assert result.ok, result.error
+    assert (v.root / "content" / "foo.md").is_file()
+    assert not new.exists()  # 최신본이 이동됨
+    assert old.exists()      # 구본은 그대로
+
+
+def test_restore_by_slug_without_archive_fails_clearly(isolated_env):
+    v = isolated_env["vault"]
+    result = restore_archived(v, "content/ghost")
     assert not result.ok
-    assert "not under _archive" in result.error
+    assert "no archived file" in result.error
 
 
 def test_restore_missing_file(isolated_env):

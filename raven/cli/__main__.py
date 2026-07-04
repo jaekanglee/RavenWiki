@@ -32,7 +32,7 @@ app = typer.Typer(
 vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
-meta_app = typer.Typer(help="Vault meta docs (SCHEMA.md, RULES.md) management.")
+meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, PROJECT-WORKFLOW.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
 lint_app = typer.Typer(help="vault lint 14개 — broken/orphan/contradictions/stale/tier integrity 등.")
@@ -1132,7 +1132,7 @@ def archive_clean(
 
 @archive_app.command("restore")
 def archive_restore(
-    archive_path: str = typer.Argument(..., help="vault-relative archive path, e.g. _archive/content/foo-20260625-123456.md"),
+    archive_path: str = typer.Argument(..., help="archive path (_archive/content/foo-20260625-123456.md) 또는 원래 slug (content/foo — 최신본 복원)"),
     vault: Optional[str] = typer.Option(None, "--vault"),
 ) -> None:
     """Restore an archived file back to its original slug location."""
@@ -1631,10 +1631,17 @@ def raven_garden(
     run_stale = stale or run_all
     run_orphan = orphan or run_all
     
-    from raven.core.garden import get_stale_pages, get_orphan_pages, find_link_candidates
+    from raven.core.garden import get_stale_pages, get_orphan_pages, find_link_candidates, db_is_stale
     from raven.core import contracts as contracts_module
     from raven.core import archive as archive_module
     import sys
+
+    # v0.7.66 (평가 P1#12): garden은 wiki.db 기준 — DB가 낡으면 거짓 안심을 준다.
+    if db_is_stale(v):
+        typer.echo(
+            "⚠️  wiki.db가 마크다운보다 오래되었습니다 — 아래 결과가 부정확할 수 "
+            "있습니다. `raven build` 후 다시 실행하세요."
+        )
 
     # 1. Stale Pages Gardening
     if run_stale:

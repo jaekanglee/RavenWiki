@@ -2066,10 +2066,15 @@ def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):
 
     scores = []
     for fp in v.content_root.rglob("*.md"):
+        slug = str(fp.relative_to(v.root))[:-3]
+        # v0.7.66 (평가 P1#8): 자동 생성 카탈로그(index.md, _index/*)는 모든
+        # 페이지의 제목·요약을 복제해 어떤 검색어든 실제 노트를 밀어냈음 —
+        # 탐색(tree/graph)용이지 검색 대상이 아님.
+        if slug == "content/index" or slug.startswith("content/_index/"):
+            continue
         full_text = fp.read_text(errors="replace")
         text = full_text.lower()
         meta, body = _split_fm(full_text)
-        slug = str(fp.relative_to(v.root))[:-3]
         score = sum(text.count(t) for t in terms)
         if score > 0:
             snippet = _make_snippet(body, terms)
