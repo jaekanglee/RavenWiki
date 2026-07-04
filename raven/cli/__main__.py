@@ -978,18 +978,16 @@ def page_rename(
 ) -> None:
     """Rename a page (slug), rewrite all inbound wikilinks, and rebuild DB."""
     v = _resolve_vault_or_die(vault)
-    
-    from raven.mcp.tools.write import wiki_rename, VaultContext
-    
-    ctx = VaultContext(vault=str(v.root), mode="admin")
-    
+
     try:
-        res = wiki_rename(old_slug=old_slug, new_slug=new_slug, ctx=ctx, actor="cli")
-        if res.get("ok"):
-            typer.echo(f"✅ Success: {res['message']}")
-        else:
-            typer.echo(f"❌ Error: {res['message']}", err=True)
+        result = contracts.rename_page(v, old_slug, new_slug, actor="cli")
+        if not result.ok:
+            typer.echo(f"❌ Error: {result.message}", err=True)
             raise typer.Exit(1)
+        db_module.build_db(v, run_lint=False)
+        typer.echo(f"✅ Success: {result.message}")
+    except typer.Exit:
+        raise
     except Exception as e:
         typer.echo(f"❌ Error: {e}", err=True)
         raise typer.Exit(1)
@@ -1196,9 +1194,8 @@ def search(
     if not v.db_path.exists():
         typer.echo("❌ wiki.db 없음 — `raven build` 먼저 실행하세요.", err=True)
         raise typer.Exit(1)
-    from raven.mcp.db import search_fts
     try:
-        results = search_fts(query=query, top_k=top_k, vault=v.root)
+        results = db_module.search_fts(query=query, top_k=top_k, vault=v.root)
     except Exception as e:
         typer.echo(f"❌ 검색 실패: {e}", err=True)
         raise typer.Exit(1)

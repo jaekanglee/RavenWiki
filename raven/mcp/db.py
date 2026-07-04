@@ -76,31 +76,10 @@ def list_pages(vault: Optional[Path | str] = None) -> list[dict]:
         conn.close()
 
 
-def search_fts(
-    query: str,
-    top_k: int = 10,
-    vault: Optional[Path | str] = None,
-) -> list[dict]:
-    """FTS5 BM25 search across slug/title/tags/content."""
-    conn = get_db(vault)
-    try:
-        rows = conn.execute(
-            "SELECT p.slug, p.title, p.path, "
-            "       bm25(pages_fts) AS score, "
-            "       snippet(pages_fts, 3, '**', '**', '...', 32) AS snippet "
-            "FROM pages_fts "
-            "JOIN pages p ON p.rowid = pages_fts.rowid "
-            "WHERE pages_fts MATCH ? "
-            # v0.7.66 (평가 P1#8): 자동 생성 카탈로그는 검색 제외.
-            # LIKE의 `_`는 단일문자 와일드카드라 ESCAPE 필수.
-            "  AND p.slug != 'content/index' "
-            "  AND p.slug NOT LIKE 'content/\\_index/%' ESCAPE '\\' "
-            "ORDER BY bm25(pages_fts) LIMIT ?",
-            (query, top_k),
-        ).fetchall()
-        return _rows_to_dicts(rows)
-    finally:
-        conn.close()
+# v0.7.68 (평가 B#2): relocated to raven.core.db — pure SQLite query with
+# no MCP-specific state. Re-exported here so existing MCP callers/imports
+# keep working unchanged.
+from raven.core.db import search_fts as search_fts  # noqa: E402,F401
 
 
 def get_page(

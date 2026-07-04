@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from .lock import lock_for_file
-from .vault import Vault
+from .vault import Vault, resolve_active_vault
 
 
 # ────────────────────────── public API ──────────────────────────
@@ -108,6 +108,49 @@ def connect(vault: Vault) -> sqlite3.Connection:
         if _garden.db_is_stale(vault):
             build_db(vault)
     return sqlite3.connect(f"file:{vault.db_path}?mode=ro", uri=True)
+
+
+def search_fts(
+    query: str,
+    top_k: int = 10,
+    vault: Optional[Path | str] = None,
+) -> list[dict]:
+    """FTS5 BM25 search across slug/title/tags/content.
+
+    v0.7.68 (평가 B#2): relocated from `raven.mcp.db` — a pure SQLite query
+    with no MCP-specific state, so CLI no longer needs to import
+    `raven.mcp` just to search. `raven.mcp.db.search_fts` re-exports this
+    for existing MCP callers.
+    """
+    if vault:
+        root = Path(vault)
+    else:
+        root = resolve_active_vault().root
+    db_path = root / "wiki.db"
+    if not db_path.exists():
+        raise FileNotFoundError(
+            f"wiki.db not found at {db_path}. Run `raven build` first."
+        )
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT p.slug, p.title, p.path, "
+            "       bm25(pages_fts) AS score, "
+            "       snippet(pages_fts, 3, '**', '**', '...', 32) AS snippet "
+            "FROM pages_fts "
+            "JOIN pages p ON p.rowid = pages_fts.rowid "
+            "WHERE pages_fts MATCH ? "
+            # v0.7.66 (평가 P1#8): 자동 생성 카탈로그는 검색 제외.
+            # LIKE의 `_`는 단일문자 와일드카드라 ESCAPE 필수.
+            "  AND p.slug != 'content/index' "
+            "  AND p.slug NOT LIKE 'content/\\_index/%' ESCAPE '\\' "
+            "ORDER BY bm25(pages_fts) LIMIT ?",
+            (query, top_k),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 # ────────────────────────── internals ──────────────────────────

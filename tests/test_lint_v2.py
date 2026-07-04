@@ -324,3 +324,31 @@ def test_run_all_no_critical_on_clean_vault(vault):
     }, body="link: [[content/target]]\n")
     result = run_all(vault)
     assert result["counts"]["critical"] == 0
+
+
+def test_run_all_scan_cache_does_not_leak_across_calls(vault):
+    """v0.7.68 (평가 B#8): run_all() 내부 캐시가 호출 경계를 넘으면 안 된다.
+
+    파일을 수정한 뒤 run_all()을 재호출하면, 첫 호출에서 캐시된 옛 내용이
+    아니라 디스크의 최신 내용을 봐야 한다.
+    """
+    today = date.today().isoformat()
+    _write_page(vault, "content/cached", {
+        "title": "V1", "type": "concept",
+        "created": today, "updated": today,
+        "tags": ["ai"],
+    }, body="본문 v1\n")
+    r1 = run_all(vault)
+    assert not any(i.get("target") == "content/does-not-exist" for i in r1["issues"])
+
+    _write_page(vault, "content/cached", {
+        "title": "V1", "type": "concept",
+        "created": today, "updated": today,
+        "tags": ["ai"],
+    }, body="본문 v2 [[content/does-not-exist]]\n")
+
+    r2 = run_all(vault)
+    broken = [i for i in r2["issues"] if i.get("target") == "content/does-not-exist"]
+    assert broken, "두 번째 run_all()이 캐시된 옛 파일 내용을 보면 안 된다"
+    # 캐시가 run_all() 호출 밖으로 새지 않았는지도 확인.
+    assert getattr(lint_module._scan_local, "cache", None) is None

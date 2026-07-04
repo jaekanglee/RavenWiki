@@ -20,8 +20,6 @@ interface VaultStats {
 }
 
 interface DeletePreview {
-  ok: false;
-  vault: string;
   reason: string;
   stats: { pages: number; log_present: boolean };
   hint: string;
@@ -197,16 +195,16 @@ export function VaultManage() {
       const r = await fetch(`/api/vaults/${encodeURIComponent(name)}`, {
         method: "DELETE",
       });
-      const d = await r.json();
-      if (!d.ok && d.reason === "vault contains content") {
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 409 && d.detail?.reason === "vault contains content") {
         // need confirm with force
-        setConfirmDelete({ name, preview: d as DeletePreview });
-      } else if (d.ok) {
+        setConfirmDelete({ name, preview: d.detail as DeletePreview });
+      } else if (r.ok && d.ok) {
         showToast(`✅ '${name}' 보관소를 제거했습니다.`);
         setConfirmDelete(null);
         await loadVaults();
       } else {
-        throw new Error(d.detail || JSON.stringify(d));
+        throw new Error(d.detail?.reason || d.detail || JSON.stringify(d));
       }
     } catch (e) {
       const msg = String(e instanceof Error ? e.message : e);

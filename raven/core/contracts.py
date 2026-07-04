@@ -23,23 +23,29 @@ the boundary layer.
 
 Scope (deliberately limited)
 ----------------------------
-- `write_page()` only. `delete_page()` / `rename_page()` are not yet
-  unified (archive.py is a richer surface; deferred).
-- v0.7.67 (평가 A#1): MCP `wiki_update` now routes through this function.
+- `write_page()` + `rename_page()`. `delete_page()` is not yet unified
+  (archive.py is a richer surface; deferred).
+- v0.7.67 (평가 A#1): MCP `wiki_update` now routes through `write_page()`.
   MCP-specific concerns (idempotency cache, advisory locks, response
   shape) stay in `raven/mcp/tools/write.py`; the file mutation itself —
   slug validation, frontmatter merge, provenance, FileLock, log — is
   this contract. `extra_meta` + `append_log` were added for that caller.
+- v0.7.68 (평가 B#2): `rename_page()` added — CLI's `page rename` and MCP's
+  `wiki_rename` both route the file-move + link-rewrite recipe through
+  here. MCP-specific concerns (advisory lock, idempotency, response
+  shape) stay in `raven/mcp/tools/write.py`; CLI calls this directly.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import os
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
 from . import frontmatter as frontmatter_module
+from . import link as link_module
 from . import log as log_module
 from . import slug as slug_module
 from .lock import atomic_write_text, lock_for_file
@@ -297,6 +303,115 @@ def write_page(
         created=is_create,
         created_date=merged.get("created"),
         message=f"wrote {raw_slug}",
+    )
+
+
+@dataclass(frozen=True)
+class RenameResult:
+    """Outcome of a `rename_page()` call. Mirrors `WriteResult`'s shape."""
+
+    ok: bool
+    old_slug: str
+    new_slug: str
+    rewritten_files: int = 0
+    error: Optional[str] = None
+    message: str = ""
+
+
+def _resolve_page_path(vault: Vault, slug: str) -> Path:
+    s = slug.strip()
+    if s.lower().endswith(".md"):
+        s = s[:-3]
+    safe = slug_module.validate(s, vault_root=vault.root)
+    return safe.with_suffix(".md")
+
+
+def rename_page(
+    vault: Vault,
+    old_slug: str,
+    new_slug: str,
+    *,
+    actor: Optional[str] = None,
+) -> RenameResult:
+    """Rename a slug, rewrite every inbound wikilink, through the shared contract.
+
+    Steps: 1) validate both slugs, 2) update frontmatter (`slug`/`aliases`/
+    `agents`) and move the file, 3) rewrite `[[old_slug]]` → `[[new_slug]]`
+    across the vault (`link_module.rewrite_links`).
+
+    Does NOT rebuild wiki.db — callers rebuild explicitly, same as
+    `write_page()`. Does NOT touch MCP's advisory locks/idempotency — those
+    stay in `raven/mcp/tools/write.py`. DOES take the same core `FileLock`
+    `write_page()` uses (both old_path and new_path, sorted to avoid
+    lock-order deadlocks) so CLI/MCP renames are mutually exclusive with
+    any other write touching either path.
+    """
+    if not old_slug or not new_slug:
+        return RenameResult(
+            ok=False, old_slug=old_slug, new_slug=new_slug,
+            message="old_slug and new_slug are required",
+        )
+
+    try:
+        old_path = _resolve_page_path(vault, old_slug)
+        new_path = _resolve_page_path(vault, new_slug)
+    except slug_module.SlugError as e:
+        return RenameResult(
+            ok=False, old_slug=old_slug, new_slug=new_slug,
+            message=f"invalid slug: {e}", error="invalid_slug",
+        )
+
+    try:
+        with ExitStack() as locks:
+            for p in sorted({old_path, new_path}, key=str):
+                locks.enter_context(lock_for_file(vault.root, p))
+
+            if not old_path.exists():
+                return RenameResult(
+                    ok=False, old_slug=old_slug, new_slug=new_slug,
+                    message=f"{old_slug} not found",
+                )
+            if new_path.exists() and new_path != old_path:
+                return RenameResult(
+                    ok=False, old_slug=old_slug, new_slug=new_slug,
+                    message=f"{new_slug} already exists",
+                )
+
+            text = old_path.read_text(encoding="utf-8")
+            meta, body = frontmatter_module.parse(text)
+
+            meta["slug"] = new_slug
+            aliases = list(meta.get("aliases") or [])
+            if old_slug not in aliases:
+                aliases.insert(0, old_slug)
+            meta["aliases"] = aliases
+            meta["updated"] = _dt.date.today().isoformat()
+            agents_hist = list(meta.get("agents") or [])
+            agents_hist.append({
+                "name": actor or "anonymous",
+                "timestamp": _dt.datetime.now().isoformat(),
+                "intent": f"rename {old_slug} -> {new_slug}",
+            })
+            meta.pop("agents", None)
+
+            rendered = frontmatter_module.render(meta, body, agents=agents_hist)
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(new_path, rendered)
+
+            if old_path != new_path:
+                old_path.unlink()
+
+            rewritten = link_module.rewrite_links(vault, old_slug, new_slug)
+    except TimeoutError as exc:
+        return RenameResult(
+            ok=False, old_slug=old_slug, new_slug=new_slug,
+            message=f"concurrency lock timeout: {exc}",
+        )
+
+    return RenameResult(
+        ok=True, old_slug=old_slug, new_slug=new_slug,
+        rewritten_files=rewritten,
+        message=f"renamed {old_slug} → {new_slug} ({rewritten} wikilinks rewritten)",
     )
 
 
