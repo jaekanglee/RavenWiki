@@ -37,10 +37,18 @@ confidence: high
 
 | 키워드 | 의미 | MCP 도구 |
 |---|---|---|
-| `save` | 한 건의 노트 저장 | `wiki_update` |
-| `ingest` | 외부 자료 일괄 정리 | `wiki_ingest` |
+| `save` | 한 건의 노트 저장 (신규 생성 포함 — upsert) | `wiki_update` |
+| `ingest` | 외부 자료 일괄 정리 (raw/ 전용, 사람 명시 명령 시에만) | `wiki_ingest` |
 | `query` | 검색/조회 | `wiki_search`, `wiki_get_page` |
 | `lint` | 무결성 검사 | `wiki_lint` |
+
+`wiki_update` 사용 규약 (v0.7.66+):
+- `content` = 본문 마크다운. 메타데이터는 **`frontmatter` 파라미터**로 전달 (권장).
+  content 선두에 `---` frontmatter 블록을 넣으면 자동으로 메타로 승격되지만,
+  파라미터 분리가 정확하다.
+- 신규 slug는 생성된다 (upsert). 단, 이 vault에서는 frontmatter의 `type`이
+  9종 중 하나여야 생성/수정이 통과한다 (`SCHEMA.md` 참조).
+- `raw/`, `_meta/`, `log.md`는 생성/수정 모두 거부된다 (§2 권한).
 
 MCP 연결 정보(엔드포인트/포트)와 전체 도구 목록은 `raven docs show agent-tools` 참고.
 
@@ -101,6 +109,26 @@ MCP 연결 정보(엔드포인트/포트)와 전체 도구 목록은 `raven docs
 - [ ] 본문이 사람 문장으로 읽힘 (운영 메타/JSON/빈 TBD 금지)
 - [ ] §3 저장 신호 4가지 통과
 
+## 7.5 큐레이션 기본 점검 (정리 모드 표준 순서)
+
+vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처리한다.
+각 항목의 괄호는 **에이전트가 실제로 할 수 있는 조치 수준**이다.
+
+1. critical(#1 깨진 링크, #2 intent 오표기, #14 Tier leak) 0건 확인 —
+   content/ 내 링크는 `wiki_update`로 직접 수리 (수리 가능), Tier leak은 즉시 보고
+2. #5 모순 — 충돌 페이지를 덮어쓰지 말고 양쪽에 `contested: true` +
+   `contradictions` 상호 링크, 원인은 log.md 역추적 (수리 가능)
+3. #4 orphan(유예 경과) — 관련 페이지에서 인바운드 링크 연결 시도, 불가 시
+   아카이브 후보로 `type: issue` 발의 (발의만)
+4. #7 stale — 사실이 바뀐 페이지는 갱신, 판단 불가면 `type: issue` 발의
+5. #10 frontmatter 불완전 — `wiki_update`의 frontmatter 파라미터로 보수 (수리 가능)
+6. #8 200줄 초과 — 분할안 제안 (발의만)
+7. #12 log 500건 도달 — 사람에게 `raven log rotate` 요청 (사람 전용)
+8. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
+
+`raven garden` / `raven curator`는 **사람 운영자 전용 CLI**다 — 에이전트는
+실행할 수 없으므로, 정리가 필요한 항목은 위 절차대로 감지·발의까지만 한다.
+
 ## 8. 멀티 에이전트 협업 규칙
 
 - **폴더 분리**: 프로필별 `content/{profile_name}/` 전용 서브폴더 내에서만 작성. 타 프로필 영역 수정 필요 시 사용자 승인 또는 `_meta/`에 교차 참조.
@@ -135,8 +163,10 @@ LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md
 
 - **검색 판단**: `wiki_search`가 있다는 사실은 여기 있지만, "새 페이지
   쓰기 전에 중복을 확인할지"는 당신의 판단입니다.
-- **정리/폐기 판단**: `raven garden --stale/--orphan`, `raven curator run`이
-  있다는 사실은 여기 있지만, "언제 돌릴지"는 당신의 판단입니다.
+- **정리/폐기 판단**: 무엇을 점검하는지는 §7.5에 있지만, "언제 정리를
+  시작할지"는 당신의 판단입니다. (`raven garden`/`raven curator`는 사람
+  전용 CLI — 당신의 조치 수단은 `wiki_lint` 감지 + `wiki_update` 수리 +
+  `type: issue` 발의까지입니다.)
 - **글쓰기 품질 판단**: 이 vault는 BLUF로 시작하는 형식을 요구하지만,
   "왜 그게 좋은 글쓰기인가"는 여기서 가르치지 않습니다.
 - 이 vault를 반복해서 다루며 얻은 **이 vault 특유의 교훈**은 문서를
