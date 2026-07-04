@@ -48,6 +48,7 @@ LOG_ROTATE_THRESHOLD = 500
 ORPHAN_GRACE_DAYS_DEFAULT = 7
 STALE_DAYS = 90
 PAGE_SIZE_LINES = 200
+TAG_PROMOTION_THRESHOLD = 3  # 같은 custom 태그 N+ 페이지 → core 승격 추천 (#9)
 INDEX_COMPLETE_BUILD_REQUIRED = True  # build 후에만 검증
 
 # #13 cognitive governance (Zettelkasten/LLM Wiki quality signal, v0.5.3+)
@@ -329,9 +330,15 @@ def check_page_size(vault: Vault) -> list[dict]:
 
 
 def check_tag_audit(vault: Vault) -> list[dict]:
-    """#9 tag not in core taxonomy → warning. 단, custom tag도 가능 (코어 권장)."""
+    """#9 tag not in core taxonomy → info (custom 태그는 허용된 사용법).
+
+    v0.7.66 (평가 P2#17): "custom은 OK"라면서 warning을 내던 자기모순 해소.
+    v0.7.66 (평가 P2#22): 같은 custom 태그가 TAG_PROMOTION_THRESHOLD(3)+ 페이지에서
+    쓰이면 core 승격 추천 1건 — SCHEMA.md가 약속만 하고 미구현이던 기능.
+    """
     core = _core_tags(vault)
     out: list[dict] = []
+    custom_pages: dict[str, set[str]] = {}
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
         fm = _parse_fm(fp)
@@ -343,10 +350,18 @@ def check_tag_audit(vault: Vault) -> list[dict]:
                 continue
             t_norm = t.lower().strip()
             if t_norm and t_norm not in core:
+                custom_pages.setdefault(t_norm, set()).add(slug)
                 out.append(_mk_issue(
-                    "#9", "warning", slug,
-                    f"tag {t!r} not in core taxonomy (custom은 OK, 코어 승격은 SCHEMA.md에 추가)",
+                    "#9", "info", slug,
+                    f"tag {t!r} not in core taxonomy (custom은 OK)",
                 ))
+    for t, slugs in sorted(custom_pages.items()):
+        if len(slugs) >= TAG_PROMOTION_THRESHOLD:
+            out.append(_mk_issue(
+                "#9", "info", "(vault)",
+                f"tag {t!r} {len(slugs)}개 페이지에서 사용 — core 승격 추천 "
+                "(`type: issue`로 발의, 승인 시 _meta/agents/SCHEMA.md Core 목록에 추가)",
+            ))
     return out
 
 
@@ -529,6 +544,10 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
         except Exception:
             continue
         meta, body = _split_fm_body(text)
+        # frontmatter 자체가 없으면 #10(no frontmatter) 담당 — 이중 보고 금지
+        # (v0.7.66, 평가 P2#24)
+        if not meta:
+            continue
         # 면제: type 면제
         ptype = (meta.get("type") or "").strip().lower()
         if ptype in COG_GOV_EXEMPT_TYPES:

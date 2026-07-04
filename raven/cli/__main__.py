@@ -1204,6 +1204,39 @@ def build(
 
 
 @app.command()
+def search(
+    query: str = typer.Argument(..., help="검색어 (FTS5 BM25)"),
+    vault: Optional[str] = typer.Option(None, "--vault"),
+    top_k: int = typer.Option(10, "--top-k", help="상위 N건"),
+    json_out: bool = typer.Option(False, "--json"),
+) -> None:
+    """Search pages in the active vault (FTS5 BM25, wiki.db 기반)."""
+    # v0.7.66 (평가 P2#15): 사람의 검색 경로가 Dashboard/API/MCP뿐이었음.
+    v = _resolve_vault_or_die(vault)
+    if not v.db_path.exists():
+        typer.echo("❌ wiki.db 없음 — `raven build` 먼저 실행하세요.", err=True)
+        raise typer.Exit(1)
+    from raven.mcp.db import search_fts
+    try:
+        results = search_fts(query=query, top_k=top_k, vault=v.root)
+    except Exception as e:
+        typer.echo(f"❌ 검색 실패: {e}", err=True)
+        raise typer.Exit(1)
+    if json_out:
+        typer.echo(json.dumps(results, ensure_ascii=False, indent=2))
+        return
+    if not results:
+        typer.echo(f"🔍 {v.meta.name} — '{query}' 결과 없음")
+        return
+    typer.echo(f"🔍 {v.meta.name} — '{query}' 상위 {len(results)}건")
+    for r in results:
+        typer.echo(f"  {r['slug']}  — {r.get('title') or ''}")
+        snippet = (r.get("snippet") or "").replace("\n", " ").strip()
+        if snippet:
+            typer.echo(f"      {snippet}")
+
+
+@app.command()
 def export(
     vault: Optional[str] = typer.Option(None, "--vault"),
     out_dir: Optional[Path] = typer.Option(None, "--out", help="output dir (default: <codebase>/dashboard/public/api)"),

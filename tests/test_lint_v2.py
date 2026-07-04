@@ -212,7 +212,8 @@ def test_page_size_under_200(vault):
 # ────────────────────────── #9 tag audit ──────────────────────────
 
 
-def test_tag_unknown_is_warning(vault):
+def test_tag_unknown_is_info(vault):
+    """v0.7.66 (평가 P2#17): custom 태그는 허용된 사용법 — warning이 아니라 info."""
     today = date.today().isoformat()
     _write_page(vault, "content/odd-tag", {
         "title": "X", "type": "concept",
@@ -221,7 +222,7 @@ def test_tag_unknown_is_warning(vault):
     })
     issues = check_tag_audit(vault)
     assert any(
-        i["id"] == "#9" and i["severity"] == "warning"
+        i["id"] == "#9" and i["severity"] == "info"
         and "totally-made-up-tag" in i["message"] for i in issues
     )
 
