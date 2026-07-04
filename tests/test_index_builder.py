@@ -39,7 +39,9 @@ def _seed_pages(v: Vault) -> None:
 
 def test_build_index_creates_per_type_category_pages(vault: Vault) -> None:
     _seed_pages(vault)
-    assert build_index(vault) is True
+    # v0.7.66: build_db가 내부에서 이미 build_index를 수행 — 직후 재호출은
+    # "변경 없음"(False)이어야 한다 (멱등 수렴, 평가 P1#5).
+    assert build_index(vault) is False
 
     concept_page = vault.root / "content" / "_index" / "concept.md"
     issue_page = vault.root / "content" / "_index" / "issue.md"
@@ -84,7 +86,8 @@ def test_build_index_category_pages_excluded_from_their_own_catalog(vault: Vault
 
 def test_build_index_handles_empty_vault(vault: Vault) -> None:
     build_db(vault, run_lint=False)
-    assert build_index(vault) is True
+    # v0.7.66: build_db 내부에서 index가 이미 생성됨 → 재호출은 변경 없음.
+    assert build_index(vault) is False
     root_text = (vault.root / "content" / "index.md").read_text(encoding="utf-8")
     assert "아직 등록된 정제 페이지가 없습니다" in root_text
     assert not (vault.root / "content" / "_index").exists()

@@ -96,7 +96,7 @@ aliases: [old-slug-1]     # 선택
 ## Tag Taxonomy
 
 ### Core (lint 대상 — 이 문서에 명시된 태그만)
-- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`, `meta`, `workflow`
+- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`, `meta`, `workflow`, `index`, `home`
 - 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`, `issue`
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
 

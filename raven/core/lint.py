@@ -83,7 +83,7 @@ COG_GOV_CONFIDENCE_LEVELS: frozenset[str] = frozenset({"high", "medium", "low"})
 CORE_TAGS_FALLBACK = {
     # 시스템
     "system", "tool", "ui", "search", "viewer", "schema", "mcp", "dashboard",
-    "meta", "workflow",
+    "meta", "workflow", "index", "home",
     # 컨텐츠
     "concept", "person", "comparison", "project", "rule", "query", "journal", "issue",
     # 도메인
@@ -134,33 +134,35 @@ def _parse_fm(fp: Path) -> dict:
 
 
 def _core_tags(vault: Vault) -> set[str]:
-    """SCHEMA.md에서 core tags 동적 파싱, 실패 시 fallback."""
-    schema = vault.meta_root / "SCHEMA.md"
+    """vault의 _meta/agents/SCHEMA.md에서 core tags 동적 파싱, 실패 시 fallback.
+
+    v0.7.66 (평가 P1#11): 옛 경로(_meta/SCHEMA.md)는 어떤 부트스트랩에서도
+    생성된 적이 없어 태그 승격(core 목록 추가)이 항상 무효였음.
+    """
+    schema = vault.meta_root / "agents" / "SCHEMA.md"
     if not schema.exists():
         return set(CORE_TAGS_FALLBACK)
     text = schema.read_text(errors="replace")
-    # "### Core Tags" 또는 "## Tag Taxonomy" 섹션의 `- tag` 패턴 추출
+    # "### Core (...)" 헤딩 아래의 `- 그룹: \`tag\`, ...` 패턴 추출.
+    # 다른 헤딩(### Custom, ### 승격 절차, ## ...)이 나오면 섹션 종료.
     tags: set[str] = set()
     in_core = False
     for line in text.splitlines():
-        if re.search(r"core\s*tags?", line, re.IGNORECASE):
-            in_core = True
+        if line.lstrip().startswith("#"):
+            in_core = bool(re.search(r"\bcore\b", line, re.IGNORECASE))
             continue
         if in_core:
-            # 다음 ## 헤더 나오면 중단
-            if line.startswith("##") and not line.startswith("###"):
-                in_core = False
-                continue
+            # 태그 문자: 유니코드 단어문자 + 하이픈 (한글 태그 승격 지원, v0.7.66+)
             # 형식 1: `- 시스템: \`tag1\`, \`tag2\`, ...` (한 줄에 여러 tag)
-            m = re.match(r"^\s*[-*]\s*[^*]+:\s*`?([a-z0-9-]+)`?", line)
+            m = re.match(r"^\s*[-*]\s*[^*]+:\s*`?([\w가-힣-]+)`?", line)
             if m:
                 tags.add(m.group(1).lower())
                 # 같은 줄에 더 있는 tag도 추출
-                for extra in re.findall(r"`([a-z0-9-]+)`", line):
+                for extra in re.findall(r"`([\w가-힣-]+)`", line):
                     tags.add(extra.lower())
                 continue
             # 형식 2: `- \`tag\`` (한 줄에 한 tag)
-            m = re.match(r"^\s*[-*]\s*`?([a-z0-9-]+)`?\s*$", line)
+            m = re.match(r"^\s*[-*]\s*`?([\w가-힣-]+)`?\s*$", line)
             if m:
                 tags.add(m.group(1).lower())
     return tags if tags else set(CORE_TAGS_FALLBACK)
@@ -399,7 +401,13 @@ def check_index_completeness(vault: Vault) -> list[dict]:
 
     fs_slugs = {_slug_of(vault, fp) for fp in _all_pages(vault)}
     only_fs = fs_slugs - db_slugs
-    only_db = db_slugs - fs_slugs
+    # v0.7.66 (평가 P1#4): log.md(및 rotate된 log-YYYY.md)는 페이지가 아니라
+    # 인프라 — DB에는 색인되지만 페이지 스캔(content/+_meta/) 대상이 아니어서
+    # "DB에만 있음" 영구 오탐을 냈음.
+    only_db = {
+        s for s in db_slugs - fs_slugs
+        if not (s == "log" or re.match(r"^log-\d{4}$", s))
+    }
     for slug in sorted(only_fs):
         out.append(_mk_issue(
             "#11", "warning", slug, "filesystem에만 있음 (build 필요)",

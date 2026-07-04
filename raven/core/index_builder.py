@@ -18,9 +18,24 @@ from typing import Optional
 from .vault import Vault
 
 
+def _write_if_changed(path: Path, text: str) -> bool:
+    """내용이 실제로 바뀔 때만 기록. 반환: 기록 여부."""
+    if path.exists():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return False
+        except Exception:
+            pass
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
 def build_index(vault: Vault) -> bool:
     """Rebuild <vault>/content/index.md and its content/_index/{type}.md catalog pages.
-    Returns True on success, False otherwise.
+
+    Returns True when any index file was actually (re)written — the caller
+    (db.build_db) uses this to re-index once so lint #11 converges in one
+    build (v0.7.66, 평가 P1#5). False = 변경 없음 또는 실패.
     """
     index_path = vault.root / "content" / "index.md"
     
@@ -49,6 +64,9 @@ def build_index(vault: Vault) -> bool:
         if (
             slug_lower == "index" or
             slug_lower == "content/index" or
+            # log.md(및 rotate본)는 페이지가 아니라 인프라 (v0.7.66, lint #11과 동일 기준)
+            slug_lower == "log" or
+            re.match(r"^log-\d{4}$", slug_lower) or
             slug_lower.startswith("content/_index/") or
             slug_lower.startswith("wip/") or
             slug_lower.startswith("content/wip/") or
@@ -82,6 +100,7 @@ def build_index(vault: Vault) -> bool:
     #    허브 하나에 부채꼴로 몰리는 걸 막는다.
     today = dt.date.today().isoformat()
     index_dir = vault.root / "content" / "_index"
+    changed = False
     if pages:
         index_dir.mkdir(parents=True, exist_ok=True)
         for gtype in sorted_types:
@@ -103,7 +122,8 @@ def build_index(vault: Vault) -> bool:
                 summary_suffix = f" — *{p['summary']}*" if p["summary"] else ""
                 cat_lines.append(f"- [[{p['slug']}]] — {p['title']}{summary_suffix}")
             cat_path = index_dir / f"{gtype}.md"
-            cat_path.write_text("\n".join(cat_lines) + "\n", encoding="utf-8")
+            if _write_if_changed(cat_path, "\n".join(cat_lines) + "\n"):
+                changed = True
 
     # 4. Generate root index.md auto-index block — 카테고리 페이지로만 링크.
     lines = [
@@ -168,11 +188,12 @@ updated: {today}
     replacement = f"\\1\n\n{auto_index_content}\n\n\\3"
     updated_text = pattern.sub(replacement, raw_text)
 
-    # 6. Save updated file
+    # 6. Save updated file (변경 시에만)
     try:
-        index_path.write_text(updated_text, encoding="utf-8")
-        print(f"[index_builder] successfully updated {index_path}")
-        return True
+        if _write_if_changed(index_path, updated_text):
+            changed = True
+            print(f"[index_builder] successfully updated {index_path}")
+        return changed
     except Exception as e:
         print(f"[index_builder] failed to write index.md: {e}")
         return False

@@ -62,7 +62,14 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
     if result.get("ok"):
         try:
             from .index_builder import build_index
-            build_index(vault)
+            # v0.7.66 (평가 P1#5): index 파일이 갱신되면 같은 build 안에서 재색인.
+            # 이전엔 생성된 index.md/_index/*가 DB에 없어 build 직후에도 lint #11이
+            # "build 필요"를 냈고, 두 번 빌드해야 수렴했음.
+            if build_index(vault):
+                if script and script.exists():
+                    _run_legacy_build(script, vault, db_path)
+                else:
+                    _inline_build(vault, db_path)
         except Exception as e:
             result["index_error"] = f"{type(e).__name__}: {e}"
 
