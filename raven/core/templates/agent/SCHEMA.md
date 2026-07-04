@@ -66,6 +66,13 @@ aliases: [old-slug-1]     # 선택
 | `confidence: low` | 단일 출처, 미검증 | 🔵 info |
 | `contested: true` | 모순 발견된 페이지 | 🔵 info |
 | `contradictions: [a,b]` | 모순인 다른 페이지 | 🟡 warning (a/b 미존재 시) |
+| `aliases: [old-slug]` | 페이지 개명/병합 시 옛 slug 보존 | — |
+
+**모순 발견 시 절차**: 어느 쪽도 덮어쓰지 말고, 양쪽 페이지에 `contested: true` +
+`contradictions`로 상호 링크한 뒤 원인을 log.md에서 역추적한다.
+
+**aliases 사용 시점**: 페이지를 개명하거나 중복 페이지를 병합할 때, 남는 페이지의
+`aliases`에 사라지는 slug를 기록한다 (링크 추적성 보존).
 
 ## Slug / 파일명 규칙
 
@@ -106,7 +113,9 @@ aliases: [old-slug-1]     # 선택
 자기 도메인 태그 자유 사용.
 
 ### 승격 절차
-같은 태그가 3+ 페이지에서 쓰이면 lint가 "core 승격 추천" 알림 → 이 문서에 한 줄 추가.
+같은 custom 태그가 3+ 페이지에서 쓰이면 lint #9가 "core 승격 추천"을 알린다.
+에이전트는 이 문서를 직접 수정하지 말고(협업 규칙 §8) `type: issue` 문서로
+승격을 발의한다 → 사람 승인 시 이 문서 Core 목록에 한 줄 추가.
 
 ## Wikilink 규약
 
@@ -164,8 +173,8 @@ aliases: [old-slug-1]     # 선택
 | 5 | contradictions | 🟡 warning |
 | 6 | confidence: low 페이지 | 🔵 info |
 | 7 | stale pages (updated > 90일) | 🔵 info |
-| 8 | page size > 200줄 | 🔵 info |
-| 9 | tag not in core taxonomy | 🟡 warning |
+| 8 | page size > 200줄 — 분할: 하위 주제를 새 페이지로 떼어내고 원 페이지에 wikilink, 병합 흔적은 `aliases`에 | 🔵 info |
+| 9 | tag not in core taxonomy (custom 허용) + 3+ 사용 시 승격 추천 | 🔵 info |
 | 10 | frontmatter 완전성 | 🔵 info |
 | 11 | index 완전성 (FS vs DB) | 🟡 warning |
 | 12 | log size > 500 entries | 🔵 info |

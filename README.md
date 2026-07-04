@@ -21,7 +21,7 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/Raven/<name>/` (v0.6.3+) |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
-| **CLI** (사람/자동화) | Typer 5 top-level commands + 12 subcommand groups | `raven/cli/` |
+| **CLI** (사람/자동화) | Typer 6 top-level commands + 12 subcommand groups | `raven/cli/` |
 | **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
 | **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
@@ -159,7 +159,7 @@ WIKI_VAULT=agent-output raven page ls
 
 ---
 
-## 핵심 명령 (CLI — 5 top-level + 12 서브커맨드 그룹)
+## 핵심 명령 (CLI — 6 top-level + 12 서브커맨드 그룹)
 
 ```bash
 raven where                                 # 환경 표시
@@ -174,6 +174,8 @@ raven page ls [--type T] [--tag T] [--vault N] [--json]
 raven page get <slug> [--vault N]
 raven page new <slug> --title T --type T --tags "a,b" [--vault N]
 raven page delete <slug> [--vault N] [--force]
+
+raven search <검색어> [--vault N] [--top-k N] [--json]   # FTS5 BM25 검색 (v0.7.66+)
 
 raven link check [--vault N] [--json]       # broken/missing wikilink
 raven build [--vault N] [--db PATH] [--lint]   # wiki.db 빌드
@@ -196,7 +198,7 @@ raven note decision|concept|lesson|journal|rule|issue|gate <slug> ...   # type�
 
 raven collection sync|validate|add [--vault N]  # 컬렉션 동기화/검증/추가
 
-raven curator run|stats [--vault N]             # stale/orphan 자동 큐레이션
+raven curator run|stats <collection_id>         # collection 기반 큐레이션 (git diff change set)
 
 raven docs list                                 # Tier 1 내부 문서 목록
 raven docs show <topic>                         # Tier 1 문서 조회 (OPERATIONS.md 등)
@@ -388,7 +390,7 @@ raven build && raven link check
 │   │   ├── export.py                ← GUI 정적 JSON
 │   │   └── link.py                  ← wikilink 파싱/감사
 │   ├── cli/
-│   │   └── __main__.py              ← Typer 5 top-level + 12 서브커맨드 그룹
+│   │   └── __main__.py              ← Typer 6 top-level + 12 서브커맨드 그룹
 │   └── api/
 │       ├── server.py                ← FastAPI app
 │       ├── main.py                  ← uvicorn entry

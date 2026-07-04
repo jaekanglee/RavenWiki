@@ -78,7 +78,9 @@ MCP 연결 정보(엔드포인트/포트)와 전체 도구 목록은 `raven docs
 
 ## 4. 분업 / 트리거 (사실)
 
-- 사람: 결정(rule), 컨셉(concept), 사람(person) — 사람 review 후
+- 사람: 결정(rule), 컨셉(concept), 사람(person) — 사람 review 후 확정
+  - 에이전트가 이 타입을 작성할 땐 `tags`에 `draft`를 넣어 시작하고, 사람
+    확인 후 `review` → `final`로 승격한다 (draft 태그는 lint #13 면제)
 - 에이전트: 저널(journal), 빌드/링크체크 — 자동 가능
 - 트리거: 사용자 "X 정리해줘" → journal/concept 작성(사람 confirm) / 새 raw/ 파일 → 사람 명시 명령 시 compile / 새 결정 → 관련 페이지에 wikilink 추가
 
