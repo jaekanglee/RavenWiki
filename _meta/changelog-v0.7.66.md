@@ -50,15 +50,28 @@
   오안내 정직화.
 - **watchfiles 의존성 명시** — 클린 체크아웃에서 테스트 스위트 red였던 원인.
 
+## P2 — 개선 (같은 날 후속 반영)
+
+- **CLI `raven search` 신설** — 사람의 CLI 검색 경로 부재 해소 (FTS5 BM25,
+  top-level 5→6개, README 동기화). DB 없으면 `raven build` 안내 + exit 1.
+- **lint #9 severity warning → info** — "custom은 OK"라면서 warning을 내던 자기모순.
+- **태그 승격 추천 구현** — 같은 custom 태그 3+ 페이지 사용 시 `(vault)` 단위 추천
+  1건 (SCHEMA.md가 약속만 하고 미구현이던 기능, `TAG_PROMOTION_THRESHOLD=3`).
+- **#13 이중 보고 제거** — frontmatter 없는 페이지는 #10 담당.
+- **템플릿 보강** — 모순 발견 절차 1줄(SCHEMA), aliases 사용 시점, 200줄 분할 방법,
+  태그 승격을 `type: issue` 발의 경로로 수정(§8 SCHEMA 수정 금지와 정합),
+  분업표에 draft→review→final 태그 승격 메커니즘 연결(PROJECT-WORKFLOW §4).
+- **curator 명령 문서 정합** — `<collection_id>` 필수 인자 README 반영.
+
 ## 검증
 
-- 전체 테스트 **599 passed** (기존 578 + 신규 회귀 가드 21, watcher 5 포함 복구)
+- 전체 테스트 **604 passed** (기존 578 + 신규 회귀 가드 26, watcher 5 포함 복구)
 - E2E: 새 vault + 페이지 1개 → lint **0C / 0W / 4I** (이전: build 2회 후에도 8W)
 - MCP 실주행: 에이전트 신규 노트 생성 성공, 불량 type 거부, 이중 frontmatter 없음
+- CLI `raven search` 실주행: 실제 노트가 1위, 자동 카탈로그 미노출
 
 ## 남은 백로그
 
-P2 9건 (평가 문서 §5 참조): CLI search 추가, #9 severity 재고, 모순 처리 절차 1줄,
-draft 태그 연결, 태그 승격 issue 경로, aliases/분할 안내, 승격 추천 구현 여부 결정,
-curator 문서 정합, #13 이중 보고 정리. 추가 발견: `_index/*`의 `type: index`가
-9종 taxonomy 외 (시스템 자기모순 — 결정 필요).
+평가 백로그 24건 전체 완료 (P0 3 / P1 11 / P2 10). 미결 결정 1건:
+`_index/*`의 `type: index`가 9종 taxonomy 외 (시스템 자기모순 — 10번째 type으로
+공식화할지, 시스템 전용 예외로 명문화할지 사용자 결정 필요).
