@@ -279,23 +279,23 @@ export function buildPanelGraph(
   // fall back to direct membership for tests / minimal callers.
   const localIds = new Set<string>();
   const matches = graph.nodes.filter((node) => {
-    const id = node.id ?? node.slug ?? "";
+    const id = node.id ?? "";
     if (id === centerSlug) return true;
     if (id.endsWith(`/${centerSlug}`)) return true;
     return false;
   });
-  matches.forEach((n) => localIds.add(n.id ?? n.slug ?? ""));
+  matches.forEach((n) => localIds.add(n.id ?? ""));
 
   if (localIds.size === 0) return { nodes: [], edges: [] };
 
   const localEdges = graph.edges.filter((edge) => {
-    const source = (edge as { source?: string }).source ?? edge.source_slug;
-    const target = (edge as { target?: string }).target ?? edge.target_slug;
+    const source = edge.source;
+    const target = edge.target;
     return localIds.has(source) && localIds.has(target);
   });
 
   return {
-    nodes: graph.nodes.filter((node) => localIds.has(node.id ?? node.slug ?? "")),
+    nodes: graph.nodes.filter((node) => localIds.has(node.id ?? "")),
     edges: localEdges,
   };
 }

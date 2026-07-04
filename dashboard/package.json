@@ -15,11 +15,9 @@
     "@xyflow/react": "^12.0.0",
     "clsx": "^2.0.0",
     "mermaid": "^11.0.0",
-    "minisearch": "^7.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0",
-    "zustand": "^5.0.0"
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

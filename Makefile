@@ -1,11 +1,11 @@
 # raven — top-level Makefile
-# v0.7.13+ — Docker 우선. 로컬 host 실행은 deprecated (Docker compose로 통일).
+# v0.7.55+ — Docker deprecated. 기본은 local host stack (raven.sh / restart-all.sh).
 # Self-documenting: `make` or `make help` lists targets.
 #
 # Conventions:
 #   - All commands run from project root.
-#   - Docker compose 셋업: cp .env.example .env && make docker-up
-#   - 로컬 host 실행 (Docker 미사용, deprecated): make install && scripts/.venv/bin/python -m raven.cli ...
+#   - 로컬 host 실행 (기본): make install && ./raven.sh start
+#   - Docker (deprecated, 남겨두지만 신규 사용자는 비권장): cp .env.example .env && make docker-up
 #   - PYTHONPATH=. so `python -m raven.*` works without install.
 
 SHELL := /bin/bash
@@ -23,7 +23,7 @@ help: ## Show this help message
 # ────────────────────────── setup ──────────────────────────
 
 .PHONY: install
-install: ## Create venv + install raven + dev deps (local dev only — prefer Docker)
+install: ## Create venv + install raven + dev deps (v0.7.55+ 기본 경로 — Docker는 deprecated)
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e ./scripts
@@ -34,9 +34,10 @@ install: ## Create venv + install raven + dev deps (local dev only — prefer Do
 venv-check: ## Fail loudly if venv missing (so other targets work)
 	@test -d $(VENV) || (echo "❌ run 'make install' first"; exit 1)
 
-# ────────────────────────── Docker (v0.7.12+ 표준) ──────────────────────────
-# v0.7.13+: 로컬 host 실행 target (dev/status/stop/mcp/api/dashboard) 제거됨.
-# Docker compose로 통일. 호스트에서 직접 띄울 일 없음 (Docker만).
+# ────────────────────────── Docker (v0.7.55+ deprecated) ──────────────────────
+# v0.7.12~54: Docker compose 표준이었음. v0.7.55+: local host stack(./raven.sh,
+# scripts/restart-all.sh)이 기본으로 전환됨 — 아래 target들은 하위 호환/레거시
+# 용도로 남겨두지만 신규 사용자는 `./raven.sh start`를 사용할 것.
 
 .PHONY: docker-build docker-up docker-down docker-logs docker-ps
 docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runtime)
@@ -97,6 +98,10 @@ test-quick: venv-check ## Run pytest with stop-on-first-failure
 .PHONY: test-one
 test-one: venv-check ## Run a single pytest file (usage: make test-one F=tests/test_foo.py)
 	$(PY) -m pytest $(F) -v
+
+.PHONY: typecheck
+typecheck: ## Typecheck the dashboard (v0.7.67: AGENTS.md §6 referenced this before it existed)
+	cd dashboard && npx tsc -b --noEmit
 
 # ────────────────────────── cleanup ──────────────────────────
 

@@ -90,9 +90,9 @@ describe("PageView graph scope", () => {
         { id: "content/d", slug: "content/d", title: "D", x: 260, y: 40 },
       ],
       edges: [
-        { source_slug: "content/a", target_slug: "content/b" },
-        { source_slug: "content/c", target_slug: "content/a" },
-        { source_slug: "content/b", target_slug: "content/d" },
+        { source: "content/a", target: "content/b" },
+        { source: "content/c", target: "content/a" },
+        { source: "content/b", target: "content/d" },
       ],
     };
 
@@ -121,7 +121,7 @@ describe("PageView graph scope", () => {
     const floatingProps = mocks.floatingPanel.mock.calls.at(-1)?.[0];
     expect(floatingProps.currentNodeId).toBe("content/a");
     expect(floatingProps.nodes.map((node: any) => node.id)).toEqual(["content/a", "content/b"]);
-    expect(floatingProps.edges).toEqual([{ source_slug: "content/a", target_slug: "content/b" }]);
+    expect(floatingProps.edges).toEqual([{ source: "content/a", target: "content/b" }]);
 
     fireEvent.click(view.getByTestId("open-full-graph"));
 
@@ -133,6 +133,6 @@ describe("PageView graph scope", () => {
     expect(fullscreenProps.currentNodeId).toBe("content/a");
     expect(fullscreenProps.centerTitle).toBe("A 관련 그래프");
     expect(fullscreenProps.nodes.map((node: any) => node.id)).toEqual(["content/a", "content/b"]);
-    expect(fullscreenProps.edges).toEqual([{ source_slug: "content/a", target_slug: "content/b" }]);
+    expect(fullscreenProps.edges).toEqual([{ source: "content/a", target: "content/b" }]);
   });
 });

@@ -22,9 +22,9 @@ const graph: Graph = {
     { id: "d", slug: "d", title: "D" },
   ],
   edges: [
-    { source_slug: "a", target_slug: "b" },
-    { source_slug: "c", target_slug: "a" },
-    { source_slug: "b", target_slug: "d" },
+    { source: "a", target: "b" },
+    { source: "c", target: "a" },
+    { source: "b", target: "d" },
   ],
 };
 
@@ -32,7 +32,7 @@ describe("PageView local graph", () => {
   it("keeps the current page and direct incoming/outgoing neighbors only", () => {
     const local = buildLocalGraph(graph, "a");
 
-    expect(local.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b", "c"]);
+    expect(local.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c"]);
     expect(local.edges).toHaveLength(2);
   });
 
@@ -98,12 +98,12 @@ describe("PageView local graph", () => {
         { id: "concept/features", slug: "concept/features", title: "Features" },
       ],
       edges: [
-        { source_slug: "concept/users", target_slug: "concept/features" },
+        { source: "concept/users", target: "concept/features" },
       ],
     };
 
     const local = buildLocalGraph(g, "content/concept/users");
-    expect(local.nodes.map((n) => n.id ?? n.slug).sort()).toEqual([
+    expect(local.nodes.map((n) => n.id).sort()).toEqual([
       "concept/features",
       "concept/users",
     ]);
@@ -117,12 +117,12 @@ describe("PageView local graph", () => {
         { id: "concept/purpose", slug: "concept/purpose", title: "Purpose" },
       ],
       edges: [
-        { source_slug: "concept/users", target_slug: "concept/purpose" },
+        { source: "concept/users", target: "concept/purpose" },
       ],
     };
 
     const local = buildRelatedGraph(g, "content/concept/users", ["purpose"]);
-    expect(local.nodes.map((n) => n.id ?? n.slug).sort()).toEqual([
+    expect(local.nodes.map((n) => n.id).sort()).toEqual([
       "concept/purpose",
       "concept/users",
     ]);
@@ -139,7 +139,7 @@ describe("GraphPage helpers", () => {
       selectedCommunity: null,
     });
 
-    expect(filtered.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b", "c"]);
+    expect(filtered.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c"]);
     expect(filtered.edges).toHaveLength(2);
   });
 
@@ -150,7 +150,7 @@ describe("GraphPage helpers", () => {
         { id: "b", slug: "b", title: "Beta", type: "rule", weight: 1 },
         { id: "c", slug: "c", title: "Gamma", type: "concept", weight: 0 },
       ],
-      edges: [{ source_slug: "a", target_slug: "b" }],
+      edges: [{ source: "a", target: "b" }],
     };
 
     const filtered = filterGraphView(typedGraph, {
@@ -160,7 +160,7 @@ describe("GraphPage helpers", () => {
       selectedCommunity: null,
     });
 
-    expect(filtered.nodes.map((n) => n.id ?? n.slug)).toEqual(["a"]);
+    expect(filtered.nodes.map((n) => n.id)).toEqual(["a"]);
     expect(filtered.edges).toHaveLength(0);
   });
 
@@ -171,13 +171,13 @@ describe("GraphPage helpers", () => {
         { id: "b", slug: "b", title: "Beta", type: "rule", weight: 1 },
         { id: "c", slug: "c", title: "Gamma", type: "concept", weight: 0 },
       ],
-      edges: [{ source_slug: "b", target_slug: "a" }],
+      edges: [{ source: "b", target: "a" }],
     };
 
     const insights = deriveGraphInsights(insightGraph);
 
-    expect(insights.topConnected.map((n) => n.id ?? n.slug)).toEqual(["a", "b"]);
-    expect(insights.topOrphans.map((n) => n.id ?? n.slug)).toEqual(["c"]);
+    expect(insights.topConnected.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(insights.topOrphans.map((n) => n.id)).toEqual(["c"]);
     expect(insights.typeBreakdown).toEqual([
       { type: "concept", count: 2 },
       { type: "rule", count: 1 },
@@ -187,9 +187,9 @@ describe("GraphPage helpers", () => {
   it("deriveNodeDetail returns inbound, outbound, and merged neighbors for a node", () => {
     const details = deriveNodeDetail(graph, "a");
 
-    expect(details?.inbound.map((n) => n.id ?? n.slug)).toEqual(["c"]);
-    expect(details?.outbound.map((n) => n.id ?? n.slug)).toEqual(["b"]);
-    expect(details?.neighbors.map((n) => n.id ?? n.slug)).toEqual(["b", "c"]);
+    expect(details?.inbound.map((n) => n.id)).toEqual(["c"]);
+    expect(details?.outbound.map((n) => n.id)).toEqual(["b"]);
+    expect(details?.neighbors.map((n) => n.id)).toEqual(["b", "c"]);
   });
 
   it("filterGraphView can isolate a single community when community ids are present", () => {
@@ -200,8 +200,8 @@ describe("GraphPage helpers", () => {
         { id: "c", slug: "c", title: "Gamma", community: 1, weight: 1 },
       ],
       edges: [
-        { source_slug: "a", target_slug: "b" },
-        { source_slug: "b", target_slug: "c" },
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
       ],
     };
 
@@ -212,8 +212,8 @@ describe("GraphPage helpers", () => {
       selectedCommunity: 0,
     });
 
-    expect(filtered.nodes.map((n) => n.id ?? n.slug).sort()).toEqual(["a", "b"]);
-    expect(filtered.edges).toEqual([{ source_slug: "a", target_slug: "b" }]);
+    expect(filtered.nodes.map((n) => n.id).sort()).toEqual(["a", "b"]);
+    expect(filtered.edges).toEqual([{ source: "a", target: "b" }]);
   });
 
   it("deriveCommunityOptions excludes orphan-only communities when hideOrphans is on", () => {
@@ -226,7 +226,7 @@ describe("GraphPage helpers", () => {
         { id: "b", slug: "b", title: "Beta", community: 0, weight: 1 },
         { id: "orphan", slug: "orphan", title: "Orphan", community: 1, weight: 0 },
       ],
-      edges: [{ source_slug: "a", target_slug: "b" }],
+      edges: [{ source: "a", target: "b" }],
     };
 
     const withHideOrphans = deriveCommunityOptions(graph, true);

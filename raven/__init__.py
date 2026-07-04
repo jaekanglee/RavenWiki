@@ -10,4 +10,4 @@ Layered architecture (v0.7.9+):
 에이전트(LLM client) ↔ Raven 인터페이스 = MCP only (단일 표준).
 사람/스크립트용: CLI / API / Dashboard 자유.
 """
-__version__ = "0.5.7"
+__version__ = "0.7.67"  # v0.7.67 (평가 B#14): SOT — bump this on release, matches latest _meta/changelog-v*.md

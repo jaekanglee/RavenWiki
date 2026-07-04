@@ -379,8 +379,7 @@ function GraphCanvasInner({
   const nodeMap = useMemo(() => {
     const m = new Map<string, GraphNode>();
     for (const n of nodes) {
-      const id = (n as any).id ?? n.slug;
-      m.set(id, n);
+      m.set(n.id, n);
     }
     return m;
   }, [nodes]);
@@ -388,14 +387,14 @@ function GraphCanvasInner({
   const rfNodes = useMemo(
     () =>
       nodes.map((n) => {
-        const id = (n as any).id ?? n.slug;
-        const type = (n as any).type ?? n.type;
-        const weight = (n as any).weight ?? 1;
+        const id = n.id;
+        const type = n.type;
+        const weight = n.weight ?? 1;
         const size = nodeSize(weight);
         const x = typeof n.x === "number" ? n.x : 0;
         const y = typeof n.y === "number" ? n.y : 0;
-        const title = (n as any).title ?? n.slug ?? id;
-        const community = (n as any).community as number | undefined;
+        const title = n.title ?? n.slug ?? id;
+        const community = n.community;
         return {
           id,
           type: "obsidian" as const,
@@ -411,8 +410,8 @@ function GraphCanvasInner({
     () =>
       edges.map((e, i) => ({
         id: `e${i}`,
-        source: (e as any).source ?? e.source_slug,
-        target: (e as any).target ?? e.target_slug,
+        source: e.source,
+        target: e.target,
         // 직선 edge (xyflow default bezier/smoothstep을 우회). 점 노드 사이의
         // 별자리 느낌을 위해 곡선 ❌ — 직선만 허용.
         type: "straight" as const,

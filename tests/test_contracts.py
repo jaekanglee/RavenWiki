@@ -97,6 +97,42 @@ def test_write_page_rejects_bad_slug(vault: Vault) -> None:
     assert not (vault.root / "bad.md").exists()
 
 
+def test_write_page_preserves_block_style_tags(vault: Vault) -> None:
+    """평가 A#3 회귀 가드: Obsidian 표준 블록 리스트 tags가 있는 페이지를
+    write_page로 갱신해도 tags가 소실되지 않는다 (pre-v0.7.67 데이터 손실 버그)."""
+    fp = vault.root / "content" / "hello.md"
+    fp.write_text(
+        "---\ntitle: Hello\ntype: concept\ncreated: 2026-01-01\n"
+        "tags:\n  - alpha\n  - beta\n---\n\nv1\n",
+        encoding="utf-8",
+    )
+    r = write_page(vault, "content/hello", "v2", overwrite=True)
+    assert r.ok
+    from raven.core.frontmatter import parse
+    meta, body = parse(fp.read_text(encoding="utf-8"))
+    assert meta["tags"] == ["alpha", "beta"]  # NOT erased
+    assert meta["created"] == "2026-01-01"
+    assert "v2" in body
+
+
+def test_write_page_preserves_existing_agents_history(vault: Vault) -> None:
+    """평가 A#3 회귀 가드: 기존 agents: 이력이 있는 페이지에 새 actor로 쓰면
+    이력이 초기화되지 않고 append된다."""
+    fp = vault.root / "content" / "hello.md"
+    fp.write_text(
+        "---\ntitle: Hello\ntype: concept\nagents:\n"
+        "  - name: old-bot\n    timestamp: 2026-01-01T00:00:00\n---\n\nv1\n",
+        encoding="utf-8",
+    )
+    actor = {"name": "new-bot", "timestamp": "2026-06-27T00:00:00"}
+    r = write_page(vault, "content/hello", "v2", actor=actor, overwrite=True)
+    assert r.ok
+    from raven.core.frontmatter import parse
+    meta, _ = parse(fp.read_text(encoding="utf-8"))
+    names = [a["name"] for a in meta["agents"]]
+    assert names == ["old-bot", "new-bot"]  # history preserved + appended
+
+
 def test_write_page_with_actor_attaches_agents_list(vault: Vault) -> None:
     """Agent provenance attaches as YAML list block (not Python repr)."""
     actor = {"name": "test-bot", "run_id": "r-1", "timestamp": "2026-06-27T00:00:00", "intent": "verify"}

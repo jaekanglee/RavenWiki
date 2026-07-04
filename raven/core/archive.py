@@ -28,11 +28,82 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from . import log as log_module
+from . import slug as slug_module
 from .vault import Vault
 
 
 # YYYYMMDD-HHMMSS suffix on archive filenames (matches CLI/API/Agent delete)
 ARCHIVE_TS_RE = re.compile(r"-(\d{8}-\d{6})\.md$")
+
+
+@dataclass
+class ArchiveWriteResult:
+    """Outcome of `archive_page()`."""
+
+    ok: bool
+    slug: str
+    archived_to: str = ""
+    error: Optional[str] = None
+
+
+def archive_page(vault: Vault, slug: str, *, actor: Optional[str] = None) -> ArchiveWriteResult:
+    """Archive `slug` — move it to `_archive/`, mirroring its original nested
+    path, and append a log.md entry.
+
+    v0.7.67 (평가 B#2/B#5): this recipe was duplicated verbatim in CLI
+    (`page_delete`) and API (`delete_page`); MCP's `wiki_delete` used a THIRD,
+    *flat*-path variant (`_archive/<stem>-<ts>.md`, no nesting) that broke
+    `restore_archived()` for any nested page (`content/sub/foo` restored to
+    vault-root `foo` instead of `content/sub/foo`). This is now the one
+    write-side archive recipe; CLI/API/MCP all call it, so `restore_archived`
+    can always invert it correctly regardless of entry point.
+
+    Args:
+        vault: target vault.
+        slug: page slug to archive (validated the same way write_page() does).
+        actor: optional caller identity, recorded in the log.md note.
+
+    Returns:
+        ArchiveWriteResult — `ok=True` + `archived_to` on success,
+        `ok=False` + `error` otherwise (invalid slug / not found).
+    """
+    try:
+        safe_path = slug_module.validate(slug, vault_root=vault.root)
+    except slug_module.SlugError as e:
+        return ArchiveWriteResult(ok=False, slug=slug, error=f"invalid slug: {e}")
+
+    fp = safe_path.with_suffix(".md")
+    if not fp.exists():
+        return ArchiveWriteResult(ok=False, slug=slug, error="not found")
+
+    ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    archive_dir = vault.root / "_archive"
+    archive_dir.mkdir(exist_ok=True)
+    rel = fp.relative_to(vault.root)
+    dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
+    # same-second collision: suffix with a counter (matches pre-v0.7.67 MCP behavior)
+    counter = 1
+    while dest.exists():
+        dest = archive_dir / rel.parent / f"{rel.stem}-{ts}-{counter}.md"
+        counter += 1
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fp.rename(dest)
+
+    try:
+        log_module.append(
+            vault,
+            action="archive",
+            subject=slug,
+            files=[str(dest.relative_to(vault.root))],
+            note=f"actor={actor}" if actor else f"원본: {slug}",
+        )
+    except Exception:
+        pass
+
+    return ArchiveWriteResult(
+        ok=True, slug=slug, archived_to=str(dest.relative_to(vault.root))
+    )
 
 
 @dataclass

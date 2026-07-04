@@ -82,16 +82,15 @@ def make_context(
 ) -> VaultContext:
     """Build a VaultContext.
 
-    Default vault follows the same destination as `cli._resolve_vault`
-    and `db._default_vault` (one level above the `mcp/` package = vault
-    root). Note this file lives one level deeper than the other two
-    helpers (inside `mcp/tools/`), so the walk-up needs three `.parent`
-    calls instead of two — the destination is the same.
+    v0.7.67 (평가 B#16): default vault now resolves the same way
+    `db._default_vault()` does — via the vault registry — instead of
+    unconditionally pointing at the `raven` package directory (a leftover
+    from the single-vault era). Falls back to the legacy package-relative
+    path when no registry default is configured.
     """
     if vault is None:
-        # parent.parent.parent = .../mcp/tools/__init__.py
-        #                     → .../mcp/tools/ → .../mcp/ → .../<vault-root>
-        vault = Path(__file__).resolve().parent.parent.parent
+        from raven.mcp.db import _default_vault
+        vault = _default_vault()
     return VaultContext(vault=Path(vault), mode=mode)
 
 
@@ -293,26 +292,33 @@ def append_log_entry(
 ) -> bool:
     """Append a provenance entry to ``<vault>/log.md``.
 
-    Format mirrors the existing entries (e.g. ``## [2026-06-24] create | SCHEMA``)
-    with optional M4/F1 sub-bullets for actor and idempotency_key. Returns
-    True on success, False on error — the caller is expected to surface
-    the failure in its response but never let it crash a write that
-    already mutated files.
+    v0.7.67 (평가 A#1): routes through ``raven.core.log.append`` so MCP log
+    entries gain the same FileLock + action whitelist as CLI/API writes
+    (pre-v0.7.67 this was a raw unlocked ``open("a")`` with no validation).
+    Entry shape is unchanged: ``## [date] action | subject via mcp`` with
+    ``- actor:`` / ``- idempotency_key:`` detail lines. Returns True on
+    success, False on error — the caller is expected to surface the
+    failure in its response but never let it crash a write that already
+    mutated files.
     """
     try:
-        log_path = vault / "log.md"
-        today = dt.date.today().isoformat()
-        lines = [f"\n## [{today}] {action} | {subject} via mcp"]
-        lines.append(f"- actor: {actor}")
+        from raven.core import log as log_module
+        from raven.core.registry import VaultMeta
+        from raven.core.vault import Vault
+
+        v = Vault.load(VaultMeta(name=vault.name, path=vault))
+        extra: dict[str, str] = {"actor": actor}
         if idempotency_key:
-            lines.append(f"- idempotency_key: {idempotency_key}")
-        if extras:
-            for extra in extras:
-                lines.append(f"- {extra}")
-        with log_path.open("a", encoding="utf-8") as fh:
-            fh.write("\n".join(lines) + "\n")
+            extra["idempotency_key"] = idempotency_key
+        for line in extras or []:
+            key, sep, val = line.partition(": ")
+            if sep:
+                extra[key.strip()] = val.strip()
+        log_module.append(
+            v, action=action, subject=f"{subject} via mcp", extra=extra,
+        )
         return True
-    except OSError as exc:
+    except Exception as exc:
         import sys
         print(f"⚠️  could not append log.md entry: {exc}", file=sys.stderr)
         return False

@@ -6,7 +6,7 @@ everything dynamic and supports multiple vaults.
 
 Design:
     - stateless: every request resolves the vault fresh
-    - CORS open (local dashboard only); production should add auth
+    - CORS restricted to the local dashboard's known origins (v0.7.67+); production should add auth
     - errors return {ok: false, error: "..."} (never raw stack traces)
     - all write ops use the engine; no shortcuts
 """
@@ -38,9 +38,21 @@ from raven.api.workspace_tree import (
 
 
 app = FastAPI(title="raven API", version="0.2.0")
+# v0.7.67 (평가 A#5): `allow_origins=["*"]` + 무인증 조합은 127.0.0.1 바인딩을
+# 무력화한다 — 원격 접속은 못 막아도, 브라우저에 열린 *임의의 웹페이지*가
+# cross-origin으로 이 API를 호출할 수 있었다(예: DELETE /api/vaults/{name}
+# ?force=true → shutil.rmtree). 로컬 대시보드가 실제로 쓰는 origin만 허용
+# (.env.example의 PORT_API/PORT_DASHBOARD로 커스터마이즈 가능).
+_dashboard_port = os.environ.get("PORT_DASHBOARD", "5173")
+_api_port = os.environ.get("PORT_API", "8765")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        f"http://localhost:{_dashboard_port}",   # vite dev server
+        f"http://127.0.0.1:{_dashboard_port}",
+        f"http://localhost:{_api_port}",         # built dashboard served by this API
+        f"http://127.0.0.1:{_api_port}",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1907,29 +1919,18 @@ def delete_page(name: str, slug: str):
     """Archive page (moves to _archive/<original-path>-<timestamp>.md).
 
     Slug validated (v0.3+). Archive path mirrors original (preserves nesting).
+
+    v0.7.67 (평가 B#2): routes through core.archive.archive_page — the same
+    recipe CLI and MCP now use, instead of a third inline copy.
     """
     v = _vault_or_404(name)
     safe_path = _safe_slug_or_400(slug, v)
-    fp = safe_path.with_suffix(".md")
-    if not fp.exists():
+    if not safe_path.with_suffix(".md").exists():
         raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
-    import datetime as _dt
-    ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    archive_dir = v.root / "_archive"
-    archive_dir.mkdir(exist_ok=True)
-    rel = fp.relative_to(v.root)
-    dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    fp.rename(dest)
-    # v0.5.1+: log.md에 archive entry 자동 append
-    try:
-        log_module.append(
-            v, action="archive", subject=slug,
-            files=[str(dest.relative_to(v.root))], note=f"원본: {slug}",
-        )
-    except Exception:
-        pass
-    return {"ok": True, "vault": name, "slug": slug, "archived_to": str(dest)}
+    result = archive_module.archive_page(v, slug)
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {"ok": True, "vault": name, "slug": slug, "archived_to": result.archived_to}
 
 
 class VaultClone(BaseModel):
@@ -2102,9 +2103,14 @@ def link_check(name: str, slug: Optional[str] = None):
 
 @app.post("/api/vaults/{name}/build")
 def build(name: str):
+    """v0.7.67 (평가 B#8): build_db()가 이미 내부에서 lint를 실행해 결과를
+    `result["lint"]`에 담아 반환한다 — 이 엔드포인트가 그 결과를 버리고
+    legacy `run_lint()`(subprocess lint + run_all 재실행)를 또 호출해,
+    빌드 1회에 lint가 2~3회 도는 낭비가 있었다. build_db의 결과를 그대로 쓴다.
+    """
     v = _vault_or_404(name)
     result = db_module.build_db(v)
-    lr = lint_module.run_lint(v)
+    lr = result.get("lint") or {}
     return {
         "ok": result.get("ok", False) and lr.get("ok", False),
         "build": result,
@@ -2201,7 +2207,28 @@ def post_log(name: str, payload: LogAppend):
 
 @app.post("/api/vaults/{name}/log/rotate")
 def post_log_rotate(name: str, year: Optional[int] = None, force: bool = False):
-    """log.md rotate (500 entries 초과 시)."""
+    """log.md rotate (500 entries 초과 시).
+
+    v0.7.67 (평가 A#7): 이 함수 본문이 docstring뿐이라 항상 null을 반환하고
+    아무것도 하지 않았다 — 실제 구현은 아래 `post_debug_log`의 `return` 문
+    뒤에 죽은 코드로 잘못 붙어 있었다 (2650줄 server.py를 편집하다 블록이
+    엉뚱한 함수 밑에 삽입된 사고). 원래 구현을 여기로 되돌린다.
+    """
+    v = _vault_or_404(name)
+    total = log_module.count(v)
+    if total < 500 and not force:
+        return {
+            "ok": False,
+            "error": f"{total} entries (500 미만) — 강제 rotate는 ?force=true",
+            "current": total,
+        }
+    target = log_module.rotate(v, year=year)
+    return {
+        "ok": True,
+        "vault": name,
+        "rotated_to": str(target),
+        "preserved_entries": total,
+    }
 
 
 # ─── /api/debug-log (v0.6.10+, 개발 단계 throw/error catch) ───────
@@ -2237,22 +2264,6 @@ def post_debug_log(entry: DebugLogEntry):
     except OSError as e:
         return {"ok": False, "error": str(e)}
     return {"ok": True, "path": str(_DEBUG_LOG_PATH)}
-    """log.md rotate (500 entries 초과 시)."""
-    v = _vault_or_404(name)
-    total = log_module.count(v)
-    if total < 500 and not force:
-        return {
-            "ok": False,
-            "error": f"{total} entries (500 미만) — 강제 rotate는 ?force=true",
-            "current": total,
-        }
-    target = log_module.rotate(v, year=year)
-    return {
-        "ok": True,
-        "vault": name,
-        "rotated_to": str(target),
-        "preserved_entries": total,
-    }
 
 
 # ────────────────────────── garden endpoint (v0.7.27) ──────────────────────────

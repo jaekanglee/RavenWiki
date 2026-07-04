@@ -150,7 +150,10 @@ def test_update_frontmatter_records_actor(temp_vault: Path):
 
     wiki_update(slug=slug, content="body\n", actor="bob", ctx=ctx)
     post = frontmatter.loads(abs_path.read_text(encoding="utf-8"))
-    assert post.metadata.get("actor") == "bob"
+    # v0.7.67 (평가 A#1): provenance는 스칼라 `actor:`가 아니라 CLI/API와 동일한
+    # `agents:` 이력 리스트로 통일 기록된다.
+    agents = post.metadata.get("agents") or []
+    assert any(a.get("name") == "bob" for a in agents)
     # updated still gets bumped per M3 contract
     assert "updated" in post.metadata
 
@@ -419,7 +422,9 @@ def test_rename_frontmatter_records_actor(temp_vault: Path):
     )
     new_path = temp_vault / f"{new_slug}.md"
     post = frontmatter.loads(new_path.read_text(encoding="utf-8"))
-    assert post.metadata.get("actor") == "paul"
+    # v0.7.67 (평가 A#1): rename provenance도 `agents:` 이력으로 통일.
+    agents = post.metadata.get("agents") or []
+    assert any(a.get("name") == "paul" for a in agents)
 
     new_path.unlink()
 

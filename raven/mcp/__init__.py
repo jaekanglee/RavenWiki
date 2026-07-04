@@ -9,4 +9,4 @@ Submodules:
     tools       — MCP tool implementations (read.py, write.py)
     resources   — MCP resource providers
 """
-__version__ = "0.1.0"
+from raven import __version__  # v0.7.67 (평가 B#14): 별도 버전 방치 대신 top-level에 연결

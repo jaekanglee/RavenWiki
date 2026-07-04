@@ -35,7 +35,7 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-from .lock import lock_for_file
+from .lock import atomic_write_text, lock_for_file
 from .vault import Vault
 
 
@@ -77,6 +77,8 @@ _DETAIL_RE = re.compile(r"^-\s+(.+?):\s*(.*)$")
 _ALLOWED_ACTIONS = {
     "ingest", "update", "create", "archive", "delete",
     "lint", "build", "migrate", "chore",
+    # v0.7.67 (평가 A#1): MCP wiki_rename이 쓰는 액션 — CLI/MCP 로그 규약 통일.
+    "rename",
 }
 
 
@@ -243,7 +245,7 @@ def append(
             if existing and not existing.endswith("\n\n"):
                 existing += "\n"  # entry 간 빈 줄 보장
             new_content = existing + entry.to_md() + "\n"
-            path.write_text(new_content, encoding="utf-8")
+            atomic_write_text(path, new_content)
     except TimeoutError as exc:
         raise RuntimeError(f"Failed to append to log.md due to lock timeout: {exc}")
     return entry

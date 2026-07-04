@@ -1,7 +1,7 @@
 ---
 title: Raven System Architecture (v0.7.x)
 created: 2026-06-30
-updated: 2026-07-03
+updated: 2026-07-05
 type: reference
 tags: [system, architecture, meta, wiki]
 confidence: high
@@ -44,7 +44,7 @@ flowchart TB
     subgraph Layer1 [Layer 1: Vault Data Layer (진실의 원천 - SoT)]
         direction LR
         MD[content/*.md<br/>마크다운 파일]
-        SysDoc[_meta/system/<br/>SCHEMA/RULES/AGENTS]
+        SysDoc[_meta/agents/<br/>SCHEMA/PROJECT-WORKFLOW]
         SQL[wiki.db<br/>SQLite Index Cache]
         LogMD[log.md<br/>작업 감사 로그]
         RegistryJson[.registry.json<br/>중앙 레지스트리]
