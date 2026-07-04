@@ -12,8 +12,12 @@ WorkingDirectory=/home/%i/wiki
 Environment=VAULT=/home/%i/wiki
 Environment=PYTHONUNBUFFERED=1
 
-# HTTP transport on localhost:8765 (Tailscale reverse proxy로 외부 노출)
-ExecStart=/home/%i/wiki/scripts/.venv/bin/python -m mcp.cli --transport http --host 127.0.0.1 --port 8765
+# HTTP transport on localhost:8766 (Tailscale reverse proxy로 외부 노출)
+# v0.7.67 (평가 A#9): 모듈 경로가 v0.6.0 네임스페이스 변경 전(`mcp.cli`) 그대로
+# 방치돼 현재 코드로는 기동 자체가 불가능했다 (`raven.mcp.cli`가 맞음).
+# 포트도 API 서버(8765, .env.example PORT_API)와 충돌했었다 — MCP 기본 포트
+# 8766(PORT_MCP_HTTP)로 정정.
+ExecStart=/home/%i/wiki/scripts/.venv/bin/python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766
 
 Restart=always
 RestartSec=5

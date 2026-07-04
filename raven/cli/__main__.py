@@ -519,6 +519,19 @@ def page_new(
     """
     v = _resolve_vault_or_die(vault)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    # v0.7.67 (평가 B#1): API/MCP는 raw/를 항상 거부하는데 CLI `page new raw/x`만
+    # 성공했다 — "raw/는 불변" 정책이 CLI 한 표면에서 뚫려 있었음. CLI는
+    # `_meta/`에 직접 쓰는 기존 능력(예: page new _meta/welcome)을 의도적으로
+    # 유지해야 하므로(테스트로 고정됨) contracts.py의 일괄
+    # `enforce_protected_paths`(raw/+_meta/+log 전체 차단)는 쓰지 않고,
+    # raw/만 CLI에서 선제 차단한다.
+    normalized_for_check = slug_module.normalize_prefix(slug).lower()
+    if normalized_for_check.startswith("raw/") or normalized_for_check.startswith("content/raw/"):
+        typer.echo(
+            "❌ permission_denied: raw/ 는 불변/보호 영역이므로 page new로 쓸 수 없습니다.",
+            err=True,
+        )
+        raise typer.Exit(1)
     result = contracts.write_page(
         v,
         slug,
@@ -618,7 +631,7 @@ NOTE_TYPE_MAP = {
 
 @note_app.command("decision")
 def note_decision(
-    project: str = typer.Option(..., "--project", "-p", help="harumoa|homeauto|resume|design-spec"),
+    project: str = typer.Option(..., "--project", "-p", help="프로젝트 슬러그"),
     slug: str = typer.Option(..., "--slug", help="예: why-spring-boot"),
     title: str = typer.Option(..., "--title", "-t"),
     vault: Optional[str] = typer.Option(None, "--vault"),
@@ -686,58 +699,39 @@ def note_issue(
 
 
 def _note_create(kind: str, project: str, slug: str, title: str, vault: Optional[str]) -> None:
-    """트리거 헬퍼 공통 구현."""
-    valid_projects = ("harumoa", "homeauto", "resume", "design-spec")
-    if project not in valid_projects:
-        typer.echo(f"❌ invalid project: {project} (must be one of {valid_projects})", err=True)
+    """트리거 헬퍼 공통 구현.
+
+    v0.7.67 (평가 B#1/B#4): contracts.write_page 경유로 전환 (락 + 원자적
+    쓰기 + frontmatter merge를 다른 모든 write 경로와 통일). 이전에는 이
+    함수가 자체 write 레시피를 갖는 5번째 쓰기 경로였고, `project` 값이
+    `harumoa|homeauto|resume|design-spec` 4개로 하드코딩돼 있었다 — 범용
+    CLI에 개인 프로젝트명이 박혀 있던 것. project는 이제 자유 슬러그이며,
+    경로 안전성은 write_page 내부의 slug 검증이 담당한다.
+    """
+    if not project or not project.strip():
+        typer.echo("❌ --project 값이 비어 있습니다.", err=True)
         raise typer.Exit(1)
 
     cat, type_ = NOTE_TYPE_MAP[kind]
     full_slug = f"content/{project}/{cat}/{slug}"
+    body = NOTE_TEMPLATES[kind].format(title=title)
 
     v = _resolve_vault_or_die(vault)
-    normalized = slug_module.normalize_prefix(full_slug)
-    try:
-        safe_path = slug_module.validate(normalized, vault_root=v.root)
-    except slug_module.SlugError as e:
-        typer.echo(f"❌ invalid slug: {e}", err=True)
-        raise typer.Exit(1)
-
-    fp = safe_path.with_suffix(".md")
-    if fp.exists():
-        typer.echo(f"❌ exists: {normalized}", err=True)
-        raise typer.Exit(1)
-
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    today = __import__("datetime").date.today().isoformat()
-    tags = f"{kind},{project}"
-    meta = frontmatter_module.merge(
-        {},
-        {
-            "title": title,
-            "type": type_,
-            "tags": tags,
-            "created": today,
-            "updated": today,
-        },
+    result = contracts.write_page(
+        v, full_slug, body,
+        title=title, type=type_, tags=[kind, project],
+        overwrite=False,  # create-only: 트리거 헬퍼는 항상 신규 페이지
+        enforce_protected_paths=True,
     )
-    body = NOTE_TEMPLATES[kind].format(title=title)
-    rendered = frontmatter_module.render(meta, body)
-    fp.write_text(rendered, encoding="utf-8")
+    if not result.ok:
+        if result.error == "exists":
+            typer.echo(f"❌ exists: {result.slug}", err=True)
+        else:
+            typer.echo(f"❌ {result.error}", err=True)
+        raise typer.Exit(1)
 
-    try:
-        log_module.append(
-            v,
-            action="create",
-            subject=normalized,
-            files=[normalized],
-            note=f"trigger={kind}",
-        )
-    except Exception:
-        pass
-
-    typer.echo(f"✅ {kind} created: {normalized}")
-    typer.echo(f"   → 다음 단계: vim {fp} (빈 섹션 채우기)")
+    typer.echo(f"✅ {kind} created: {result.slug}")
+    typer.echo(f"   → 다음 단계: vim {result.path} (빈 섹션 채우기)")
 
 
 @note_app.command("gate")
@@ -953,41 +947,27 @@ def page_delete(
 ) -> None:
     """Archive page (moves to _archive/<original-path>-<timestamp>.md)."""
     v = _resolve_vault_or_die(vault)
-    # R1: validate slug
+    # v0.7.67 (평가 B#2): CLI/API/MCP가 각자 갖고 있던 archive 레시피를
+    # core.archive.archive_page 단일 구현으로 수렴. slug validate + 존재
+    # 확인은 confirm 프롬프트 전에 먼저 해 사용자가 "뭘 archive하는지" 알고
+    # 확인하게 한다 (archive_page는 이 둘을 다시 한번 검증한다).
     try:
         safe_path = slug_module.validate(slug, vault_root=v.root)
     except slug_module.SlugError as e:
         typer.echo(f"❌ invalid slug: {e}", err=True)
         raise typer.Exit(1)
-    fp = safe_path.with_suffix(".md")
-    if not fp.exists():
+    if not safe_path.with_suffix(".md").exists():
         typer.echo(f"❌ not found: {slug}", err=True)
         raise typer.Exit(1)
     if not force:
         confirm = typer.confirm(f"Archive {slug!r}?", default=False)
         if not confirm:
             raise typer.Abort()
-    import datetime as _dt
-    ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    archive_dir = v.root / "_archive"
-    archive_dir.mkdir(exist_ok=True)
-    # mirror original path under _archive (preserves nested structure)
-    rel = fp.relative_to(v.root)
-    dest = archive_dir / rel.parent / f"{rel.stem}-{ts}.md"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    fp.rename(dest)
-    # v0.5.1+: log.md에 archive entry 자동 append
-    try:
-        log_module.append(
-            v,
-            action="archive",
-            subject=slug,
-            files=[str(dest.relative_to(v.root))],
-            note=f"원본: {slug}",
-        )
-    except Exception:
-        pass
-    typer.echo(f"✅ archived: {slug} → {dest.relative_to(v.root)}")
+    result = archive_module.archive_page(v, slug)
+    if not result.ok:
+        typer.echo(f"❌ {result.error}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✅ archived: {slug} → {result.archived_to}")
 
 
 @page_app.command("rename")
@@ -1718,10 +1698,10 @@ def raven_garden(
                 elif ans == "a":
                     if typer.confirm(f"정말 '{slug}' 문서를 아카이브 폴더로 이동할까요?", default=False):
                         res = archive_module.archive_page(v, slug)
-                        if res.get("ok"):
+                        if res.ok:
                             typer.echo(f"✅ 아카이브 완료: {slug}")
                         else:
-                            typer.echo(f"❌ 아카이브 실패: {res.get('error')}")
+                            typer.echo(f"❌ 아카이브 실패: {res.error}")
                 elif ans == "s":
                     typer.echo("건너뜁니다.")
 
@@ -1775,10 +1755,10 @@ def raven_garden(
                 elif ans == "a":
                     if typer.confirm(f"정말 '{slug}' 문서를 아카이브 폴더로 이동할까요?", default=False):
                         res = archive_module.archive_page(v, slug)
-                        if res.get("ok"):
+                        if res.ok:
                             typer.echo(f"✅ 아카이브 완료: {slug}")
                         else:
-                            typer.echo(f"❌ 아카이브 실패: {res.get('error')}")
+                            typer.echo(f"❌ 아카이브 실패: {res.error}")
                 elif ans == "s":
                     typer.echo("건너뜁니다.")
 

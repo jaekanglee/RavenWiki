@@ -71,16 +71,16 @@ export function deriveGraphInsights(graph: Graph): GraphInsight {
 }
 
 export function deriveNodeDetail(graph: Graph, nodeId: string): GraphNodeDetail | null {
-  const node = graph.nodes.find((item) => (item.id ?? item.slug) === nodeId);
+  const node = graph.nodes.find((item) => (item.id) === nodeId);
   if (!node) return null;
 
-  const nodeMap = new Map(graph.nodes.map((item) => [item.id ?? item.slug, item]));
+  const nodeMap = new Map(graph.nodes.map((item) => [item.id, item]));
   const inboundIds = new Set<string>();
   const outboundIds = new Set<string>();
 
   for (const edge of graph.edges) {
-    const source = (edge as any).source ?? edge.source_slug;
-    const target = (edge as any).target ?? edge.target_slug;
+    const source = edge.source;
+    const target = edge.target;
     if (target === nodeId && nodeMap.has(source)) inboundIds.add(source);
     if (source === nodeId && nodeMap.has(target)) outboundIds.add(target);
   }
@@ -151,22 +151,22 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
     return true;
   });
 
-  const visibleMap = new Map(visibleByType.map((node) => [node.id ?? node.slug, node]));
+  const visibleMap = new Map(visibleByType.map((node) => [node.id, node]));
   const normalizedQuery = normalizeGraphText(filters.query);
 
-  let nodeIds = new Set(visibleByType.map((node) => node.id ?? node.slug));
+  let nodeIds = new Set(visibleByType.map((node) => node.id));
   if (normalizedQuery) {
     const matchedIds = new Set(
       visibleByType
         .filter((node) => matchesGraphQuery(node, normalizedQuery))
-        .map((node) => node.id ?? node.slug)
+        .map((node) => node.id)
     );
 
     if (matchedIds.size > 0) {
       const expandedIds = new Set(matchedIds);
       for (const edge of graph.edges) {
-        const source = (edge as any).source ?? edge.source_slug;
-        const target = (edge as any).target ?? edge.target_slug;
+        const source = edge.source;
+        const target = edge.target;
         if (!visibleMap.has(source) || !visibleMap.has(target)) continue;
         if (matchedIds.has(source) || matchedIds.has(target)) {
           expandedIds.add(source);
@@ -179,11 +179,11 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
     }
   }
 
-  const nodes = visibleByType.filter((node) => nodeIds.has(node.id ?? node.slug));
-  const ids = new Set(nodes.map((node) => node.id ?? node.slug));
+  const nodes = visibleByType.filter((node) => nodeIds.has(node.id));
+  const ids = new Set(nodes.map((node) => node.id));
   const edges = graph.edges.filter((edge) => {
-    const source = (edge as any).source ?? edge.source_slug;
-    const target = (edge as any).target ?? edge.target_slug;
+    const source = edge.source;
+    const target = edge.target;
     return ids.has(source) && ids.has(target);
   });
 
@@ -351,7 +351,7 @@ export function GraphPage() {
 
   useEffect(() => {
     if (!selectedNodeId) return;
-    const stillVisible = visibleNodes.some((node) => (node.id ?? node.slug) === selectedNodeId);
+    const stillVisible = visibleNodes.some((node) => (node.id) === selectedNodeId);
     if (!stillVisible) setSelectedNodeId(null);
   }, [selectedNodeId, visibleNodes]);
 
@@ -472,7 +472,7 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
-            onNodeInspect={(node) => setSelectedNodeId(node.id ?? node.slug)}
+            onNodeInspect={(node) => setSelectedNodeId(node.id)}
             onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
             externalHighlightNodeId={hoveredInsightNodeId}
@@ -549,12 +549,12 @@ export function GraphPage() {
               {selectedNodeDetail.inbound.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.inbound.slice(0, 8).map((node) => (
-                    <li key={node.id ?? node.slug}>
+                    <li key={node.id}>
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id ?? node.slug)}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onClick={() => setSelectedNodeId(node.id)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
@@ -572,12 +572,12 @@ export function GraphPage() {
               {selectedNodeDetail.outbound.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.outbound.slice(0, 8).map((node) => (
-                    <li key={node.id ?? node.slug}>
+                    <li key={node.id}>
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id ?? node.slug)}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onClick={() => setSelectedNodeId(node.id)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
@@ -595,12 +595,12 @@ export function GraphPage() {
               {selectedNodeDetail.neighbors.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.neighbors.slice(0, 8).map((node) => (
-                    <li key={node.id ?? node.slug}>
+                    <li key={node.id}>
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id ?? node.slug)}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id ?? node.slug)}
+                        onClick={() => setSelectedNodeId(node.id)}
+                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>

@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from .lock import lock_for_file
 from .vault import Vault
 
 
@@ -38,10 +39,16 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
     db_path = Path(db_path) if db_path else vault.db_path
     repo_root = _repo_root()
     script = repo_root / "scripts" / "build_db.py" if repo_root else None
-    if script and script.exists():
-        result = _run_legacy_build(script, vault, db_path)
-    else:
-        result = _inline_build(vault, db_path)
+
+    # v0.7.67 (평가 A#8): build unlinks + recreates db_path with no lock —
+    # two concurrent builds (or a build racing a reader mid-unlink) could
+    # corrupt/lose wiki.db. Serialize builds through the same FileLock
+    # contracts.write_page uses for page writes.
+    with lock_for_file(vault.root, db_path):
+        if script and script.exists():
+            result = _run_legacy_build(script, vault, db_path)
+        else:
+            result = _inline_build(vault, db_path)
 
     # log.md에 build entry 자동 append (실패해도 계속)
     try:
@@ -66,10 +73,11 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
             # 이전엔 생성된 index.md/_index/*가 DB에 없어 build 직후에도 lint #11이
             # "build 필요"를 냈고, 두 번 빌드해야 수렴했음.
             if build_index(vault):
-                if script and script.exists():
-                    _run_legacy_build(script, vault, db_path)
-                else:
-                    _inline_build(vault, db_path)
+                with lock_for_file(vault.root, db_path):
+                    if script and script.exists():
+                        _run_legacy_build(script, vault, db_path)
+                    else:
+                        _inline_build(vault, db_path)
         except Exception as e:
             result["index_error"] = f"{type(e).__name__}: {e}"
 
@@ -86,9 +94,19 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
 
 
 def connect(vault: Vault) -> sqlite3.Connection:
-    """Open a read-only connection to vault's wiki.db (build it if missing)."""
+    """Open a read-only connection to vault's wiki.db (build/rebuild if missing or stale).
+
+    v0.7.67 (평가 A#2/A#8): pre-v0.7.67 only rebuilt when the DB file was
+    entirely missing — a stale DB (markdown edited after the last build)
+    was served as-is, so search/graph/backlinks silently returned outdated
+    data. Now every connect() checks `garden.db_is_stale()` first.
+    """
     if not vault.db_path.exists():
         build_db(vault)
+    else:
+        from . import garden as _garden
+        if _garden.db_is_stale(vault):
+            build_db(vault)
     return sqlite3.connect(f"file:{vault.db_path}?mode=ro", uri=True)
 
 
@@ -117,48 +135,102 @@ def _run_legacy_build(script: Path, vault: Vault, db_path: Path) -> dict:
     }
 
 
-def _inline_build(vault: Vault, db_path: Path) -> dict:
-    """Minimal fallback: if scripts/build_db.py is gone, walk content/ and
-    build a tiny SQLite index with pages + tags + links tables.
+_INLINE_SCHEMA_SQL = """
+CREATE TABLE pages (
+  slug TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL,
+  created TEXT NOT NULL,
+  updated TEXT NOT NULL,
+  path TEXT NOT NULL,
+  confidence TEXT,
+  contested INTEGER DEFAULT 0,
+  content TEXT NOT NULL,
+  raw_content TEXT NOT NULL
+);
+CREATE TABLE tags (
+  page_slug TEXT NOT NULL, tag TEXT NOT NULL,
+  PRIMARY KEY (page_slug, tag),
+  FOREIGN KEY (page_slug) REFERENCES pages(slug) ON DELETE CASCADE
+);
+CREATE INDEX idx_tags_tag ON tags(tag);
+CREATE TABLE links (
+  source_slug TEXT NOT NULL, target_slug TEXT NOT NULL,
+  context TEXT, intent TEXT DEFAULT 'auto',
+  PRIMARY KEY (source_slug, target_slug),
+  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
+);
+CREATE INDEX idx_links_target ON links(target_slug);
+CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, tags_concat, content);
+CREATE VIEW v_backlinks AS
+  SELECT l.target_slug AS slug, l.source_slug, p.title AS source_title,
+         p.path AS source_path, l.context
+  FROM links l JOIN pages p ON p.slug = l.source_slug;
+CREATE VIEW v_pages_with_tags AS
+  SELECT p.*, GROUP_CONCAT(t.tag, ',') AS tags_list
+  FROM pages p LEFT JOIN tags t ON t.page_slug = p.slug
+  GROUP BY p.slug;
+"""
 
-    Used by installed-package scenarios. Not the canonical path; the real
-    builder is scripts/build_db.py.
+_INLINE_EXCLUDED_TOP_DIRS = {"raw", "_archive", "scripts", "node_modules", ".venv", ".git", "dashboard"}
+
+
+def _inline_build(vault: Vault, db_path: Path) -> dict:
+    """Fallback builder used when scripts/build_db.py is unavailable
+    (installed-package scenarios without the source `scripts/` dir).
+
+    v0.7.67 (평가 A#8): pre-v0.7.67 this emitted a `pages(slug,title,type,
+    path,content)`-only schema — missing `created`/`updated`/`confidence`
+    and the `pages_fts`/`links` tables the canonical builder produces.
+    Every consumer that assumes the v2.4 schema (index_builder, garden,
+    lint, the dashboard's search/graph queries) broke against it. This now
+    mirrors scripts/build_db.py's SCHEMA_SQL so the fallback is a real,
+    if simpler, subset of the same contract — not a different one. It also
+    scans the whole vault (matching the canonical builder's `_meta/`
+    inclusion) instead of `content/` only, so lint #11's FS/DB slug parity
+    check doesn't false-positive on the fallback path.
     """
+    from . import frontmatter as frontmatter_module
+
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
         db_path.unlink()
     con = sqlite3.connect(db_path)
-    con.executescript(
-        """
-        CREATE TABLE pages (
-          slug TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          type TEXT NOT NULL DEFAULT 'concept',
-          path TEXT NOT NULL,
-          content TEXT NOT NULL DEFAULT ''
-        );
-        CREATE TABLE tags (page_slug TEXT NOT NULL, tag TEXT NOT NULL,
-                           PRIMARY KEY (page_slug, tag));
-        CREATE TABLE links (source_slug TEXT NOT NULL, target_slug TEXT NOT NULL,
-                            PRIMARY KEY (source_slug, target_slug));
-        """
-    )
+    con.executescript(_INLINE_SCHEMA_SQL)
+    today = __import__("datetime").date.today().isoformat()
     n_pages = 0
-    for fp in vault.content_root.rglob("*.md"):
+    for fp in vault.root.rglob("*.md"):
+        rel_parts = fp.relative_to(vault.root).parts
+        if rel_parts and rel_parts[0] in _INLINE_EXCLUDED_TOP_DIRS:
+            continue
         slug = str(fp.relative_to(vault.root))[:-3]
-        text = fp.read_text(errors="replace")
-        title = slug.split("/")[-1]
-        if text.startswith("---"):
-            try:
-                fm = text.split("---", 2)[1]
-                for line in fm.splitlines():
-                    if line.startswith("title:"):
-                        title = line.split(":", 1)[1].strip()
-            except Exception:
-                pass
+        try:
+            text = fp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        meta, body = frontmatter_module.parse(text)
+        title = str(meta.get("title") or slug.split("/")[-1])
+        ptype = str(meta.get("type") or "concept")
+        created = str(meta.get("created") or today)
+        updated = str(meta.get("updated") or today)
+        confidence = meta.get("confidence")
         con.execute(
-            "INSERT INTO pages (slug, title, type, path, content) VALUES (?,?,?,?,?)",
-            (slug, title, "concept", str(fp), text),
+            "INSERT INTO pages (slug, title, type, created, updated, path, "
+            "confidence, content, raw_content) VALUES (?,?,?,?,?,?,?,?,?)",
+            (slug, title, ptype, created, updated, str(fp),
+             str(confidence) if confidence else None, body, text),
+        )
+        tags = meta.get("tags") or []
+        if isinstance(tags, (list, tuple)):
+            for tag in tags:
+                con.execute(
+                    "INSERT OR IGNORE INTO tags (page_slug, tag) VALUES (?,?)",
+                    (slug, str(tag)),
+                )
+        con.execute(
+            "INSERT INTO pages_fts (rowid, slug, title, tags_concat, content) "
+            "VALUES (last_insert_rowid(), ?, ?, ?, ?)",
+            (slug, title, " ".join(str(t) for t in tags) if isinstance(tags, (list, tuple)) else "", body),
         )
         n_pages += 1
     con.commit()

@@ -22,8 +22,8 @@ export function buildLocalGraph(graph: Graph, centerSlug: string): Graph {
 
   const localIds = new Set<string>([center]);
   const localEdges = graph.edges.filter((edge) => {
-    const source = (edge as any).source ?? edge.source_slug;
-    const target = (edge as any).target ?? edge.target_slug;
+    const source = edge.source;
+    const target = edge.target;
     const connected = source === center || target === center;
     if (connected) {
       localIds.add(source);
@@ -33,7 +33,7 @@ export function buildLocalGraph(graph: Graph, centerSlug: string): Graph {
   });
 
   return {
-    nodes: graph.nodes.filter((node) => localIds.has(node.id ?? node.slug)),
+    nodes: graph.nodes.filter((node) => localIds.has(node.id)),
     edges: localEdges,
   };
 }
@@ -98,7 +98,7 @@ export function splitRelatedSection(content: string): { body: string; links: str
 // "concept/users" should resolve to id "concept/users" so URL slugs that
 // carry an extra prefix (e.g. "content/concept/users") still find a node.
 export function resolveGraphId(graph: Graph, slug: string): string | null {
-  const ids = graph.nodes.map((n) => n.id ?? n.slug);
+  const ids = graph.nodes.map((n) => n.id);
   if (ids.includes(slug)) return slug;
   const segments = slug.split("/");
   const matches = ids.filter((id) => {
@@ -125,13 +125,13 @@ export function buildRelatedGraph(graph: Graph, centerSlug: string, relatedLinks
   }
 
   const edges = graph.edges.filter((edge) => {
-    const source = (edge as any).source ?? edge.source_slug;
-    const target = (edge as any).target ?? edge.target_slug;
+    const source = edge.source;
+    const target = edge.target;
     return ids.has(source) && ids.has(target);
   });
 
   return {
-    nodes: graph.nodes.filter((node) => ids.has(node.id ?? node.slug)),
+    nodes: graph.nodes.filter((node) => ids.has(node.id)),
     edges,
   };
 }
@@ -297,7 +297,7 @@ export function PageView() {
           <div className="page-related-links" aria-label="관련 문서">
             {related.links.map((link) => {
               const resolved = resolveGraphId(graph, link) ?? link;
-              const node = graph.nodes.find((n) => (n.id ?? n.slug) === resolved);
+              const node = graph.nodes.find((n) => n.id === resolved);
               return (
                 <button
                   key={link}

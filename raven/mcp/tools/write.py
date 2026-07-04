@@ -12,13 +12,19 @@ from __future__ import annotations
 import datetime as dt
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
 import frontmatter
 
+from raven.core import archive as archive_module
+from raven.core import db as core_db
+from raven.core import frontmatter as core_frontmatter
+from raven.core import slug as slug_module
+from raven.core.contracts import write_page
+from raven.core.registry import VaultMeta
+from raven.core.vault import Vault
 from raven.mcp import db
 from raven.mcp.tools import (
     VaultContext,
@@ -35,16 +41,49 @@ from raven.mcp.tools import (
 # ─────────────── shared helpers ───────────────
 
 
+def _load_vault(vault_path: Path) -> Vault:
+    """Load a Vault handle honoring the vault's own ``.vault.json``.
+
+    v0.7.67 (평가 A#1): pre-v0.7.67 MCP built ``Vault(meta=VaultMeta(...))``
+    with default (empty) fields, silently bypassing the vault's opt-in
+    ``agents`` write allowlist. Reading ``.vault.json`` restores the same
+    policy surface CLI/API see.
+    """
+    import json as _json
+
+    data: dict = {}
+    vf = vault_path / ".vault.json"
+    if vf.exists():
+        try:
+            data = _json.loads(vf.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+    data.setdefault("path", str(vault_path))
+    meta = VaultMeta.from_json(vault_path.name, data)
+    return Vault.load(meta)
+
+
+def _strip_md_suffix(slug: str) -> str:
+    """``"concepts/wiki.md"`` → ``"concepts/wiki"`` (idempotent)."""
+    s = slug.strip()
+    return s[:-3] if s.lower().endswith(".md") else s
+
+
 def _resolve_md_path(vault: Path, slug: str) -> Path:
-    """Resolve a slug to an absolute markdown path.
+    """Resolve a slug to a **validated** absolute markdown path.
 
     The slug may be a vault-relative path with or without the .md suffix
     (e.g. ``"concepts/wiki"`` or ``"_meta/system/SCHEMA.md"``).
+
+    v0.7.67 (평가 A#1): now routes through ``raven.core.slug.validate`` —
+    pre-v0.7.67 this was a bare ``vault / slug`` join, so ``../`` or an
+    absolute path escaped the vault entirely.
+
+    Raises:
+        slug_module.SlugError: unsafe slug (traversal, absolute, NUL, …).
     """
-    p = Path(slug)
-    if p.suffix != ".md":
-        p = p.with_suffix(".md")
-    return vault / p
+    safe = slug_module.validate(_strip_md_suffix(slug), vault_root=vault)
+    return safe.with_suffix(".md")
 
 
 def _is_immutable_agent_path(slug: str) -> bool:
@@ -61,24 +100,25 @@ def _is_immutable_agent_path(slug: str) -> bool:
 
 
 def _rebuild_db(vault: Path) -> None:
-    """Re-run scripts/build_db.py so wiki.db reflects on-disk changes.
+    """Rebuild wiki.db so it reflects on-disk changes.
+
+    v0.7.67 (평가 A#2): pre-v0.7.67 looked for ``<vault>/scripts/build_db.py``
+    — a path that only exists when the vault *is* the raven source repo.
+    Every normal user vault (``~/Raven/<name>/``) has no ``scripts/`` dir,
+    so this was a silent, permanent no-op: MCP delete/rename claimed to
+    rebuild the index but never did, leaving wiki.db (search/graph/backlinks)
+    stale after every MCP write. Routes through the same
+    ``raven.core.db.build_db`` CLI/API use instead.
 
     Best-effort: prints to stderr on failure but does not raise (admin
     operations should succeed even if DB rebuild fails — the caller can
     manually rerun build_db later).
     """
-    build_script = vault / "scripts" / "build_db.py"
-    if not build_script.exists():
-        return
     try:
-        subprocess.run(
-            [sys.executable, str(build_script), str(vault)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        sys.stderr.write(f"⚠️  build_db.py failed: {e.stderr or e.stdout}\n")
+        vault_obj = _load_vault(vault)
+        core_db.build_db(vault_obj, run_lint=False)
+    except Exception as e:
+        sys.stderr.write(f"⚠️  wiki.db rebuild failed: {e}\n")
 
 
 # ─────────────── M4 / F1 — provenance + idempotency ───────────────
@@ -330,7 +370,18 @@ def wiki_update(
     # Idempotency precheck. Only meaningful when the file exists — a fresh
     # create (upsert, v0.7.66+) should run the schema guard instead of
     # replaying a cached response for a file that no longer exists.
-    abs_path = _resolve_md_path(vault_path, slug)
+    try:
+        abs_path = _resolve_md_path(vault_path, slug)
+    except slug_module.SlugError as e:
+        return {
+            "ok": False,
+            "message": f"invalid slug: {e}",
+            "path": "",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "invalid_slug",
+        }
     if _is_immutable_agent_path(slug):
         rel = abs_path.relative_to(vault_path)
         return {
@@ -371,7 +422,7 @@ def wiki_update(
         }
 
     # v0.7.66 (평가 P0#2): 신규 slug는 upsert로 생성한다. raw/, _meta/, log.md는
-    # 위 immutable 가드가 이미 차단하고, is_llm_wiki vault면 아래 스키마 검증을
+    # 위 immutable 가드가 이미 차단하고, is_llm_wiki vault면 스키마 검증을
     # 통과해야 실제 파일이 생긴다. (구 동작은 "Use wiki_ingest for new pages"로
     # 안내했으나 wiki_ingest는 raw/ 전용 + 사람 명시 명령 필수라 모순 — ADR-2026-07-02)
     creating = not abs_path.exists()
@@ -381,55 +432,54 @@ def wiki_update(
     # SoT가 조용히 오염된다.
     embedded_meta: dict = {}
     stripped = content.lstrip()
-    if stripped.startswith("---"):
-        parsed = frontmatter.loads(stripped)
-        if parsed.metadata:
-            embedded_meta = dict(parsed.metadata)
-            content = parsed.content
+    if stripped.startswith("---\n"):
+        emb_meta, emb_body = core_frontmatter.parse(stripped)
+        if emb_meta:
+            embedded_meta = emb_meta
+            content = emb_body
 
-    # 메타 우선순위: 명시 frontmatter_data > content 임베디드 > 기존 파일
+    # 메타 우선순위: 명시 frontmatter_data > content 임베디드 > 기존 파일.
+    # v0.7.67 (평가 A#1): pre-v0.7.67은 frontmatter_data가 기존 메타를 통째로
+    # "대체"해 created/기존 tags가 소실됐다. 이제 contracts.write_page의 merge
+    # 규칙(created 보존, updated 강제, agents 이력 append)이 적용된다.
+    updates_meta: dict = {}
     if frontmatter_data:
-        meta = dict(frontmatter_data)
+        updates_meta = dict(frontmatter_data)
     elif embedded_meta:
-        meta = embedded_meta
-    elif creating:
-        meta = {}
-    else:
-        meta = dict(frontmatter.load(abs_path).metadata)
-    if creating and not meta.get("created"):
-        meta["created"] = dt.date.today().isoformat()
-    meta["updated"] = dt.date.today().isoformat()
-    # M4/F1: actor provenance on the page itself.
-    meta["actor"] = actor_norm
+        updates_meta = embedded_meta
 
-    # Validate gardening schema if llm_wiki is enabled
-    from raven.core.vault import Vault
-    from raven.core.registry import VaultMeta
-    from raven.core.contracts import validate_gardening_schema
-    
-    v_meta = VaultMeta(name=vault_path.name, path=vault_path)
-    vault = Vault(meta=v_meta, root=vault_path)
-    
-    if vault.is_llm_wiki:
-        missing = validate_gardening_schema(vault, slug, content or "", meta)
-        if missing:
-            return {
-                "ok": False,
-                "message": (
-                    "WIP가 아닌 메인 content/ 페이지는 Frontmatter와 규약을 완전히 갖춰야 합니다. "
-                    f"누락된 항목: {', '.join(missing)}. "
-                    "임시 작업은 content/wip/ 아래에 작성해 주세요."
-                ),
-                "path": str(abs_path.relative_to(vault_path)),
-                "actor": actor_norm,
-                "idempotency_key": idempotency_key,
-                "timestamp": now_iso(),
-            }
+    # v0.7.67 (평가 A#1): 실제 파일 변형은 모든 진입점이 공유하는 단일 쓰기
+    # 계약(contracts.write_page)을 경유한다 — slug 재검증 + FileLock(상호배제)
+    # + frontmatter merge + agents: provenance + llm_wiki 스키마 검증까지.
+    # MCP 고유 관심사(idempotency/advisory lock/응답 형태)만 이 함수에 남는다.
+    vault = _load_vault(vault_path)
+    result = write_page(
+        vault,
+        _strip_md_suffix(slug),
+        content,
+        actor={"name": actor_norm, "timestamp": now_iso()},
+        overwrite=True,
+        normalize=False,          # MCP semantics: explicit paths, top-level 허용
+        extra_meta=updates_meta,
+        append_log=False,         # _finalize_write가 idempotency 인지 로그를 담당
+    )
+    if not result.ok:
+        return {
+            "ok": False,
+            "message": result.message or result.error or "write failed",
+            "path": str(abs_path.relative_to(vault_path)),
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": result.error,
+        }
 
-    post = frontmatter.Post(content, **meta)
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    abs_path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
     rel = abs_path.relative_to(vault_path)
+    # v0.7.67 (평가 A#2): pre-v0.7.67 wiki_update never rebuilt wiki.db —
+    # only wiki_delete/wiki_rename tried (and failed, see _rebuild_db).
+    # A page written via MCP would be invisible to wiki_search/wiki_get_page
+    # (DB-backed reads) until a manual `raven build`.
+    _rebuild_db(vault_path)
     response = {
         "ok": True,
         "message": f"{'created' if creating else 'updated'} {rel}",
@@ -619,9 +669,16 @@ def wiki_delete(
 ) -> dict:
     """Delete a vault page by archiving it to ``_archive/``.
 
-    The page is moved to ``<vault>/_archive/<slug>-YYYYMMDD.md`` (never
-    permanently destroyed — git + archive both retain history). ``wiki.db``
-    is then rebuilt so backlinks and search reflect the new state.
+    The page is moved to ``_archive/<original-nested-path>-YYYYMMDD-HHMMSS.md``,
+    mirroring its original path (never permanently destroyed — git + archive
+    both retain history). ``wiki.db`` is then rebuilt so backlinks and search
+    reflect the new state.
+
+    v0.7.67 (평가 B#5): now routes through ``core.archive.archive_page`` — the
+    same recipe CLI/API use. Pre-v0.7.67 this flattened the archive path
+    (``_archive/<stem>-<ts>.md``), which broke ``restore_archived()`` for
+    any nested page (it would restore to vault-root instead of the original
+    nested slug).
 
     Args:
         slug: vault slug (e.g. ``"concepts/wiki"``)
@@ -657,7 +714,10 @@ def wiki_delete(
         return fail("slug required")
 
     vault_path = Path(ctx.vault).expanduser()
-    abs_path = _resolve_md_path(vault_path, slug)
+    try:
+        abs_path = _resolve_md_path(vault_path, slug)
+    except slug_module.SlugError as e:
+        return fail(f"invalid slug: {e}", error="invalid_slug")
 
     # Idempotency precheck. Run even when the file is missing: a retry of
     # a successful archive should still return the cached "ok=True"
@@ -688,30 +748,23 @@ def wiki_delete(
     if not abs_path.exists():
         return fail(f"{slug} not found")
 
-    archive_dir = vault_path / "_archive"
-    archive_dir.mkdir(exist_ok=True)
-    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    archive_path = archive_dir / f"{abs_path.stem}-{stamp}.md"
-    # If a same-second collision exists, suffix with a counter.
-    counter = 1
-    while archive_path.exists():
-        archive_path = archive_dir / f"{abs_path.stem}-{stamp}-{counter}.md"
-        counter += 1
-
-    abs_path.rename(archive_path)
+    vault = _load_vault(vault_path)
+    archived = archive_module.archive_page(vault, _strip_md_suffix(slug), actor=actor_norm)
+    if not archived.ok:
+        return fail(archived.error or "archive failed")
     _rebuild_db(vault_path)
 
     response = {
         "ok": True,
-        "message": f"archived {slug} → {archive_path.relative_to(vault_path)}",
-        "archived": str(archive_path.relative_to(vault_path)),
+        "message": f"archived {slug} → {archived.archived_to}",
+        "archived": archived.archived_to,
         "rewritten_files": 0,
     }
     return _finalize_write(
         tool="wiki_delete", vault=vault_path, action="archive",
         subject=slug, actor=actor_norm, idempotency_key=idempotency_key,
         params={"slug": slug}, response=response,
-        extras=[f"archived_to: {archive_path.relative_to(vault_path)}"],
+        extras=[f"archived_to: {archived.archived_to}"],
         slugs=[slug],
     )
 
@@ -817,11 +870,14 @@ def wiki_rename(
             "_lock_holder": new_holder,
         }
 
-    old_path = _resolve_md_path(vault_path, old_slug)
+    try:
+        old_path = _resolve_md_path(vault_path, old_slug)
+        new_path = _resolve_md_path(vault_path, new_slug)
+    except slug_module.SlugError as e:
+        return fail(f"invalid slug: {e}", error="invalid_slug")
     if not old_path.exists():
         return fail(f"{old_slug} not found")
 
-    new_path = _resolve_md_path(vault_path, new_slug)
     if new_path.exists() and new_path != old_path:
         return fail(f"{new_slug} already exists")
 
@@ -842,8 +898,15 @@ def wiki_rename(
         aliases.insert(0, old_slug)
     meta["aliases"] = aliases
     meta["updated"] = dt.date.today().isoformat()
-    # M4/F1: actor provenance on the renamed page itself.
-    meta["actor"] = actor_norm
+    # M4/F1 provenance — v0.7.67 (평가 A#1): 스칼라 `actor:` 키 대신 CLI/API와
+    # 동일한 `agents:` 이력 리스트로 통일 (append, 기존 이력 보존).
+    agents_hist = list(meta.get("agents") or [])
+    agents_hist.append({
+        "name": actor_norm,
+        "timestamp": now_iso(),
+        "intent": f"rename {old_slug} -> {new_slug}",
+    })
+    meta["agents"] = agents_hist
 
     if body.startswith("---\n"):
         # safety: re-strip frontmatter if loader missed it

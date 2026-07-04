@@ -45,13 +45,75 @@ def test_parse_empty_list():
     assert meta["tags"] == []
 
 
-def test_parse_ignores_nested_keys():
+def test_parse_nested_agents_block():
+    """v0.7.67: block YAML is parsed for real — nested provenance survives.
+
+    (Pre-v0.7.67 the custom parser skipped indented lines, so a round-trip
+    through parse→render silently erased agents/tags block lists — 평가 A#3.)
+    """
     text = "---\nagents:\n  - name: bot\n    timestamp: 2026-06-25\n---\n\nbody\n"
     meta, body = parse(text)
-    # top-level only: 'agents' shows up as empty string (presence only)
-    # nested lines are skipped
-    assert meta.get("agents") == ""
+    assert meta.get("agents") == [{"name": "bot", "timestamp": "2026-06-25"}]
     assert body == "body\n"
+
+
+def test_parse_block_style_tags():
+    """Obsidian-standard block lists must not be lost (평가 A#3)."""
+    text = "---\ntitle: X\ntags:\n  - alpha\n  - beta\n---\n\nbody\n"
+    meta, _ = parse(text)
+    assert meta["tags"] == ["alpha", "beta"]
+
+
+def test_parse_render_roundtrip_preserves_block_tags():
+    """parse→render→parse round-trip keeps block-list values intact."""
+    text = "---\ntitle: X\ntags:\n  - alpha\n  - beta\n---\n\nbody\n"
+    meta, body = parse(text)
+    meta2, body2 = parse(render(meta, body))
+    assert meta2["tags"] == ["alpha", "beta"]
+    assert meta2["title"] == "X"
+    assert body2 == "body\n"
+
+
+def test_parse_render_roundtrip_preserves_agents_history():
+    """Existing agents: provenance must survive a parse→render round-trip."""
+    text = (
+        "---\ntitle: X\nagents:\n"
+        "  - name: bot1\n    timestamp: 2026-06-25T10:00:00\n    run_id: r1\n"
+        "  - name: bot2\n    timestamp: 2026-06-26T11:00:00\n---\n\nbody\n"
+    )
+    meta, body = parse(text)
+    assert [a["name"] for a in meta["agents"]] == ["bot1", "bot2"]
+    meta2, _ = parse(render(meta, body))
+    assert [a["name"] for a in meta2["agents"]] == ["bot1", "bot2"]
+    assert meta2["agents"][0]["run_id"] == "r1"
+
+
+def test_parse_legacy_unquoted_colon_title_falls_back():
+    """`title: Foo: bar` is invalid YAML — legacy line parser must kick in."""
+    text = "---\ntitle: Foo: bar\ntype: concept\n---\n\nbody\n"
+    meta, _ = parse(text)
+    assert meta["title"] == "Foo: bar"
+    assert meta["type"] == "concept"
+
+
+def test_render_quotes_colon_titles_for_yaml_safety():
+    out = render({"title": "Foo: bar"}, "body")
+    meta, _ = parse(out)
+    assert meta["title"] == "Foo: bar"
+
+
+def test_parse_empty_value_is_empty_string():
+    """`key:` with no value keeps legacy '' semantics (not None)."""
+    text = "---\ntitle: X\nconfidence:\n---\n\n"
+    meta, _ = parse(text)
+    assert meta["confidence"] == ""
+
+
+def test_parse_dates_normalized_to_iso_strings():
+    text = "---\ncreated: 2026-01-01\nupdated: 2026-06-25\n---\n\n"
+    meta, _ = parse(text)
+    assert meta["created"] == "2026-01-01"
+    assert isinstance(meta["created"], str)
 
 
 def test_parse_malformed_returns_empty_meta():

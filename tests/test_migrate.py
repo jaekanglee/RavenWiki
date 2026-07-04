@@ -78,7 +78,7 @@ def test_apply_broken_to_missing(vault):
         "title": "Src", "type": "concept",
         "created": today, "updated": today,
     }, body="see [[content/missing]]\n")
-    ok = apply_broken_to_missing(vault, "content/src")
+    ok = apply_broken_to_missing(vault, "content/src", "content/missing")
     assert ok
     text = (vault.root / "content" / "src.md").read_text()
     assert "[[content/missing]]?" in text
@@ -92,10 +92,46 @@ def test_apply_broken_to_missing_skips_with_intent(vault):
         "title": "Src", "type": "concept",
         "created": today, "updated": today,
     }, body="see [[content/x]]? and [[content/y]]!\n")
-    apply_broken_to_missing(vault, "content/src")
+    apply_broken_to_missing(vault, "content/src", "content/x")
+    apply_broken_to_missing(vault, "content/src", "content/y")
     text = (vault.root / "content" / "src.md").read_text()
     assert "[[content/x]]?" in text
     assert "[[content/y]]!" in text
+
+
+def test_apply_broken_to_missing_without_target_is_noop(vault):
+    """평가 A#6: target 없이 호출하면 (구 시그니처 오용) 아무것도 바꾸지 않는다."""
+    today = date.today().isoformat()
+    _write_page(vault, "content/src", {
+        "title": "Src", "type": "concept",
+        "created": today, "updated": today,
+    }, body="see [[content/missing]]\n")
+    ok = apply_broken_to_missing(vault, "content/src")
+    assert ok is False
+    text = (vault.root / "content" / "src.md").read_text()
+    assert "[[content/missing]]\n" in text  # unchanged
+
+
+def test_apply_broken_to_missing_only_touches_named_target(vault):
+    """평가 A#6 회귀 가드: pre-v0.7.67은 페이지 내 intent-suffix 없는 위키링크
+    *전부*를 강등했다 (그 판별 헬퍼가 항상 False를 반환하는 죽은 로직이었기
+    때문). 이제 lint #1이 지목한 target 하나만 강등되고, 같은 페이지의 다른
+    유효한 링크는 손대지 않는다."""
+    today = date.today().isoformat()
+    _write_page(vault, "content/src", {
+        "title": "Src", "type": "concept",
+        "created": today, "updated": today,
+    }, body=(
+        "see [[content/valid-a]] and [[content/valid-b]] "
+        "and [[content/missing]]\n"
+    ))
+    ok = apply_broken_to_missing(vault, "content/src", "content/missing")
+    assert ok is True
+    text = (vault.root / "content" / "src.md").read_text()
+    assert "[[content/missing]]?" in text
+    # 유효한 링크는 그대로 — placeholder로 강등되지 않음
+    assert "[[content/valid-a]]" in text and "[[content/valid-a]]?" not in text
+    assert "[[content/valid-b]]" in text and "[[content/valid-b]]?" not in text
 
 
 def test_apply_frontmatter_fill(vault):

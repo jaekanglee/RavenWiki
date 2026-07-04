@@ -15,8 +15,24 @@ from typing import Any, Iterable, Optional
 
 
 def _default_vault() -> Path:
-    """mcp/ is a sibling of wiki.db → vault root is parent of mcp/."""
-    return Path(__file__).resolve().parent.parent
+    """Resolve the default vault when no explicit vault path is given.
+
+    v0.7.67 (평가 B#16): pre-v0.7.67 this unconditionally returned the
+    `raven` *package* directory (`mcp/`'s parent) — a leftover from the
+    single-vault era when `mcp/` lived inside the vault itself. In an
+    installed-package / multi-vault setup, `raven/wiki.db` never exists,
+    so this was a dormant bug (most call sites resolve the vault via the
+    registry first, per `resolve_vault_path`, so it rarely fires — but any
+    caller that omits `vault` now gets the actual registry default instead
+    of a path that can never contain a wiki.db).
+    """
+    try:
+        from raven.core.vault import resolve_active_vault
+        return resolve_active_vault().root
+    except Exception:
+        # No registry / no default vault configured (e.g. isolated dev
+        # checkout used as its own vault) — fall back to legacy behavior.
+        return Path(__file__).resolve().parent.parent
 
 
 def _resolve_vault(vault: Optional[Path | str]) -> Path:

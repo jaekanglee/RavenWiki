@@ -36,9 +36,13 @@ export interface VaultMeta {
   workspace_path?: string;
 }
 
+// v0.7.67 (평가 B#9): 백엔드 실응답(server.py get_graph)과 필드를 맞춤.
+// 이전엔 `slug`/`source_slug`/`target_slug`가 필수로 선언돼 있었으나 실제
+// 응답은 `id`/`source`/`target`이라 소비처 전역에 `(n as any).id ?? n.slug`
+// 캐스트가 산재했다 (types.ts가 실제와 반대로 거짓말을 하던 상태).
 export interface GraphNode {
-  slug: string;
-  id?: string;
+  id: string;
+  slug?: string;
   title: string;
   type?: string;
   weight?: number;
@@ -49,8 +53,8 @@ export interface GraphNode {
 }
 
 export interface GraphEdge {
-  source_slug: string;
-  target_slug: string;
+  source: string;
+  target: string;
   intent?: string;
 }
 

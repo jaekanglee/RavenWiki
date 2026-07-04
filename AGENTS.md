@@ -323,12 +323,19 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 | `_meta/architecture-5layer.md` | M1 5-Layer (보존본) | 📦 archive |
 | `_meta/decisions-d*.md` (legacy) | M1 결정 (개별 파일) | ⚠️ `decisions/` 흡수 검토 |
 
-### 신규 (P2 우선순위, v0.6.35 이후 별도 패치)
+- `_meta/raven-architecture.md` — M2 4-Layer 현행 아키텍처 (v0.7.67 기준 파일 존재 확인됨).
 
-- `_meta/raven-architecture.md` — M2 4-Layer 현행 아키텍처. **현재 링크 깨짐** (`_meta/index.md` 가 가리키지만 파일 없음).
-- `_meta/llm-wiki-scenario.md` — LLM Wiki 시나리오 walkthrough. "vault 만들고 → agent 4-file 첨부 → write → log → 4-pass 보고" 패턴. 하루모아 같은 신규 프로젝트 boilerplate.
+### `docs/` — v0.7.0+ 실제로 존재 (평가 B#12 정정)
 
-→ **`docs/` 신설 불필요** — `_meta/`가 이미 그 역할. 신규 추가 시 `_meta/` 컨벤션 따르세요.
+v0.6.35 시점엔 "`docs/` 신설 불필요"였으나 v0.7.0+에서 실제로 도입됨:
+
+| 파일 | 역할 |
+|---|---|
+| `docs/architecture.md` | 4-Layer 아키텍처 다이어그램 (M2 대체) |
+| `docs/vault-patterns.md` | Karpathy LLM Wiki +α 가이드 |
+| `docs/evaluations/*.md` | 제품/아키텍처 평가 보고서 (버전별) |
+
+신규 추가 시 위 컨벤션(주제별 단일 문서, `_meta/`는 changelog/ADR/SOT 전용) 따르세요.
 
 ---
 

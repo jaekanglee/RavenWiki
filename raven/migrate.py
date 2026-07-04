@@ -45,6 +45,7 @@ class Fix:
     description: str
     risk: str  # "safe" | "review" | "manual"
     apply_fn: Optional[str] = None  # 함수 이름 (실행 시 호출)
+    target: Optional[str] = None  # broken_to_missing 전용: 강등할 링크 target (평가 A#6)
 
 
 @dataclass
@@ -107,6 +108,7 @@ def _plan_broken_to_missing(vault: Vault, lint_result: dict) -> list[Fix]:
             description=f"[[{target}]] → [[{target}]]? (의도적 placeholder로 표시)",
             risk="safe",
             apply_fn="apply_broken_to_missing",
+            target=target,
         ))
     return fixes
 
@@ -205,45 +207,37 @@ def _plan_frontmatter_fill(vault: Vault, lint_result: dict) -> list[Fix]:
 # ────────────────────────── apply 함수들 (안전한 것만) ──────────────────────────
 
 
-def apply_broken_to_missing(vault: Vault, slug: str) -> bool:
-    """[[x]] (broken) → [[x]]? (의도적 placeholder).
+def apply_broken_to_missing(vault: Vault, slug: str, target: Optional[str] = None) -> bool:
+    """[[target]] (broken, target 없음) → [[target]]? (의도적 placeholder).
+
+    v0.7.67 (평가 A#6): pre-v0.7.67은 `target`을 받지 않고 페이지 내 intent
+    suffix 없는 위키링크 *전부*를 `?`로 강등했다 — 그 판별에 쓰인
+    `_has_intent_suffix`는 첫 글자가 항상 `[`라 루프가 즉시 종료돼 언제나
+    False를 반환하는 죽은 로직이라, 실제로는 페이지의 유효한 링크까지 전부
+    깨진 것처럼 표시됐다 (그 결과물 `[[valid]]?`는 어떤 lint도 안 잡아 영구
+    은닉됨). 이제 lint #1이 실제로 지목한 그 `target` 하나만 정확히 강등한다.
 
     Args:
         vault: vault handle
         slug: 변경할 페이지의 slug
+        target: lint #1이 지목한, target 없는 정확한 링크 텍스트
 
     Returns:
         True if changed, False otherwise
     """
+    if not target:
+        return False
     fp = vault.root / f"{slug}.md"
     if not fp.exists():
         return False
     text = fp.read_text(encoding="utf-8")
-    # [[target]] (intent 없음) → [[target]]?
-    # 단, [[target]]! / [[target]]? 는 그대로
-    new_text = re.sub(
-        r"\[\[([^\[\]\n]+?)\]\](\s|$)",
-        lambda m: f"[[{m.group(1)}]]?{m.group(2)}"
-        if not _has_intent_suffix(text, m.start())
-        else m.group(0),
-        text,
-    )
+    # 이 특정 target에 한해서만: intent suffix(!/?)가 없는 경우만 `?` 부착.
+    pattern = re.compile(r"\[\[" + re.escape(target) + r"\]\](?![!?])")
+    new_text = pattern.sub(f"[[{target}]]?", text)
     if new_text == text:
         return False
     fp.write_text(new_text, encoding="utf-8")
     return True
-
-
-def _has_intent_suffix(text: str, offset: int) -> bool:
-    """[[x]] 다음 문자가 ! 또는 ?인지 확인."""
-    # offset은 [[x]] 매치 시작점. 매치 끝은 offset + len("[[x]]")
-    end = offset + 1
-    while end < len(text) and text[end] not in "[]\n":
-        end += 1
-    # 매치 다음 문자
-    if end < len(text) and text[end] in "!?":
-        return True
-    return False
 
 
 def apply_orphan_cleanup(vault: Vault, slug: str) -> bool:
@@ -359,7 +353,10 @@ def apply_plan(vault: Vault, plan: MigrationPlan, risk_filter: Optional[str] = N
             errors.append({"slug": fix.slug, "error": f"unknown apply_fn: {fix.apply_fn}"})
             continue
         try:
-            ok = fn(vault, fix.slug)
+            if fix.apply_fn == "apply_broken_to_missing":
+                ok = fn(vault, fix.slug, fix.target)
+            else:
+                ok = fn(vault, fix.slug)
             if ok:
                 applied.append({"slug": fix.slug, "category": fix.category, "action": fix.apply_fn})
             else:

@@ -2,12 +2,16 @@
 
 Public surface:
     parse(text) -> tuple[dict, str]
-        Split `text` into (meta_dict, body). Handles simple `key: value` and
-        `key: [a, b, c]` list forms. No nested YAML for now (kept simple on
-        purpose — see raven-guide.md "frontmatter rules").
+        Split `text` into (meta_dict, body). Parses the frontmatter block as
+        real YAML (block lists like `tags:\n  - a` and nested `agents:` blocks
+        included), falling back to the legacy line-based parser when the block
+        is not valid YAML (e.g. unquoted `title: Foo: bar`). Dates/datetimes
+        are normalized to ISO strings; empty values to "" (legacy semantics).
 
     render(meta, body, *, agents=None) -> str
-        Render frontmatter + body. Preserves key insertion order. Appends
+        Render frontmatter + body. Preserves key insertion order. Scalar lists
+        stay in flow style (`tags: [a, b]`); lists of dicts render as block
+        sequences (same shape as the `agents:` provenance block). Appends an
         optional `agents:` provenance block at the end (one entry per agent).
 
     merge(existing, updates, *, today=None) -> dict
@@ -22,16 +26,18 @@ Designed to replace the three duplicated implementations in cli/api/agents.
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import re
-from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
+
+import yaml
 
 
 LIST_RE = re.compile(r"^\[(.*)\]$")
 
 
 def _parse_value(raw: str):
-    """Parse a frontmatter value into a Python value.
+    """Parse a frontmatter value into a Python value (legacy fallback).
 
     - '[a, b, c]' → ['a', 'b', 'c']
     - otherwise → strip whitespace, return as str (don't lie about types)
@@ -47,6 +53,43 @@ def _parse_value(raw: str):
     return s
 
 
+def _parse_lines(fm_block: str) -> dict:
+    """Legacy line-based parser — kept as fallback for non-YAML blocks
+    (e.g. unquoted `title: Foo: bar` written by pre-v0.7.67 renderers)."""
+    meta: dict = {}
+    for line in fm_block.splitlines():
+        line = line.rstrip()
+        if not line or ":" not in line:
+            continue
+        # nested keys (like '  - name: x') are skipped; only top-level
+        if line.startswith(" ") or line.startswith("\t"):
+            continue
+        key, _, raw_val = line.partition(":")
+        meta[key.strip()] = _parse_value(raw_val)
+    return meta
+
+
+def _normalize(value):
+    """Normalize YAML-loaded values to legacy-compatible Python values.
+
+    - date/datetime → ISO string (files store dates unquoted; consumers
+      compare them as strings)
+    - None (empty value after `key:`) → "" (legacy parser semantics)
+    - containers normalized recursively
+    """
+    if value is None:
+        return ""
+    if isinstance(value, _dt.datetime):
+        return value.isoformat()
+    if isinstance(value, _dt.date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): _normalize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_normalize(v) for v in value]
+    return value
+
+
 def parse(text: str) -> tuple[dict, str]:
     """Split markdown into (frontmatter_dict, body_str).
 
@@ -59,16 +102,16 @@ def parse(text: str) -> tuple[dict, str]:
     except ValueError:
         # malformed (only one '---' line, no closing)
         return {}, text
-    meta: dict = {}
-    for line in fm_block.splitlines():
-        line = line.rstrip()
-        if not line or ":" not in line:
-            continue
-        # nested keys (like '  - name: x') are skipped; only top-level
-        if line.startswith(" ") or line.startswith("\t"):
-            continue
-        key, _, raw_val = line.partition(":")
-        meta[key.strip()] = _parse_value(raw_val)
+    meta: Optional[dict] = None
+    try:
+        loaded = yaml.safe_load(fm_block)
+        if isinstance(loaded, dict):
+            meta = {str(k): _normalize(v) for k, v in loaded.items()}
+    except yaml.YAMLError:
+        meta = None
+    if meta is None:
+        # Not a YAML mapping (or invalid YAML): legacy tolerant parsing.
+        meta = _parse_lines(fm_block)
     return meta, body.lstrip("\n")
 
 
@@ -93,16 +136,16 @@ def render(
     """
     lines = ["---"]
     for k, v in meta.items():
-        lines.append(_format_field(k, v))
+        lines.extend(_format_field(k, v))
     if agents:
         lines.append("agents:")
         for entry in agents:
-            lines.append(f"  - name: {entry['name']}")
-            lines.append(f"    timestamp: {entry['timestamp']}")
+            lines.append(f"  - name: {_scalar(entry['name'])}")
+            lines.append(f"    timestamp: {_scalar(entry['timestamp'])}")
             if entry.get("run_id"):
-                lines.append(f"    run_id: {entry['run_id']}")
+                lines.append(f"    run_id: {_scalar(entry['run_id'])}")
             if entry.get("intent"):
-                lines.append(f"    intent: {entry['intent']}")
+                lines.append(f"    intent: {_scalar(entry['intent'])}")
     lines.append("---")
     lines.append("")
     lines.append(body.rstrip("\n"))
@@ -110,14 +153,55 @@ def render(
     return "\n".join(lines)
 
 
-def _format_field(key: str, value) -> str:
-    """Format a single frontmatter field."""
-    if isinstance(value, list):
-        items = ", ".join(str(x) for x in value)
-        return f"{key}: [{items}]"
+_SPECIAL_LEAD = set("-?:,[]{}#&*!|>'\"%@`")
+
+
+def _needs_quote(s: str, *, flow: bool = False) -> bool:
+    """True when a plain YAML scalar would parse back differently."""
+    if s == "":
+        return False  # `key: ` round-trips to "" via _normalize
+    if s != s.strip() or "\n" in s:
+        return True
+    if ": " in s or s.endswith(":") or " #" in s:
+        return True
+    if s[0] in _SPECIAL_LEAD:
+        return True
+    if flow and ("," in s or "[" in s or "]" in s):
+        return True
+    return False
+
+
+def _scalar(value, *, flow: bool = False) -> str:
+    """Format a scalar value, quoting strings only when YAML requires it."""
     if isinstance(value, bool):
-        return f"{key}: {str(value).lower()}"
-    return f"{key}: {value}"
+        return str(value).lower()
+    s = str(value)
+    if isinstance(value, str) and _needs_quote(s, flow=flow):
+        return json.dumps(s, ensure_ascii=False)  # valid YAML double-quoted
+    return s
+
+
+def _format_field(key: str, value) -> list[str]:
+    """Format a single frontmatter field as one or more lines."""
+    if isinstance(value, list):
+        if value and all(isinstance(x, dict) for x in value):
+            # block sequence of mappings (e.g. `agents:` provenance)
+            lines = [f"{key}:"]
+            for entry in value:
+                first = True
+                for k, v in entry.items():
+                    prefix = "  - " if first else "    "
+                    lines.append(f"{prefix}{k}: {_scalar(v)}")
+                    first = False
+            return lines
+        items = ", ".join(_scalar(x, flow=True) for x in value)
+        return [f"{key}: [{items}]"]
+    if isinstance(value, dict):
+        lines = [f"{key}:"]
+        for k, v in value.items():
+            lines.append(f"  {k}: {_scalar(v)}")
+        return lines
+    return [f"{key}: {_scalar(value)}"]
 
 
 def merge(

@@ -24,11 +24,12 @@ the boundary layer.
 Scope (deliberately limited)
 ----------------------------
 - `write_page()` only. `delete_page()` / `rename_page()` are not yet
-  unified (archive.py is a richer surface; deferred to v0.6.3).
-- MCP `wiki_update` is NOT switched to call this function yet — MCP's
-  write path adds lock + idempotency + provenance that other entrypoints
-  don't need. Routing MCP through the same function would force every
-  entrypoint to plumb those kwargs. Deferred to v0.6.3 (per-arg path).
+  unified (archive.py is a richer surface; deferred).
+- v0.7.67 (평가 A#1): MCP `wiki_update` now routes through this function.
+  MCP-specific concerns (idempotency cache, advisory locks, response
+  shape) stay in `raven/mcp/tools/write.py`; the file mutation itself —
+  slug validation, frontmatter merge, provenance, FileLock, log — is
+  this contract. `extra_meta` + `append_log` were added for that caller.
 """
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ from typing import Iterable, Optional
 from . import frontmatter as frontmatter_module
 from . import log as log_module
 from . import slug as slug_module
-from .lock import lock_for_file
+from .lock import atomic_write_text, lock_for_file
 from .vault import Vault
 
 
@@ -88,6 +89,8 @@ def write_page(
     normalize: bool = True,
     body: Optional[str] = None,
     enforce_protected_paths: bool = False,
+    extra_meta: Optional[dict] = None,
+    append_log: bool = True,
 ) -> WriteResult:
     """Create or overwrite a markdown page through the shared write contract.
 
@@ -120,6 +123,14 @@ def write_page(
         normalize: If False, skip `slug_module.normalize_prefix` (Agent
             entrypoint semantics — bare `hello` lands at vault root).
         body: Legacy alias for `content`; `content` takes precedence.
+        extra_meta: Optional dict of additional frontmatter fields
+            (e.g. MCP `frontmatter_data`). Merged into the update set
+            BEFORE the explicit `title`/`type`/`tags` kwargs (kwargs win).
+            `created`/`updated`/`agents` stay governed by `merge()` rules
+            regardless of what this dict contains.
+        append_log: If False, skip the log.md append (callers like MCP
+            keep their own richer provenance logging — avoids double
+            entries).
 
     Returns:
         WriteResult — `ok=True` on success, `ok=False` + `error` on
@@ -177,6 +188,8 @@ def write_page(
 
             today = _dt.date.today().isoformat()
             updates: dict = {"updated": today}
+            if extra_meta:
+                updates.update(extra_meta)
             if title is not None:
                 updates["title"] = title
             if type is not None:
@@ -247,27 +260,27 @@ def write_page(
                 # back out for the dedicated render path.
                 agents_list = merged.pop("agents", None)
             rendered = frontmatter_module.render(merged, content or "", agents=agents_list)
-            fp.parent.mkdir(parents=True, exist_ok=True)
-            fp.write_text(rendered, encoding="utf-8")
+            atomic_write_text(fp, rendered)
 
             is_create = not existing_meta  # empty parsed meta ⇒ new file
 
             # ── 5. log.md append (best-effort; matches pre-v0.6.2 try/except wrap)
-            try:
-                actor_name = ""
-                if isinstance(actor, dict):
-                    name_val = actor.get("name")
-                    if isinstance(name_val, str):
-                        actor_name = name_val
-                log_module.append(
-                    vault,
-                    action="create" if is_create else "update",
-                    subject=raw_slug,
-                    files=[raw_slug],
-                    note=f"actor={actor_name}" if actor_name else "",
-                )
-            except Exception:
-                pass
+            if append_log:
+                try:
+                    actor_name = ""
+                    if isinstance(actor, dict):
+                        name_val = actor.get("name")
+                        if isinstance(name_val, str):
+                            actor_name = name_val
+                    log_module.append(
+                        vault,
+                        action="create" if is_create else "update",
+                        subject=raw_slug,
+                        files=[raw_slug],
+                        note=f"actor={actor_name}" if actor_name else "",
+                    )
+                except Exception:
+                    pass
     except TimeoutError as exc:
         return WriteResult(
             ok=False,
