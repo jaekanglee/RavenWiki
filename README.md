@@ -421,6 +421,7 @@ fastapi            # API
 uvicorn[standard]  # ASGI server
 pydantic           # 데이터 모델
 python-frontmatter # .md 파싱
+watchfiles         # FS watcher (테스트 스위트 필수)
 sqlite3 (stdlib)
 
 # Node (dashboard/)
@@ -436,7 +437,7 @@ vite-plugin-pwa    # PWA
 
 설치:
 ```bash
-uv pip install --python scripts/.venv/bin/python typer fastapi 'uvicorn[standard]' pydantic python-frontmatter
+uv pip install --python scripts/.venv/bin/python typer fastapi 'uvicorn[standard]' pydantic python-frontmatter watchfiles
 cd dashboard && npm install
 ```
 
