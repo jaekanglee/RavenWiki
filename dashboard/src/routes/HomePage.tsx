@@ -404,8 +404,8 @@ function ActionCard({
     alignItems: "flex-start",
     textAlign: "left",
     padding: isMobile ? 16 : 20,
-    background: "var(--cds-field-01, #fff)",
-    border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+    background: "var(--color-canvas)",
+    border: "1px solid var(--color-hairline)",
     borderRadius: 8,
     minHeight: isMobile ? 88 : 96,
     color: "var(--color-ink)",
@@ -418,7 +418,7 @@ function ActionCard({
   };
   if (action.primary) {
     base.borderColor = "var(--color-primary)";
-    base.background = "var(--cds-background-brand, #f4f7fc)";
+    base.background = "var(--color-primary-bg)";
   }
   return (
     <Link
@@ -692,11 +692,11 @@ function NewPageCard({
     textAlign: "left",
     padding: isMobile ? 16 : 20,
     background: active
-      ? "var(--cds-background-brand, #f4f7fc)"
-      : "var(--cds-field-01, #fff)",
+      ? "var(--color-primary-bg)"
+      : "var(--color-canvas)",
     border: active
       ? "1.5px solid var(--color-primary)"
-      : "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+      : "1px solid var(--color-hairline)",
     borderRadius: 8,
     minHeight: isMobile ? 88 : 96,
     color: "var(--color-ink)",

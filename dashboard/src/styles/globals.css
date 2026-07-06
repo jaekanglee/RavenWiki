@@ -21,6 +21,7 @@
   --color-primary: #1c69d4;          /* BMW Blue, interactive accent */
   --color-primary-active: #0653b6;   /* BMW Focus Blue */
   --color-primary-disabled: #d4e3f7; /* softer blue tint */
+  --color-primary-bg: #f4f7fc;         /* brand soft background (CDS background-brand 동등) */
   --color-error-text: #c13515;
   --color-danger: var(--color-error-text);
 
