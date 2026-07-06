@@ -98,6 +98,26 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 
 9종 외 새 타입 정의 ❌ (AGENTS.md §10). `decision` type 사용 시 → `type: rule` + 폴더 경로/파일명 컨벤션으로 결정 기록임을 표시.
 
+### v0.7.69+ Status 4종 (ADR-2026-07-06 §1.1)
+
+> 사용자 north star (2026-07-06 확인) 실행 기반. 페이지 lifecycle 상태 머신.
+
+| status | 의미 | 진입 트리거 | 검색·링크 |
+|---|---|---|---|
+| `current` | 사실 검증됨, 권위 있음 (기본값) | 사람 최초 작성, 또는 에이전트 갱신 완료 | ✅ 정상 |
+| `stale` | 90일+ 미검증 또는 사실 변경 의심 | `wiki_stale_detect` (MCP) / lint #7 | ⚠️ 헤더 경고 |
+| `contested` | 다른 페이지와 모순 발견 | lint #5 (모순 룰) 자동 감지 | ⚠️ 헤더 경고, 양쪽 cross-link |
+| `archived` | 격리됨, 더 이상 활성 아님 | `wiki_archive` (MCP) / 사람 CLI | ❌ 검색·그래프 제외 |
+
+**전이 규칙**: `current ↔ stale` (양방향) / `stale → archived` (사람 승인) /
+`current ↔ contested` (자동 ❌, 사람 명시) / `archived → current` (사람 승인 필수).
+
+**본문 50%+ 재작성 가드**: `wiki_update` 본문 1.5배 초과 시 `large_rewrite_blocked` (north star 실행 가드).
+
+- 결정: `_meta/decisions/adr-2026-07-06-stale-update-isolate-loop.md`
+- 구현: `raven/mcp/tools/stale.py` + `raven/mcp/tools/write.py`
+- Lite bootstrap 동기: `raven/core/templates/agent/SCHEMA.md` (Tier 2 자동 복사)
+
 ### System Areas (type 면제, v0.7.66+)
 
 다음 경로는 시스템 자동 생성 영역으로, type 9종 면제 (lint #10 통과):

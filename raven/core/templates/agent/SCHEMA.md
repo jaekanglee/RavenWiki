@@ -98,6 +98,58 @@ aliases: [old-slug-1]     # 선택
 | `journal` | 일지/메모 |
 | `issue` | 문제 분석 / 장애 / 추적 |
 
+## Status Taxonomy (4종) — ADR-2026-07-06 §1.1
+
+> **사용자 north star (2026-07-06 확인)**: "사람이 최초 작성한 문서를, 에이전트가 스테일/모순/링크깨짐을
+> 발견하여 갱신(부분 overwrite + provenance) 또는 격리(archive 이동) 액션으로 vault를 최신 정합화
+> 상태로 유지한다." 본 상태 머신은 그 실행 기반.
+
+모든 vault 페이지는 frontmatter `status:` 필드로 다음 4상태 중 하나를 갖는다 (생략 시 `current`).
+
+| status | 의미 | 진입 트리거 | 검색·링크 노출 |
+|---|---|---|---|
+| `current` | 사실 검증됨, 권위 있음 | 사람 최초 작성, 또는 에이전트 갱신 완료 | ✅ 정상 |
+| `stale` | 90일+ 미검증 또는 사실 변경 의심 | `wiki_stale_detect` (MCP) / lint #7 | ⚠️ 헤더 경고 |
+| `contested` | 다른 페이지와 모순 발견 | lint #5 (모순 룰) 자동 감지 | ⚠️ 헤더 경고, 양쪽 cross-link |
+| `archived` | 격리됨, 더 이상 활성 페이지 아님 | `wiki_archive` (MCP) / 사람 CLI | ❌ 검색·그래프 제외, 전문은 `archive/<YYYY-MM-DD>/<slug>.md` 보존 |
+
+### 전이 규칙
+
+- `current ↔ stale`: 검증 결과에 따라 양방향. `evidence` 필수.
+- `stale → archived`: 사람 승인 또는 자동 격리 정책 만족 시.
+- `current ↔ contested`: 모순 발견/해소 시. **자동 전환 금지** — 사람이 명시적으로 `contested: true` 박거나 lint #5가 cross-link 증거 제시 시에만.
+- `archived → current`: **사람 승인 필수** (에이전트 자율 복귀 ❌).
+
+### 전이 기록
+
+모든 상태 전이는 frontmatter `agents:` 리스트에 `{actor, action, at, evidence}` 1줄 append.
+
+### 보조 필드 (선택)
+
+```yaml
+status: stale
+last_verified: 2026-04-06T00:00:00Z   # ISO 8601 (stale 감지용)
+archived_at: 2026-07-06T12:00:00Z     # archived 시 자동 stamp
+archive_reason: stale_over_threshold  # 또는 user_request / factual_obsolete
+```
+
+### MCP 도구 (ADR §1.3)
+
+- `wiki_stale_detect` (read): 후보 + evidence + suggested_action 반환
+- `wiki_archive` (write/admin): `archive/<YYYY-MM-DD>/<slug>.md`로 이동 + frontmatter stamp
+- `wiki_update` 확장: `revalidate=true` 시 `stale → current` 전이 + evidence 기록
+
+### 본문 50%+ 재작성 가드 (ADR §1.3)
+
+`wiki_update`는 본문 길이가 기존 본문의 1.5배 초과 시 거부 (`large_rewrite_blocked`).
+north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 가드 우회.
+
+### 가드 / 결정 위치
+
+- **결정 문서**: `_meta/decisions/adr-2026-07-06-stale-update-isolate-loop.md` (ADR-2026-07-06)
+- **구현**: `raven/mcp/tools/stale.py` + `raven/mcp/tools/write.py` (1.5배 가드)
+- **시나리오 테스트**: `tests/scenarios/test_stale_loop.py` (13 시나리오 pass)
+
 9종 외 새 타입 정의 금지.
 
 ## Tag Taxonomy

@@ -200,7 +200,7 @@ done_when 형식: **테스트/시나리오가 그린이면 통과**. 상세는 A
 
 | # | 권고 | done_when (1줄) |
 |---|---|---|
-| **#0** | 스테일 루프 4종 | ADR accept + 시나리오 4종 pass + 회귀 2종 pass |
+| **#0** | 스테일 루프 4종 | ADR-2026-07-06 accept + Lite bootstrap `templates/agent/SCHEMA.md`에 status 4종 정의 + 시나리오 13종 pass + 회귀 2종 pass (Plan B-2, 5b84a8e) |
 | **#1** | MCP wiki_update → contracts | `slug='../../etc/passwd'` 400 + `created` 보존 + FileLock 3종 테스트 |
 | **#2** | frontmatter.py 교체 | `tests/regressions/test_frontmatter_block_yaml.py` pass + build_db와 동일 모듈 |
 | **#3** | MCP `_rebuild_db` + db.connect stale | MCP write → 검색 즉시 반영 + stale 시 자동 rebuild |

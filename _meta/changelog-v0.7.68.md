@@ -184,3 +184,17 @@ ADR §1.3 guards 4종 완성 + write.py 1.5배 가드 통합:
 - (4) 회귀 가드 2종 pass — frontmatter_block_yaml + archive_path_traversal
 
 다음 사이클: ADR status 결정 (사용자 검토) + Lite bootstrap에 status 4상태 자동 복사 + 평가 문서 §5.2 done_when #0 갱신.
+
+### 2026-07-06 후속 — Lite bootstrap 동기 + ADR §4.0 수용 진행 추적
+
+ADR-2026-07-06 §4 수용 기준 6/7 ✅ 완료 (1건은 ADR 본문 사용자 검토 대기):
+
+- **Lite bootstrap 동기**:
+  - `raven/core/templates/agent/SCHEMA.md` (Tier 2) — §1.1 status 4종 섹션 추가 (~50줄). 신규 vault 생성 시 자동 복사.
+  - `_meta/SCHEMA.md` (Tier 1 codebase SOT) — 동일 정의 압축 (~20줄). Tier 1 ↔ Tier 2 정합.
+  - 두 SCHEMA.md 모두 status 4종 (current/stale/contested/archived) + 전이 규칙 + 보조 필드 + MCP 도구 + 1.5배 가드 cross-reference.
+- **Bootstrap 회귀 0건**: `tests/test_basic_profile_bootstrap.py` + `tests/test_bootstrap_verify.py` 27/27 pass.
+- **평가 문서 §5.2 done_when #0 갱신**: 양 평가에 "Lite bootstrap `templates/agent/SCHEMA.md`에 status 4종 정의" 검증 기준 1줄 추가.
+- **ADR §4.0 진행 추적 표**: 7개 수용 기준 상태 명시 (6 ✅ + 1 ⏳). ADR 본문 사용자 검토만 남음.
+
+다음 사이클: 사용자 ADR 본문 검토 → status `proposed` → `accepted` 결정 (또는 amended / rejected).
