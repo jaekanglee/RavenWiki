@@ -198,3 +198,22 @@ ADR-2026-07-06 §4 수용 기준 6/7 ✅ 완료 (1건은 ADR 본문 사용자 �
 - **ADR §4.0 진행 추적 표**: 7개 수용 기준 상태 명시 (6 ✅ + 1 ⏳). ADR 본문 사용자 검토만 남음.
 
 다음 사이클: 사용자 ADR 본문 검토 → status `proposed` → `accepted` 결정 (또는 amended / rejected).
+
+### 2026-07-06 후속 — ADR-2026-07-06 accepted 종결
+
+사용자 응답 A — ADR 본문 §1.1~§1.4 전체 검토 후 종결:
+
+- `status: proposed` → **`status: accepted`** (frontmatter)
+- §4.0 진행 표: 7/7 ✅ (ADR 본문 사용자 검토 완료)
+- 평가 문서 §5.2 #0 done_when: "ADR accept" → "ADR accepted (2026-07-06)"
+- §6.0 메타: 작성자 + 승인 일자 명시
+- 다음 평가 사이클 (v0.7.69+): A#0/P0#0 권고는 본 ADR로 **종결**, 재평가 시 done_when #0은 자동 충족 확인
+
+**전체 ADR 라이프사이클 완료** (2026-07-06 한 세션):
+1. 평가 문서 메타 보완 v2 (P1~P8, P10)
+2. 사용자 north star 확인 + 평가 누락 시나리오(A#0/P0#0) 명시
+3. Plan C: ADR 결정 골격 + P4 매트릭스 + P8 done_when
+4. Plan B: stale.py 골격 + 시나리오 13종
+5. Plan B-2: FileLock + wiki.db 최적화 + 1.5배 가드 통합
+6. Plan B-3: Lite bootstrap 동기 + ADR §4.0 진행 표
+7. **종결**: 사용자 accepted 응답 A → ADR 본문 종결
