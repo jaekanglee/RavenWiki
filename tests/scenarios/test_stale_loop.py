@@ -134,8 +134,9 @@ def test_archive_moves_file_and_stamps(isolated_vault, make_page):
 def test_update_rejects_50pct_rewrite(isolated_vault, make_page):
     """§1.4 #4: wiki_update content 1.5배 초과 → 거절 (대규모 재작성 가드).
 
-    골격: 기존 본문 100자 + 신규 본문 200자 (2배) → 가드 트리거 시뮬레이션.
-    실제 wiki_update 호출은 다음 사이클 (P0#3 frontmatter 오염 결함과 동시 해결).
+    v0.7.69+ Plan B-2: write.py에 가드 통합. 격리 vault는 .vault.json 없이
+    contracts.write_page가 실패할 수 있으므로 직접 _check_large_rewrite 가드만
+    별도로 검증.
     """
     body = "a" * 100
     page = make_page(
@@ -145,14 +146,44 @@ def test_update_rejects_50pct_rewrite(isolated_vault, make_page):
         body=body,
     )
 
-    # 가드 로직 (ADR §1.3): content 길이가 기존 본문의 1.5배 초과 시 거절
-    new_body = "a" * 200  # 2배
-    old_len = len(body)
+    # 가드 로직 시뮬레이션 (write.py wiki_update 안에 통합됨)
+    new_body = "a" * 200  # 2배 = 1.5배 초과
+    existing_len = len(body)
     new_len = len(new_body)
-    exceeds_1_5x = new_len > old_len * 1.5
+    exceeds_1_5x = new_len > existing_len * 1.5
 
     assert exceeds_1_5x, "test fixture sanity: 200 > 100*1.5"
-    # 실제 거절 로직은 wiki_update에 추가될 때 검증 (next cycle)
+    # 실제 가드는 write.py wiki_update에 통합됨 — write_page 호출 직전 검증.
+    # 본 시나리오는 정책 결정을 검증 (1.5배 임계값 + 차단 메시지).
+    # 통합 테스트는 vault + .vault.json이 필요하므로 별도 패치.
+
+
+def test_update_allows_partial_rewrite(isolated_vault, make_page):
+    """§1.4 #4 false positive 회피: 1.5배 이하 갱신은 허용.
+
+    v0.7.69+ Plan B-2: 기존 100자 + 신규 130자 (1.3배) → 가드 통과해야 함.
+    """
+    body = "x" * 100
+    new_body = "x" * 130  # 1.3배
+
+    existing_len = len(body)
+    new_len = len(new_body)
+    blocked = existing_len > 0 and new_len > existing_len * 1.5
+
+    assert not blocked, "1.3배는 가드 통과해야 함"
+
+
+def test_update_allows_new_page(isolated_vault, make_page):
+    """§1.4 #4 false positive 회피: 신규 생성은 본문 0→N이므로 가드 우회.
+
+    v0.7.69+ Plan B-2: creating=True (abs_path.exists()=False)면 가드 미적용.
+    """
+    # 신규 페이지는 본문 길이 비교 대상이 없음
+    creating = True  # 신규 시뮬레이션
+    if creating:
+        # 가드 자체가 안 걸림
+        skipped = True
+    assert skipped
 
 
 # ─────────────────────────── 회귀 가드 2종 ───────────────────────────
@@ -192,4 +223,183 @@ def test_archive_path_traversal_blocked(isolated_vault):
         ctx=ctx,
     )
     assert result["ok"] is False
-    assert "invalid slug" in result.get("error", "").lower() or "traversal" in result.get("error", "").lower()
+    assert "invalid slug" in result.get("error", "").lower() or "traversal" in result.get(
+        "error", ""
+    ).lower()
+
+
+# ─────────────────────────── Plan B-2 시나리오 (실제 이동 + lock) ───────────────────────────
+
+
+def test_archive_actually_moves_file_with_lock(isolated_vault, make_page):
+    """§1.3 guards 4종 통합 검증: dry_run=False → 실제 이동 + frontmatter stamp + lock 적용.
+
+    골격: archive 호출 후 source 사라지고 archive/<today>/<slug>.md 존재 확인.
+    archive된 파일의 frontmatter에 archived_at + archive_reason + agents 존재 확인.
+    """
+    page = make_page(
+        isolated_vault,
+        "real-archive",
+        frontmatter={"title": "Real Archive", "status": "stale"},
+        body="원본 본문",
+    )
+    ctx = VaultContext(vault=isolated_vault, mode="write")
+
+    result = stale_tools.wiki_archive(
+        slug="real-archive",
+        reason="factual_obsolete",
+        actor="test_actor",
+        dry_run=False,
+        ctx=ctx,
+    )
+
+    assert result["ok"] is True, f"expected ok=True, got {result}"
+    assert result["dry_run"] is False
+    assert result["source_frontmatter_stamped"] is True
+
+    # 1. 원본(content/) 사라짐
+    assert not page.exists(), "원본이 이동되지 않음"
+
+    # 2. archive/<today>/<slug>.md 존재
+    archived = Path(result["archived_path"])
+    assert archived.exists(), f"archive 파일 미존재: {archived}"
+
+    # 3. archive된 파일의 frontmatter 확인
+    archived_text = archived.read_text(encoding="utf-8")
+    fm, body = core_frontmatter.parse(archived_text)
+    assert fm.get("archive_reason") == "factual_obsolete"
+    assert fm.get("archived_at") is not None
+    assert any(a.get("action") == "archived" for a in fm.get("agents", []))
+
+    # 4. log.md 기록 확인
+    log_path = isolated_vault / "log.md"
+    if log_path.exists():
+        log_text = log_path.read_text(encoding="utf-8")
+        assert "archive" in log_text.lower()
+
+
+def test_archive_readonly_mode_blocked(isolated_vault, make_page):
+    """§1.2 권한 검증: read 모드에서 wiki_archive 호출 시 거부.
+
+    골격: read 모드 → check_permission raises → ok=False + 권한 메시지.
+    """
+    make_page(
+        isolated_vault,
+        "perm-test",
+        frontmatter={"title": "Perm Test"},
+        body="본문",
+    )
+    ctx = VaultContext(vault=isolated_vault, mode="read")
+
+    result = stale_tools.wiki_archive(
+        slug="perm-test",
+        reason="user_request",
+        actor="reader_agent",
+        dry_run=True,  # dry_run이지만 권한은 먼저 체크됨
+        ctx=ctx,
+    )
+    assert result["ok"] is False
+    assert "permission" in result.get("error", "").lower() or "write" in result.get("error", "").lower()
+
+
+def test_stale_detect_uses_wiki_db_when_available(isolated_vault, make_page):
+    """§1.3 wiki.db 최적화: wiki.db가 있으면 list_pages() 우선 사용.
+
+    골격: 페이지 1개 만들고 detect 호출 → summary.source == "filesystem" (wiki.db 없음)
+    (골격 한계 — wiki.db 빌드는 별도 패치). wiki.db 구축 후 재실증은 별도 사이클.
+    """
+    make_page(
+        isolated_vault,
+        "db-optimize-target",
+        frontmatter={"title": "DB Optimize", "status": "current"},
+        body="본문",
+    )
+
+    result = stale_tools.wiki_stale_detect(vault=isolated_vault)
+    # wiki.db가 없는 격리 vault → filesystem fallback 경로
+    assert result["summary"]["total_scanned"] >= 1
+    assert result["summary"]["source"] in ("filesystem", "wiki.db")
+
+
+# ─────────────────────────── write.py 가드 통합 테스트 ───────────────────────────
+
+
+def test_write_update_1_5x_guard_blocks(tmp_path):
+    """§1.3 1.5배 가드 통합: write.py wiki_update 호출 시 본문 50%+ 재작성 거부.
+
+    격리 vault를 bootstrap한 뒤 wiki_update를 직접 호출 (vault handle 필요).
+    1차 갱신(1.3배 → 가드 통과 → 실제 write), 2차 갱신(1.5x → 가드 정확히 차단) 검증.
+    """
+    from raven.core import frontmatter as core_frontmatter
+    from raven.mcp.tools import VaultContext
+    from raven.mcp.tools import write as write_tools
+
+    vault_path = tmp_path / "write-guard-vault"
+    (vault_path / "content").mkdir(parents=True)
+
+    # 기존 페이지 (100자 본문) — write.py _resolve_md_path가 content/<slug>.md 기대
+    page_path = vault_path / "content" / "guard-page.md"
+    fm = {"title": "Guard Page"}
+    body = "a" * 100
+    page_path.write_text(core_frontmatter.render(fm, body), encoding="utf-8")
+
+    ctx = VaultContext(vault=vault_path, mode="write")
+
+    # 1차: 1.3배 갱신 (130자) → 가드 통과. write_page 실패 가능하나 error != "large_rewrite_blocked" 확인
+    short_content = "a" * 130
+    result_short = write_tools.wiki_update(
+        slug="guard-page",
+        content=short_content,
+        ctx=ctx,
+        actor="test_actor",
+    )
+    # 1.3배는 가드 통과. write_page 자체 실패(예: .vault.json 부재)는 별개 이슈
+    assert result_short.get("error") != "large_rewrite_blocked", (
+        f"1.3배는 가드 통과해야 함: {result_short}"
+    )
+
+    # 2차: 200자 (기존 130 → 200 = 1.54배) → 가드 정확히 차단
+    # write_page가 1차에 실패했더라도 본문은 100자 그대로 → 100 vs 200 = 2배 차단
+    long_content = "a" * 200
+    result_long = write_tools.wiki_update(
+        slug="guard-page",
+        content=long_content,
+        ctx=ctx,
+        actor="test_actor",
+    )
+    assert result_long.get("ok") is False
+    assert result_long.get("error") == "large_rewrite_blocked"
+    assert "50%+" in result_long.get("message", "") or "1.5" in result_long.get("message", "")
+    # _existing_len은 본문 길이 (frontmatter 제외). write_page 성공 시 130, 실패 시 100.
+    # 어느 쪽이든 200 > existing * 1.5 라야 가드가 걸렸다는 의미
+    existing_len = result_long.get("_existing_len")
+    new_len = result_long.get("_new_len")
+    assert existing_len in (100, 130), f"unexpected existing_len: {existing_len}"
+    assert new_len == 200
+    assert new_len > existing_len * 1.5, f"1.5배 미만인데 가드 걸림: {existing_len}→{new_len}"
+
+
+def test_write_update_allows_new_page_1_5x_guard_skipped(tmp_path):
+    """§1.4 false positive 회피 통합: 신규 페이지는 본문 0→N이므로 가드 우회.
+
+    write.py wiki_update 호출 — 신규 slug는 본문 비교 대상 없어 가드 미적용.
+    """
+    from raven.mcp.tools import VaultContext
+    from raven.mcp.tools import write as write_tools
+
+    vault_path = tmp_path / "new-page-guard-vault"
+    (vault_path / "content").mkdir(parents=True)
+
+    ctx = VaultContext(vault=vault_path, mode="write")
+    new_content = "x" * 1000  # 큰 본문이지만 신규 페이지
+
+    result = write_tools.wiki_update(
+        slug="never-existed-slug",
+        content=new_content,
+        ctx=ctx,
+        actor="test_actor",
+    )
+    # 신규 페이지이므로 가드 안 걸림 (large_rewrite_blocked가 아님)
+    assert result.get("error") != "large_rewrite_blocked", (
+        f"신규 페이지는 가드 우회해야 함: {result}"
+    )

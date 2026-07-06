@@ -1,15 +1,13 @@
-"""stale.py — ADR-2026-07-06 §1.3 stale loop tools (MCP 골격).
+"""stale.py — ADR-2026-07-06 §1.3 stale loop tools.
 
-Tools (신규):
+Tools:
     wiki_stale_detect — stale 후보 + evidence + suggested_action 반환 (read-only)
     wiki_archive      — 페이지를 archive/<YYYY-MM-DD>/<slug>.md로 이동 + frontmatter stamp
 
-NOTE (v0.7.69+ 골격):
-- 본 모듈은 인터페이스 골격만 제공. 실제 구현은 별도 사이클에서 ADR §4 수용 기준
-  (tests/scenarios/test_stale_loop.py 4종 pass)에 따라 채워짐.
+v0.7.69+ Plan B-2 갱신:
+- FileLock 통합 (ADR §1.3 guards 4종 완성)
+- wiki.db 페이지 조회 최적화 (B#8 lint 캐싱과 동시)
 - ADR-2026-07-06 §1.3 "도구(Tooling)" 결정 그대로 따름.
-- 기존 write.py의 wiki_delete는 archive 액션이지만 destructive — 본 wiki_archive는
-  "정합화 루프의 일부"로 별도 권한 (단일 에이전트 호출 가능, ADR §1.2).
 """
 from __future__ import annotations
 
@@ -23,6 +21,7 @@ from raven.core import archive as archive_module
 from raven.core import frontmatter as core_frontmatter
 from raven.core import slug as slug_module
 from raven.core.contracts import rename_page
+from raven.core.lock import atomic_write_text, lock_for_file
 from raven.core.registry import VaultMeta
 from raven.core.slug import SlugError
 from raven.core.vault import Vault
@@ -162,33 +161,52 @@ def wiki_stale_detect(
             "summary": {"total_scanned": int, "stale_count": int, ...}
         }
 
-    골격 한계: 현 구현은 registry에 등록된 단일 vault의 모든 markdown을 스캔한다.
-    실제 구현은 wiki.db의 pages 테이블 조회로 최적화 필요 (B#8 lint 캐싱과 동시).
+    v0.7.69+ Plan B-2 갱신: wiki.db.list_pages() 우선 사용 (B#8 lint 캐싱 동시).
+    wiki.db가 없거나 slug 누락 시 FS fallback.
     """
     now = datetime.now(timezone.utc)
     candidates = []
-    total_scanned = 0
 
-    # v0.7.69+ 골격: registry.list_vaults()를 통한 단일 vault 가정
-    # (vault 인자가 Path로 직접 주어지므로 registry 우회)
-    if not vault.exists():
-        return {
-            "candidates": [],
-            "summary": {"total_scanned": 0, "stale_count": 0, "error": "vault not found"},
-        }
+    # 1. wiki.db 우선 시도 (B#8 lint 캐싱과 동시 — fs rglob 회피)
+    pages: list[dict] = []
+    try:
+        pages = db.list_pages(vault=vault) or []
+    except Exception:
+        pages = []
 
-    # 페이지 enumerate (content_root 기준)
-    content_root = vault / "content"
-    if not content_root.exists():
-        return {
-            "candidates": [],
-            "summary": {"total_scanned": 0, "stale_count": 0},
-        }
+    # 2. FS fallback (wiki.db 없거나 broken)
+    if not pages:
+        content_root = vault / "content"
+        if content_root.exists():
+            for md_path in content_root.rglob("*.md"):
+                try:
+                    text = md_path.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                fm, _body = core_frontmatter.parse(text)
+                if fm is None:
+                    fm = {}
+                rel_slug = md_path.relative_to(content_root).with_suffix("").as_posix()
+                pages.append(
+                    {
+                        "slug": rel_slug,
+                        "title": fm.get("title"),
+                        "path": str(md_path),
+                        "updated": None,
+                    }
+                )
 
-    for md_path in content_root.rglob("*.md"):
-        total_scanned += 1
+    total_scanned = len(pages)
+
+    for page in pages:
+        slug = page.get("slug", "")
+        page_path = Path(page.get("path") or (vault / "content" / f"{slug}.md"))
+
+        # frontmatter는 FS에서 직접 읽음 (wiki.db에 저장되지 않을 수 있음)
+        if not page_path.exists():
+            continue
         try:
-            text = md_path.read_text(encoding="utf-8")
+            text = page_path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
         fm, _body = core_frontmatter.parse(text)
@@ -201,7 +219,6 @@ def wiki_stale_detect(
         if not is_cand and not include_self_verified:
             continue
 
-        slug = md_path.relative_to(content_root).with_suffix("").as_posix()
         last_verified = fm.get("last_verified")
         age_days = None
         if last_verified is not None:
@@ -228,6 +245,7 @@ def wiki_stale_detect(
             "total_scanned": total_scanned,
             "stale_count": len(candidates),
             "age_threshold_days": age_threshold_days,
+            "source": "wiki.db" if pages and db else "filesystem",
         },
     }
 
@@ -262,9 +280,8 @@ def wiki_archive(
         }
 
     골격 한계:
-    - ADR §1.3 "guards" 4종 (slug validate / FileLock / provenance / idempotent) 중
-      slug validate + provenance + idempotent 골격만 구현. FileLock은 core/lock.py와
-      통합이 필요하여 별도 패치.
+    - ADR §1.3 "guards" 4종 (slug validate / FileLock / provenance / idempotent) —
+      v0.7.69+ Plan B-2에서 4종 모두 구현.
     - ADR §1.2 권한 — write 또는 admin 모드 요구 (check_permission으로 위임).
     """
     actor = normalize_actor(actor)
@@ -321,23 +338,33 @@ def wiki_archive(
     if dry_run:
         return result
 
-    # ADR §1.3: 실제 이동 + stamp
-    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    # ADR §1.3 guards 4종 완성: FileLock + atomic_write_text + provenance + idempotent
+    # 1. FileLock (core/lock.py — TTL/PID 회수 v0.7.67+)
+    try:
+        with lock_for_file(ctx.vault, source, timeout=5.0):
+            # 1a. 원본 frontmatter stamp (atomic_write_text로 안전 기록)
+            stamped = _stamp_archived(source, reason=reason, actor=actor)
 
-    # 1. 원본 frontmatter stamp (이동 전에 해야 안전 — 실패 시 복원 가능)
-    stamped = _stamp_archived(source, reason=reason, actor=actor)
+            # 1b. archive 디렉터리 생성 + 이동
+            archive_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(archive_path))
 
-    # 2. 이동 (shutil.move는 cross-filesystem 지원)
-    shutil.move(str(source), str(archive_path))
+            # 1c. log.md 기록 (append_log_entry: subject 필수)
+            append_log_entry(
+                ctx.vault,
+                action="archive",
+                subject=f"{slug} → {archive_path.relative_to(ctx.vault)}",
+                actor=actor,
+                extras=[f"reason: {reason}", f"archived_path: {archive_path}"],
+            )
 
-    # 3. log.md 기록 (append_log_entry: subject 필수)
-    append_log_entry(
-        ctx.vault,
-        action="archive",
-        subject=f"{slug} → {archive_path.relative_to(ctx.vault)}",
-        actor=actor,
-        extras=[f"reason: {reason}", f"archived_path: {archive_path}"],
-    )
+            result["source_frontmatter_stamped"] = stamped
+    except TimeoutError as lock_err:
+        return {
+            "ok": False,
+            "error": f"lock timeout: {lock_err}",
+            "slug": slug,
+            "hint": "다른 archive/write 액션이 진행 중. 잠시 후 재시도.",
+        }
 
-    result["source_frontmatter_stamped"] = stamped
     return result
