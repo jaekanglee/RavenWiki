@@ -181,6 +181,17 @@ aliases: [old-slug-1]     # 선택
 | 13 | cognitive governance | 🔵 info |
 | 14 | tier integrity | 🔴 critical / 🟡 warning |
 
+### System Areas (type 면제)
+
+다음 경로는 시스템 자동 생성 영역으로, type 9종 면제 (lint #10 통과):
+
+- `<vault>/_meta/**` — vault 운영 문서 (Tier 2 bootstrap)
+- `<vault>/raw/**` — 사람 1차 운영 영역 (raw/ 정책 §7)
+- `<vault>/content/_index/**` — 자동 카탈로그 (graph hub fan-out 방지, ADR-2026-07-04)
+- `<vault>/content/index.md` — root 자동 카탈로그
+
+→ 위 경로 페이지는 type 필드 없이도 lint #10 통과. 9종 정책은 사람이 작성하는 일반 페이지에 한정.
+
 ### Cognitive Governance (#13) — 페이지 품질 4신호
 
 1. **Why it matters** — 첫 문단에 "왜 중요한가" 1-2줄
