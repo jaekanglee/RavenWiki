@@ -46,7 +46,7 @@ export function PageMetaRow({ type, slug, tags, updated }: PageMetaRowProps) {
         <span
           className="chip"
           style={{
-            background: "var(--cds-background-brand, #f4f7fc)",
+            background: "var(--color-primary-bg)",
             color: "var(--color-primary)",
           }}
         >

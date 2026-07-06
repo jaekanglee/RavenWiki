@@ -245,7 +245,7 @@ export function NewVaultWizard() {
                 background:
                   s === step
                     ? "var(--color-primary)"
-                    : "var(--cds-background, #f4f4f4)",
+                    : "var(--color-surface-soft)",
                 color: s === step ? "#fff" : "var(--color-muted)",
                 alignItems: "center",
                 justifyContent: "center",

@@ -184,7 +184,7 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
         marginBottom: 24,
         border: "1.5px solid var(--color-primary)",
         borderRadius: "var(--radius-md)",
-        background: "var(--cds-background, #fff)",
+        background: "var(--color-canvas)",
       }}
     >
       {/* Header */}

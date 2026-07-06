@@ -639,7 +639,7 @@ function Stat({
     <div
       style={{
         padding: "6px 8px",
-        background: "var(--cds-background, #f4f4f4)",
+        background: "var(--color-surface-soft)",
         borderRadius: 4,
       }}
     >
