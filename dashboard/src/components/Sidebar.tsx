@@ -208,7 +208,7 @@ export function Sidebar({
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <select
-              className="sidebar-vault-select-native"
+              className="input-base"
               value={activeVault}
               onChange={(e) => onSelectVault(e.target.value)}
               aria-label="보관소 선택"
