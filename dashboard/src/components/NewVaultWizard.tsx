@@ -32,20 +32,8 @@ import { SelectField } from "./ui/SelectField";
 import { Toast } from "./ui/Toast";
 
 // v0.7.74+: wizard 결과 화면에 MCP 설정 snippet + 클립보드 복사 버튼.
-// PROJECT-WORKFLOW.md §1.5 signpost의 구체적 endpoint를 여기서 자동 생성.
-// Tier 1 leak 회피: 환경별 snippet만, raven 내부 토픽 참조 ❌.
-function buildStdioSnippet() {
-  // 표준 MCP 클라이언트 stdio 설정 (Claude Desktop / Cursor / 표준)
-  return JSON.stringify(
-    {
-      command: "python",
-      args: ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"],
-    },
-    null,
-    2
-  );
-}
-
+// v0.7.81+ HTTP-only — stdio snippet 삭제 (단일 흐름 단순화).
+// PROJECT-WORKFLOW.md §1.5와 sync. URL 한 줄이면 어떤 MCP 클라이언트든 동작.
 function buildHttpSnippet(endpoint: string) {
   return JSON.stringify({ url: endpoint }, null, 2);
 }
@@ -503,7 +491,6 @@ function Step2({
     }
   };
 
-  const stdioSnippet = buildStdioSnippet();
   const httpSnippet = buildHttpSnippet(mcpEndpoint);
 
   return (
@@ -635,7 +622,7 @@ function Step2({
           아래 snippet을 당신의 MCP 클라이언트 설정 파일에 붙여넣으세요.
         </p>
 
-        {/* stdio snippet — 권장 (로컬 sub-process) */}
+        {/* HTTP snippet (v0.7.81+: HTTP only — stdio 삭제) */}
         <div style={{ marginTop: 12 }}>
           <div
             style={{
@@ -647,59 +634,7 @@ function Step2({
               marginBottom: 4,
             }}
           >
-            stdio (권장 — 로컬)
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "flex-start",
-            }}
-          >
-            <pre
-              data-testid="mcp-stdio-snippet"
-              style={{
-                flex: 1,
-                margin: 0,
-                padding: 10,
-                background: "var(--color-surface-soft)",
-                border: "1px solid var(--color-hairline)",
-                borderRadius: "var(--radius-sm)",
-                fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                fontSize: 12,
-                color: "var(--color-ink)",
-                overflowX: "auto",
-                whiteSpace: "pre",
-              }}
-            >
-              {stdioSnippet}
-            </pre>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => copyToClipboard("stdio snippet", stdioSnippet)}
-              aria-label="stdio snippet 복사"
-              style={{ flexShrink: 0 }}
-            >
-              복사
-            </Button>
-          </div>
-        </div>
-
-        {/* HTTP snippet — 원격 (Tailscale 등) */}
-        <div style={{ marginTop: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.32px",
-              textTransform: "uppercase",
-              color: "var(--color-muted)",
-              marginBottom: 4,
-            }}
-          >
-            streamable-http (원격)
+            HTTP localhost (권장 — 단일 흐름)
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <pre
@@ -748,31 +683,29 @@ function Step2({
           }}
         >
           <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
-            표준 MCP 연결 흐름
+            흐름 (v0.7.81+ HTTP only)
           </div>
-          1. 위 snippet을 당신의 MCP 클라이언트 설정에 추가 (vendor 무관 — JSON-RPC 표준)
+          1. 운영자가 서버 띄움: <code>python -m raven.mcp.cli --transport http --port 8765 --mode &lt;...&gt;</code>
           <br />
-          2. <code>tools/list</code> 호출 → 9개 도구 schema 자동 discovery
+          2. 위 snippet을 MCP 클라이언트 설정에 추가 (어떤 클라이언트든 동일)
           <br />
-          3. 첫 도구 호출 시 <code>vault=&quot;{`{`}이름{`}`}&quot;</code> 인자 필수 (다중 vault 지원)
+          3. <code>tools/list</code> → 9개 도구 자동 discovery → <code>vault=&quot;basename&quot;</code>로 호출
           <br />
           <br />
           <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
-            권한 모드
+            모드 (서버 시작 시 argv)
           </div>
-          <code>read</code> (기본, 6종) · <code>write</code> (+3종, 페이지 CRUD/격리) · <code>admin</code> (+2종, 사람 운영자 전용)
+          <code>read</code> (기본) · <code>write</code> · <code>admin</code> (사람 운영자 전용)
           <br />
           <br />
           <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
             연결 안 될 때
           </div>
-          - <code>command not found: python</code> → 운영자에게 <code>python3</code> 또는 venv path 확인
+          - <code>address already in use</code> → 다른 포트 또는 기존 프로세스 종료
           <br />
-          - <code>address already in use</code> → 다른 포트 사용 또는 기존 프로세스 종료
+          - <code>permission_denied</code> → 운영자에게 <code>write</code>/<code>admin</code> 모드로 재시작 요청
           <br />
-          - <code>permission_denied</code> → <code>write</code>/<code>admin</code> 모드로 재시작 필요
-          <br />
-          - <code>vault not found</code> → <code>vault</code> 인자값 등록된 이름과 일치 확인
+          - <code>vault not found</code> → <code>vault</code> 인자가 디렉토리 basename과 일치하는지 확인
         </div>
       </div>
 
