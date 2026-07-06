@@ -356,9 +356,9 @@ v0.6.35 시점엔 "`docs/` 신설 불필요"였으나 v0.7.0+에서 실제로 �
 *   **연결성 및 지식 그래프화 (Connectivity)**:
     *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 `[[wikilink]]`를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
 
-### 15.2 RAG 및 지식 탐색 평가 부문 (Hermes Constitution 투영)
-RAG 및 검색 활용 시, `~/.hermes/SOUL.SHARE.md` 및 `~/.hermes/SOUL.SHARE.CORE.md`에 규정된 **Karpathy 4원칙 및 체계적 디버깅/조사 규율**을 RAG에 투영하여 평가합니다.
-*   **Think Before Searching (검색 전 사색 - Constitution §4.①)**: 뇌피셜로 지식이나 문서의 유무를 추정하지 않고, 가정을 검증하기 위해 `wiki_search`를 능동적으로 계획하여 활용했는가?
-*   **Surgical Retrieval (외과 수술식 조회 - Constitution §4.③)**: 필요한 영역에만 동화될 수 있도록 정확하고 최소한의 정밀한 키워드 및 multi-hop 탐색을 수행했는가? (불필요한 대량의 컨텍스트를 과도하게 가져오는 것 방지)
-*   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출 - Constitution §4.④)**: 단순히 검색 결과의 상위 텍스트를 나열하는 대신, 사용자가 지시한 문제 해결의 성공 기준에 직접적으로 trace되는 사실 정보만 정밀하게 추출하여 활용했는가?
-*   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사 - Constitution §7)**: 볼트 내의 문서들 간에 모순되거나 충돌하는 정보가 발견되었을 때, 임의로 추정하여 덮어쓰지 않고, 히스토리(log.md, _meta/ 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
+### 15.2 RAG 및 지식 탐색 평가 부문
+RAG 및 검색 활용 시, 다음의 4원칙에 따라 평가합니다. (출처: Karpathy LLM Wiki +α 패턴 — `docs/vault-patterns.md` 참조. Raven 자체 평가 기준으로 재진술.)
+*   **Think Before Searching (검색 전 사색)**: 뇌피셜로 지식이나 문서의 유무를 추정하지 않고, 가정을 검증하기 위해 `wiki_search`를 능동적으로 계획하여 활용했는가?
+*   **Surgical Retrieval (외과 수술식 조회)**: 필요한 영역에만 동화될 수 있도록 정확하고 최소한의 정밀한 키워드 및 multi-hop 탐색을 수행했는가? (불필요한 대량의 컨텍스트를 과도하게 가져오는 것 방지)
+*   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출)**: 단순히 검색 결과의 상위 텍스트를 나열하는 대신, 사용자가 지시한 문제 해결의 성공 기준에 직접적으로 trace되는 사실 정보만 정밀하게 추출하여 활용했는가?
+*   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사)**: 볼트 내의 문서들 간에 모순되거나 충돌하는 정보가 발견되었을 때, 임의로 추정하여 덮어쓰지 않고, 히스토리(log.md, _meta/ 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
