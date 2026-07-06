@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 
 // v0.7.72+: 4개 action icon 이모지 → Lucide SVG (currentColor → var(--color-ink) 자동 상속).
 // ui-ux 스킬 §P: 이모지 ❌ (OS별 렌더링 차이, 다크모드 깨짐).
@@ -100,6 +101,8 @@ export function VaultManage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<{ vaultName: string; slug: string } | null>(null);
   const [confirmBootstrap, setConfirmBootstrap] = useState<string | null>(null);
+  // v0.7.82+: banner 자세히 모달 (mismatch/missing 파일 목록)
+  const [bootstrapDetail, setBootstrapDetail] = useState<string | null>(null);
   // v0.7.75+: vault 일괄 bootstrap 상태 (페이지 진입 시 자동 검사)
   const [bootstrapStatus, setBootstrapStatus] = useState<Record<string, BootstrapStatus>>({});
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -394,6 +397,101 @@ export function VaultManage() {
   return (
     <div style={{ maxWidth: 960 }}>
       <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
+      {/* v0.7.82+: banner 자세히 모달 — mismatch/missing 파일 목록 */}
+      <Modal
+        open={Boolean(bootstrapDetail)}
+        onClose={() => setBootstrapDetail(null)}
+        maxWidth={680}
+      >
+        {bootstrapDetail && bootstrapStatus[bootstrapDetail] && (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)" }}>
+                {bootstrapDetail}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  background: bootstrapStatus[bootstrapDetail].ok
+                    ? "var(--color-success-bg)"
+                    : "var(--color-danger-bg)",
+                  color: bootstrapStatus[bootstrapDetail].ok
+                    ? "var(--color-success-text)"
+                    : "var(--color-danger-text)",
+                }}
+              >
+                {bootstrapStatus[bootstrapDetail].ok ? "✓ 지침 일치" : "⚠ 지침 불일치"}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--color-muted)", marginBottom: 16 }}>
+              {bootstrapStatus[bootstrapDetail].summary}
+            </p>
+            {bootstrapStatus[bootstrapDetail].mismatched_files.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+                  Mismatch 파일
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, monospace", color: "var(--color-danger-text)" }}>
+                  {bootstrapStatus[bootstrapDetail].mismatched_files.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {bootstrapStatus[bootstrapDetail].missing_files.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+                  Missing 파일
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, monospace", color: "var(--color-danger-text)" }}>
+                  {bootstrapStatus[bootstrapDetail].missing_files.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {bootstrapStatus[bootstrapDetail].empty_files.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+                  Empty 파일
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, monospace", color: "var(--color-muted)" }}>
+                  {bootstrapStatus[bootstrapDetail].empty_files.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {bootstrapStatus[bootstrapDetail].mismatched_files.length === 0 &&
+              bootstrapStatus[bootstrapDetail].missing_files.length === 0 &&
+              bootstrapStatus[bootstrapDetail].empty_files.length === 0 && (
+                <p style={{ fontSize: 13, color: "var(--color-success-text)" }}>
+                  모든 Lite bootstrap 파일이 원본 템플릿과 일치합니다.
+                </p>
+              )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <Button variant="secondary" onClick={() => setBootstrapDetail(null)}>
+                닫기
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const name = bootstrapDetail;
+                  setBootstrapDetail(null);
+                  if (name) handleBulkUpdateBootstrap();
+                }}
+                disabled={bulkUpdating || (bootstrapStatus[bootstrapDetail]?.ok ?? false)}
+                data-testid="bootstrap-detail-update"
+              >
+                {bulkUpdating ? "업뎃 중…" : "이 vault 지침 업뎃"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <ConfirmDialog
         open={Boolean(unlockTarget)}
         onClose={() => !busy && setUnlockTarget(null)}
@@ -486,6 +584,15 @@ export function VaultManage() {
               {bulkUpdating
                 ? "업뎃 중…"
                 : `🔄 ${mismatched.length}개 vault 일괄 업뎃`}
+            </Button>
+            <Button
+              type="button"
+              variant="pillSecondary"
+              onClick={() => setBootstrapDetail(mismatched[0].name)}
+              data-testid="bulk-bootstrap-detail"
+              aria-label="불일치 상세 보기"
+            >
+              자세히 →
             </Button>
           </div>
         );
@@ -1041,5 +1148,5 @@ function MetricRow({
         {value}
       </span>
     </div>
-  );
+);
 }
