@@ -20,6 +20,7 @@ import {
 } from "../lib/api";
 import { RawTree } from "../components/RawTree";
 import { EmptyState } from "../components/ui/EmptyState";
+import { EmptyIcon } from "../lib/emptyIcons";
 import { PageHeader } from "../components/ui/PageHeader";
 import { TextField } from "../components/ui/TextField";
 import { Button } from "../components/ui/Button";
@@ -156,7 +157,7 @@ export function RawPanel() {
   if (loading) {
     return (
       <EmptyState
-        icon="⏳"
+        icon={<EmptyIcon.Loader />}
         title="raw/ 폴더를 불러오는 중"
         description="잠시만 기다려 주세요."
       />
@@ -165,7 +166,7 @@ export function RawPanel() {
   if (loadError) {
     return (
       <EmptyState
-        icon="⚠️"
+        icon={<EmptyIcon.AlertTriangle />}
         title="raw/ 폴더를 불러오지 못했습니다"
         description="vault에 raw/ 폴더가 없거나 API 응답 오류."
       />

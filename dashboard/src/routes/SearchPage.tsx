@@ -4,6 +4,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { PageHeader } from "../components/ui/PageHeader";
 import { SearchResultItem } from "../components/SearchResultItem";
 import { useDebounced } from "../lib/useDebounced";
+import { EmptyIcon } from "../lib/emptyIcons";
 
 export function SearchPage() {
   const { vault } = useOutletContext<{ vault: string }>();
@@ -79,7 +80,7 @@ export function SearchPage() {
 
       {!q && (
         <EmptyState
-          icon="🔎"
+          icon={<EmptyIcon.Search />}
           title="검색어를 입력하세요"
           description="제목, 본문, 스니펫 기준으로 현재 보관소 전체를 바로 탐색합니다."
         />
@@ -109,7 +110,7 @@ export function SearchPage() {
 
           {!loading && results.length === 0 ? (
             <EmptyState
-              icon="🗂"
+              icon={<EmptyIcon.Folder />}
               title="검색 결과 없음"
               description="다른 키워드나 더 짧은 검색어로 다시 시도해 보세요."
             />

@@ -8,6 +8,7 @@ import { InlineMarkdownEditor } from "../components/InlineMarkdownEditor";
 import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
+import { EmptyIcon } from "../lib/emptyIcons";
 import { deletePage, fetchPage, getActiveVault } from "../lib/api";
 import type { Graph, Page } from "../types";
 
@@ -237,7 +238,7 @@ export function PageView() {
   if (page === null) {
     return (
       <EmptyState
-        icon="🔍"
+        icon={<EmptyIcon.File />}
         title="문서를 찾을 수 없습니다"
         description={`보관소 '${vault}'에서 '${slug}' 문서를 불러오지 못했습니다. 경로가 올바른지 확인해주세요.`}
         action={
