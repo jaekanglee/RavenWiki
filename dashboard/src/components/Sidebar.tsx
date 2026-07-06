@@ -206,13 +206,6 @@ export function Sidebar({
           >
             보관소 선택 ({vaults.length})
           </div>
-          <select
-            className="sidebar-vault-select-native"
-            value={activeVault}
-            onChange={(e) => onSelectVault(e.target.value)}
-            aria-label="보관소 선택"
-            style={{ display: "none" }} // keep native fallback hidden if we use styled/flex container
-          />
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <select
               className="sidebar-vault-select-native"
