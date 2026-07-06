@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchResultItem } from "./SearchResultItem";
+import { useDebounced } from "../lib/useDebounced";
 
 /**
  * SearchBar — pill-shaped (search-bar-pill token).
@@ -8,6 +9,9 @@ import { SearchResultItem } from "./SearchResultItem";
  * Single Rausch "search orb" button on the right.
  *
  * ARIA combobox with full keyboard navigation + touch selection.
+ *
+ * v0.7.69+: 220ms debounce 통일 (SearchPage와 동일). useDebounced hook 사용 —
+ * §13 재사용 hook 추출. IME 조합 중 / 빠른 typing 시 /api/vaults/{}/search 폭주 방지.
  */
 export function SearchBar({
   vault,
@@ -65,20 +69,21 @@ export function SearchBar({
   }, [open]);
 
   // Debounced fetch with AbortController.
+  const debouncedQ = useDebounced(q, 220);
   useEffect(() => {
-    if (!q.trim()) {
+    if (!debouncedQ.trim()) {
       setResults([]);
       return;
     }
     const ctrl = new AbortController();
-    fetch(`/api/vaults/${vault}/search?q=${encodeURIComponent(q)}&top_k=8`, {
+    fetch(`/api/vaults/${vault}/search?q=${encodeURIComponent(debouncedQ)}&top_k=8`, {
       signal: ctrl.signal,
     })
       .then((r) => (r.ok ? r.json() : { results: [] }))
       .then((d) => setResults(d.results || []))
       .catch(() => setResults([]));
     return () => ctrl.abort();
-  }, [q, vault]);
+  }, [debouncedQ, vault]);
 
   const selectResult = (slug: string) => {
     if (onSelect) onSelect(slug);
