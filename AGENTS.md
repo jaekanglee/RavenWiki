@@ -335,6 +335,8 @@ v0.6.35 시점엔 "`docs/` 신설 불필요"였으나 v0.7.0+에서 실제로 �
 | `docs/architecture.md` | 4-Layer 아키텍처 다이어그램 (M2 대체) |
 | `docs/vault-patterns.md` | Karpathy LLM Wiki +α 가이드 |
 | `docs/evaluations/*.md` | 제품/아키텍처 평가 보고서 (버전별) |
+| `docs/issues/*.md` | 평가에서 발견된 미해결 이슈 추적 (v0.7.68+, type=issue) |
+| `docs/superpowers/{plans,specs}/*.md` | 설계 사양/플랜 (v0.7.50+, Lite bootstrap redesign spec 등) |
 
 신규 추가 시 위 컨벤션(주제별 단일 문서, `_meta/`는 changelog/ADR/SOT 전용) 따르세요.
 
