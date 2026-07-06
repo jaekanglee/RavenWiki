@@ -47,7 +47,7 @@ export function PageMetaRow({ type, slug, tags, updated }: PageMetaRowProps) {
           className="chip"
           style={{
             background: "var(--cds-background-brand, #f4f7fc)",
-            color: "var(--color-primary, #1c69d4)",
+            color: "var(--color-primary)",
           }}
         >
           📑 Index

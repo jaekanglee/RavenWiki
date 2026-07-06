@@ -914,7 +914,7 @@ function DiffViewer({ diff }: { diff: string }) {
         } else if (line.startsWith("-")) {
           style = { backgroundColor: "var(--danger-bg-strong)", color: "var(--color-danger)", display: "block" };
         } else if (line.startsWith("@@")) {
-          style = { color: "var(--color-primary, #3b82f6)", opacity: 0.8, display: "block", backgroundColor: "var(--accent-softest)" };
+          style = { color: "var(--color-primary)", opacity: 0.8, display: "block", backgroundColor: "var(--accent-softest)" };
         } else if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ")) {
           style = { fontWeight: "bold", color: "var(--color-muted)", display: "block" };
         }
