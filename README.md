@@ -240,31 +240,91 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 > Python adapter(`raven.agents`)는 v0.7.9+ 제거됨.
 
 MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
-- `tools/list` — 자동 도구 발견
-- `tools/call` — 도구 호출 (`wiki_update`, `wiki_get_page`, `wiki_search`, `wiki_lint` 등)
-- 표준 protocol (stdio 또는 HTTP)
+- `tools/list` — 자동 도구 발견 (9개 도구 schema 즉시)
+- `tools/call` — 도구 호출 (`vault=<name>` 인자 필수 — 다중 vault 지원)
+- 표준 transport: stdio (로컬 sub-process) 또는 streamable-http (원격)
+
+### MCP 클라이언트 설정 예시 (vendor-neutral)
+
+어떤 MCP 호환 클라이언트든 (Claude Desktop, Cursor, Hermes, Codex, Antigravity, 기타
+표준 구현체) 아래 두 패턴 중 하나를 사용합니다:
+
+**stdio 패턴** (로컬 sub-process, 권장):
 
 ```json
-// MCP client 설정 (예: Claude Desktop)
-// ~/.config/Claude/claude_desktop_config.json
+// Claude Desktop: ~/.config/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "raven": {
-      "url": "http://127.0.0.1:8766/mcp"
+      "command": "python",
+      "args": ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"]
     }
   }
 }
 ```
 
-```bash
-# Raven MCP server 띄우기 (local, v0.7.55+ 기본)
-source scripts/.venv/bin/activate
-python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode read   # HTTP (원격/Dashboard client, 기본 포트 8765이므로 --port 명시 필수)
-python -m raven.mcp.cli --mode read                                                  # stdio (desktop MCP client)
+**streamable-http 패턴** (원격 / Tailscale / LAN):
+
+```json
+// Claude Desktop: ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "raven": {
+      "url": "http://<vault-host>:8765/mcp"
+    }
+  }
+}
 ```
 
-> **자세한 도식**: `_meta/diagrams/three-flows.png`
-> **정책**: AGENTS.md §5.5 "MCP = 에이전트 표준 프로토콜"
+```json
+// Cursor: ~/.cursor/mcp.json
+{
+  "mcpServers": {
+    "raven": {
+      "url": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}
+```
+
+> 다른 MCP 호환 클라이언트도 같은 `{mcpServers: {<name>: {command|url}}}` 구조를
+> 따릅니다 — 클라이언트별 정확한 파일 위치는 해당 클라이언트 문서 참고.
+
+### 서버 실행
+
+```bash
+source scripts/.venv/bin/activate
+
+# HTTP 모드 (원격 / Dashboard client)
+python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
+
+# stdio 모드 (desktop MCP client — 클라이언트가 직접 spawn)
+python -m raven.mcp.cli --mode read
+```
+
+**권한 모드 3종** (서버 시작 시 고정):
+- `read` (기본) — 6종 도구: wiki_search / get_page / lint / graph / log / stale_detect
+- `write` — + wiki_update / ingest / archive
+- `admin` (사람 운영자 전용) — + wiki_delete / rename
+
+### 첫 도구 호출 패턴
+
+```python
+# 어떤 클라이언트든 표준 JSON-RPC:
+{"method": "tools/call", "params": {
+  "name": "wiki_search",
+  "arguments": {"vault": "<등록된 이름>", "query": "검색어", "top_k": 10}
+}}
+```
+
+`vault=<이름>` 인자 필수 — vault 운영자에게 등록된 이름 확인. 모르는 경우
+Dashboard 신규 vault 마법사 결과 화면 또는 vault 운영자에게 직접 요청.
+
+### 자세한 안내
+
+- vault 진입 가이드 (외부 에이전트가 받는 문서): `_meta/agents/PROJECT-WORKFLOW.md` §1.5.1
+- 정책: AGENTS.md §5.5 "MCP = 에이전트 표준 프로토콜"
+- 다이어그램: `_meta/diagrams/three-flows.png`
 
 ---
 
