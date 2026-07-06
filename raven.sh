@@ -38,10 +38,24 @@ else
   PY="python3"
 fi
 
+# status() helper: PID의 process args에서 --mode 값을 추출 (env 의존 0).
+# silent hotfix (v0.7.85+): status() 호출 시 RAVEN_MCP_MODE env가 export되지 않으면
+# $MCP_MODE가 fallback(read)로 표시되는 버그. 실제 process args에서 직접 파싱.
+mcp_mode_from_pid() {
+  local pid="$1"
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    echo ""
+    return
+  fi
+  # macOS ps: -o args= 형식 / Linux ps: -o cmd= 형식 모두 호환
+  ps -p "$pid" -o args= 2>/dev/null | tr " " "\n" | grep -A1 "^--mode$" | tail -1
+}
+
 status() {
   local api_running=false
   local db_running=false
   local mcp_running=false
+  local mcp_mode_display=""
 
   if [ -f "$API_PID" ] && kill -0 $(cat "$API_PID") 2>/dev/null; then
     api_running=true
@@ -51,13 +65,14 @@ status() {
   fi
   if [ -f "$MCP_PID" ] && kill -0 $(cat "$MCP_PID") 2>/dev/null; then
     mcp_running=true
+    mcp_mode_display="$(mcp_mode_from_pid "$(cat "$MCP_PID")")"
   fi
 
   if $api_running && $db_running && $mcp_running; then
     echo "🟢 Raven is RUNNING"
     echo "   • API PID: $(cat "$API_PID")       Url: http://127.0.0.1:$API_PORT"
     echo "   • Dashboard PID: $(cat "$DASHBOARD_PID") Url: http://localhost:$DASHBOARD_PORT"
-    echo "   • MCP PID: $(cat "$MCP_PID")          Url: http://127.0.0.1:$MCP_PORT/mcp (mode=$MCP_MODE)"
+    echo "   • MCP PID: $(cat "$MCP_PID")          Url: http://127.0.0.1:$MCP_PORT/mcp (mode=${mcp_mode_display:-?})"
     return 0
   elif $api_running || $db_running || $mcp_running; then
     echo "🟡 Raven is PARTIALLY RUNNING (API: $api_running, Dashboard: $db_running, MCP: $mcp_running)"
