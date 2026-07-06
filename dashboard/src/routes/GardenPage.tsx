@@ -53,12 +53,17 @@ export function GardenPage() {
   };
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
+    // v0.7.71+: Toast 컴포넌트 + auto-close useEffect 사용. unmount race 회피.
+    // 이전엔 self-implemented setTimeout → 페이지 전환 시 setState on unmounted 컴포넌트 경고.
     setToast({ message, type });
-    // 2400ms 지속 규칙 준수
-    setTimeout(() => {
-      setToast(null);
-    }, 2400);
   };
+
+  // v0.7.71+: toast 표시 후 2400ms 자동 닫기 (race-free: unmount 시 cleanup).
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const handleArchive = async (slug: string) => {
     setConfirmState({ kind: "archiveOne", slug });

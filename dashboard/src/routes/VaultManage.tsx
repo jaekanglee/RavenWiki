@@ -102,10 +102,17 @@ export function VaultManage() {
     }
   }
 
+  // v0.7.71+: showToast는 단순 setToast만. auto-close는 아래 useEffect가 담당 (race-free).
   function showToast(message: string, type: "success" | "error" = "success") {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 2400);
   }
+
+  // v0.7.71+: 2400ms 자동 닫기. unmount 시 cleanup으로 race condition 회피.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const loadVaults = useCallback(async () => {
     setLoading(true);
