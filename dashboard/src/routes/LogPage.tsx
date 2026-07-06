@@ -182,20 +182,25 @@ export function LogPage() {
           flexWrap: "wrap",
         }}
       >
-        <label style={{ fontSize: 13, color: "var(--color-muted)" }}>
-          액션&nbsp;
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            color: "var(--color-muted)",
+          }}
+        >
+          액션
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
+            className="input-base"
             style={{
-              border: "1px solid var(--color-hairline-strong)",
-              borderRadius: "var(--radius-full)",
               padding: "6px 14px",
               fontSize: 13,
-              background: "var(--color-canvas)",
-              color: "var(--color-ink)",
               fontFamily: "inherit",
-              outline: "none",
+              borderRadius: "var(--radius-full)",
             }}
           >
             <option value="">전체</option>
