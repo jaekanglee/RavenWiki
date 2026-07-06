@@ -530,7 +530,7 @@ export function VaultManage() {
           style={{
             padding: 12,
             marginBottom: 16,
-            background: "var(--cds-danger, #fff1f1)",
+            background: "var(--color-danger-bg)",
             border: "1px solid var(--color-danger-border)",
             borderRadius: 4,
             color: "var(--color-danger-text)",
@@ -695,7 +695,7 @@ export function VaultManage() {
                             marginLeft: 4,
                             background: isOk
                               ? "var(--color-success-bg)"
-                              : "var(--cds-danger, #fff1f1)",
+                              : "var(--color-danger-bg)",
                             color: isOk
                               ? "var(--color-success-text)"
                               : "var(--color-danger-text)",
@@ -1060,7 +1060,7 @@ export function VaultManage() {
               style={{
                 padding: 12,
                 marginBottom: 4,
-                background: "var(--cds-warning, #fff8e1)",
+                background: "var(--color-warning-bg)",
                 border: "1px solid var(--color-warning-border)",
                 borderRadius: 4,
                 fontSize: 13,

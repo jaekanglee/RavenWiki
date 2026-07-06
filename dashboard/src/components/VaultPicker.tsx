@@ -200,7 +200,7 @@ export function VaultPicker({
                   padding: "10px 16px",
                   background:
                     v.name === active
-                      ? "var(--cds-field-01, #f4f4f4)"
+                      ? "var(--color-surface-soft)"
                       : "transparent",
                   border: "none",
                   textAlign: "left",
@@ -212,7 +212,7 @@ export function VaultPicker({
                 onMouseEnter={(e) => {
                   if (v.name === active) return;
                   (e.currentTarget as HTMLElement).style.background =
-                    "var(--cds-field-hover, #f0f0f0)";
+                    "var(--color-hairline-strong)";
                 }}
                 onMouseLeave={(e) => {
                   if (v.name === active) return;
