@@ -110,3 +110,18 @@ Layer 4 (Client) → Layer 3 (Interface) → Layer 2 (Core) → Layer 1 (Data)
 - **검증**: 길이 한계 내 (아키텍처 +33.8%, 제품 +49.1%), 산술 2.70+0.30=3.0 / 3.325→3.3 표기 일치.
 
 → 후속 사이클: P4 정식 발견↔권고 매트릭스 + P8 권고 done_when 추가 + P9 스테일 루프 실제 구현.
+
+### 2026-07-06 후속 — Plan C (ADR + 매트릭스 + done_when) 완료
+
+평가 보완 v2 후속, 사용자 north star 실행 기반 결정 골격 박음:
+
+- **ADR 신설**: `_meta/decisions/adr-2026-07-06-stale-update-isolate-loop.md` (209줄)
+  - 정의(Schema): `current`/`stale`/`contested`/`archived` 4상태 명시 + 전이 규칙
+  - 권한(Authority): 5가지 액션 × 사람/단일 에이전트/멀티 에이전트 매트릭스 + 본문 50%+ 재작성 금지 가드
+  - 도구(Tooling): MCP 신규 2종 (`wiki_stale_detect`, `wiki_archive`) + `wiki_update` 확장 (1.5배 가드, `evidence`, `revalidate`)
+  - 테스트(Testing): `tests/scenarios/test_stale_loop.py` 시나리오 4종 + 회귀 가드 2종
+- **P4 정식 매트릭스** (양 평가 §5.1): 발견 27+25건 → 권고 11+25건 매핑, N:1 흡수 多 = "수렴 + cleanup" 묶음 작업 명시
+- **P8 done_when** (양 평가 §5.2): 권고별 1줄 검증 기준. ADR-2026-07-06 §4 수용 기준 참조.
+- **자가 점수 갱신**: 4.5/5 → **4.6/5** (추적성 4.7·정합성 4.5·north star 4.8).
+
+다음 사이클 (Plan B): ADR §1.3 도구 골격 + §1.4 시나리오 테스트 골격 구현.

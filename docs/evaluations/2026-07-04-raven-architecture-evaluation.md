@@ -176,22 +176,41 @@ docs/architecture.md는 제거된 `_meta/system/`을 참조. **"docs as contract
 
 ## 5. 권고 로드맵
 
-### P0 (데이터 안전 — 즉시)
-0. **에이전트 스테일 갱신·격리 루프 4종 구축** (테마 5, A#0, 사용자 north star) — 정의(`SCHEMA.md`/`RULES.md`에 stale/archive/contested 3상태 + 전이 규칙) + 권한(ADR) + 도구(MCP `wiki_stale_detect` + `wiki_archive`) + 테스트(시나리오 3종 + 격리 1종). contracts.py:28-31의 20버전 묵은 TODO와 별개로, **north star의 실행 기반 자체가 부재**한 결함.
-1. **MCP `wiki_update`를 `contracts.write_page`로 교체** (A#1) — traversal 차단 + created 보존 + FileLock + provenance 통일이 **한 번에** 해결됨. contracts.py:28-31의 20버전 묵은 TODO 이행.
-2. **frontmatter.py를 python-frontmatter로 교체 또는 블록 YAML 지원** (A#3) — 현재 조용한 데이터 손실 중. build_db와 파서 통일이 겸사 해결.
-3. **MCP `_rebuild_db` 경로를 `core.db.build_db`로 교체** (A#2) + `db.connect()`에 stale 검사 연결 (A#8).
-4. **migrate `apply_broken_to_missing` 수리** (A#6) — broken 대상만 선별, 죽은 헬퍼 제거. `risk="safe"` 재분류.
+### 5.1 발견 ↔ 권고 매핑 매트릭스
 
-### P1 (구조 수렴 — 다음 사이클)
-5. FileLock에 TTL/PID 기록 + MCP advisory와 통합 (A#4). 페이지/로그 쓰기에 tmp+`os.replace` 원자성 (B#6).
-6. CORS 축소(Origin 화이트리스트) 또는 최소 토큰 인증 (A#5). `/log/rotate` 데드코드 복원 (A#7).
-7. 아카이브 4벌 → core/archive.py 수렴 (B#5), 검색 3벌 → FTS5 단일화, mcp/db.py 질의 헬퍼를 core로 내려 역의존 제거 (B#2).
-8. 죽은 스위트 2개 처분 + deploy/systemd 삭제 또는 수리 (A#9). Makefile 헤더 정정 (B#13).
+> A#0~A#9 (10건) + B#1~B#17 (17건) = **27건 발견 → 권고 11건으로 수렴**. N:1 흡수 多 = "수렴 + cleanup" 묶음 작업 (Karpathy §3 surgical).
 
-### P2 (품질 — 여유 시)
-9. 프론트: types.ts를 백엔드 실응답에 맞게 교정(B#9) + 공용 useApi 훅 또는 react-query(B#10) — 이 둘로 프론트 발견 절반이 구조적으로 해소.
-10. server.py에서 그래프 레이아웃·git 연산을 core로 추출 (B#3). lint 스캔 캐싱 (B#8). `__version__` SOT 연결 (B#14).
+| 발견 → 권고 | # | 비고 |
+|---|---|---|
+| **A#0** (테마 5, 스테일 루프) | **#0** 1:1 | ADR-2026-07-06 |
+| A#1 | **#1** 1:1 | contracts.write_page |
+| A#2·A#8 | **#3** 1:1 동시 | db.connect stale |
+| A#3 | **#2** 1:1 | 파서 통일 |
+| A#4·B#6 | **#5** N:1 | TTL + 원자성 |
+| A#5·A#7 | **#6** N:1 | CORS + /log/rotate |
+| A#6 | **#4** 1:1 | broken-only |
+| A#9·B#13 | **#8** N:1 | 죽은 스위트 + Makefile |
+| B#1·B#2·B#4·B#5·B#7·B#16 | **#7** N:1 | core 수렴 |
+| B#3·B#8·B#14 | **#10** N:1 (P2) | server.py 추출 + 캐싱 |
+| B#9·B#10·B#11·B#12·B#15·B#17 | **#9** N:1 (P2) | 프론트 cleanup |
+
+### 5.2 권고별 done_when (검증 기준, Karpathy §6 ④)
+
+done_when 형식: **테스트/시나리오가 그린이면 통과**. 상세는 ADR-2026-07-06 §4 수용 기준 참조.
+
+| # | 권고 | done_when (1줄) |
+|---|---|---|
+| **#0** | 스테일 루프 4종 | ADR accept + 시나리오 4종 pass + 회귀 2종 pass |
+| **#1** | MCP wiki_update → contracts | `slug='../../etc/passwd'` 400 + `created` 보존 + FileLock 3종 테스트 |
+| **#2** | frontmatter.py 교체 | `tests/regressions/test_frontmatter_block_yaml.py` pass + build_db와 동일 모듈 |
+| **#3** | MCP `_rebuild_db` + db.connect stale | MCP write → 검색 즉시 반영 + stale 시 자동 rebuild |
+| **#4** | migrate broken-only | 정상 링크 무손상 + `_has_intent_suffix` false negative 0건 |
+| **#5** | FileLock TTL/PID + 원자성 | TTL 경과 자동 해제 + tmp+os.replace atomic |
+| **#6** | CORS 축소 + `/log/rotate` | Origin 화이트리스트 + `/log/rotate` 응답 = docstring |
+| **#7** | 아카이브/검색/락 수렴 | 동일 입력 → 동일 결과 (3종 진입점 비교) |
+| **#8** | 죽은 스위트 + Makefile | pytest collections 죽은 스위트 0개 + 헤더 정책 일치 |
+| **#9** | 프론트 types/useApi | types.ts Graph 타입 = 백엔드 1:1 + `/stats` 1회 fetch |
+| **#10** | server.py 추출 + lint 캐싱 + version | server.py -450 LOC + lint < 100ms + `__version__` = 최신 changelog |
 
 ---
 
