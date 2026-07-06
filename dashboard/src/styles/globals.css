@@ -441,6 +441,7 @@ body {
   --color-primary: #3b82f6;          /* brighter blue for visibility */
   --color-primary-active: #2563eb;
   --color-primary-disabled: #1d4ed8;
+  --color-primary-bg: rgba(59, 130, 246, 0.14);   /* brand soft background — 라이트 #f4f7fc의 다크 동등 (CDS background-brand 톤) */
   --color-error-text: #f87171;
   --color-danger: var(--color-error-text);
 
@@ -519,6 +520,7 @@ html.dark {
   --color-primary: #3b82f6;
   --color-primary-active: #2563eb;
   --color-primary-disabled: #1d4ed8;
+  --color-primary-bg: rgba(59, 130, 246, 0.14);   /* brand soft background — 라이트 #f4f7fc의 다크 동등 */
   --color-error-text: #f87171;
   --color-danger: var(--color-error-text);
 
