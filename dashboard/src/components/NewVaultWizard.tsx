@@ -747,10 +747,32 @@ function Step2({
             color: "var(--color-body)",
           }}
         >
-          연결 후 클라이언트는 MCP 표준 <code>tools/list</code>로 9개 도구의
-          schema를 자동 discovery — 별도 문서 참조 없이 사용 가능합니다.
+          <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+            표준 MCP 연결 흐름
+          </div>
+          1. 위 snippet을 당신의 MCP 클라이언트 설정에 추가 (vendor 무관 — JSON-RPC 표준)
           <br />
-          vault 권한 모드: <code>read</code> (기본) · <code>write</code> · <code>admin</code>
+          2. <code>tools/list</code> 호출 → 9개 도구 schema 자동 discovery
+          <br />
+          3. 첫 도구 호출 시 <code>vault=&quot;{`{`}이름{`}`}&quot;</code> 인자 필수 (다중 vault 지원)
+          <br />
+          <br />
+          <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+            권한 모드
+          </div>
+          <code>read</code> (기본, 6종) · <code>write</code> (+3종, 페이지 CRUD/격리) · <code>admin</code> (+2종, 사람 운영자 전용)
+          <br />
+          <br />
+          <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
+            연결 안 될 때
+          </div>
+          - <code>command not found: python</code> → 운영자에게 <code>python3</code> 또는 venv path 확인
+          <br />
+          - <code>address already in use</code> → 다른 포트 사용 또는 기존 프로세스 종료
+          <br />
+          - <code>permission_denied</code> → <code>write</code>/<code>admin</code> 모드로 재시작 필요
+          <br />
+          - <code>vault not found</code> → <code>vault</code> 인자값 등록된 이름과 일치 확인
         </div>
       </div>
 
