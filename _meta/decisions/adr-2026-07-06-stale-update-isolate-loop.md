@@ -1,7 +1,7 @@
 ---
 title: "ADR: 에이전트 스테일 갱신·격리 루프 — 정의·권한·도구·테스트 4축"
 date: 2026-07-06
-status: proposed
+status: accepted
 audience: agent, human
 supersedes: null
 related:
@@ -197,7 +197,7 @@ def test_archive_path_traversal_blocked():
 | 시나리오 + 회귀 pass | ✅ | 13/13 (4 시나리오 + 3 false positive + 2 회귀 + 4 통합) |
 | changelog 항목 | ✅ | `_meta/changelog-v0.7.68.md` 부록 C Plan B + Plan B-2 2건 |
 | 평가 문서 done_when | ✅ | 양 평가 §5.2 #0 1줄 갱신 |
-| ADR 본문 사용자 검토 | ⏳ | `status: proposed` — 본 ADR §1.1~§1.4 결정 골격 사용자 검토 대기 |
+| ADR 본문 사용자 검토 | ✅ | 2026-07-06 사용자 응답 A → `status: accepted` (전체 검토 후 종결) |
 
 ---
 
@@ -213,7 +213,7 @@ def test_archive_path_traversal_blocked():
 
 - **작성일**: 2026-07-06
 - **작성자**: raven-orchestrator (사용자 north star 확인 후)
-- **승인**: 사용자 명시 승인 대기 (`/3` 응답으로 사용자 Plan C 진행 승인 받음)
+- **승인**: ✅ **accepted** (2026-07-06 사용자 응답 A)
 - **supersedes**: 없음 (첫 결정)
 - **superseded by**: (후속 결정 발생 시 명시)
 

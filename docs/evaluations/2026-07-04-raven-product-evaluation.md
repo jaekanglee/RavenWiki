@@ -127,7 +127,7 @@ done_when 형식: **테스트/시나리오가 그린이면 통과**. 상세는 A
 
 | # | 권고 | done_when (1줄) |
 |---|---|---|
-| **#0** | 스테일 루프 4종 | ADR-2026-07-06 accept + Lite bootstrap `templates/agent/SCHEMA.md` status 4종 정의 + 시나리오 13종 pass + 회귀 2종 pass (Plan B-2, 5b84a8e) |
+| **#0** | 스테일 루프 4종 | ADR-2026-07-06 accepted (2026-07-06) + Lite bootstrap `templates/agent/SCHEMA.md` status 4종 정의 + 시나리오 13종 pass + 회귀 2종 pass (Plan B-2, 5b84a8e) |
 | **#1** | export 수리 | 격리 vault exit 0 + 결과 파일 존재 + 실패 시 거짓 "exported" 출력 금지 |
 | **#2** | 신규 페이지 경로 | 신규 slug 호출 성공 + provenance 기록 + ADR-2026-07-02 메시지 교정 |
 | **#3** | frontmatter 오염 방어 | `content="---\ntags: ..."` 시 tags 보존 또는 명시적 거절 (오염 금지) |
