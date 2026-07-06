@@ -604,6 +604,58 @@ def verify_vault_bootstrap(name: str):
     return payload
 
 
+@app.post("/api/vaults/verify-all")
+def verify_all_vaults_bootstrap():
+    """Verify Lite bootstrap for every registered vault at once.
+
+    v0.7.75+: Dashboard VaultManage 진입 시 자동 호출 — 사용자가 누르지 않아도
+    모든 vault의 SCHEMA.md / PROJECT-WORKFLOW.md / log.md 일치 여부 검사.
+
+    Returns per-vault result:
+        results: [{name, ok, mismatched_files, missing_files, summary}, ...]
+    Aggregate counts: ok_count, mismatch_count.
+
+    Never raises on per-vault mismatch (409 forbidden here — caller renders
+    a list view, not HTTP error). Errors per vault (corrupt vault, missing
+    dir) are caught and returned as `{"name": ..., "ok": False, "error": ...}`.
+    """
+    results: list[dict] = []
+    for meta in registry().list():
+        entry: dict = {"name": meta.name, "ok": True}
+        try:
+            v = _vault_or_404(meta.name)
+            r = v.verify_bootstrap()
+            entry["ok"] = r.ok
+            entry["mismatched_files"] = [
+                c.rel_path for c in r.checks if c.status == "mismatch"
+            ]
+            entry["missing_files"] = [
+                c.rel_path for c in r.checks if c.status == "missing"
+            ]
+            entry["empty_files"] = [
+                c.rel_path for c in r.checks if c.status == "empty"
+            ]
+            entry["summary"] = (
+                "ok" if r.ok
+                else f"{len(entry['mismatched_files'])} mismatch, "
+                     f"{len(entry['missing_files'])} missing"
+            )
+        except Exception as e:
+            entry["ok"] = False
+            entry["error"] = str(e)
+            entry["summary"] = f"error: {e}"
+        results.append(entry)
+
+    ok_count = sum(1 for r in results if r.get("ok"))
+    return {
+        "ok": ok_count == len(results),
+        "total": len(results),
+        "ok_count": ok_count,
+        "mismatch_count": len(results) - ok_count,
+        "results": results,
+    }
+
+
 class VaultBootstrapPayload(BaseModel):
     profile: str = Field("llm-wiki", description="basic | llm-wiki")
 
