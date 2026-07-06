@@ -1,7 +1,7 @@
 ---
 title: "ADR: 에이전트 스테일 갱신·격리 루프 — 정의·권한·도구·테스트 4축"
 date: 2026-07-06
-status: accepted
+status: proposed
 audience: agent, human
 supersedes: null
 related:
@@ -186,6 +186,18 @@ def test_archive_path_traversal_blocked():
 - [ ] `tests/scenarios/test_stale_loop.py` 4종 시나리오 + 회귀 가드 2종 pass
 - [ ] changelog v0.7.69+ (또는 후속)에 "에이전트 스테일 루프 구현" 항목 1줄
 - [ ] 평가 문서 v0.7.66+ 재평가에서 A#0/P0#0 해소 확인
+
+### 4.0 수용 진행 (Plan B-2, 2026-07-06 완료)
+
+| 기준 | 상태 | 비고 |
+|---|---|---|
+| `_meta/SCHEMA.md` 정의 | ✅ | `_meta/SCHEMA.md` + `raven/core/templates/agent/SCHEMA.md` 양쪽 동기 (Lite bootstrap 자동 복사) |
+| `stale.py` 구현 | ✅ | `wiki_stale_detect` (read) + `wiki_archive` (write/admin) 2종 |
+| `write.py` 1.5배 가드 | ✅ | `wiki_update` 본문 길이 비교 + `large_rewrite_blocked` |
+| 시나리오 + 회귀 pass | ✅ | 13/13 (4 시나리오 + 3 false positive + 2 회귀 + 4 통합) |
+| changelog 항목 | ✅ | `_meta/changelog-v0.7.68.md` 부록 C Plan B + Plan B-2 2건 |
+| 평가 문서 done_when | ✅ | 양 평가 §5.2 #0 1줄 갱신 |
+| ADR 본문 사용자 검토 | ⏳ | `status: proposed` — 본 ADR §1.1~§1.4 결정 골격 사용자 검토 대기 |
 
 ---
 
