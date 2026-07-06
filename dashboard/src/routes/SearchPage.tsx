@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PageHeader } from "../components/ui/PageHeader";
 import { SearchResultItem } from "../components/SearchResultItem";
+import { useDebounced } from "../lib/useDebounced";
 
 export function SearchPage() {
   const { vault } = useOutletContext<{ vault: string }>();
@@ -11,32 +12,30 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Debounced fetch with AbortController (SearchBar와 동일 패턴).
-  // 입력 중 과도한 요청/깜빡임을 줄이기 위해 220ms 대기 후 조회한다.
+  // Debounced fetch with AbortController (v0.7.69+): useDebounced hook으로 통일.
+  // SearchBar와 동일하게 220ms — IME 조합 중 / 빠른 typing 시 fetch 폭주 방지.
+  const debouncedQ = useDebounced(q, 220);
   useEffect(() => {
-    if (!q.trim()) {
+    if (!debouncedQ.trim()) {
       setResults([]);
       setLoading(false);
       setHasSearched(false);
       return;
     }
     const ctrl = new AbortController();
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      setHasSearched(true);
-      fetch(`/api/vaults/${encodeURIComponent(vault)}/search?q=${encodeURIComponent(q)}&top_k=20`, {
-        signal: ctrl.signal,
-      })
-        .then((r) => (r.ok ? r.json() : { results: [] }))
-        .then((d) => setResults(d.results || []))
-        .catch(() => setResults([]))
-        .finally(() => setLoading(false));
-    }, 220);
+    setLoading(true);
+    setHasSearched(true);
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/search?q=${encodeURIComponent(debouncedQ)}&top_k=20`, {
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : { results: [] }))
+      .then((d) => setResults(d.results || []))
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false));
     return () => {
       ctrl.abort();
-      window.clearTimeout(timer);
     };
-  }, [q, vault]);
+  }, [debouncedQ, vault]);
 
   return (
     <div style={{ maxWidth: 880 }}>
