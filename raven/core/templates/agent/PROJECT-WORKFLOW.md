@@ -151,6 +151,22 @@ bootstrap 정책상 외부 에이전트는 vault 이름을 *자동으로* 알 �
 | "permission_denied" 응답 | 모드 부족 (예: `read`로 `wiki_update` 호출) | 운영자에게 `write` 모드로 재시작 요청 |
 | "vault not found" | `vault` 인자 오타 또는 미등록 | 운영자에게 등록된 이름 확인 |
 
+### vault 운영자가 외부 에이전트에게 전달해야 할 것
+
+**vault 경로 한 가지만** 전달하면 충분합니다 (예: `~/Raven/my-vault/`).
+
+- **vault 이름** = 디렉토리 basename — 자동 인식
+- **표준 MCP 스니펫** = §1.5.1 본문 (어떤 MCP 호환 클라이언트든 동일)
+- **mode** (read/write/admin) = 운영자 vault 정책에 따라 argv로 명시
+
+→ 운영자가 추가로 알려줘야 할 것은 *없음*. 나머지는 MCP 표준 + §1.5.1 + 각
+MCP 클라이언트의 표준 흐름이 자동 처리합니다.
+
+**R9 cross-link**: Raven 소스 코드(`raven/`, `dashboard/` 패키지)를 *직접 조회하지
+마세요* — vault 외부 시스템이며 R9 ("vault 외부 시스템/폴더 수정 ❌") 위반입니다.
+MCP 연결 / 도구 사용법 / vault 권한 등 필요한 모든 정보는 본 문서 + 운영자
+README에 있습니다. 정보가 부족하다면 vault 운영자에게 직접 요청하세요.
+
 ## 2. 권한 — vault 내부 영역
 
 | 경로 | 주체 | 권한 |
