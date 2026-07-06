@@ -685,7 +685,7 @@ function Step2({
           <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>
             흐름 (v0.7.81+ HTTP only)
           </div>
-          1. 운영자가 서버 띄움: <code>python -m raven.mcp.cli --transport http --port 8765 --mode &lt;...&gt;</code>
+          1. 운영자가 서버 띄움: <code>python -m raven.mcp.cli --transport http --port 8766 --mode &lt;...&gt;</code>
           <br />
           2. 위 snippet을 MCP 클라이언트 설정에 추가 (어떤 클라이언트든 동일)
           <br />
