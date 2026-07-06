@@ -773,14 +773,18 @@ export function VaultManage() {
                       disabled={busy}
                       style={{ ...btnGhost, marginRight: 0, width: "100%" }}
                     >
-                      지침 검증 🔍
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <ActionIcon.Search />지침 검증
+                      </span>
                     </button>
                     <button
                       onClick={() => setConfirmBootstrap(v.name)}
                       disabled={busy}
                       style={{ ...btnGhost, marginRight: 0, width: "100%" }}
                     >
-                      지침 당겨오기 🔄
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <ActionIcon.Refresh />지침 당겨오기
+                      </span>
                     </button>
                     <button
                       onClick={() => {
