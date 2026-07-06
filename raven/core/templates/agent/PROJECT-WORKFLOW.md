@@ -92,6 +92,59 @@ vault 내용**에 포함됩니다 (Lite bootstrap 정책, v0.7.65+). raven 패�
 CLI(`raven docs show ...` 류)는 Tier 1 — 외부 에이전트가 호출할 수 없습니다.
 대신 MCP 표준 discovery(`tools/list`)를 쓰면 vendor/환경에 종속되지 않습니다.
 
+### 1.5.1 표준 MCP 클라이언트 설정 패턴 (vendor-neutral)
+
+당신의 MCP 호환 클라이언트는 다음 두 표준 패턴 중 하나를 지원합니다. 둘 다
+Model Context Protocol (JSON-RPC) 표준이라 **어떤 클라이언트든 동일하게 동작**합니다.
+
+| 패턴 | 용도 | JSON 스니펫 |
+|---|---|---|
+| **`command` 기반** (stdio) | 로컬 sub-process. 클라이언트가 직접 spawn | `{"command": "python", "args": ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"]}` |
+| **`url` 기반** (streamable-http) | 원격 HTTP. 클라이언트가 URL로 호출 | `{"url": "http://<vault-host>:8765/mcp"}` |
+
+> **vault 운영자가 표준 MCP 클라이언트라면** 위 두 스니펫을 자기 클라이언트의 MCP
+> 서버 설정 (보통 JSON 파일 또는 UI)에 그대로 추가하면 됩니다. 운영 환경에 따라
+> 실제 호스트/포트/mode 값은 wizard 결과 화면 또는 운영자에게 받으세요 (§1.5 안내).
+
+#### 첫 도구 호출 — `vault` 인자
+
+Raven MCP 서버는 *다중 vault 등록*을 지원합니다. 모든 도구 호출 시 **`vault=<등록된 이름>`**
+인자가 필수 — 어떤 vault를 조작할지 명시해야 합니다.
+
+```
+1. tools/list 호출 (자동 discovery)
+2. 발견된 도구 중 하나로 첫 호출 시:
+   wiki_search(vault="<이름>", query="...", top_k=10)
+3. 응답으로 vault의 페이지/링크/그래프 등 자유롭게 탐색
+```
+
+**`vault=<이름>` 모를 때**: vault 운영자에게 직접 요청하거나, 운영자가 Dashboard의
+신규 vault 마법사를 사용했다면 마법사 결과 화면에 등록된 이름이 표시됩니다. (Lite
+bootstrap 정책상 외부 에이전트는 vault 이름을 *자동으로* 알 수 없습니다 — 운영자에게
+확인이 필요합니다.)
+
+#### 권한 모드 (read / write / admin)
+
+서버 시작 시 `--mode`로 고정되며, 한 프로세스 내에서 변경 불가:
+
+| 모드 | 제공 도구 | 일반 사용 |
+|---|---|---|
+| `read` | 6종 (검색/조회/lint/graph/log/stale_detect) | 기본. 안전. 권장 시작점 |
+| `write` | + `wiki_update`, `wiki_ingest`, `wiki_archive` | vault 페이지 생성/수정/격리 |
+| `admin` | + `wiki_delete`, `wiki_rename` | 사람 운영자 전용 — 위험 액션 (삭제/이름변경) |
+
+> **자율 운영 정책**: `admin` 모드 MCP 서버를 *에이전트가* 운영하지 마세요 — 사람 운영자
+> 전용입니다. 일반 에이전트는 `read` (기본) 또는 `write` (필요 시)로 충분합니다.
+
+#### 연결 안 될 때 (트러블슈팅)
+
+| 증상 | 원인 (가능성) | 해결 |
+|---|---|---|
+| "command not found: python" | PATH에 python 없음 | 운영자에게 `python3` 또는 venv path 확인 |
+| "address already in use" (HTTP 모드) | vault가 다른 모드로 실행 중 | 다른 포트 사용 또는 기존 프로세스 종료 |
+| "permission_denied" 응답 | 모드 부족 (예: `read`로 `wiki_update` 호출) | 운영자에게 `write` 모드로 재시작 요청 |
+| "vault not found" | `vault` 인자 오타 또는 미등록 | 운영자에게 등록된 이름 확인 |
+
 ## 2. 권한 — vault 내부 영역
 
 | 경로 | 주체 | 권한 |
