@@ -10,7 +10,7 @@
 - 평가 방법: 4개 병렬 심층 분석 (core 엔진 / 진입점 3종 / Dashboard / 테스트·운영) + 실행 검증 일부
   (frontmatter 왕복 손실은 코드 실행 재현, 테스트 스위트는 실측 실행: tests/ 604 passed 31s, vitest 117 passed 6s)
 - 평가 시점 버전: v0.7.66 (commit `a8deb7e`)
-- 자매 문서: [2026-07-04-raven-product-evaluation.md](2026-07-04-raven-product-evaluation.md) (제품 관점 3.3/5)
+- 자매 문서: [2026-07-04-raven-product-evaluation.md](2026-07-04-raven-product-evaluation.md) (제품 관점 3.3/5, **2026-07-06 보완 v2→v3 적용**)
 - **근본 평가 기준 (사용자 north star, 2026-07-06 확인)**: "사람이 최초 작성한 문서를, 에이전트가 스테일/모순/링크깨짐을
   발견하여 **갱신(부분 overwrite + provenance)** 또는 **격리(archive 이동)** 액션으로 vault를 최신 정합화 상태로 유지한다.
   본문 대규모 재작성은 ❌, 원문 보존 + 증분 누적만 ⭕." — 이 기준 미반영 시 평가는 부적합.
@@ -48,7 +48,8 @@
 - **미커버 영역**: dashboard 시각 UX(요구사항 미수신), `scripts/` 하위 전수, raw/ 폴더(ADR 2026-07-02로 사람 영역),
   MCP 도구 23종 중 실측 ~6종, vendor 중립성 테스트의 5파일 외 잔존.
 - **실패한 검증 / skip의 의미**: A#9의 "37 skip" = 어떤 테스트인지 분해 안 됨. FAILED 1건 = 분석 없이 나열.
-- 평가의 한계 = 권고의 한계: 정량 측정값(쓰기당 재색인 시간·메모리·O(n²) 임계점) 부재로 권고 우선순위는 정성적.
+- **평가의 한계 = 권고의 한계**: 정량 측정값(쓰기당 재색인 시간·메모리·O(n²) 임계점) 부재로 권고 우선순위는 정성적.
+- **평가→코드 검증 갭 (v4)**: A#1·A#3·A#4는 v0.7.67+ 코드 차원 이미 해결 (path traversal→contracts.write_page / frontmatter→contracts merge / lock TTL→FileLock PID 회수). 평가 시점(v0.7.66)과 현재(v0.7.68) 사이 silent 해소 — A#0만 Plan B-2로 자명히 종결. 다음 평가(v0.7.69+)에서 done_when #1/#2/#5 status 명시 필요.
 
 ### 1.2 산출식
 
