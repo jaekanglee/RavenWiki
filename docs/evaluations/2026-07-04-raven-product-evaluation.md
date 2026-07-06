@@ -12,6 +12,7 @@
 - **근본 평가 기준 (사용자 north star, 2026-07-06 확인)**: "사람이 최초 작성한 문서를, 에이전트가 스테일/모순/링크깨짐을
   발견하여 **갱신(부분 overwrite + provenance)** 또는 **격리(archive 이동)** 액션으로 vault를 최신 정합화 상태로 유지한다.
   본문 대규모 재작성은 ❌, 원문 보존 + 증분 누적만 ⭕." — 이 기준 미반영 시 평가는 부적합.
+- 자매 문서: [2026-07-04-raven-architecture-evaluation.md](2026-07-04-raven-architecture-evaluation.md) (아키텍처 관점 3.0/5, **2026-07-06 보완 v2→v3 적용**)
 
 ---
 
@@ -46,10 +47,14 @@
 
 > **자가 점검 (AGENTS.md §15)**: §15.1 (4/4) + §15.2 (4/4) — 통과.
 > §15.1.1 "저장 4신호" — P0 3건 + P1 11건 모두 재사용성·실패기록에 trace.
-> §15.1.2 "구조 일관성" — 파일명 = title 1:1, SCHEMA 9종 타입 준수.
+> §15.1.2 "구조 일관성" — 파일명 = title 1:1, SCHEMA 9종 준수.
 > §15.1.3 "BLUF" — §0 메타 첫 줄 + §2 채점표 결론 명시.
 > §15.1.4 "연결성" — 자매 문서 cross-link + §6 점검 흐름이 SCHEMA/RULES와 상호참조.
 > §15.2.1-4 — 평가자가 "검색·도구 권한·SCHEMA 등 실제 위치 확인 → 코드 file:line 인용 → 사용자가 요구한 north star 성공 기준 추출 → silent failure/모순 발견 시 log.md 역추적" 절차로 작성.
+
+> **v3 보완 (2026-07-06)**: 평가 길이 한계 180줄은 v2 시점 가벼운 평가 가정. Plan B-2 이후 P9 권고 흡수하면서 198줄까지 자연 초과 → v4에서 매트릭스 인용 압축으로 195줄 회복. **외부 평가**(Codex/Claude 의뢰) 없이는 메타 점수 신뢰 한계 — v1 메타 권고 #11 미이행 상태.
+
+> **평가→코드 검증 갭 (2026-07-06 발견)**: 본 평가 §3 P0 (A#1·A#3·A#4)는 v0.7.67+ commit에서 코드 차원 이미 해결됨 (path traversal → `contracts.write_page` 단일화 / frontmatter → v0.7.66+ contracts merge / lock TTL → `FileLock` v0.7.67+ PID 회수). 다만 평가가 이 status를 명시하지 않아 **A#0만 Plan B-2로 자명히 종결**되고 A#1·A#3·A#4는 평가 시점(v0.7.66)과 현재(v0.7.68) 사이 silent 해소. 다음 평가 사이클(v0.7.69+)에서 done_when #1/#2/#5에 "이미 해소" 명시 필요.
 
 - **평가자 = Raven 개발자 본인.** 자기 제품 자기 평가의 메타 한계(확증 편향·blind spot) 있음.
 - **직접 실행한 검증**: 격리 vault 1회 생성, CLI/API/MCP 기본 시나리오, lint 14룰 전수, export 실패 재현.
@@ -113,34 +118,28 @@
 
 ### 5.1 발견 ↔ 권고 매핑 매트릭스
 
-> §3.1/P0#0 + P0#1~#3 (4건) + P1#4~#14 (11건) + P2#15~#24 (10건) = **25건 발견 → 권고 25건**. 본 평가는 1:1 매핑 기본.
-
-| 발견 → 권고 | 비고 |
-|---|---|
-| **§3.1 / P0#0** → **#0** | ADR-2026-07-06 (north star 결정) |
-| **P0#1~#3 + P1#4~#14** → **#1~#14** | 14건 1:1 (P0#3+P1#9만 N:1로 #3 흡수) |
-| **P2#15~#24** → **#15~#24** | 품질 9건 1:1 |
+> **25건 발견 → 25건 권고 (1:1, #3만 N:1)** — §3.1/P0#0 → #0 / P0#1~#3 → #1~#3 / P1#4~#14 → #4~#14 (lint #11·build·시스템 태그·restore·검색·경계·`_core_tags`·garden·§6·watchfiles) / P2#15~#24 → #15~#24 (CLI search·RULES 잔재·severity·모순·분업표·태그 승격·aliases·SCHEMA 메시지·COLLECTION_ID·#13+#10 노이즈)
 
 ### 5.2 권고별 done_when (검증 기준, Karpathy §6 ④)
 
-done_when 형식: **테스트/시나리오가 그린이면 통과**. 상세는 ADR-2026-07-06 §4 수용 기준 참조.
+done_when 형식: **테스트/시나리오가 그린이면 통과**. 상세는 ADR-2026-07-06 §4 / 평가 §5.1 매트릭스 참조.
 
-| # | 권고 | done_when (1줄) |
-|---|---|---|
-| **#0** | 스테일 루프 4종 | ADR-2026-07-06 accepted (2026-07-06) + Lite bootstrap `templates/agent/SCHEMA.md` status 4종 정의 + 시나리오 13종 pass + 회귀 2종 pass (Plan B-2, 5b84a8e) |
-| **#1** | export 수리 | 격리 vault exit 0 + 결과 파일 존재 + 실패 시 거짓 "exported" 출력 금지 |
-| **#2** | 신규 페이지 경로 | 신규 slug 호출 성공 + provenance 기록 + ADR-2026-07-02 메시지 교정 |
-| **#3** | frontmatter 오염 방어 | `content="---\ntags: ..."` 시 tags 보존 또는 명시적 거절 (오염 금지) |
-| **#4** | lint #11 log 오탐 | vault 내 `log` 슬러그 페이지 lint #11 0건 |
-| **#5** | build 1회 수렴 | index.md + DB + lint = 1회 빌드 |
-| **#6** | 시스템 태그 면제 | `index`/`home` core taxonomy 추가 또는 lint #9 면제 |
-| **#7** | archive restore slug | `foo` 또는 `foo.md` 둘 다 동작 |
-| **#8** | 검색 감점 | `raven search "실제 단어"` 결과에 `_index/*` 없음 |
-| **#10** | 경계 선언 정직화 | PROJECT-WORKFLOW "에이전트 경로 = wiki_lint → issue 발의" 명시 |
-| **#11** | `_core_tags()` 경로 | vault SCHEMA.md 태그 추가 시 lint 반영 |
-| **#12** | garden FS↔DB 감지 | stale DB → 진입 시 경고 + 자동 rebuild 옵션 |
-| **#13** | 큐레이션 점검 §6 | PROJECT-WORKFLOW §6 "큐레이션 기본 점검" 섹션 존재 |
-| **#14** | watchfiles 명시 | 클린 체크아웃 pytest 0 red |
+| # | done_when (1줄) |
+|---|---|
+| **#0** | ADR accepted + `templates/agent/SCHEMA.md` status 4종 + 시나리오 13종 + 회귀 2종 |
+| **#1** | export exit 0 + 결과 파일 + 거짓 "exported" 금지 |
+| **#2** | 신규 slug 성공 + provenance + ADR-2026-07-02 메시지 교정 |
+| **#3** | `content="---..."` 시 tags 보존 또는 거절 |
+| **#4** | `log` 슬러그 lint #11 0건 |
+| **#5** | index + DB + lint = 1회 빌드 |
+| **#6** | `index`/`home` core taxonomy 또는 #9 면제 |
+| **#7** | `foo` 또는 `foo.md` 둘 다 restore |
+| **#8** | `raven search` 결과에 `_index/*` 없음 |
+| **#10** | "에이전트 경로 = wiki_lint → issue" 명시 |
+| **#11** | vault SCHEMA 태그 추가 시 lint 반영 |
+| **#12** | stale DB → 경고 + 자동 rebuild |
+| **#13** | PROJECT-WORKFLOW §6 "큐레이션 점검" |
+| **#14** | 클린 체크아웃 pytest 0 red |
 
 ### P0 — 데이터 위험 / 핵심 루프 차단
 
