@@ -234,7 +234,11 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 
 ---
 
-## 에이전트 인터페이스 (MCP, v0.7.81+ HTTP only)
+## 에이전트 인터페이스 (MCP, v0.7.83+ HTTP only)
+
+> **포트 매트릭스 (v0.7.83+)**: API `8765` · MCP `8766` · Dashboard `5173`.
+> 운영자가 `make restart-all` 또는 `./raven.sh restart`로 3개 자동 관리.
+> MCP는 별도 띄울 필요 없음 — silent stale 방지 (AGENTS.md §9).
 
 > **에이전트(LLM client) ↔ Raven = MCP 단일 표준**.
 > Python adapter(`raven.agents`)는 v0.7.9+ 제거됨.
@@ -244,7 +248,7 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 
 ```bash
 # 1단계: 운영자가 서버 띄우기 (1회)
-python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
+python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode read
 ```
 
 ```json

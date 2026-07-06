@@ -82,17 +82,17 @@ Raven은 표준 **Model Context Protocol (JSON-RPC)** 서버입니다. **HTTP lo
 ### 1단계: 운영자가 서버 띄우기 (1회)
 
 ```bash
-python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode <read|write|admin>
+python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <read|write|admin>
 ```
 
 - 서버 lifecycle은 운영자가 관리 (직접 띄우거나 launchd/systemd 등록)
 - 모드 (read/write/admin) 한 번 정하면 프로세스 수명 동안 고정
-- **포트 8765 기본값** — 변경 가능하지만 운영자가 일관성 유지 권장
+- **포트 8766 기본값** (API 8765는 Dashboard backend) — 변경 가능하지만 운영자가 일관성 유지 권장
 
 ### 2단계: 외부 MCP 클라이언트에 URL 등록 (1줄)
 
 ```json
-{"url": "http://localhost:8765/mcp"}
+{"url": "http://localhost:8766/mcp"}
 ```
 
 이 한 줄이면 충분:
@@ -129,12 +129,21 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode <re
 | "permission_denied" | 운영자에게 `write`/`admin` 모드로 재시작 요청 |
 | "vault not found" | `vault` 인자가 디렉토리 basename과 일치하는지 확인 |
 
+### 포트 매트릭스 (v0.7.83+)
+
+- **API**: `http://localhost:8765` (Dashboard backend)
+- **MCP**: `http://localhost:8766/mcp` (외부 에이전트 표준 endpoint)
+- **Dashboard**: `http://localhost:5173`
+
+운영자가 `./raven.sh` 또는 `make restart-all`로 3개 모두 자동 관리 — silent stale 방지
+(AGENTS.md §9). MCP는 *별도 띄울 필요 없음*.
+
 ### vault 운영자가 외부 에이전트에게 전달해야 할 것
 
 **vault 경로 한 가지만** 전달하면 충분합니다 (예: `~/Raven/my-vault/`).
 
 - **vault 이름** = 디렉토리 basename — 자동 인식
-- **HTTP URL** = `http://localhost:8765/mcp` (위 2단계 스니펫)
+- **HTTP URL** = `http://localhost:8766/mcp` (API 8765는 Dashboard backend) (위 2단계 스니펫)
 - **모드** = 운영자 정책 (read/write/admin)
 
 → 운영자가 추가로 알려줘야 할 것은 *없음*.
