@@ -344,3 +344,110 @@ def test_api_verify_returns_404_on_unknown_vault(isolated_vaults_root):
     client = TestClient(app)
     r = client.post("/api/vaults/does-not-exist-xyz/verify")
     assert r.status_code == 404
+
+
+# ─── API: POST /api/vaults/verify-all ─────────────────────────────
+
+
+def test_api_verify_all_returns_200_and_envelope(
+    isolated_vaults_root, isolated_target
+):
+    """API: verify-all returns 200 + ok/total/ok_count/mismatch_count/results envelope."""
+    from fastapi.testclient import TestClient
+    from raven.api.server import app
+
+    Vault.create("a1", isolated_target / "a1", bootstrap=True)
+    Vault.create("a2", isolated_target / "a2", bootstrap=True)
+    client = TestClient(app)
+    r = client.post("/api/vaults/verify-all")
+    assert r.status_code == 200, r.text
+    payload = r.json()
+    # Envelope shape
+    for key in ("ok", "total", "ok_count", "mismatch_count", "results"):
+        assert key in payload, f"missing key: {key}"
+    assert payload["total"] == 2
+    assert payload["ok_count"] == 2
+    assert payload["mismatch_count"] == 0
+    assert payload["ok"] is True
+    # Per-vault entries
+    names = sorted(e["name"] for e in payload["results"])
+    assert names == ["a1", "a2"]
+    for entry in payload["results"]:
+        assert entry["ok"] is True
+        assert entry["mismatched_files"] == []
+        assert entry["missing_files"] == []
+        assert entry["summary"] == "ok"
+
+
+def test_api_verify_all_reports_mismatch_per_vault(
+    isolated_vaults_root, isolated_target
+):
+    """API: verify-all reports mismatch on one vault, ok on another — never raises 409."""
+    from fastapi.testclient import TestClient
+    from raven.api.server import app
+
+    Vault.create("good", isolated_target / "good", bootstrap=True)
+    v_bad = Vault.create("bad", isolated_target / "bad", bootstrap=True)
+    (v_bad.root / "_meta" / "agents" / "SCHEMA.md").write_text("# bad\n")
+
+    client = TestClient(app)
+    r = client.post("/api/vaults/verify-all")
+    assert r.status_code == 200, r.text
+    payload = r.json()
+    assert payload["total"] == 2
+    assert payload["ok_count"] == 1
+    assert payload["mismatch_count"] == 1
+    assert payload["ok"] is False  # not all ok
+
+    by_name = {e["name"]: e for e in payload["results"]}
+    assert by_name["good"]["ok"] is True
+    assert by_name["bad"]["ok"] is False
+    assert "_meta/agents/SCHEMA.md" in by_name["bad"]["mismatched_files"]
+    assert "1 mismatch, 0 missing" in by_name["bad"]["summary"]
+
+
+def test_api_verify_all_handles_corrupt_vault_gracefully(
+    isolated_vaults_root, isolated_target, monkeypatch
+):
+    """API: verify-all catches per-vault exceptions (returns ok=False + error)."""
+    from fastapi.testclient import TestClient
+    from raven.api.server import app
+
+    Vault.create("normal", isolated_target / "normal", bootstrap=True)
+    Vault.create("corrupt", isolated_target / "corrupt", bootstrap=True)
+
+    # Force verify_bootstrap to raise on the "corrupt" vault only
+    from raven.core import vault as vault_module
+    original = vault_module.Vault.verify_bootstrap
+
+    def fake_verify(self, *args, **kwargs):
+        if self.meta.name == "corrupt":
+            raise RuntimeError("simulated corruption")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(vault_module.Vault, "verify_bootstrap", fake_verify)
+
+    client = TestClient(app)
+    r = client.post("/api/vaults/verify-all")
+    assert r.status_code == 200, r.text  # never raises — list view semantics
+    payload = r.json()
+    by_name = {e["name"]: e for e in payload["results"]}
+    assert by_name["normal"]["ok"] is True
+    assert by_name["corrupt"]["ok"] is False
+    assert "simulated corruption" in by_name["corrupt"]["error"]
+
+
+def test_api_verify_all_with_no_vaults(isolated_vaults_root):
+    """API: verify-all with zero registered vaults returns total=0 ok=True."""
+    from fastapi.testclient import TestClient
+    from raven.api.server import app
+
+    client = TestClient(app)
+    r = client.post("/api/vaults/verify-all")
+    assert r.status_code == 200, r.text
+    payload = r.json()
+    assert payload["total"] == 0
+    assert payload["ok_count"] == 0
+    assert payload["mismatch_count"] == 0
+    assert payload["ok"] is True
+    assert payload["results"] == []
