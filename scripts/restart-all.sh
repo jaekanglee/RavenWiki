@@ -7,12 +7,20 @@
 # 이 스크립트는 그 캐시를 전부 비우고 다시 띄움. 디자인 시스템 토큰 / CSS /
 # node_modules 의존성 변경 후 UI가 갱신 안 될 때 사용.
 #
+# v0.7.83+: ./raven.sh가 API(8765) + MCP(8766) + Dashboard(5173) lifecycle
+# 모두 관리. → 이 스크립트는 raven.sh stop/start를 호출하므로 MCP lifecycle
+# 자동 처리됨 (silent stale 방지, AGENTS.md §9 hotfix 정책).
+# 포트 매트릭스 (v0.7.83+):
+#   API:       8765 (RAVEN_API_PORT) — Dashboard가 Vite proxy로 호출
+#   MCP:       8766 (RAVEN_MCP_PORT, v0.7.81+ HTTP only 정책)
+#   Dashboard: 5173 (Vite dev)
+#
 # 비우는 캐시:
 #   - dashboard/node_modules/.vite/   (Vite pre-bundle / optimizeDeps)
 #   - dashboard/node_modules/.cache/  (Vite misc)
 #   - **/__pycache__/                  (Python bytecode, raven/ dashboard/ scripts/)
 #   - .pytest_cache/, scripts/.pytest_cache/
-#   - tmp/api.log, tmp/dashboard.log   (구 로그 — 안 지우면 디스크만 차지)
+#   - tmp/api.log, tmp/mcp.log, tmp/dashboard.log   (구 로그)
 #
 # 안 비우는 것 (의도적):
 #   - wiki.db                          (백엔드 hot state — 필요시 --wipe-db 옵션)
@@ -100,6 +108,7 @@ if $WIPE_CACHE; then
 
     # 구 로그 (PID 파일은 stop에서 정리되므로 손대지 않음)
     [[ -f tmp/api.log ]]       && WIPE_LIST+=(tmp/api.log)
+    [[ -f tmp/mcp.log ]]        && WIPE_LIST+=(tmp/mcp.log)
     [[ -f tmp/dashboard.log ]] && WIPE_LIST+=(tmp/dashboard.log)
 
     if [[ ${#WIPE_LIST[@]} -eq 0 ]]; then
@@ -171,6 +180,7 @@ if ! $HEALTH_OK; then
     echo "⚠️  일부 서비스 헬스체크 실패 — 최근 로그:"
     echo "────────────────────────────────────"
     [[ -f tmp/api.log ]]       && { echo; echo "── api.log (last 30 lines) ──";       tail -30 tmp/api.log; }
+    [[ -f tmp/mcp.log ]]        && { echo; echo "── mcp.log (last 30 lines) ──";        tail -30 tmp/mcp.log; }
     [[ -f tmp/dashboard.log ]] && { echo; echo "── dashboard.log (last 30 lines) ──"; tail -30 tmp/dashboard.log; }
     echo "────────────────────────────────────"
     exit 1
@@ -183,5 +193,5 @@ echo "   • Dashboard → http://localhost:5173"
 echo
 echo "📝 사용 팁:"
 echo "   - Dashboard PWA 캐시가 stale이면 Cmd+Shift+R (강력 새로고침)"
-echo "   - 로그 follow: tail -f tmp/api.log 또는 tmp/dashboard.log"
+echo "   - 로그 follow: tail -f tmp/api.log, tmp/mcp.log, 또는 tmp/dashboard.log"
 echo "   - 상태 확인: ./raven.sh status"
