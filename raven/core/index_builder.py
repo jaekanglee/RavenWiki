@@ -98,6 +98,9 @@ def build_index(vault: Vault) -> bool:
     #    이전엔 루트 index.md가 모든 페이지에 직접 링크해 그래프에서 out-degree가
     #    페이지 수만큼 커지는 거대 허브 노드가 됐다. 타입별로 링크를 나눠서
     #    허브 하나에 부채꼴로 몰리는 걸 막는다.
+    #
+    # 자동 생성 페이지는 system area (ADR-2026-07-04): type 필드 박지 않음.
+    # → SCHEMA 9종 정책(AGENTS.md §10) 유지 + 자동 카탈로그 의도 보존.
     today = dt.date.today().isoformat()
     index_dir = vault.root / "content" / "_index"
     changed = False
@@ -107,8 +110,7 @@ def build_index(vault: Vault) -> bool:
             cat_lines = [
                 "---",
                 f"title: {gtype.capitalize()} 목록",
-                "type: index",
-                "tags: [index]",
+                # type 필드 의도적 생략 — system area (ADR-2026-07-04)
                 f"created: {today}",
                 f"updated: {today}",
                 "---",
