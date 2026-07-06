@@ -10,6 +10,7 @@ import {
   type OrphanPage,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Button } from "../components/ui/Button";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
@@ -240,14 +241,13 @@ export function GardenPage() {
                     전체 선택 ({selectedStaleSlugs.length}/{stalePages.length})
                   </label>
                   {selectedStaleSlugs.length > 0 && (
-                    <button
+                    <Button
                       onClick={handleBatchArchive}
-                      style={{
-                        ...dangerButtonStyle,
-                      }}
+                      variant="danger"
+                      size="sm"
                     >
                       선택 아카이브
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -338,24 +338,22 @@ export function GardenPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isCompact ? "stretch" : "center", fontSize: 12, gap: 10, flexDirection: isCompact ? "column" : "row" }}>
                         <span style={{ color: "var(--color-muted)" }}>마지막 갱신: {p.updated}</span>
                         <div style={{ display: "flex", gap: 8, flexDirection: isCompact ? "column" : "row", width: isCompact ? "100%" : undefined }}>
-                          <button
+                          <Button
                             onClick={() => navigate(`/page/${vault}/${p.slug}`)}
-                            style={{
-                              ...neutralButtonStyle,
-                              width: isCompact ? "100%" : undefined,
-                            }}
+                            variant="secondary"
+                            size="sm"
+                            style={isCompact ? { width: "100%" } : undefined}
                           >
                             편집
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() => handleArchive(p.slug)}
-                            style={{
-                              ...dangerButtonStyle,
-                              width: isCompact ? "100%" : undefined,
-                            }}
+                            variant="danger"
+                            size="sm"
+                            style={isCompact ? { width: "100%" } : undefined}
                           >
                             아카이브
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -513,34 +511,31 @@ export function GardenPage() {
                         >
                           연결
                         </button>
-                        <button
+                        <Button
                           onClick={() => {
                             setActiveManualConnect(null);
                             setManualTargetSlug("");
                           }}
-                          style={{
-                            ...neutralButtonStyle,
-                            width: isCompact ? "100%" : undefined,
-                          }}
+                          variant="secondary"
+                          size="sm"
+                          style={isCompact ? { width: "100%" } : undefined}
                         >
                           취소
-                        </button>
+                        </Button>
                       </div>
                     ) : (
-                      <button
+                      <Button
                         onClick={() => {
                           const candidates = allPages.filter((page) => page.slug !== p.slug);
                           setActiveManualConnect(p.slug);
                           setManualTargetSlug(candidates[0]?.slug || "");
                         }}
-                        style={{
-                          ...neutralButtonStyle,
-                          padding: "2px 6px",
-                          fontSize: 11,
-                        }}
+                        variant="secondary"
+                        size="sm"
+                        style={{ padding: "2px 6px", fontSize: 11 }}
                       >
                         🔎 수동 연결...
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -564,23 +559,3 @@ const primaryButtonStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const neutralButtonStyle: React.CSSProperties = {
-  padding: "4px 8px",
-  fontSize: 12,
-  borderRadius: 4,
-  border: "1px solid var(--color-hairline-strong)",
-  backgroundColor: "transparent",
-  color: "var(--color-ink)",
-  cursor: "pointer",
-};
-
-const dangerButtonStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  fontSize: 12,
-  borderRadius: 4,
-  border: "none",
-  backgroundColor: "var(--color-danger-bg)",
-  color: "var(--color-danger-text)",
-  cursor: "pointer",
-  fontWeight: 600,
-};
