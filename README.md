@@ -244,15 +244,16 @@ MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 - `tools/call` — 도구 호출 (`vault=<name>` 인자 필수 — 다중 vault 지원)
 - 표준 transport: stdio (로컬 sub-process) 또는 streamable-http (원격)
 
+> 어떤 MCP 호환 클라이언트든 (구현체 무관) 동일한 표준 형식으로 도달 가능합니다.
+
 ### MCP 클라이언트 설정 예시 (vendor-neutral)
 
-어떤 MCP 호환 클라이언트든 (Claude Desktop, Cursor, Hermes, Codex, Antigravity, 기타
-표준 구현체) 아래 두 패턴 중 하나를 사용합니다:
+어떤 MCP 호환 클라이언트든 (표준 구현체 — vendor 무관) 아래 두 패턴 중 하나를 사용합니다:
 
 **stdio 패턴** (로컬 sub-process, 권장):
 
 ```json
-// Claude Desktop: ~/.config/Claude/claude_desktop_config.json
+// 표준 MCP 클라이언트 설정 형식 (vendor-neutral — 어떤 구현체든 동일)
 {
   "mcpServers": {
     "raven": {
@@ -266,7 +267,6 @@ MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 **streamable-http 패턴** (원격 / Tailscale / LAN):
 
 ```json
-// Claude Desktop: ~/.config/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "raven": {
@@ -276,19 +276,9 @@ MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
 }
 ```
 
-```json
-// Cursor: ~/.cursor/mcp.json
-{
-  "mcpServers": {
-    "raven": {
-      "url": "http://127.0.0.1:8765/mcp"
-    }
-  }
-}
-```
-
-> 다른 MCP 호환 클라이언트도 같은 `{mcpServers: {<name>: {command|url}}}` 구조를
-> 따릅니다 — 클라이언트별 정확한 파일 위치는 해당 클라이언트 문서 참고.
+> 위 `{mcpServers: {<name>: {command|url}}}` 구조는 MCP 표준 스키마입니다.
+> 파일 위치/UI는 클라이언트마다 다르지만 *구조는 동일* — 어떤 MCP 호환 클라이언트든
+> 위 두 스니펫을 자기 설정에 그대로 추가하면 됩니다.
 
 ### 서버 실행
 
