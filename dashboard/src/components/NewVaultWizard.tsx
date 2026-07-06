@@ -29,6 +29,26 @@ import { setActiveVault } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { Button } from "./ui/Button";
 import { SelectField } from "./ui/SelectField";
+import { Toast } from "./ui/Toast";
+
+// v0.7.74+: wizard 결과 화면에 MCP 설정 snippet + 클립보드 복사 버튼.
+// PROJECT-WORKFLOW.md §1.5 signpost의 구체적 endpoint를 여기서 자동 생성.
+// Tier 1 leak 회피: 환경별 snippet만, raven 내부 토픽 참조 ❌.
+function buildStdioSnippet() {
+  // 표준 MCP 클라이언트 stdio 설정 (Claude Desktop / Cursor / 표준)
+  return JSON.stringify(
+    {
+      command: "python",
+      args: ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"],
+    },
+    null,
+    2
+  );
+}
+
+function buildHttpSnippet(endpoint: string) {
+  return JSON.stringify({ url: endpoint }, null, 2);
+}
 
 // kebab-case: 소문자/숫자/하이픈, 시작은 소문자, 연속 하이픈 ❌
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -461,8 +481,38 @@ function Step2({
   onBack: () => void;
   onSubmit: () => void;
 }) {
+  // v0.7.74+: 클립보드 복사 확인 toast (v0.7.71 race-free auto-close 패턴 동일).
+  const [copyToast, setCopyToast] = useState<
+    { message: string; type: "success" | "error" } | null
+  >(null);
+  useEffect(() => {
+    if (!copyToast) return;
+    const timer = window.setTimeout(() => setCopyToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [copyToast]);
+
+  const copyToClipboard = async (label: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyToast({ message: `✅ ${label} 복사 완료`, type: "success" });
+    } catch (e) {
+      setCopyToast({
+        message: `❌ 복사 실패 — 직접 선택해 복사하세요`,
+        type: "error",
+      });
+    }
+  };
+
+  const stdioSnippet = buildStdioSnippet();
+  const httpSnippet = buildHttpSnippet(mcpEndpoint);
+
   return (
     <section>
+      <Toast
+        open={Boolean(copyToast)}
+        message={copyToast?.message ?? ""}
+        type={copyToast?.type ?? "success"}
+      />
       <h1 style={{ marginBottom: 8 }}>확인</h1>
       <p
         className="text-body"
@@ -578,23 +628,129 @@ function Step2({
             marginBottom: 8,
           }}
         >
-          Agent 연결
+          Agent 연결 (MCP)
         </div>
         <p style={{ margin: 0, fontSize: 14, color: "var(--color-body)" }}>
-          이 vault는 특정 vendor가 아니라 MCP 호환 agent를 기준으로 연결합니다.
+          이 vault는 표준 <strong>Model Context Protocol (JSON-RPC)</strong>로 노출됩니다.
+          아래 snippet을 당신의 MCP 클라이언트 설정 파일에 붙여넣으세요.
         </p>
+
+        {/* stdio snippet — 권장 (로컬 sub-process) */}
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.32px",
+              textTransform: "uppercase",
+              color: "var(--color-muted)",
+              marginBottom: 4,
+            }}
+          >
+            stdio (권장 — 로컬)
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+            }}
+          >
+            <pre
+              data-testid="mcp-stdio-snippet"
+              style={{
+                flex: 1,
+                margin: 0,
+                padding: 10,
+                background: "var(--color-surface-soft)",
+                border: "1px solid var(--color-hairline)",
+                borderRadius: "var(--radius-sm)",
+                fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                fontSize: 12,
+                color: "var(--color-ink)",
+                overflowX: "auto",
+                whiteSpace: "pre",
+              }}
+            >
+              {stdioSnippet}
+            </pre>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => copyToClipboard("stdio snippet", stdioSnippet)}
+              aria-label="stdio snippet 복사"
+              style={{ flexShrink: 0 }}
+            >
+              복사
+            </Button>
+          </div>
+        </div>
+
+        {/* HTTP snippet — 원격 (Tailscale 등) */}
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.32px",
+              textTransform: "uppercase",
+              color: "var(--color-muted)",
+              marginBottom: 4,
+            }}
+          >
+            streamable-http (원격)
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <pre
+              data-testid="mcp-http-snippet"
+              style={{
+                flex: 1,
+                margin: 0,
+                padding: 10,
+                background: "var(--color-surface-soft)",
+                border: "1px solid var(--color-hairline)",
+                borderRadius: "var(--radius-sm)",
+                fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                fontSize: 12,
+                color: "var(--color-ink)",
+                overflowX: "auto",
+                whiteSpace: "pre",
+              }}
+            >
+              {httpSnippet}
+            </pre>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => copyToClipboard("HTTP snippet", httpSnippet)}
+              aria-label="HTTP snippet 복사"
+              style={{ flexShrink: 0 }}
+            >
+              복사
+            </Button>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-muted)" }}>
+            endpoint: {mcpEndpoint}
+          </div>
+        </div>
+
         <div
           style={{
-            marginTop: 10,
-            fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            marginTop: 12,
+            padding: 10,
+            background: "var(--color-surface-soft)",
+            border: "1px solid var(--color-hairline)",
+            borderRadius: "var(--radius-sm)",
             fontSize: 12,
-            color: "var(--color-muted)",
+            color: "var(--color-body)",
           }}
         >
-          endpoint: {mcpEndpoint}
-        </div>
-        <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-muted)" }}>
-          예: Claude Code, Cursor, 기타 MCP client에서 Raven 서버를 추가한 뒤 이 vault 경로를 작업 기준으로 사용
+          연결 후 클라이언트는 MCP 표준 <code>tools/list</code>로 9개 도구의
+          schema를 자동 discovery — 별도 문서 참조 없이 사용 가능합니다.
+          <br />
+          vault 권한 모드: <code>read</code> (기본) · <code>write</code> · <code>admin</code>
         </div>
       </div>
 
