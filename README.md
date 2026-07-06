@@ -234,85 +234,73 @@ POST   /api/vaults/{name}/export                 # GUI 정적 JSON
 
 ---
 
-## 에이전트 인터페이스 (MCP, v0.7.8+)
+## 에이전트 인터페이스 (MCP, v0.7.81+ HTTP only)
 
 > **에이전트(LLM client) ↔ Raven = MCP 단일 표준**.
 > Python adapter(`raven.agents`)는 v0.7.9+ 제거됨.
+> v0.7.81+: **HTTP localhost 방식만** — 단일 흐름으로 단순화.
 
-MCP client (어떤 LLM 기반 agent든 표준 protocol 사용)는:
-- `tools/list` — 자동 도구 발견 (9개 도구 schema 즉시)
-- `tools/call` — 도구 호출 (`vault=<name>` 인자 필수 — 다중 vault 지원)
-- 표준 transport: stdio (로컬 sub-process) 또는 streamable-http (원격)
-
-> 어떤 MCP 호환 클라이언트든 (구현체 무관) 동일한 표준 형식으로 도달 가능합니다.
-
-### MCP 클라이언트 설정 예시 (vendor-neutral)
-
-어떤 MCP 호환 클라이언트든 (표준 구현체 — vendor 무관) 아래 두 패턴 중 하나를 사용합니다:
-
-**stdio 패턴** (로컬 sub-process, 권장):
-
-```json
-// 표준 MCP 클라이언트 설정 형식 (vendor-neutral — 어떤 구현체든 동일)
-{
-  "mcpServers": {
-    "raven": {
-      "command": "python",
-      "args": ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"]
-    }
-  }
-}
-```
-
-**streamable-http 패턴** (원격 / Tailscale / LAN):
-
-```json
-{
-  "mcpServers": {
-    "raven": {
-      "url": "http://<vault-host>:8765/mcp"
-    }
-  }
-}
-```
-
-> 위 `{mcpServers: {<name>: {command|url}}}` 구조는 MCP 표준 스키마입니다.
-> 파일 위치/UI는 클라이언트마다 다르지만 *구조는 동일* — 어떤 MCP 호환 클라이언트든
-> 위 두 스니펫을 자기 설정에 그대로 추가하면 됩니다.
-
-### 서버 실행
+### 흐름 (1-2-3)
 
 ```bash
-source scripts/.venv/bin/activate
-
-# HTTP 모드 (원격 / Dashboard client)
+# 1단계: 운영자가 서버 띄우기 (1회)
 python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode read
-
-# stdio 모드 (desktop MCP client — 클라이언트가 직접 spawn)
-python -m raven.mcp.cli --mode read
 ```
 
-**권한 모드 3종** (서버 시작 시 고정):
+```json
+// 2단계: 외부 MCP 클라이언트에 URL 등록 (어떤 클라이언트든 동일)
+{
+  "mcpServers": {
+    "raven": {
+      "url": "http://localhost:8765/mcp"
+    }
+  }
+}
+```
+
+```bash
+# 3단계: 표준 흐름
+# - tools/list → 9개 도구 schema 자동 discovery
+# - wiki_search(vault="<basename>", query="...", top_k=10)
+```
+
+### 왜 HTTP only (v0.7.81+)
+
+- **의존성 0**: 파이썬 경로 / raven 패키지 위치 / vault 디렉토리 — 클라이언트는 URL만 알면 됨
+- **sandbox 우회**: 일부 MCP 클라이언트는 stdio spawn을 보안상 차단 — HTTP는 영향 없음
+- **lifecycle 단순**: 서버 lifecycle은 운영자가 관리 (직접 띄우거나 launchd/systemd 등록)
+
+### 권한 모드 3종 (서버 시작 시 argv로 고정)
+
 - `read` (기본) — 6종 도구: wiki_search / get_page / lint / graph / log / stale_detect
 - `write` — + wiki_update / ingest / archive
 - `admin` (사람 운영자 전용) — + wiki_delete / rename
 
-### 첫 도구 호출 패턴
+### vault 이름
 
-```python
-# 어떤 클라이언트든 표준 JSON-RPC:
-{"method": "tools/call", "params": {
-  "name": "wiki_search",
-  "arguments": {"vault": "<등록된 이름>", "query": "검색어", "top_k": 10}
-}}
+다중 vault 지원 — `vault=<이름>` 인자 필수. 이름은 보통 *디렉토리 basename*과 동일
+(예: `~/Raven/my-vault/` → `my-vault`). 모르면 vault 운영자에게 직접 요청.
+
+### stdio 패턴 (보조, v0.7.81+ 권장 ❌)
+
+일부 환경에서 stdio spawn이 강제되면 (드묾):
+
+```json
+{
+  "mcpServers": {
+    "raven": {
+      "command": "python",
+      "args": ["-m", "raven.mcp.cli", "--mode", "read"]
+    }
+  }
+}
 ```
 
-`vault=<이름>` 인자 필수 — vault 운영자에게 등록된 이름 확인. 모르는 경우
-Dashboard 신규 vault 마법사 결과 화면 또는 vault 운영자에게 직접 요청.
+→ 클라이언트가 python/패키지 위치 의존. **HTTP 방식이 단순**하므로 가급적 권장하지 않음.
 
 ### 자세한 안내
 
-- vault 진입 가이드 (외부 에이전트가 받는 문서): `_meta/agents/PROJECT-WORKFLOW.md` §1.5.1
+- vault 진입 가이드 (외부 에이전트가 받는 문서): `_meta/agents/PROJECT-WORKFLOW.md` §1.5
 - 정책: AGENTS.md §5.5 "MCP = 에이전트 표준 프로토콜"
 - 다이어그램: `_meta/diagrams/three-flows.png`
 
