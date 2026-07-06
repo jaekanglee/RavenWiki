@@ -296,6 +296,7 @@ Raven은 1인 개발 + web(`npm run dev` + `pytest`) 검증 워크플로우를 �
 - 인라인 `color: "#3b3b3b"` ❌
 - 신규 토큰은 `dashboard/src/styles/globals.css` `:root` 에 추가
 - 인라인 style은 **구조 배치**(grid/flex/margin/padding)만 사용, 색·폰트는 CSS 변수
+- **예외 (구조적 다양성 팔레트)**: 1차 토큰화 불가능한 구조적 팔레트 (예: graph `COMMUNITY_PALETTE` 15색 — Louvain community id별 색상) — 정적 hex 인라인 허용. **상수명 + 위치 주석 필수** (예: `// GraphPage toolbar 옆 palette dot 15개`).
 
 ### 13.3 Surgical 유지 (Karpathy §3과 일치)
 

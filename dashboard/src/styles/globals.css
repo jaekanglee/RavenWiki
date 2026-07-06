@@ -2245,7 +2245,7 @@ a:focus-visible {
 [data-color-mode] .wmde-markdown-html pre,
 .prose pre {
   background: #1e293b !important;
-  border: 1px solid #334155 !important;
+  border: 1px solid var(--slate-700) !important;
   color: #e2e8f0 !important;
   padding: 18px 20px !important;
   border-radius: 8px !important;
@@ -2259,7 +2259,7 @@ a:focus-visible {
 
 [data-color-mode="dark"] .wmde-markdown pre {
   background: #0f172a !important;
-  color: #f1f5f9 !important;
+  color: var(--slate-100) !important;
 }
 
 /* ─ pre > code ─ */
@@ -2288,6 +2288,6 @@ a:focus-visible {
 
 [data-color-mode="dark"] .wmde-markdown :not(pre) > code {
   background: #0f172a !important;
-  border-color: #334155 !important;
+  border-color: var(--slate-700) !important;
   color: #7dd3fc !important;
 }
