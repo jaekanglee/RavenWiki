@@ -4,6 +4,48 @@ import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Button } from "../components/ui/Button";
 
+// v0.7.72+: 4개 action icon 이모지 → Lucide SVG (currentColor → var(--color-ink) 자동 상속).
+// ui-ux 스킬 §P: 이모지 ❌ (OS별 렌더링 차이, 다크모드 깨짐).
+const ActionIcon = {
+  Search: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  ),
+  Refresh: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </svg>
+  ),
+  Edit: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  ),
+  Trash: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  ),
+};
+
 interface VaultMeta {
   name: string;
   path: string;
@@ -472,7 +514,7 @@ export function VaultManage() {
                           title="지침 검증"
                           aria-label={`verify bootstrap for ${v.name}`}
                         >
-                          🔍
+                          <ActionIcon.Search />
                         </button>
                         <button
                           onClick={() => setConfirmBootstrap(v.name)}
@@ -481,7 +523,7 @@ export function VaultManage() {
                           title="지침 당겨오기 (부트스트랩 갱신)"
                           aria-label={`bootstrap update for ${v.name}`}
                         >
-                          🔄
+                          <ActionIcon.Refresh />
                         </button>
                         <button
                           onClick={() => {
@@ -492,7 +534,7 @@ export function VaultManage() {
                           style={btnGhost}
                           aria-label={`rename ${v.name}`}
                         >
-                          ✏️
+                          <ActionIcon.Edit />
                         </button>
                         <button
                           onClick={() => initiateDelete(v.name)}
@@ -500,7 +542,7 @@ export function VaultManage() {
                           style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)" }}
                           aria-label={`delete ${v.name}`}
                         >
-                          🗑️
+                          <ActionIcon.Trash />
                         </button>
                       </>
                     )}
