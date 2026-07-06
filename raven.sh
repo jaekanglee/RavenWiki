@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # raven.sh — Control script for starting, stopping, and restarting the Raven local host stack.
-
+#
+# v0.7.83+: API → 8765 (그대로), MCP → 8766, Dashboard → 5173 (v0.7.81+ HTTP only).
+# MCP lifecycle 통합 — silent stale 방지 (v0.7.82 hotfix). 운영자가 lifecycle
+# 수동 관리 안 해도 `make restart-all` / `./raven.sh restart`가 자동 처리.
+#
+# 포트 매트릭스 (v0.7.83+):
+#   API:       8765 (RAVEN_API_PORT) — Dashboard가 Vite proxy로 호출
+#   MCP:       8766 (RAVEN_MCP_PORT, v0.7.81+ HTTP only 정책)
+#   Dashboard: 5173 (RAVEN_DASHBOARD_PORT, Vite dev)
+#
 # Exit on error
 set -e
 
@@ -11,6 +20,12 @@ cd "$PROJECT_ROOT"
 PID_DIR="tmp"
 API_PID="$PID_DIR/api.pid"
 DASHBOARD_PID="$PID_DIR/dashboard.pid"
+MCP_PID="$PID_DIR/mcp.pid"
+
+API_PORT="${RAVEN_API_PORT:-8765}"
+MCP_PORT="${RAVEN_MCP_PORT:-8766}"
+MCP_MODE="${RAVEN_MCP_MODE:-read}"
+DASHBOARD_PORT="${RAVEN_DASHBOARD_PORT:-5173}"
 
 mkdir -p "$PID_DIR"
 
@@ -26,23 +41,26 @@ fi
 status() {
   local api_running=false
   local db_running=false
-  
+  local mcp_running=false
+
   if [ -f "$API_PID" ] && kill -0 $(cat "$API_PID") 2>/dev/null; then
     api_running=true
   fi
   if [ -f "$DASHBOARD_PID" ] && kill -0 $(cat "$DASHBOARD_PID") 2>/dev/null; then
     db_running=true
   fi
-  
-  if $api_running && $db_running; then
+  if [ -f "$MCP_PID" ] && kill -0 $(cat "$MCP_PID") 2>/dev/null; then
+    mcp_running=true
+  fi
+
+  if $api_running && $db_running && $mcp_running; then
     echo "🟢 Raven is RUNNING"
-    echo "   • API PID: $(cat "$API_PID")"
-    echo "   • Dashboard PID: $(cat "$DASHBOARD_PID")"
-    echo "   • API Url: http://127.0.0.1:8765"
-    echo "   • Dashboard Url: http://localhost:5173"
+    echo "   • API PID: $(cat "$API_PID")       Url: http://127.0.0.1:$API_PORT"
+    echo "   • Dashboard PID: $(cat "$DASHBOARD_PID") Url: http://localhost:$DASHBOARD_PORT"
+    echo "   • MCP PID: $(cat "$MCP_PID")          Url: http://127.0.0.1:$MCP_PORT/mcp (mode=$MCP_MODE)"
     return 0
-  elif $api_running || $db_running; then
-    echo "🟡 Raven is PARTIALLY RUNNING (API: $api_running, Dashboard: $db_running)"
+  elif $api_running || $db_running || $mcp_running; then
+    echo "🟡 Raven is PARTIALLY RUNNING (API: $api_running, Dashboard: $db_running, MCP: $mcp_running)"
     return 1
   else
     echo "🔴 Raven is STOPPED"
@@ -51,24 +69,36 @@ status() {
 }
 
 start() {
+  # API (8765)
   if [ -f "$API_PID" ] && kill -0 $(cat "$API_PID") 2>/dev/null; then
     echo "⚠️  API server is already running (PID: $(cat "$API_PID"))"
   else
-    echo "🚀 Starting API server in background..."
+    echo "🚀 Starting API server in background on port $API_PORT..."
     PYTHONPATH=. $PY -m raven.api > tmp/api.log 2>&1 &
     echo $! > "$API_PID"
   fi
-  
+
+  # MCP (8766, HTTP only, v0.7.81+)
+  if [ -f "$MCP_PID" ] && kill -0 $(cat "$MCP_PID") 2>/dev/null; then
+    echo "⚠️  MCP server is already running (PID: $(cat "$MCP_PID"))"
+  else
+    echo "🚀 Starting MCP server in background on port $MCP_PORT (mode=$MCP_MODE)..."
+    PYTHONPATH=. $PY -m raven.mcp.cli \
+      --transport http --host 127.0.0.1 --port "$MCP_PORT" --mode "$MCP_MODE" > tmp/mcp.log 2>&1 &
+    echo $! > "$MCP_PID"
+  fi
+
+  # Dashboard (5173)
   if [ -f "$DASHBOARD_PID" ] && kill -0 $(cat "$DASHBOARD_PID") 2>/dev/null; then
     echo "⚠️  Dashboard is already running (PID: $(cat "$DASHBOARD_PID"))"
   else
-    echo "🚀 Starting Dashboard Vite dev server in background..."
+    echo "🚀 Starting Dashboard Vite dev server in background on port $DASHBOARD_PORT..."
     cd dashboard
     npm run dev > ../tmp/dashboard.log 2>&1 &
     echo $! > "../$DASHBOARD_PID"
     cd ..
   fi
-  
+
   sleep 2
   status
 }
@@ -80,6 +110,12 @@ stop() {
     echo "   Stopping API (PID: $pid)..."
     kill "$pid" 2>/dev/null || true
     rm -f "$API_PID"
+  fi
+  if [ -f "$MCP_PID" ]; then
+    local pid=$(cat "$MCP_PID")
+    echo "   Stopping MCP (PID: $pid)..."
+    kill "$pid" 2>/dev/null || true
+    rm -f "$MCP_PID"
   fi
   if [ -f "$DASHBOARD_PID" ]; then
     local pid=$(cat "$DASHBOARD_PID")
