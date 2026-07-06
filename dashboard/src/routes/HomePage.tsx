@@ -57,38 +57,82 @@ interface QuickAction {
   to: string;
   label: string;
   description: string;
-  icon: string;
+  icon: React.ReactNode;
   primary?: boolean;
   requiresVault?: boolean;
 }
+
+// Lucide-style SVG icons (v0.7.69+): 이모지 ❌ (OS별 렌더링 차이, 다크모드 깨짐)
+// → inline SVG (currentColor → var(--color-ink) 자동 적용, hover 시 var(--color-accent)).
+// InlineMarkdownEditor Icon 패턴과 동일 — 24x24 viewBox, stroke 2.
+const ActionIcon = {
+  Search: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  ),
+  Plus: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  ),
+  Graph: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="18" r="3" />
+      <path d="M8.5 7.5 15.5 16.5" />
+      <path d="M15.5 7.5 8.5 16.5" />
+      <path d="M9 6h6" />
+      <path d="M9 18h6" />
+    </svg>
+  ),
+  Digest: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M12 2a10 10 0 1 0 10 10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  ),
+};
 
 const ACTIONS: QuickAction[] = [
   {
     to: "/search",
     label: "검색",
     description: "활성 vault 전체 BM25",
-    icon: "🔍",
+    icon: <ActionIcon.Search />,
     requiresVault: true,
   },
   {
     to: "/vault/new",
     label: "새 vault",
     description: "지금 만드는 새 vault",
-    icon: "✚",
+    icon: <ActionIcon.Plus />,
     primary: true,
   },
   {
     to: "/graph",
     label: "그래프",
     description: "vault 페이지 연결",
-    icon: "⬡",
+    icon: <ActionIcon.Graph />,
     requiresVault: true,
   },
   {
     to: "/digest",
     label: "디제스트",
     description: "오늘 vault 운영 요약",
-    icon: "◐",
+    icon: <ActionIcon.Digest />,
     requiresVault: true,
   },
 ];
