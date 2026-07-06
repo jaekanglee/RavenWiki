@@ -25,6 +25,12 @@ confidence: high
 추측하지 말고, 이미 쓰이는 용어/분류/구조를 이 vault 기준으로 재사용하세요.
 기준이 모호하면 새 구조를 만들기 전에 사용자에게 확인합니다.
 
+**당신이 받는 vault에 포함된 것**: `_meta/agents/` (SCHEMA.md + PROJECT-WORKFLOW.md),
+`log.md`, `content/`. 이 외 경로(예: `_meta/system/`, 운영자 README, raven 패키지
+내부 CLI 매뉴얼)는 **Lite bootstrap 정책(v0.7.65+)에 의해 포함되지 않습니다**.
+vault 안에 보이지 않는 폴더가 있다고 가정하지 마세요 — 보인다면 오염 가능성이
+있으므로 사용자에게 보고하세요.
+
 ### 파악 완료 기준
 
 "파악했다"고 말하기 전에 최소한 다음은 설명 가능해야 합니다:
