@@ -67,6 +67,15 @@ interface DeletePreview {
   hint: string;
 }
 
+interface BootstrapStatus {
+  ok: boolean;
+  mismatched_files: string[];
+  missing_files: string[];
+  empty_files: string[];
+  summary: string;
+  error?: string;
+}
+
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -91,6 +100,9 @@ export function VaultManage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<{ vaultName: string; slug: string } | null>(null);
   const [confirmBootstrap, setConfirmBootstrap] = useState<string | null>(null);
+  // v0.7.75+: vault 일괄 bootstrap 상태 (페이지 진입 시 자동 검사)
+  const [bootstrapStatus, setBootstrapStatus] = useState<Record<string, BootstrapStatus>>({});
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   // ─── bootstrap / verify ─────────────────────────────
   async function handleVerify(name: string) {
@@ -117,6 +129,70 @@ export function VaultManage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // v0.7.75+: 모든 vault 일괄 verify-all 호출.
+  // 페이지 진입 시 자동 (loadVaults → loadBootstrapStatus 체인).
+  // §13.1: 단일 fetch 함수로 모음.
+  const loadBootstrapStatus = useCallback(async () => {
+    try {
+      const r = await fetch("/api/vaults/verify-all", { method: "POST" });
+      const d = await r.json();
+      if (!d || !d.ok && d.results === undefined) return;
+      const map: Record<string, BootstrapStatus> = {};
+      for (const entry of d.results || []) {
+        map[entry.name] = {
+          ok: Boolean(entry.ok),
+          mismatched_files: entry.mismatched_files || [],
+          missing_files: entry.missing_files || [],
+          empty_files: entry.empty_files || [],
+          summary: entry.summary || "",
+          error: entry.error,
+        };
+      }
+      setBootstrapStatus(map);
+    } catch {
+      // silent — verify 실패가 페이지 로딩을 막아서는 안 됨
+    }
+  }, []);
+
+  // v0.7.75+: 일괄 업뎃 — 불일치 vault들에 대해 per-vault bootstrap POST.
+  // 백엔드는 per-vault bootstrap endpoint만 존재 (commit 1 결정) — 프론트가 루프.
+  async function handleBulkUpdateBootstrap() {
+    const mismatchedNames = vaults
+      .filter((v) => bootstrapStatus[v.name] && !bootstrapStatus[v.name].ok)
+      .map((v) => v.name);
+    if (mismatchedNames.length === 0) return;
+    setBulkUpdating(true);
+    setError(null);
+    let successCount = 0;
+    let failCount = 0;
+    for (const name of mismatchedNames) {
+      try {
+        const r = await fetch(
+          `/api/vaults/${encodeURIComponent(name)}/bootstrap`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profile: "llm-wiki" }),
+          }
+        );
+        if (r.ok) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkUpdating(false);
+    if (failCount === 0) {
+      showToast(`✅ ${successCount}개 vault 지침 일괄 업뎃 완료`);
+    } else {
+      showToast(
+        `⚠️ ${successCount}개 성공, ${failCount}개 실패 — 콘솔/개별 vault 로그 확인`,
+        "error"
+      );
+    }
+    await loadBootstrapStatus(); // 재검증
   }
 
   async function handleBootstrap(name: string) {
@@ -190,7 +266,9 @@ export function VaultManage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // v0.7.75+: vault 로드 후 즉시 bootstrap 일괄 검증 (사용자 누름 불필요)
+    void loadBootstrapStatus();
+  }, [loadBootstrapStatus]);
 
   useEffect(() => {
     loadVaults();
@@ -365,6 +443,54 @@ export function VaultManage() {
         </div>
       )}
 
+      {/* v0.7.75+: 일괄 지침 업뎃 banner — 진입 시 자동 검사, 불일치 vault가 있으면 표시 */}
+      {(() => {
+        const mismatched = vaults.filter(
+          (v) => bootstrapStatus[v.name] && !bootstrapStatus[v.name].ok
+        );
+        if (mismatched.length === 0) return null;
+        return (
+          <div
+            role="status"
+            data-testid="bulk-bootstrap-banner"
+            style={{
+              padding: 16,
+              marginBottom: 16,
+              background: "var(--color-surface-soft)",
+              border: "1px solid var(--color-warning-border, #e0a82e)",
+              borderRadius: "var(--radius-md)",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 4 }}>
+                ⚠ {mismatched.length}개 vault의 지침이 원본 템플릿과 일치하지 않습니다
+              </div>
+              <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                {mismatched.map((v) => v.name).join(", ")}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 6 }}>
+                Raven 버전 업뎃 또는 수동 변경 시 발생할 수 있습니다. SCHEMA.md / PROJECT-WORKFLOW.md / log.md 일치 여부를 검사합니다.
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="pillPrimary"
+              onClick={handleBulkUpdateBootstrap}
+              disabled={bulkUpdating}
+              data-testid="bulk-bootstrap-update"
+            >
+              {bulkUpdating
+                ? "업뎃 중…"
+                : `🔄 ${mismatched.length}개 vault 일괄 업뎃`}
+            </Button>
+          </div>
+        );
+      })()}
+
       {loading ? (
         <div style={{ padding: 16, color: "var(--color-muted)" }}>loading…</div>
       ) : vaults.length === 0 ? (
@@ -447,6 +573,33 @@ export function VaultManage() {
                     >
                       {v.mode}
                     </span>
+                    {/* v0.7.75+: vault별 bootstrap 일치 상태 chip */}
+                    {(() => {
+                      const bs = bootstrapStatus[v.name];
+                      if (!bs) return null;
+                      const isOk = bs.ok;
+                      return (
+                        <span
+                          data-testid={`bootstrap-status-${v.name}`}
+                          title={isOk ? bs.summary : `불일치: ${bs.summary}`}
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 6px",
+                            marginLeft: 4,
+                            background: isOk
+                              ? "var(--cds-support-success, #defbe6)"
+                              : "var(--cds-danger, #fff1f1)",
+                            color: isOk
+                              ? "var(--cds-support-success-text, #0e6027)"
+                              : "var(--cds-danger-text, #a2191f)",
+                            borderRadius: 8,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isOk ? "✓ 지침 일치" : "⚠ 지침 불일치"}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td
                     style={{
