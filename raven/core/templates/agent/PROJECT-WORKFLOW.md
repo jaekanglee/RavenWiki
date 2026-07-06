@@ -1,14 +1,14 @@
 ---
-title: Project Workflow — 운영 사실
+title: Project Workflow — vault 진입 가이드
 created: 2026-06-30
-updated: 2026-07-03
+updated: 2026-07-06
 type: rule
-tags: [system, workflow, meta]
+tags: [system, workflow, meta, mcp]
 audience: agent
 confidence: high
 ---
 
-# Project Workflow — 운영 사실
+# Project Workflow — vault 진입 가이드
 
 > "Raven is the IDE; the LLM is the programmer; the wiki is the codebase."
 > 사람이 원본 소스를 공급하면, 당신은 이를 정돈하고 요약해 기존 지식과
@@ -33,14 +33,28 @@ confidence: high
 - 어떤 폴더/페이지를 source of truth로 봤는지
 - 바로 수정해도 되는지, 먼저 물어야 하는지
 
-## 1. 4가지 명령 키워드 → MCP 도구 매핑
+## 1. MCP 도구 9종 (요약)
 
-| 키워드 | 의미 | MCP 도구 |
-|---|---|---|
-| `save` | 한 건의 노트 저장 (신규 생성 포함 — upsert) | `wiki_update` |
-| `ingest` | 외부 자료 일괄 정리 (raw/ 전용, 사람 명시 명령 시에만) | `wiki_ingest` |
-| `query` | 검색/조회 | `wiki_search`, `wiki_get_page` |
-| `lint` | 무결성 검사 | `wiki_lint` |
+Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9개 도구를 제공합니다.
+각 도구의 full 시그니처는 **클라이언트의 `tools/list` 응답**(MCP 표준 자동 discovery)으로
+확인할 수 있습니다 — 별도 문서 참조 없이 schema가 자동 제공됩니다.
+
+| 모드 | 도구 | 용도 | 키워드 |
+|---|---|---|---|
+| `read` | `wiki_search(query, top_k=10)` | BM25 전문 검색 | `query` |
+| `read` | `wiki_get_page(slug)` | 페이지 본문/frontmatter/backlinks 조회 | `query` |
+| `read` | `wiki_lint()` | 14개 무결성 검사 결과 | `lint` |
+| `read` | `wiki_graph(project?)` | 페이지 간 링크 그래프 | `query` |
+| `read` | `wiki_log(tail_n=20)` | log.md 최근 N개 구조화 JSON | `query` |
+| `read` | `wiki_stale_detect()` | ADR-2026-07-06 §1.3 — stale 후보 + evidence + suggested_action | `lint` |
+| `write` | `wiki_update(slug, content, frontmatter?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
+| `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만) | `ingest` |
+| `write` | `wiki_archive(slug, reason?)` | ADR-2026-07-06 §1.3 — `_archive/` 격리 (1.5배 본문 가드 회피) | `archive` |
+| `admin` | `wiki_delete(slug, actor?, idempotency_key?)` | 페이지 영구 삭제 (archive와 다름 — 사람 운영자 전용) | `delete` |
+| `admin` | `wiki_rename(old_slug, new_slug, actor?, idempotency_key?)` | slug 변경 + 인바운드 wikilink 재작성 | `rename` |
+
+> **모든 도구는 `vault=<등록된 vault 이름>` 인자 필수** — Raven MCP 서버는 다중 vault 등록을
+> 지원하며, 도구 호출 시 어떤 vault를 조작할지 명시해야 합니다.
 
 `wiki_update` 사용 규약 (v0.7.66+):
 - `content` = 본문 마크다운. 메타데이터는 **`frontmatter` 파라미터**로 전달 (권장).
@@ -50,7 +64,33 @@ confidence: high
   9종 중 하나여야 생성/수정이 통과한다 (`SCHEMA.md` 참조).
 - `raw/`, `_meta/`, `log.md`는 생성/수정 모두 거부된다 (§2 권한).
 
-MCP 연결 정보(엔드포인트/포트)와 전체 도구 목록은 `raven docs show agent-tools` 참고.
+ADR-2026-07-06 신규: `wiki_stale_detect` (read) + `wiki_archive` (write) — 사람 north star
+"에이전트가 스테일 갱신·격리 루프" 실행 기반. `wiki_update`는 본문이 기존 1.5배 초과 시
+`large_rewrite_blocked` 거부 — north star "원문 보존 + 증분 누적" 가드.
+
+## 1.5 MCP 도달법 (Raven vault에 어떻게 연결하는가)
+
+Raven은 표준 **Model Context Protocol (JSON-RPC)** 서버입니다. 당신의 MCP 호환 클라이언트가
+다음 transport 중 하나로 자동 도달 가능합니다.
+
+| transport | 용도 | 서버 실행 |
+|---|---|---|
+| **stdio** (권장) | 로컬 sub-process. MCP 클라이언트가 직접 spawn | `python -m raven.mcp.cli --transport stdio --mode <read|write|admin>` |
+| **streamable-http** | 원격 (Tailscale, LAN, 공인). HTTP 클라이언트 | `python -m raven.mcp.cli --transport http --host <0.0.0.0|127.0.0.1> --port 8765 --mode <...>` |
+
+**연결 후 즉시 할 일**: `tools/list` 호출 — MCP 표준 자동 discovery로 9개 도구의
+full schema(input/output)가 제공됩니다. 별도 "전체 도구 목록" 문서 참조는 불필요.
+
+**구체적 endpoint / command / 환경별 snippet**은 이 vault의 운영자에게 받으세요.
+- 운영자가 Dashboard의 신규 vault 마법사를 사용했다면, 마법사 결과 화면에
+  환경별 snippet (stdio/HTTP + 클립보드 복사 버튼)이 자동 생성됩니다.
+- 운영자가 CLI/Tailscale/Docker 등 다른 환경에서 운영한다면, 같은 정보가
+  운영자 가이드(`README.md`) 또는 vault 운영자에게 직접 요청하세요.
+
+**왜 Tier 1 내부 CLI를 가리키지 않는가**: 이 문서는 **외부 MCP 클라이언트가 받는
+vault 내용**에 포함됩니다 (Lite bootstrap 정책, v0.7.65+). raven 패키지 내부
+CLI(`raven docs show ...` 류)는 Tier 1 — 외부 에이전트가 호출할 수 없습니다.
+대신 MCP 표준 discovery(`tools/list`)를 쓰면 vendor/환경에 종속되지 않습니다.
 
 ## 2. 권한 — vault 내부 영역
 
