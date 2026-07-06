@@ -413,7 +413,7 @@ function ActionCard({
     pointerEvents: disabled ? "none" : "auto",
   };
   if (action.primary) {
-    base.borderColor = "var(--color-primary, #1c69d4)";
+    base.borderColor = "var(--color-primary)";
     base.background = "var(--cds-background-brand, #f4f7fc)";
   }
   return (
@@ -493,7 +493,7 @@ function VaultCard({
         flexDirection: "column",
         gap: 10,
         border: isActive
-          ? "1.5px solid var(--color-primary, #1c69d4)"
+          ? "1.5px solid var(--color-primary)"
           : undefined,
         transition:
           "box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease",
@@ -691,7 +691,7 @@ function NewPageCard({
       ? "var(--cds-background-brand, #f4f7fc)"
       : "var(--cds-field-01, #fff)",
     border: active
-      ? "1.5px solid var(--color-primary, #1c69d4)"
+      ? "1.5px solid var(--color-primary)"
       : "1px solid var(--cds-border-subtle-01, #e0e0e0)",
     borderRadius: 8,
     minHeight: isMobile ? 88 : 96,

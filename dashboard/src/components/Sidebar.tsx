@@ -247,7 +247,7 @@ export function Sidebar({
                 border: "1px solid var(--color-hairline)",
                 borderRadius: "var(--radius-sm)",
                 backgroundColor: "transparent",
-                color: favorites.has(activeVault) ? "var(--color-primary, #3b82f6)" : "var(--color-muted)",
+                color: favorites.has(activeVault) ? "var(--color-primary)" : "var(--color-muted)",
                 cursor: "pointer",
                 transition: "color 0.15s ease",
               }}
@@ -667,7 +667,7 @@ function SidebarStatsWidget({ activeVault }: { activeVault: string }) {
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--color-muted)" }}>활성 락</div>
-            <div style={{ fontWeight: 700, color: stats.locks > 0 ? "var(--color-primary, #3b82f6)" : "var(--color-ink)", marginTop: 2 }}>{stats.locks}</div>
+            <div style={{ fontWeight: 700, color: stats.locks > 0 ? "var(--color-primary)" : "var(--color-ink)", marginTop: 2 }}>{stats.locks}</div>
           </div>
         </div>
       ) : (
