@@ -1,6 +1,5 @@
 /**
  * InlineMarkdownEditor — inline MD split-view editor (v0.7.51+, AGENTS.md §6 인라인 편집 우선)
- /**
   * InlineMarkdownEditor — inline MD split-view editor (v0.7.51+, AGENTS.md §6 인라인 편집 우선)
   *
   * v0.7.51+ UX 재설계 — 의존성 0, Raven 디자인 토큰 일치:
@@ -197,7 +196,7 @@
      try {
        await updatePage(vault, slug, { content: draft, title: titleVal });
        setToast("✅ 저장 완료");
-        setToastType("success");
+      setToastType("success");
        setTimeout(() => {
          setMode("view");
          setToast(null);
@@ -206,7 +205,7 @@
      } catch (e) {
        const msg = e instanceof Error ? e.message : String(e);
        setToast(`❌ 저장 실패: ${msg}`);
-        setToastType("error");
+      setToastType("error");
      } finally {
        setBusy(false);
      }
@@ -220,7 +219,7 @@
      try {
        await deletePage(vault, slug);
        setToast("🗑 삭제(아카이빙) 완료");
-        setToastType("success");
+      setToastType("success");
        setTimeout(() => {
          onDeleted?.();
          navigate("/");
@@ -228,7 +227,7 @@
      } catch (e) {
        const msg = e instanceof Error ? e.message : String(e);
        setToast(`❌ 삭제 실패: ${msg}`);
-        setToastType("error");
+      setToastType("error");
      } finally {
        setBusy(false);
      }
@@ -422,8 +421,8 @@
      {/* Toast */}
      <Toast open={Boolean(toast)} message={toast ?? ""} type={toastType} />
 
-{/* Body: view vs edit */}
-       <div className="inline-md-body">
+    {/* Body: view vs edit */}
+    <div className="inline-md-body">
          {mode === "view" ? (
            <MDEditor.Markdown
              source={displayContent ?? ""}
