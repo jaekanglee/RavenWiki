@@ -410,7 +410,7 @@ function Step1({
         style={{
           height: 56,
           fontFamily: "ui-monospace, SFMono-Regular, monospace",
-          background: "var(--cds-field-01, #f4f4f4)",
+          background: "var(--color-surface-soft)",
           color: "var(--color-muted)",
           cursor: "default",
         }}
@@ -435,7 +435,7 @@ function Step1({
           role="alert"
           style={{
             marginTop: 16,
-            color: "var(--cds-support-error, #da1e28)",
+            color: "var(--color-error-text)",
             fontSize: 13,
           }}
         >
@@ -527,9 +527,9 @@ function Step2({
           gridTemplateColumns: "120px 1fr",
           gap: "12px 16px",
           padding: 20,
-          background: "var(--cds-field-01, #fafafa)",
+          background: "var(--color-surface-soft)",
           borderRadius: 8,
-          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+          border: "1px solid var(--color-hairline)",
           fontSize: 14,
         }}
       >
@@ -613,9 +613,9 @@ function Step2({
         style={{
           marginTop: 16,
           padding: 16,
-          background: "var(--cds-field-01, #fafafa)",
+          background: "var(--color-surface-soft)",
           borderRadius: 8,
-          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+          border: "1px solid var(--color-hairline)",
         }}
       >
         <div
@@ -759,7 +759,7 @@ function Step2({
           role="alert"
           style={{
             marginTop: 16,
-            color: "var(--cds-support-error, #da1e28)",
+            color: "var(--color-error-text)",
             fontSize: 13,
           }}
         >

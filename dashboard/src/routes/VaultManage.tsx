@@ -433,9 +433,9 @@ export function VaultManage() {
             padding: 12,
             marginBottom: 16,
             background: "var(--cds-danger, #fff1f1)",
-            border: "1px solid var(--cds-danger-border, #fa7878)",
+            border: "1px solid var(--color-danger-border)",
             borderRadius: 4,
-            color: "var(--cds-danger-text, #a2191f)",
+            color: "var(--color-danger-text)",
             fontSize: 13,
           }}
         >
@@ -553,7 +553,7 @@ export function VaultManage() {
                         style={{
                           padding: "4px 6px",
                           fontSize: 13,
-                          border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+                          border: "1px solid var(--color-hairline)",
                           borderRadius: 3,
                           fontFamily: "ui-monospace, SFMono-Regular, monospace",
                         }}
@@ -567,7 +567,7 @@ export function VaultManage() {
                       style={{
                         fontSize: 11,
                         padding: "2px 6px",
-                        background: "var(--cds-field-01, #f4f4f4)",
+                        background: "var(--color-surface-soft)",
                         borderRadius: 8,
                       }}
                     >
@@ -587,11 +587,11 @@ export function VaultManage() {
                             padding: "2px 6px",
                             marginLeft: 4,
                             background: isOk
-                              ? "var(--cds-support-success, #defbe6)"
+                              ? "var(--color-success-bg)"
                               : "var(--cds-danger, #fff1f1)",
                             color: isOk
-                              ? "var(--cds-support-success-text, #0e6027)"
-                              : "var(--cds-danger-text, #a2191f)",
+                              ? "var(--color-success-text)"
+                              : "var(--color-danger-text)",
                             borderRadius: 8,
                             fontWeight: 600,
                           }}
@@ -626,7 +626,7 @@ export function VaultManage() {
                     style={{
                       padding: "8px",
                       textAlign: "right",
-                      color: s && s.broken_links > 0 ? "var(--cds-danger-text, #a2191f)" : undefined,
+                      color: s && s.broken_links > 0 ? "var(--color-danger-text)" : undefined,
                       fontWeight: s && s.broken_links > 0 ? 600 : undefined,
                     }}
                   >
@@ -692,7 +692,7 @@ export function VaultManage() {
                         <button
                           onClick={() => initiateDelete(v.name)}
                           disabled={busy}
-                          style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)" }}
+                          style={{ ...btnGhost, color: "var(--color-danger-text)" }}
                           aria-label={`delete ${v.name}`}
                         >
                           <ActionIcon.Trash />
@@ -795,7 +795,7 @@ export function VaultManage() {
                     <button
                       onClick={() => initiateDelete(v.name)}
                       disabled={busy}
-                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--cds-danger-text, #a2191f)" }}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--color-danger-text)" }}
                     >
                       삭제
                     </button>
@@ -861,7 +861,7 @@ export function VaultManage() {
                       <button
                         onClick={() => setUnlockTarget({ vaultName: v.name, slug })}
                         disabled={busy}
-                        style={{ ...btnGhost, color: "var(--cds-danger-text, #a2191f)", margin: 0 }}
+                        style={{ ...btnGhost, color: "var(--color-danger-text)", margin: 0 }}
                         title="락 해제"
                       >
                         🔓 해제
@@ -891,7 +891,7 @@ export function VaultManage() {
                     <button
                       onClick={() => setUnlockTarget({ vaultName: v.name, slug })}
                       disabled={busy}
-                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--cds-danger-text, #a2191f)" }}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%", color: "var(--color-danger-text)" }}
                     >
                       🔓 락 해제
                     </button>
@@ -950,7 +950,7 @@ export function VaultManage() {
                 padding: 12,
                 marginBottom: 4,
                 background: "var(--cds-warning, #fff8e1)",
-                border: "1px solid var(--cds-warning-border, #f1c21b)",
+                border: "1px solid var(--color-warning-border)",
                 borderRadius: 4,
                 fontSize: 13,
               }}
@@ -967,7 +967,7 @@ export function VaultManage() {
                   </strong>
                 </li>
               </ul>
-              <div style={{ marginTop: 8, color: "var(--cds-danger-text, #a2191f)" }}>
+              <div style={{ marginTop: 8, color: "var(--color-danger-text)" }}>
                 강제 삭제 시 디렉토리 전체가 사라집니다 (복구 불가).
               </div>
             </div>
@@ -1003,7 +1003,7 @@ const btnGhost: React.CSSProperties = {
   fontSize: 12,
   background: "transparent",
   color: "var(--color-ink)",
-  border: "1px solid var(--cds-border-subtle-01, #e0e0e0)",
+  border: "1px solid var(--color-hairline)",
   borderRadius: 4,
   cursor: "pointer",
   fontFamily: "inherit",
@@ -1027,7 +1027,7 @@ function MetricRow({
       <span
         style={{
           fontSize: 13,
-          color: accent ? "var(--cds-danger-text, #a2191f)" : "var(--color-ink)",
+          color: accent ? "var(--color-danger-text)" : "var(--color-ink)",
           fontWeight: accent ? 700 : 500,
           textAlign: "right",
           wordBreak: "break-all",

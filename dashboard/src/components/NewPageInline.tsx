@@ -182,7 +182,7 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
       style={{
         padding: isMobileWidth() ? 16 : 24,
         marginBottom: 24,
-        border: "1.5px solid var(--cds-border-interactive, #1c69d4)",
+        border: "1.5px solid var(--color-primary)",
         borderRadius: "var(--radius-md)",
         background: "var(--cds-background, #fff)",
       }}
