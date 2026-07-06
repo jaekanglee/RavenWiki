@@ -27,7 +27,7 @@ install: ## Create venv + install raven + dev deps (v0.7.55+ 기본 경로 — D
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e ./scripts
-	$(PIP) install --quiet pytest typer fastapi uvicorn 'httpx<0.28' pydantic python-frontmatter
+	$(PIP) install --quiet pytest typer fastapi uvicorn 'httpx<0.28' pydantic python-frontmatter 'mcp[cli]>=1.0' 'starlette>=0.30'
 	@echo "✅ installed ($(VENV))"
 
 .PHONY: venv-check
