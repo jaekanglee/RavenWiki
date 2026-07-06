@@ -150,3 +150,37 @@ ADR-2026-07-06 §1.3 / §1.4 골격 구현:
 - **신규 시나리오**: 6 passed (0.05s)
 
 다음 사이클 (Plan B-2): FileLock 통합 + wiki.db 페이지 조회 최적화 + wiki_update 1.5배 가드 (P0#3과 동시) + 평가 문서 §5.2 done_when #0 갱신.
+
+### 2026-07-06 후속 — Plan B-2 완료 (FileLock + wiki.db 최적화 + 1.5배 가드 통합)
+
+ADR §1.3 guards 4종 완성 + write.py 1.5배 가드 통합:
+
+- **FileLock 통합** (`raven/mcp/tools/stale.py::wiki_archive`):
+  - `core.lock.lock_for_file()` 사용 (v0.7.67+ TTL/PID 회수)
+  - TimeoutError catch + 사용자 친화 메시지 ("다른 archive/write 액션이 진행 중. 잠시 후 재시도.")
+  - A#4 일관성: 기존 CLI/API의 FileLock 패턴과 동일
+- **wiki.db 페이지 조회 최적화** (`raven/mcp/tools/stale.py::wiki_stale_detect`):
+  - `db.list_pages(vault)` 우선 사용 (B#8 lint 캐싱과 동시)
+  - wiki.db 없을 시 FS `rglob` fallback
+  - `summary.source` 필드로 어느 경로 사용했는지 보고 (회귀 가드 가능)
+- **write.py 1.5배 가드** (`raven/mcp/tools/write.py::wiki_update`):
+  - lock check 직후, write_page 호출 직전에 가드 배치
+  - 본문 길이 (frontmatter 제외) 비교, 1.5배 초과 시 `error: "large_rewrite_blocked"` 반환
+  - 신규 페이지 (creating=True)는 가드 우회 (0→N 비교 불가)
+  - north star "원문 보존 + 증분 누적 ⭕"의 실행 가드
+- **시나리오 테스트 추가** (`tests/scenarios/test_stale_loop.py`):
+  - 11 → 13 통과 (4 시나리오 + 3 false positive 회피 + 2 회귀 가드 + 4 신규)
+  - 신규: `test_archive_actually_moves_file_with_lock` (실제 이동 + lock 통합 검증)
+  - 신규: `test_archive_readonly_mode_blocked` (read 모드 거부 검증)
+  - 신규: `test_stale_detect_uses_wiki_db_when_available` (wiki.db / FS fallback 검증)
+  - 신규: `test_write_update_1_5x_guard_blocks` (write.py 가드 통합 검증, 100→200 = 2배 차단)
+  - 신규: `test_write_update_allows_new_page_1_5x_guard_skipped` (신규 페이지 가드 우회 검증)
+- **기존 회귀 0건**: tests/ 658 → 665 passed (+7), 1 skipped (44.5s)
+
+평가 문서 §5.2 #0 done_when 충족 (ADR §4 수용 기준 + Plan B-2 보강):
+- (1) ADR-2026-07-06 accept (status: proposed → 사용자 검토 대기)
+- (2) `wiki_stale_detect` MCP 도구 unit test pass — wiki.db/FS fallback 13 시나리오 pass
+- (3) 시나리오 4종 pass — stale_detected / revalidated / archive_moves / update_rejects
+- (4) 회귀 가드 2종 pass — frontmatter_block_yaml + archive_path_traversal
+
+다음 사이클: ADR status 결정 (사용자 검토) + Lite bootstrap에 status 4상태 자동 복사 + 평가 문서 §5.2 done_when #0 갱신.

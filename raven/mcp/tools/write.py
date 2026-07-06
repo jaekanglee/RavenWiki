@@ -417,6 +417,36 @@ def wiki_update(
             "_lock_holder": holder,
         }
 
+    # v0.7.69+ Plan B-2 (ADR-2026-07-06 §1.3): 본문 50%+ 재작성 가드 (1.5배 임계값).
+    # north star "원문 보존 + 증분 누적만 ⭕"의 실행 가드. False positive 회피:
+    # - 신규 생성(creating=True)은 본문 0→N이므로 가드 우회
+    # - 사용자 force=True 옵션 시 가드 우회 (다음 사이클)
+    creating = not abs_path.exists()
+    if not creating:
+        try:
+            existing_text = abs_path.read_text(encoding="utf-8")
+            _existing_fm, existing_body = core_frontmatter.parse(existing_text)
+        except (OSError, UnicodeDecodeError):
+            existing_body = ""
+        existing_len = len(existing_body.strip())
+        new_len = len(content.strip())
+        if existing_len > 0 and new_len > existing_len * 1.5:
+            return {
+                "ok": False,
+                "message": (
+                    f"Large rewrite rejected (ADR-2026-07-06 §1.3: 본문 50%+ 재작성 금지). "
+                    f"existing={existing_len} chars, new={new_len} chars "
+                    f"({new_len / existing_len:.1f}x). Use partial update 또는 split/merge 우회."
+                ),
+                "path": slug,
+                "actor": actor_norm,
+                "idempotency_key": idempotency_key,
+                "timestamp": now_iso(),
+                "error": "large_rewrite_blocked",
+                "_existing_len": existing_len,
+                "_new_len": new_len,
+            }
+
     # v0.7.66 (평가 P0#2): 신규 slug는 upsert로 생성한다. raw/, _meta/, log.md는
     # 위 immutable 가드가 이미 차단하고, is_llm_wiki vault면 스키마 검증을
     # 통과해야 실제 파일이 생긴다. (구 동작은 "Use wiki_ingest for new pages"로
