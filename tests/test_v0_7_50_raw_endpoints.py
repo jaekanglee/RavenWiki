@@ -155,6 +155,7 @@ def test_write_raw_creates_new_file(client, raw_vault):
     r = client.put(
         "/api/vaults/raw-test-vault/raw/articles/new.md",
         json={"content": "# new file\nbody"},
+        headers={"X-Actor": "test-user"},
     )
     assert r.status_code == 200, r.text
     data = r.json()
@@ -167,6 +168,7 @@ def test_write_raw_overwrites_existing(client, raw_vault):
     r = client.put(
         "/api/vaults/raw-test-vault/raw/articles/foo.md",
         json={"content": "OVERWRITTEN"},
+        headers={"X-Actor": "test-user"},
     )
     assert r.status_code == 200
     assert r.json()["existed"] is True
@@ -178,6 +180,7 @@ def test_write_raw_creates_parent_dirs(client, raw_vault):
     r = client.put(
         "/api/vaults/raw-test-vault/raw/deep/nested/file.md",
         json={"content": "deep"},
+        headers={"X-Actor": "test-user"},
     )
     assert r.status_code == 200, r.text
     assert (raw_vault / "raw" / "deep" / "nested" / "file.md").read_text() == "deep"
@@ -220,6 +223,7 @@ def test_write_raw_400_when_path_is_directory(client, raw_vault):
     r = client.put(
         "/api/vaults/raw-test-vault/raw/articles",
         json={"content": "x"},
+        headers={"X-Actor": "test-user"},
     )
     assert r.status_code == 400
 
@@ -230,7 +234,10 @@ def test_write_raw_400_when_path_is_directory(client, raw_vault):
 def test_delete_raw_removes_file(client, raw_vault):
     target = raw_vault / "raw" / "readme.md"
     assert target.exists()
-    r = client.delete("/api/vaults/raw-test-vault/raw/readme.md")
+    r = client.delete(
+        "/api/vaults/raw-test-vault/raw/readme.md",
+        headers={"X-Actor": "test-user"},
+    )
     assert r.status_code == 200
     assert not target.exists()
 
@@ -238,20 +245,29 @@ def test_delete_raw_removes_file(client, raw_vault):
 def test_delete_raw_removes_empty_dir(client, raw_vault):
     """빈 dir 생성 후 삭제."""
     (raw_vault / "raw" / "empty_dir").mkdir()
-    r = client.delete("/api/vaults/raw-test-vault/raw/empty_dir")
+    r = client.delete(
+        "/api/vaults/raw-test-vault/raw/empty_dir",
+        headers={"X-Actor": "test-user"},
+    )
     assert r.status_code == 200
     assert not (raw_vault / "raw" / "empty_dir").exists()
 
 
 def test_delete_raw_409_for_nonempty_dir(client, raw_vault):
     """비어있지 않은 dir → 409."""
-    r = client.delete("/api/vaults/raw-test-vault/raw/articles")
+    r = client.delete(
+        "/api/vaults/raw-test-vault/raw/articles",
+        headers={"X-Actor": "test-user"},
+    )
     assert r.status_code == 409
     assert "not empty" in r.json()["detail"]
 
 
 def test_delete_raw_404_for_missing(client, raw_vault):
-    r = client.delete("/api/vaults/raw-test-vault/raw/missing.md")
+    r = client.delete(
+        "/api/vaults/raw-test-vault/raw/missing.md",
+        headers={"X-Actor": "test-user"},
+    )
     assert r.status_code == 404
 
 
@@ -287,9 +303,84 @@ def test_write_raw_normalized_path_creates_in_raw_root(client, raw_vault):
     r = client.put(
         "/api/vaults/raw-test-vault/raw/articles/../escape.md",
         json={"content": "normalized"},
+        headers={"X-Actor": "test-user"},
     )
     assert r.status_code == 200
     # raw_root 내부에 escape.md 생성 (articles/는 normalize되어 사라짐)
     assert (raw_vault / "raw" / "escape.md").read_text() == "normalized"
     # articles/foo.md는 그대로 존재
     assert (raw_vault / "raw" / "articles" / "foo.md").exists()
+
+
+# ──────────────────── actor guard (AGENTS.md §7) ────────────────────
+# v0.7.50+ raw/ 폴더는 사람 운영자 1차 영역. anonymous / 미식별 호출은 403.
+# MCP wiki_ingest가 사람 명시 명령으로 호출되는 경로와 분리.
+
+
+def test_write_raw_403_without_actor_header(client, raw_vault):
+    """X-Actor 헤더 없이 PUT → 403 거부 (AGENTS.md §7 raw/ 폴더 정책)."""
+    r = client.put(
+        "/api/vaults/raw-test-vault/raw/articles/no-actor.md",
+        json={"content": "x"},
+    )
+    assert r.status_code == 403
+    assert "raw/ 폴더는 사람 운영자 only" in r.json()["detail"]
+    # 파일 생성 안 됨
+    assert not (raw_vault / "raw" / "articles" / "no-actor.md").exists()
+
+
+def test_write_raw_403_with_anonymous_actor(client, raw_vault):
+    """X-Actor: 'anonymous' 호출 → 403 거부 (에이전트 default actor)."""
+    r = client.put(
+        "/api/vaults/raw-test-vault/raw/articles/anonymous.md",
+        json={"content": "x"},
+        headers={"X-Actor": "anonymous"},
+    )
+    assert r.status_code == 403
+    assert not (raw_vault / "raw" / "articles" / "anonymous.md").exists()
+
+
+def test_write_raw_403_with_whitespace_actor(client, raw_vault):
+    """X-Actor: '   ' (공백) → 403 거부."""
+    r = client.put(
+        "/api/vaults/raw-test-vault/raw/articles/ws.md",
+        json={"content": "x"},
+        headers={"X-Actor": "   "},
+    )
+    assert r.status_code == 403
+    assert not (raw_vault / "raw" / "articles" / "ws.md").exists()
+
+
+def test_delete_raw_403_without_actor_header(client, raw_vault):
+    """X-Actor 헤더 없이 DELETE → 403 거부."""
+    target_file = raw_vault / "raw" / "readme.md"
+    assert target_file.exists()
+    r = client.delete("/api/vaults/raw-test-vault/raw/readme.md")
+    assert r.status_code == 403
+    # 파일 그대로 존재
+    assert target_file.exists()
+
+
+def test_read_raw_does_not_require_actor(client, raw_vault):
+    """raw/ GET(read)은 actor 가드 영향 안 받음 — viewer는 누구든 자유."""
+    r = client.get("/api/vaults/raw-test-vault/raw/articles/foo.md")
+    assert r.status_code == 200
+    assert r.json()["content"] == "# foo\nbody"
+
+
+def test_raw_write_allowed_unit():
+    """_raw_write_allowed 가드 함수 unit test (AGENTS.md §7)."""
+    from raven.api.server import _raw_write_allowed
+
+    # 거부
+    assert _raw_write_allowed(None) is False
+    assert _raw_write_allowed("") is False
+    assert _raw_write_allowed("   ") is False
+    assert _raw_write_allowed("anonymous") is False
+    assert _raw_write_allowed("ANONYMOUS") is False
+    assert _raw_write_allowed("Anonymous") is False
+    # 허용
+    assert _raw_write_allowed("user") is True
+    assert _raw_write_allowed("jaekanglee") is True
+    assert _raw_write_allowed("claude-code") is True
+    assert _raw_write_allowed("  user  ") is True  # strip 후 truthy

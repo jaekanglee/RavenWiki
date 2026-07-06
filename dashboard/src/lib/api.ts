@@ -420,7 +420,7 @@ export async function writeRaw(
 ): Promise<{ ok: boolean; path: string; size: number | null; existed: boolean }> {
   const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Actor": "user" },
     body: JSON.stringify({ content }),
   });
   if (!r.ok) {
@@ -443,6 +443,7 @@ export async function deleteRaw(
 ): Promise<{ ok: boolean; path: string; deleted: boolean }> {
   const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
     method: "DELETE",
+    headers: { "X-Actor": "user" },
   });
   if (!r.ok) {
     let detail: string;

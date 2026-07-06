@@ -16,7 +16,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -1997,6 +1997,23 @@ def _raw_root_or_400(v: Vault) -> Path:
     return raw_root
 
 
+def _raw_write_allowed(actor: Optional[str]) -> bool:
+    """raw/ 폴더는 사람 운영자만 (AGENTS.md §7). actor=None 또는 "anonymous" 거부.
+
+    - actor가 명시적으로 식별된 경우 (Dashboard의 user actor, CLI의 user actor) → True
+    - 그 외 (None / 빈 문자열 / "anonymous") → False
+    - vault .vault.json의 agents allowlist (v0.7.37) 와는 별개 — raw/ 폴더는 vault allowlist
+      와 무관하게 사람 운영자만 가능. 에이전트는 MCP wiki_ingest로만 (user_command=True 필수).
+
+    정책 근거: AGENTS.md §7 raw/ 폴더 정책 v0.7.50+.
+    """
+    if not actor or not actor.strip():
+        return False
+    if actor.strip().lower() == "anonymous":
+        return False
+    return True
+
+
 def _safe_raw_path_or_400(rel: str, raw_root: Path) -> Path:
     """`rel` (raw/ 하위 경로, 예: 'articles/foo.md')가 raw_root 내부인지 검증 후 절대 경로 반환.
 
@@ -2111,13 +2128,29 @@ def read_raw(name: str, path: str):
 
 
 @app.put("/api/vaults/{name}/raw/{path:path}")
-def write_raw(name: str, path: str, payload: RawContent):
+def write_raw(
+    name: str,
+    path: str,
+    payload: RawContent,
+    actor: Optional[str] = Header(None, alias="X-Actor", description="운영자 식별자. 사람 운영자만 허용 (AGENTS.md §7)."),
+):
     """raw/<rel> 파일 작성/갱신. 사람 운영자 only. 에이전트 호출 ❌ (MCP는 wiki_ingest만).
 
     - payload.content = 전체 본문 (overwrite).
     - parent dir 없으면 자동 mkdir (P32: OS directory = first-class).
     - 기존 파일 있으면 overwrite (raw는 사람 1차, 의도적 갱신 OK).
+
+    Actor 가드: raw/ 폴더는 사람 운영자 1차 영역. anonymous / 미식별 호출은 403.
     """
+    if not _raw_write_allowed(actor):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "raw/ 폴더는 사람 운영자 only (AGENTS.md §7). "
+                "X-Actor 헤더에 사람 운영자 식별자를 명시하세요. "
+                "에이전트는 MCP wiki_ingest(user_command=True) 로만 가능합니다."
+            ),
+        )
     v = _vault_or_404(name)
     raw_root = _raw_root_or_400(v)
     fp = _safe_raw_path_or_400(path, raw_root)
@@ -2145,12 +2178,27 @@ def write_raw(name: str, path: str, payload: RawContent):
 
 
 @app.delete("/api/vaults/{name}/raw/{path:path}")
-def delete_raw(name: str, path: str):
+def delete_raw(
+    name: str,
+    path: str,
+    actor: Optional[str] = Header(None, alias="X-Actor", description="운영자 식별자. 사람 운영자만 허용 (AGENTS.md §7)."),
+):
     """raw/<rel> 파일/빈 디렉토리 삭제. hard delete (raw는 immutable-to-LLM, 사람 의도적 삭제 OK).
 
     - 파일: hard delete (undo 없음, OS 파일관리자 복구 가능).
     - 빈 디렉토리만 삭제. 파일 있는 디렉토리는 409.
+
+    Actor 가드: raw/ 폴더는 사람 운영자 1차 영역. anonymous / 미식별 호출은 403.
     """
+    if not _raw_write_allowed(actor):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "raw/ 폴더는 사람 운영자 only (AGENTS.md §7). "
+                "X-Actor 헤더에 사람 운영자 식별자를 명시하세요. "
+                "에이전트는 MCP wiki_ingest(user_command=True) 로만 가능합니다."
+            ),
+        )
     v = _vault_or_404(name)
     raw_root = _raw_root_or_400(v)
     fp = _safe_raw_path_or_400(path, raw_root)
