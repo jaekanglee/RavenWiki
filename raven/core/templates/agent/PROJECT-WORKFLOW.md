@@ -74,98 +74,74 @@ ADR-2026-07-06 신규: `wiki_stale_detect` (read) + `wiki_archive` (write) — �
 "에이전트가 스테일 갱신·격리 루프" 실행 기반. `wiki_update`는 본문이 기존 1.5배 초과 시
 `large_rewrite_blocked` 거부 — north star "원문 보존 + 증분 누적" 가드.
 
-## 1.5 MCP 도달법 (Raven vault에 어떻게 연결하는가)
+## 1.5 MCP 도달법 — HTTP localhost (v0.7.81+)
 
-Raven은 표준 **Model Context Protocol (JSON-RPC)** 서버입니다. 당신의 MCP 호환 클라이언트가
-다음 transport 중 하나로 자동 도달 가능합니다.
+Raven은 표준 **Model Context Protocol (JSON-RPC)** 서버입니다. **HTTP localhost 방식만
+지원합니다** — 단일 흐름으로 단순화 (v0.7.81+ HTTP-only 재설계).
 
-| transport | 용도 | 서버 실행 |
-|---|---|---|
-| **stdio** (권장) | 로컬 sub-process. MCP 클라이언트가 직접 spawn | `python -m raven.mcp.cli --transport stdio --mode <read|write|admin>` |
-| **streamable-http** | 원격 (Tailscale, LAN, 공인). HTTP 클라이언트 | `python -m raven.mcp.cli --transport http --host <0.0.0.0|127.0.0.1> --port 8765 --mode <...>` |
+### 1단계: 운영자가 서버 띄우기 (1회)
 
-**연결 후 즉시 할 일**: `tools/list` 호출 — MCP 표준 자동 discovery로 9개 도구의
-full schema(input/output)가 제공됩니다. 별도 "전체 도구 목록" 문서 참조는 불필요.
-
-**구체적 endpoint / command / 환경별 snippet**은 이 vault의 운영자에게 받으세요.
-- 운영자가 Dashboard의 신규 vault 마법사를 사용했다면, 마법사 결과 화면에
-  환경별 snippet (stdio/HTTP + 클립보드 복사 버튼)이 자동 생성됩니다.
-- 운영자가 CLI/Tailscale/Docker 등 다른 환경에서 운영한다면, 같은 정보가
-  운영자 가이드(`README.md`) 또는 vault 운영자에게 직접 요청하세요.
-
-**왜 Tier 1 내부 CLI를 가리키지 않는가**: 이 문서는 **외부 MCP 클라이언트가 받는
-vault 내용**에 포함됩니다 (Lite bootstrap 정책, v0.7.65+). raven 패키지 내부
-CLI(`raven docs show ...` 류)는 Tier 1 — 외부 에이전트가 호출할 수 없습니다.
-대신 MCP 표준 discovery(`tools/list`)를 쓰면 vendor/환경에 종속되지 않습니다.
-
-### 1.5.1 표준 MCP 클라이언트 설정 패턴 (vendor-neutral)
-
-당신의 MCP 호환 클라이언트는 다음 두 표준 패턴 중 하나를 지원합니다. 둘 다
-Model Context Protocol (JSON-RPC) 표준이라 **어떤 클라이언트든 동일하게 동작**합니다.
-
-| 패턴 | 용도 | JSON 스니펫 |
-|---|---|---|
-| **`command` 기반** (stdio) | 로컬 sub-process. 클라이언트가 직접 spawn | `{"command": "python", "args": ["-m", "raven.mcp.cli", "--transport", "stdio", "--mode", "read"]}` |
-| **`url` 기반** (streamable-http) | 원격 HTTP. 클라이언트가 URL로 호출 | `{"url": "http://<vault-host>:8765/mcp"}` |
-
-> **vault 운영자가 표준 MCP 클라이언트라면** 위 두 스니펫을 자기 클라이언트의 MCP
-> 서버 설정 (보통 JSON 파일 또는 UI)에 그대로 추가하면 됩니다. 운영 환경에 따라
-> 실제 호스트/포트/mode 값은 wizard 결과 화면 또는 운영자에게 받으세요 (§1.5 안내).
-
-#### 첫 도구 호출 — `vault` 인자
-
-Raven MCP 서버는 *다중 vault 등록*을 지원합니다. 모든 도구 호출 시 **`vault=<등록된 이름>`**
-인자가 필수 — 어떤 vault를 조작할지 명시해야 합니다.
-
-```
-1. tools/list 호출 (자동 discovery)
-2. 발견된 도구 중 하나로 첫 호출 시:
-   wiki_search(vault="<이름>", query="...", top_k=10)
-3. 응답으로 vault의 페이지/링크/그래프 등 자유롭게 탐색
+```bash
+python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8765 --mode <read|write|admin>
 ```
 
-**`vault=<이름>` 모를 때**: vault 운영자에게 직접 요청하거나, 운영자가 Dashboard의
-신규 vault 마법사를 사용했다면 마법사 결과 화면에 등록된 이름이 표시됩니다. (Lite
-bootstrap 정책상 외부 에이전트는 vault 이름을 *자동으로* 알 수 없습니다 — 운영자에게
-확인이 필요합니다.)
+- 서버 lifecycle은 운영자가 관리 (직접 띄우거나 launchd/systemd 등록)
+- 모드 (read/write/admin) 한 번 정하면 프로세스 수명 동안 고정
+- **포트 8765 기본값** — 변경 가능하지만 운영자가 일관성 유지 권장
 
-#### 권한 모드 (read / write / admin)
+### 2단계: 외부 MCP 클라이언트에 URL 등록 (1줄)
 
-서버 시작 시 `--mode`로 고정되며, 한 프로세스 내에서 변경 불가:
+```json
+{"url": "http://localhost:8765/mcp"}
+```
+
+이 한 줄이면 충분:
+- 파이썬 경로 의존성 0
+- raven 패키지 위치 의존성 0
+- vault 디렉토리 경로 의존성 0
+- stdio spawn 보안 sandbox 우회 (일부 클라이언트는 stdio 차단)
+
+### 3단계: 표준 흐름
+
+1. `tools/list` 호출 → MCP 표준 자동 discovery → 9개 도구 schema 즉시
+2. 첫 호출 시 `vault=<이름>` 인자 필수 (다중 vault 지원)
+   - `vault` 이름 = 디렉토리 basename (예: `~/Raven/my-vault/` → `my-vault`)
+3. `wiki_search(vault="my-vault", query="...", top_k=10)` 등으로 자유 탐색
+
+### 권한 모드 (read / write / admin)
+
+서버 시작 시 `--mode`로 고정, 한 프로세스 내에서 변경 불가:
 
 | 모드 | 제공 도구 | 일반 사용 |
 |---|---|---|
 | `read` | 6종 (검색/조회/lint/graph/log/stale_detect) | 기본. 안전. 권장 시작점 |
 | `write` | + `wiki_update`, `wiki_ingest`, `wiki_archive` | vault 페이지 생성/수정/격리 |
-| `admin` | + `wiki_delete`, `wiki_rename` | 사람 운영자 전용 — 위험 액션 (삭제/이름변경) |
+| `admin` | + `wiki_delete`, `wiki_rename` | 사람 운영자 전용 — 위험 액션 |
 
 > **자율 운영 정책**: `admin` 모드 MCP 서버를 *에이전트가* 운영하지 마세요 — 사람 운영자
 > 전용입니다. 일반 에이전트는 `read` (기본) 또는 `write` (필요 시)로 충분합니다.
 
-#### 연결 안 될 때 (트러블슈팅)
+### 트러블슈팅
 
-| 증상 | 원인 (가능성) | 해결 |
-|---|---|---|
-| "command not found: python" | PATH에 python 없음 | 운영자에게 `python3` 또는 venv path 확인 |
-| "address already in use" (HTTP 모드) | vault가 다른 모드로 실행 중 | 다른 포트 사용 또는 기존 프로세스 종료 |
-| "permission_denied" 응답 | 모드 부족 (예: `read`로 `wiki_update` 호출) | 운영자에게 `write` 모드로 재시작 요청 |
-| "vault not found" | `vault` 인자 오타 또는 미등록 | 운영자에게 등록된 이름 확인 |
+| 증상 | 해결 |
+|---|---|
+| "address already in use" | 다른 포트 사용 또는 기존 프로세스 종료 |
+| "permission_denied" | 운영자에게 `write`/`admin` 모드로 재시작 요청 |
+| "vault not found" | `vault` 인자가 디렉토리 basename과 일치하는지 확인 |
 
 ### vault 운영자가 외부 에이전트에게 전달해야 할 것
 
 **vault 경로 한 가지만** 전달하면 충분합니다 (예: `~/Raven/my-vault/`).
 
 - **vault 이름** = 디렉토리 basename — 자동 인식
-- **표준 MCP 스니펫** = §1.5.1 본문 (어떤 MCP 호환 클라이언트든 동일)
-- **mode** (read/write/admin) = 운영자 vault 정책에 따라 argv로 명시
+- **HTTP URL** = `http://localhost:8765/mcp` (위 2단계 스니펫)
+- **모드** = 운영자 정책 (read/write/admin)
 
-→ 운영자가 추가로 알려줘야 할 것은 *없음*. 나머지는 MCP 표준 + §1.5.1 + 각
-MCP 클라이언트의 표준 흐름이 자동 처리합니다.
+→ 운영자가 추가로 알려줘야 할 것은 *없음*.
 
 **R9 cross-link**: Raven 소스 코드(`raven/`, `dashboard/` 패키지)를 *직접 조회하지
 마세요* — vault 외부 시스템이며 R9 ("vault 외부 시스템/폴더 수정 ❌") 위반입니다.
-MCP 연결 / 도구 사용법 / vault 권한 등 필요한 모든 정보는 본 문서 + 운영자
-README에 있습니다. 정보가 부족하다면 vault 운영자에게 직접 요청하세요.
+필요한 모든 정보는 본 문서 + 운영자 README에 있습니다.
 
 ## 2. 권한 — vault 내부 영역
 
