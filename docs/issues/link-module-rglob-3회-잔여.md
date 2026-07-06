@@ -6,6 +6,7 @@ created: 2026-07-05
 tags: [performance, lint, core]
 source: docs/evaluations/2026-07-04-raven-architecture-evaluation.md (B#8)
 related_pr: v0.7.68 (changelog-v0.7.67.md 남은 백로그 #3 — lint run_all 스캔 캐싱)
+aliases: [link-module-rglob-triplication]
 ---
 
 # link_module의 자체 rglob 3회 — lint 캐싱 범위 밖 잔여

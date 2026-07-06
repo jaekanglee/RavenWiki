@@ -6,6 +6,7 @@ created: 2026-07-05
 tags: [rest, api, dashboard]
 source: docs/evaluations/2026-07-04-raven-architecture-evaluation.md (B#17)
 related_pr: v0.7.68 (changelog-v0.7.67.md 남은 백로그 #4 — REST 관례 정리)
+aliases: [server-error-envelope-unification]
 ---
 
 # server.py 전역 에러 응답 envelope 불일치 (3종 혼재)
