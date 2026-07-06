@@ -149,7 +149,8 @@ Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진�
 3. **verify-in-loop**: 각 변경 후 `pytest tests/ -q` 또는 `make typecheck` 실행
 4. **changelog 갱신**: `_meta/changelog-v0.5.x.md` 새 섹션 append
 5. **commit은 사용자 승인 후**: 패치·검증이 끝나면 "commit할까요?"로 명시 확인 → 승인 시에만 `git add` + `git commit`. 묵시적 commit ❌.
-6. **사용자 보고**:
+6. **PlanNote 형태 commit 금지**: commit 제목/본문에 "PlanNote" / "[Pause]" / "조사 중" 같은 메타 박지 않음. 설계/탐색 문서는 `_meta/decisions/` 또는 별도 메모로 분리하고, 코드 변경은 정식 commit (제목 + 본문) 단독으로. **예외**: 사용자가 명시적으로 "checkpoint commit", "임시 저장" 같은 의도 박은 경우는 허용 (사용자 review gate로 self-acknowledge).
+7. **사용자 보고**:
    - **무엇을 했는가** (파일 경로, 명령)
    - **왜 그렇게 했는가** (4 저장 신호 중 어떤 항목에 해당)
    - **검증** (pytest 결과, lint 결과, 동작 확인)
