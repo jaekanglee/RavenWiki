@@ -45,6 +45,15 @@ export const EmptyIcon = {
       <line x1="9" y1="17" x2="13" y2="17" />
     </svg>
   ),
+  // 새로고침 (LintPage/LogPage/WorkspacePage)
+  Refresh: () => (
+    <svg {...baseSvg(40)} {...STROKE}>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </svg>
+  ),
   // GraphPage 1 — 그래프 로딩 중 (스피너 대용)
   Spinner: () => (
     <svg {...baseSvg(40)} {...STROKE}>

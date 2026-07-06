@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { fetchLog, fetchLogStatus, type LogEntry, type LogStatus } from "../lib/api";
+import { Button } from "../components/ui/Button";
+import { EmptyIcon } from "../lib/emptyIcons";
 
 /**
  * LogPage — log.md timeline viewer (data table).
@@ -213,20 +215,14 @@ export function LogPage() {
             )}
           </select>
         </label>
-        <button
-          onClick={load}
-          className="btn-secondary"
-          style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
-        >
-          🔄 새로고침
-        </button>
-        <button
-          onClick={() => setRawMode(!rawMode)}
-          className="btn-secondary"
-          style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
-        >
+        <Button onClick={load} variant="secondary" size="sm">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <EmptyIcon.Refresh />새로고침
+          </span>
+        </Button>
+        <Button onClick={() => setRawMode(!rawMode)} variant="secondary" size="sm">
           {rawMode ? "📋 리스트" : "🗒 raw"}
-        </button>
+        </Button>
         <span style={{ fontSize: 12, color: "var(--color-muted)", marginLeft: "auto" }}>
           showing {entries.length} / {total}
         </span>

@@ -13,6 +13,7 @@ import {
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
 import { EmptyIcon } from "../lib/emptyIcons";
+import { Button } from "../components/ui/Button";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Toast } from "../components/ui/Toast";
 
@@ -287,13 +288,11 @@ export function LintPage() {
             <option value="info">{SEVERITY_LABELS.info}</option>
           </select>
         </label>
-        <button
-          onClick={load}
-          className="btn-secondary"
-          style={{ height: 36, padding: "8px 16px", fontSize: 13 }}
-        >
-          🔄 새로고침
-        </button>
+        <Button onClick={load} variant="secondary" size="sm">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <EmptyIcon.Refresh />새로고침
+          </span>
+        </Button>
         <label
           style={{
             fontSize: 13,
