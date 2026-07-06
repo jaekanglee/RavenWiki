@@ -12,6 +12,7 @@ import {
   type LintResult,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
+import { EmptyIcon } from "../lib/emptyIcons";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Toast } from "../components/ui/Toast";
 
@@ -324,7 +325,7 @@ export function LintPage() {
         <p style={{ color: "var(--color-error-text)" }}>API 응답 실패</p>
       ) : result.issues.length === 0 ? (
         <EmptyState
-          icon="🎉"
+          icon={<EmptyIcon.Check />}
           title="이슈 없음"
           description="현재 Vault에 등록된 마크다운 문서들 중 어떠한 무결성 린트 오류도 검출되지 않았습니다."
         />

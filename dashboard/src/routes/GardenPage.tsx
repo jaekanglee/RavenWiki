@@ -11,6 +11,7 @@ import {
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
+import { EmptyIcon } from "../lib/emptyIcons";
 import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
@@ -204,7 +205,7 @@ export function GardenPage() {
           
           {stalePages.length === 0 ? (
             <EmptyState
-              icon="✨"
+              icon={<EmptyIcon.Sparkles />}
               title="잡초 없음"
               description="90일 이상 갱신되지 않고 방치된 문서가 없습니다. 지식이 활발하게 순환 중입니다."
             />
@@ -384,7 +385,7 @@ export function GardenPage() {
 
           {orphanPages.length === 0 ? (
             <EmptyState
-              icon="🕸️"
+              icon={<EmptyIcon.Network />}
               title="고립된 문서 없음"
               description="인바운드 링크가 없는 고아 문서가 없습니다. 모든 지식이 하나 이상 유기적으로 연결되어 있습니다."
             />

@@ -8,6 +8,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { TextField } from "../components/ui/TextField";
 import { SelectField } from "../components/ui/SelectField";
 import { Button } from "../components/ui/Button";
+import { EmptyIcon } from "../lib/emptyIcons";
 
 interface GraphFilterState {
   hideOrphans: boolean;
@@ -410,13 +411,13 @@ export function GraphPage() {
       <div className="graph-canvas-frame">
         {loading ? (
           <EmptyState
-            icon="🕸"
+            icon={<EmptyIcon.Spinner />}
             title="그래프를 불러오는 중입니다"
             description="문서 연결과 커뮤니티 구조를 계산하고 있습니다."
           />
         ) : loadError ? (
           <EmptyState
-            icon="⚠️"
+            icon={<EmptyIcon.AlertTriangle />}
             title="그래프를 불러오지 못했습니다"
             description="API 응답 또는 로컬 상태를 다시 확인해 보세요."
             action={(
@@ -432,13 +433,13 @@ export function GraphPage() {
           />
         ) : !hasAnyNodes ? (
           <EmptyState
-            icon="🗂"
+            icon={<EmptyIcon.Database />}
             title="아직 시각화할 문서가 없습니다"
             description="현재 보관소에 문서를 추가하면 연결 그래프가 여기에 표시됩니다."
           />
         ) : !hasVisibleNodes && hideOrphans && orphanCount === graph.nodes.length ? (
           <EmptyState
-            icon="🌫"
+            icon={<EmptyIcon.Fog />}
             title="지금은 모두 고아 문서입니다"
             description="`고아 숨김`을 끄면 문서는 보이지만 아직 서로 연결되지 않았다는 뜻입니다."
             action={(
@@ -454,7 +455,7 @@ export function GraphPage() {
           />
         ) : !hasVisibleNodes ? (
           <EmptyState
-            icon="🔎"
+            icon={<EmptyIcon.Search />}
             title="필터와 일치하는 문서가 없습니다"
             description="검색어를 지우거나 타입 필터를 바꿔서 다시 확인해 보세요."
             action={(

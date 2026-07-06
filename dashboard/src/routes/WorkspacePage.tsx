@@ -11,6 +11,7 @@ import {
   type WorkspaceTreeNode,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
+import { EmptyIcon } from "../lib/emptyIcons";
 
 // v0.7.62+ 모바일 breakpoint (744px). 744 이하면 세로 stack 레이아웃으로 전환.
 const MOBILE_BREAKPOINT = 744;
@@ -350,7 +351,7 @@ export function WorkspacePage() {
     return (
       <div style={{ maxWidth: 640, margin: "40px auto 0", padding: "0 24px" }}>
         <EmptyState
-          icon="⚠"
+          icon={<EmptyIcon.AlertTriangle />}
           title="워크스페이스 디렉토리 오류"
           description={`설정된 경로 ${status.workspace_path}가 로컬 시스템에 존재하지 않거나 접근이 거부되었습니다.`}
           action={
