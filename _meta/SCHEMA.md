@@ -1,78 +1,88 @@
 ---
-created: 2026-06-24
-sources: []
+created: 2026-07-06
+sources:
+  - raven/core/templates/agent/SCHEMA.md (Lite bootstrap 2-file, v0.7.65+)
+  - _meta/decisions/adr-2026-07-04-schemasys-index-correction.md
 tags:
 - system
 - schema
 - meta
-title: Wiki Schema
+- v0.7.x
+title: Wiki Schema (v0.7.x)
 type: rule
-updated: '2026-06-25'
+updated: 2026-07-06
 ---
 
-# Wiki Schema
+# Wiki Schema (v0.7.x)
 
-> 이 문서는 vault의 **규약 매니페스트**입니다.
-> LLM 에이전트(wiki-architect / wiki-curator / wiki-writer / wiki-dashboard)와 인간 사용자 모두 이 규약을 따릅니다.
+> **v0.7.66+ 코드 SOT 동기화**: 이 문서는 `raven/core/templates/agent/SCHEMA.md` (Lite bootstrap Tier 2, v0.7.65+ 도입)의 내용과 정합.
+> v2.4 (8 type) → v0.7.44 type 9종 통일 + v0.7.50+ raw/ 폴더 정책 + v0.7.66+ 14 lint 운영 반영.
+>
+> **Tier 1 ↔ Tier 2 경계**: 이 문서는 Tier 1 (codebase Raven 운영 SOT) — `raven` 디렉터리의 자체 정책.
+> 사용자 vault의 SCHEMA는 Tier 2 (Lite bootstrap 2-file 또는 vault 운영자 문서) — 각 vault 별도 운영.
 
 ## Domain
 
-**자기구축 위키 시스템** — Obsidian 의존 없이 markdown + git + 자체 뷰어로 동작하는 개인/팀 지식 베이스. LLM Wiki(Karpathy) 패턴을 차용하되, Obsidian·Sync·유료 플러그인을 사용하지 않고 자체 도구로 대체.
+**markdown PKM vault** — Obsidian 의존 없이 markdown + git + 자체 뷰어로 동작. LLM Wiki(Karpathy) 패턴을 차용하되 Obsidian/Sync/유료 플러그인 없이 자체 도구(Raven)로 대체.
 
 ## Architecture: SoT 명확화
 
 | 역할 | 무엇 | 추적 | 비고 |
 |---|---|---|---|
-| **Source of Truth (SoT)** | **markdown 파일** | **git** | 인간이 작성, 진짜 진실 |
-| **Query Index** | **`wiki.db` (SQLite)** | **gitignore** | 빌드 산출물, 검색/조회용 |
+| **Source of Truth (SoT)** | **markdown 파일** | **git** | 인간/에이전트 모두 작성, 진짜 진실 |
+| **Query Index** | **`wiki.db`** (SQLite) | **gitignore** | 빌드 산출물, 검색/조회용 |
 
-## Directory Structure (v2.4)
+## Directory Structure (v0.7.x)
 
 ```
-wiki/
-├── SCHEMA.md, RULES.md, log.md     # 운영 문서
-├── content/                        # ⭐ 모든 컨텐츠 (단일 디렉토리)
-│   └── *.md (type: frontmatter로 분류)
-├── raw/                            # 불변 1차 소스
-├── _meta/                          # vault 운영 문서 (frontmatter 면제 X, type: rule)
-├── _archive/                       # retired 페이지
-├── scripts/                        # W2에서 생성 (build_db.py, lint.py, backup_db.py)
-└── wiki.db                         # ⭐ SQLite Query Index (gitignore)
+<vault>/
+├── .vault.json         # vault 메타 (name, path)
+├── log.md              # 작업 이력 (chronological, append-only)
+├── content/            # ⭐ 사용자 컨텐츠 (slug = vault-relative path)
+│   ├── index.md        # 자동 카탈로그 (root)
+│   ├── _index/         # 자동 카탈로그 (type별)
+│   └── *.md
+├── _meta/              # vault 운영 문서 (frontmatter 권장, type: rule)
+│   ├── agents/         # Lite bootstrap 2-file (Tier 2, agent-only)
+│   │   ├── SCHEMA.md
+│   │   └── PROJECT-WORKFLOW.md
+│   └── system/         # Tier 1 확장 (사용자 vault 운영, .gitignore 가능)
+├── raw/                # v0.7.50+ 불변 1차 소스 (사람 1차 운영, 에이전트 read-only)
+├── _archive/           # retired 페이지
+└── wiki.db             # SQLite Query Index (gitignore)
 ```
 
-### `_meta/` 정책 (v2.4)
+### `_meta/` 정책 (v0.7.65+)
 
-- `_meta/*.md`는 vault 운영 문서 (PRD, DR runbook, deployment, ai-roadmap 등)
-- 일반적으로 **`type: rule`** 사용
-- **frontmatter는 권장이지만 면제 (없으면 default)**
-  - 검색/정렬/최근수정일에 활용하려면 frontmatter가 있는 게 편함
-  - lint는 면제 (운영 문서에서 missing frontmatter는 skip)
-- build_db가 frontmatter 없는 `_meta/` 페이지는 default 값으로 인덱싱
+- `_meta/agents/` (Lite bootstrap 2-file): Tier 2 = 에이전트 표면. `raven meta sync`로 자동 동기화.
+- `_meta/system/`: Tier 1 확장. 사용자 vault 운영자가 자유롭게 관리 (`.gitignore` 가능).
+- Lite bootstrap 정책 §4: Tier 1 정책 / Tier 2 leak / vendor 예시 / 다른 에이전트 constitution → vault 주입 금지.
 
-### v1 → v2.4 변경
+### v2.4 → v0.7.x 변경
 
-- ❌ `concepts/`, `entities/`, `comparisons/`, `projects/` 분리
-- ✅ `content/` 1개 + `type:` frontmatter로 분류 (유연성)
+- ❌ `concepts/`, `entities/`, `comparisons/`, `projects/` 분리 (v2.4)
+- ✅ `content/` 1개 + `type:` frontmatter로 분류 (v0.7.x)
 - ✅ `_meta/` 운영 문서 vs content 구분 (모두 type: rule 가능)
+- ✅ `raw/` 폴더 정책 (v0.7.50+, 사람 1차 운영)
+- ✅ 자동 카탈로그 (root index.md + content/_index/{type}.md)
 
 ## Frontmatter (필수 — content/ 안)
 
 ```yaml
 ---
-title: Page Title
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-type: concept | person | comparison | project | tool | rule | query | journal
-tags: [from taxonomy]
-sources: [raw/articles/source.md]
+title: Page Title                 # 필수 (한글 title → 한글 파일명, AGENTS.md §10)
+type: concept                     # 필수: concept | person | comparison | project | tool | rule | query | journal | issue
+tags: [from taxonomy]             # 권장: core = lint 대상
+created: YYYY-MM-DD               # 자동
+updated: YYYY-MM-DD               # 자동
+sources: [raw/articles/source.md] # 선택: 인용된 1차 소스
 confidence: high | medium | low   # 선택
-contested: true                     # 선택
-slug: explicit-slug                 # 선택 (v2.2: slug 전략)
-aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
+contested: true                   # 선택: 모순 발견 시
+slug: explicit-slug               # 선택 (v2.2: slug 전략)
+aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to-slug 매핑 보존)
 ---
-```
 
-## Type Taxonomy
+### v0.7.x Type 9종 (v2.4 8종 → +1 `issue`)
 
 | type | 용도 | outbound ≥ 2 강제 | 예시 |
 |---|---|---|---|
@@ -84,19 +94,28 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 | `rule` | 규칙/정책 | ❌ 면제 | (SCHEMA 자체) |
 | `query` | Q&A 결과 | ❌ 면제 | search-result |
 | `journal` | 일기/메모 | ❌ 면제 | daily-2026-06-24 |
+| `issue` | v0.7.44+ 문제 분석 / 장애 / 추적 | ❌ 면제 | docs/issues/*.md |
 
-## Tag Taxonomy (v2.4: core + custom)
+9종 외 새 타입 정의 ❌ (AGENTS.md §10). `decision` type 사용 시 → `type: rule` + 폴더 경로/파일명 컨벤션으로 결정 기록임을 표시.
+
+### System Areas (type 면제, v0.7.66+)
+
+다음 경로는 시스템 자동 생성 영역으로, type 9종 면제 (lint #10 통과):
+- `<vault>/_meta/**` — vault 운영 문서 (Tier 2 bootstrap)
+- `<vault>/raw/**` — 사람 1차 운영 영역
+- `<vault>/content/_index/**` — 자동 카탈로그 (graph hub fan-out 방지, ADR-2026-07-04)
+- `<vault>/content/index.md` — root 자동 카탈로그
+
+→ 위 경로 페이지는 type 필드 없이도 lint #10 통과. 9종 정책은 사람이 작성하는 일반 페이지에 한정.
+
+## Tag Taxonomy (v0.7.x: core + custom, 9종 정합)
 
 ### Core Tags (lint 대상 — SCHEMA에 명시)
 **새 태그 추가 시 SCHEMA에 먼저 등록**:
-- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`
-- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`
+- 시스템: `system`, `tool`, `ui`, `search`, `viewer`, `schema`, `mcp`, `dashboard`, `meta`, `workflow`, `index`, `home`
+- 컨텐츠: `concept`, `person`, `comparison`, `project`, `rule`, `query`, `journal`, `issue`
 - 도메인: `ai`, `wiki`, `karpathy`, `llm-wiki`, `tailscale`, `react`, `python`, `docker`
 - 상태: `draft`, `review`, `final`, `deprecated`, `orphan`
-- **v0.5.3 승격** (Q3, 3+ 페이지 사용):
-  - `meta`
-  - `raven`
-  - `governance`
 
 **lint 동작**: core에 없으면 🔵 info ("not in core taxonomy")
 
@@ -105,17 +124,18 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 
 **lint 동작**: 자유 허용. tag cloud에 자동 등장.
 
-**승격 절차 (M5)**:
-- lint가 같은 tag가 10+ 페이지에서 사용 시 → "core 승격 추천" 알림
+**승격 절차 (v0.7.x)**:
+- lint가 같은 tag가 3+ 페이지에서 사용 시 → "core 승격 추천" 알림
 - 사용자가 SCHEMA.md에 한 줄 추가 → 승격 완료
+- 10+ 페이지 사용 시 자동 승격 (Q3 변경점)
 
 ## Conventions
 
-- **파일명**: lowercase, hyphens, no spaces (예: `wiki-architect.md`, `rag-vs-llm-wiki.md`)
+- **파일명**: title을 슬러그화 (공백/특수문자 → `-`, 영문 소문자). 한글 title → 한글 파일명 (음차/번역 금지)
 - **인코딩**: UTF-8
 - **줄바꿈**: LF
 - **위키링크**: `[[wikilinks]]` (slug = vault-relative path, 예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)
-- **wikilink intent (v2.3)**:
+- **wikilink intent (v0.7.x)**:
   - `[[link]]` — auto (target 존재하면 ok, 없으면 info)
   - `[[link]]!` — broken (CRITICAL)
   - `[[link]]?` — missing placeholder (INFO)
@@ -124,10 +144,21 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 - **새 페이지**: `log.md`에 append
 - **근거 마커**: 3+ 소스 종합 시 `^[raw/articles/source.md]`
 
+## raw/ 폴더 정책 (v0.7.50+, ADR-2026-07-02)
+
+| 주체 | 권한 | 인터페이스 |
+|---|---|---|
+| 사람 (1차) | **full CRUD** | Dashboard `/raw` panel, `raven raw ...` CLI, OS 파일관리자 |
+| 단일 에이전트 | **read-only** | MCP `wiki_read` (raw slug 조회), `wiki_ingest` (사람 명시 명령 시에만) |
+| 멀티 에이전트 | read-only (동시성 보호 없음) | 동일 |
+
+- `wiki_ingest`는 사람 운영자의 명시적 호출 (user_command=True 필수)
+- `wiki_update` 등 다른 도구는 raw/ 경로 거부 (HTTP 400 / read-only)
+- raw/ 폴더는 source of truth — 에이전트 자율 변조 ❌
+
 ## Governance (Cognitive Governance)
 
 > LLM의 자연스러운 중력은 합의/평균. governance는 저항.
-> 출처: [[content/beyond-karpathy-llm-wiki]]
 
 ### 작성 규칙 (wiki-writer)
 
@@ -146,7 +177,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
   - **면제**: `type: rule` (변경 빈도 낮음)
 - 365일 미갱신 → `_archive/` 후보
 
-### Lint 자동 탐지
+### Lint 자동 탐지 (v0.7.66+ 14개)
 
 1. 🔴 frontmatter 누락/오류
 2. 🔴 broken_link (`[[target!]]` 명시 OR target 존재하면 안 됨)
@@ -159,6 +190,10 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 8. 🔵 `contested: true` 페이지 목록
 9. 🔵 90일+ 미갱신 + 새 출처 — **type: rule 면제** (v0.5.2+)
 10. 🔵 cognitive_governance_missing (v0.5.3+) — 4신호 미달 페이지 (info)
+11. 🟡 index 완전성 (FS vs DB) — v0.7.66+
+12. 🔵 log size > 500 entries — v0.7.66+
+13. 🔵 cognitive governance 강화 — v0.7.66+
+14. 🔴/🟡 tier integrity (v0.7.66+) — Tier 1 leak / _meta/agents/ 보존 검증
 
 ## 빌드 원칙
 
@@ -167,7 +202,7 @@ aliases: [old-slug-1, old-slug-2]   # 선택 (v2.3: rename 정책)
 - **wiki.db.backup = 일 1회 cron (gitignore)**
 - **dashboard/MCP = wiki.db 직접 쿼리** (JSON export ❌)
 
-## Slug Rename 정책 (v2.3)
+## Slug Rename 정책 (v0.7.x)
 
 slug 변경 시 (예: `docker-deploy` → `deployment/docker`) 기존 `[[docker-deploy]]` 링크가 모두 깨짐.
 
@@ -187,62 +222,61 @@ SELECT * FROM pages WHERE slug = ? OR ? IN (
 );
 ```
 
-## MCP 권한 모델 (v2.3)
+## MCP 권한 모델 (v0.7.8+: MCP only)
 
-**기본 = read-only**, write는 명시적 opt-in.
+**에이전트 ↔ Raven = MCP only (단일 표준)**. 사람/스크립트는 CLI / API / Dashboard 자유.
 
-```bash
-# 기본 (read-only)
-python3 -m wiki_mcp.server
-# 사용 가능: search, get_page, lint, graph, log
-# 사용 불가: update, ingest
+| 모드 | 권한 | 도구 |
+|---|---|---|
+| read (default) | read-only | search, get_page, lint, graph, log |
+| write | + write | wiki_update, wiki_ingest (user_command=True) |
+| admin | + destructive | wiki_delete, wiki_rename |
 
-# Write 활성화
-python3 -m wiki_mcp.server --write
-# 사용 가능: 모두
-
-# Admin (위험: delete, rename)
-python3 -m wiki_mcp.server --admin
-```
-
-## AI 활용 로드맵 (요약)
+## AI 활용 로드맵 (v0.7.x 상태)
 
 | 단계 | 기능 | 시점 |
 |---|---|---|
-| M1 | 인덱싱 자동화 (curator) | M1 ✅ |
-| M2 | MCP server (외부 AI 접근, read-only 기본) | M2 |
-| M3 | Vector Search (`sqlite-vec` 1차) | M3 |
-| M3 | 관련 문서 추천 (co-citation) | M3 |
-| M4 | 문서 Q&A (RAG over vault) | M4 |
-| M5 | 자동 태깅 / 모순 강화 탐지 | M5 |
-| M6 | 작성 도우미 (초안) | M6 |
+| M1 | 인덱싱 자동화 (curator) | ✅ M1 |
+| M2 | MCP server (외부 AI 접근, read-only 기본) | ✅ M2 |
+| M3 | Vector Search (`sqlite-vec` 1차) | ⏸ M3 |
+| M3 | 관련 문서 추천 (co-citation) | ⏸ M3 |
+| M4 | 문서 Q&A (RAG over vault) | ⏸ M4 |
+| M5 | 자동 태깅 / 모순 강화 탐지 | ⏸ M5 |
+| M6 | 작성 도우미 (초안) | ⏸ M6 |
 | ❌ | AI 채팅 (실시간 대화) | OUT |
+
+→ M3-M6 상세: `_meta/ai-roadmap.md`
+
+## 4 진입점 (AGENTS.md §2)
+
+| 진입점 | 용도 | 위치 |
+|---|---|---|
+| **CLI** | 사람 운영자 / 자동화 (canonical control plane) | `raven/cli/` |
+| **HTTP API** | Dashboard backend / 외부 자동화 | `raven/api/` |
+| **Dashboard** | 사람 탐색/편집 UX (read-write, API-backed) | `dashboard/` |
+| **MCP** | LLM 클라이언트 표준 진입점 (read/write/admin 모드) | `raven/mcp/` |
+
+→ 진입점 추가/제거는 ADR(Architecture Decision Record)로만.
 
 ## 관련
 
-- [[RULES]] — 운영 정책
-- [[content/llm-wiki]] — Karpathy 패턴
-- [[content/beyond-karpathy-llm-wiki]] — governance 동기
-- [[content/rag-vs-llm-wiki]] — RAG와 비교
-- (W5에서 `_meta/ai-roadmap.md` 생성 예정 — M3-M6 상세 로드맵)
+- `RULES` — 운영 정책 (M1)
+- `agent/PROJECT-WORKFLOW` (Lite bootstrap Tier 2) — vault 에이전트 운영 사실
+- `docs/vault-patterns.md` — Karpathy LLM Wiki +α 패턴 opt-in 가이드
+- `adr-2026-07-04-schemasys-index-correction` — SCHEMA 9종 + system area 격리 결정
 
-### raw/ 출처 frontmatter (ingest 파이프라인, Phase 4.5+)
-
-`raw/articles/*.md`, `raw/papers/*.md`, `raw/transcripts/*.md` 가지는 페이지 frontmatter에:
-
-```yaml
 ---
-source_url: https://example.com/article          # 1차 출처 URL
-ingested: 2026-06-25                              # ingest 일자 (YYYY-MM-DD)
-sha256: a1b2c3d4e5f6...                           # 원본 payload sha256 (16+ hex chars)
----
-```
 
-→ `raven ingest <url>` 가 자동 기록. `raven page new --source-url <url> --sha <hash>` 도 수동 입력 가능.
-→ lint: raw/ 의 sha256 vs 재계산 비교로 source drift 감지 (다음 마일스톤).
+## 부록 A. v2.4 → v0.7.x 마이그레이션 노트
 
-### 면제 (Cognitive Governance 4신호)
+**v0.7.0+ 변경 (Lite bootstrap 2-file 도입, 7/3 ebcde83)**:
+- `_meta/agents/SCHEMA.md` (Tier 2, 9 type) = 진짜 SOT
+- `_meta/SCHEMA.md` (Tier 1, 이 문서) = 사용자 운영 표면 가이드
 
-- `type: rule`, `type: journal`, `type: query` 페이지 — 4 신호 미충족 OK.
-- `_meta/` 안 페이지 (운영 문서) — 4 신호 미충족 OK.
-- (lint #13은 **info**. 페이지 lint 통과 = 무관.)
+**사용자 vault 작업**:
+- `type: decision` 16개 → `type: rule` 변환 (raven-dev 사이클 7, 7/6, commit 22e2f9e)
+- `content/_index/*.md` 자동 카탈로그는 system area (type 면제, 7a6dfd2)
+- 한글 title → 한글 파일명 (df99565 → 7b55fd4, 한→한 슬러그)
+- raw/ 폴더 정책 (v0.7.50+, 9cd586e → 4fa0014 X-Actor 가드)
+
+→ **이 Tier 1 문서는 v0.7.66+ 코드 SOT와 정합** (다음 갱신: v0.7.69+ 평가 P0/P1 완료 시점).
