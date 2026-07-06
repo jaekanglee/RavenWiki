@@ -236,6 +236,22 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => toggleFavorite(activeVault)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-favorite-hover-bg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.borderColor = "var(--color-hairline)";
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--color-favorite-hover-bg)";
+                e.currentTarget.style.borderColor = "var(--color-primary)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.borderColor = "var(--color-hairline)";
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -249,7 +265,8 @@ export function Sidebar({
                 backgroundColor: "transparent",
                 color: favorites.has(activeVault) ? "var(--color-primary)" : "var(--color-muted)",
                 cursor: "pointer",
-                transition: "color 0.15s ease",
+                transition: "background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease",
+                outline: "none",  // focus 시 기본 outline 대신 border-color로 표현
               }}
               title={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
               aria-label={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
