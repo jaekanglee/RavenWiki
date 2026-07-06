@@ -334,8 +334,12 @@ export function HomePage() {
             <p className="text-muted" style={{ marginBottom: 12 }}>
               등록된 vault가 없습니다.
             </p>
-            <Link to="/vault/new" className="btn-pill-primary">
-              ✚ 첫 vault 만들기
+            <Link
+              to="/vault/new"
+              className="btn-pill-primary"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <ActionIcon.Plus />첫 vault 만들기
             </Link>
           </div>
         ) : (
