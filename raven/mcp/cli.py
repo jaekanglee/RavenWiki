@@ -13,9 +13,11 @@ the SDK exactly as expected.
 
 Tools registered
 ----------------
-Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log
-Write (--write): + wiki_update, wiki_ingest
+Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log, wiki_stale_detect
+Write (--write): + wiki_update, wiki_ingest, wiki_archive
 Admin (--admin): + wiki_delete, wiki_rename
+
+ADR-2026-07-06 신규: wiki_stale_detect (read), wiki_archive (write).
 """
 from __future__ import annotations
 
@@ -30,6 +32,7 @@ from mcp.server.fastmcp import FastMCP
 from raven.mcp import db as db_module
 from raven.mcp.tools import VaultContext, resolve_vault_path
 from raven.mcp.tools import read as read_tools
+from raven.mcp.tools import stale as stale_tools  # ADR-2026-07-06 §1.3 신규 도구
 from raven.mcp.tools import write as write_tools
 from raven.mcp.resources import register_resources
 
@@ -124,6 +127,49 @@ def register_tools(mcp: Any, mode: str) -> None:
 
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
+        @mcp.tool(
+            name="wiki_stale_detect",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "ADR-2026-07-06 §1.3: stale 후보 + evidence + suggested_action 반환 (read-only). "
+                + "Optional age_threshold_days (default 90), include_self_verified."
+            ),
+        )
+        def wiki_stale_detect(
+            vault: str,
+            age_threshold_days: int = 90,
+            include_self_verified: bool = False,
+        ) -> dict:
+            return stale_tools.wiki_stale_detect(
+                vault=resolve_vault_path(vault),
+                age_threshold_days=age_threshold_days,
+                include_self_verified=include_self_verified,
+            )
+
+        @mcp.tool(
+            name="wiki_archive",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "ADR-2026-07-06 §1.3: 페이지를 archive/<YYYY-MM-DD>/<slug>.md로 이동 + frontmatter stamp. "
+                + "Requires --write or --admin. Optional reason/actor/dry_run."
+            ),
+        )
+        def wiki_archive(
+            vault: str,
+            slug: str,
+            reason: str = "stale_over_threshold",
+            actor: str | None = None,
+            dry_run: bool = False,
+        ) -> dict:
+            ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
+            return stale_tools.wiki_archive(
+                slug=slug,
+                reason=reason,
+                actor=actor,
+                dry_run=dry_run,
+                ctx=ctx,
+            )
+
         @mcp.tool(
             name="wiki_update",
             description=(

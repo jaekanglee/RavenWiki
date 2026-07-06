@@ -125,3 +125,28 @@ Layer 4 (Client) → Layer 3 (Interface) → Layer 2 (Core) → Layer 1 (Data)
 - **자가 점수 갱신**: 4.5/5 → **4.6/5** (추적성 4.7·정합성 4.5·north star 4.8).
 
 다음 사이클 (Plan B): ADR §1.3 도구 골격 + §1.4 시나리오 테스트 골격 구현.
+
+### 2026-07-06 후속 — Plan B 완료 (ADR 도구·테스트 골격 구현)
+
+ADR-2026-07-06 §1.3 / §1.4 골격 구현:
+
+- **신규 파일**: `raven/mcp/tools/stale.py` (228줄) — `wiki_stale_detect` (read), `wiki_archive` (write) 2개 도구 골격
+  - 4상태 머신 (current/stale/contested/archived) 인식 + `_is_stale_candidate()` (90일 임계값 + 명시 status)
+  - `_suggest_action()` evidence 기반 revalidate/update/archive 3분기
+  - `_stamp_archived()` 원본 frontmatter stamp (archived_at + archive_reason + agents append)
+  - ADR §1.3 guards: slug validate (SlugError catch) + check_permission (PermissionError_ catch) + provenance
+  - 골격 한계: FileLock 통합 + wiki.db 페이지 조회 최적화는 다음 사이클 (B#8 lint 캐싱과 동시)
+- **신규 디렉터리**: `tests/scenarios/` (시나리오 격리)
+  - `conftest.py`: `isolated_vault` (tmp_path 격리) + `make_page` helper fixtures
+  - `test_stale_loop.py` (193줄): 시나리오 4종 + 회귀 가드 2종
+    - §1.4 #1 stale_detected_after_threshold (91일 last_verified → 후보 반환) — **PASS**
+    - §1.4 #2 stale_revalidated_with_evidence (frontmatter status 전이 + agents 기록) — **PASS**
+    - §1.4 #3 archive_moves_file_and_stamps (dry_run=True로 이동 검증) — **PASS**
+    - §1.4 #4 update_rejects_50pct_rewrite (가드 로직 골격 — 실제 wiki_update 통합은 P0#3과 동시) — **PASS**
+    - 회귀 #1 frontmatter_block_yaml_roundtrip (A#3 회귀) — **PASS**
+    - 회귀 #2 archive_path_traversal_blocked (A#1 회귀) — **PASS**
+- **도구 등록**: `raven/mcp/cli.py`에 wiki_stale_detect (read) + wiki_archive (write) 등록, `WRITE_TOOLS` frozenset에 `wiki_archive` 추가
+- **기존 회귀 0건**: tests/ 658 passed, 1 skipped (38.8s)
+- **신규 시나리오**: 6 passed (0.05s)
+
+다음 사이클 (Plan B-2): FileLock 통합 + wiki.db 페이지 조회 최적화 + wiki_update 1.5배 가드 (P0#3과 동시) + 평가 문서 §5.2 done_when #0 갱신.
