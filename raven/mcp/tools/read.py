@@ -1,11 +1,12 @@
-"""read.py — 5 read-only MCP tools (always permitted).
+"""read.py — read-only MCP tools (always permitted).
 
 Tools:
-    wiki_search  — FTS5 BM25
-    wiki_get_page — single page + backlinks/tags/outbound
-    wiki_lint    — raven.core.lint (14 checks), same runner as the REST API
-    wiki_graph   — nodes + edges
-    wiki_log     — last N log.md entries
+    wiki_search     — FTS5 BM25
+    wiki_get_page   — single page + backlinks/tags/outbound
+    wiki_lint       — raven.core.lint (14 checks), same runner as the REST API
+    wiki_graph      — nodes + edges
+    wiki_log        — last N log.md entries
+    wiki_get_guide  — Lite bootstrap 3종 read-only viewer (v0.7.91+, /api/vaults/{name}/guide/ 동일 surface)
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from typing import Optional
 
 from raven.mcp import db
 from raven.mcp.tools import VaultContext
+from raven.mcp.tools import LITE_GUIDE_KINDS, _resolve_guide_path
 
 
 # ─────────────── 1. wiki_search ───────────────
@@ -96,3 +98,27 @@ def wiki_log(tail_n: int = 20, ctx: Optional[VaultContext] = None) -> list[dict]
     """Last N non-empty log.md lines."""
     ctx = ctx or VaultContext(vault=db._default_vault())
     return db.tail_log(tail_n=tail_n, vault=ctx.vault)
+
+
+# ─────────────── 6. wiki_get_guide (v0.7.91+) ───────────────
+
+
+def wiki_get_guide(
+    kind: str,
+    ctx: Optional[VaultContext] = None,
+) -> dict:
+    """Read a Lite bootstrap file (whitelist-only).
+
+    Mirrors ``GET /api/vaults/{name}/guide/{kind}`` so MCP and REST expose
+    the same surface to agents. The 3-kind whitelist is enforced by
+    ``_resolve_guide_path`` — anything else raises ``GuideNotFoundError``
+    (MCP transport surfaces it as a tool error, not a vault error).
+
+    Useful for agents that want to read the vault's own PROJECT-WORKFLOW
+    via standard MCP instead of reaching into the filesystem (R9:
+    vault 외부 시스템/폴더 수정 ❌, so reading the bootstrap file directly
+    from disk is technically a vault-external system call).
+    """
+    ctx = ctx or VaultContext(vault=db._default_vault())
+    from raven.mcp.tools import read_guide as _read_guide
+    return _read_guide(vault=ctx.vault, kind=kind)

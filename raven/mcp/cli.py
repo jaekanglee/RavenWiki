@@ -13,11 +13,12 @@ the SDK exactly as expected.
 
 Tools registered
 ----------------
-Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log, wiki_stale_detect
+Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log, wiki_get_guide, wiki_stale_detect
 Write (--write): + wiki_update, wiki_ingest, wiki_archive
 Admin (--admin): + wiki_delete, wiki_rename
 
 ADR-2026-07-06 신규: wiki_stale_detect (read), wiki_archive (write).
+v0.7.91+: wiki_get_guide (read) — Lite bootstrap 3종 read-only viewer.
 """
 from __future__ import annotations
 
@@ -124,6 +125,27 @@ def register_tools(mcp: Any, mode: str) -> None:
     def wiki_log(vault: str, tail_n: int = 20) -> list[dict]:
         ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
         return read_tools.wiki_log(tail_n=tail_n, ctx=ctx)
+
+    # ─── 6. wiki_get_guide (v0.7.91+) — Lite bootstrap 3종 read-only viewer
+    @mcp.tool(
+        name="wiki_get_guide",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Read a Lite bootstrap file (SCHEMA.md / PROJECT-WORKFLOW.md / log.md). "
+            + "Mirrors GET /api/vaults/{name}/guide/{kind}. kind must be exactly one of "
+            + "the 3 whitelisted paths — anything else returns a tool error so the caller can self-correct. "
+            + "Useful for agents that need to read the vault's own workflow rules via MCP "
+            + "instead of reaching into the filesystem (R9: vault 외부 시스템 ❌)."
+        ),
+    )
+    def wiki_get_guide(vault: str, kind: str) -> dict:
+        from raven.mcp.tools import GuideNotFoundError, read_guide
+        try:
+            return read_guide(vault=resolve_vault_path(vault), kind=kind)
+        except GuideNotFoundError as e:
+            # MCP transports exceptions as tool errors; this is the
+            # 403-equivalent for non-whitelisted kinds.
+            raise ValueError(str(e)) from e
 
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):

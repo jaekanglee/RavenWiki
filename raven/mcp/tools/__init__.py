@@ -595,3 +595,92 @@ def extend_lock(
     if not persisted:
         out["_persisted"] = False
     return out
+
+
+# ─────────────── v0.7.91+ Lite bootstrap guide helper ───────────────
+# Read-only viewer for the 3 Lite bootstrap files (SCHEMA / PROJECT-WORKFLOW /
+# log.md). Mirrors ``raven.api.server.read_guide`` so the MCP surface
+# matches the REST surface — both fail-closed to the same 3-kind whitelist.
+#
+# Why a helper here instead of importing from ``raven.api.server``:
+#   1. the MCP server runs in-process but conceptually is its own
+#      entrypoint; importing API helpers couples the two layers
+#   2. the whitelist lives next to the tool definition (single source)
+
+# v0.7.65+ AGENTS.md §4: this is the only Tier 2 surface the 3 Lite
+# bootstrap files appear in for external agents.
+LITE_GUIDE_KINDS: tuple[str, ...] = (
+    "_meta/agents/SCHEMA.md",
+    "_meta/agents/PROJECT-WORKFLOW.md",
+    "log.md",
+)
+
+
+class GuideNotFoundError(ValueError):
+    """Raised when the requested kind is not in the Lite bootstrap whitelist.
+
+    Mirrors the 403 the REST API returns; MCP transports it as a tool error
+    so the caller can self-correct (pick from LITE_GUIDE_KINDS).
+    """
+
+
+def _resolve_guide_path(vault: Path, kind: str) -> Path:
+    """Return the absolute filesystem path for ``kind`` under ``vault``.
+
+    ``kind`` must be exactly one of ``LITE_GUIDE_KINDS`` — that whitelist is
+    the only thing keeping this from becoming a generic file-read escape
+    hatch (R9: vault 외부 시스템/폴더 수정 ❌). Anything else raises
+    ``GuideNotFoundError`` with a list of allowed kinds in the message.
+
+    Mirrors the basename / leading-slash / full-path matching that the
+    REST endpoint does so a caller can pass either ``"log.md"`` or
+    ``"_meta/agents/SCHEMA.md"`` and get the same file.
+    """
+    candidates = [kind, kind.lstrip("/")]
+    if "/" in kind:
+        candidates.append(kind.split("/")[-1])
+    for c in candidates:
+        if c in LITE_GUIDE_KINDS:
+            return vault / c
+    raise GuideNotFoundError(
+        f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
+        f"Allowed: {sorted(LITE_GUIDE_KINDS)}"
+    )
+
+
+def read_guide(vault: Path, kind: str) -> dict[str, Any]:
+    """Read a Lite bootstrap file (whitelist-only).
+
+    Returns the same shape as the REST endpoint:
+        {ok, vault, kind, content, size, modified}
+
+    Errors:
+        GuideNotFoundError: ``kind`` not whitelisted.
+        FileNotFoundError: vault / kind ok but the file isn't on disk
+            (Lite bootstrap 미주입 vault — would only happen if the file
+            was deleted post-bootstrap).
+        IsADirectoryError: whitelisted path resolves to a directory
+            (theoretical — the 3 bootstrap entries are always files).
+    """
+    rel = _resolve_guide_path(vault, kind)
+    fp = Path(rel)
+    if not fp.exists():
+        raise FileNotFoundError(f"guide file not present: {fp.relative_to(vault)!s}")
+    if fp.is_dir():
+        raise IsADirectoryError(f"guide path is a directory: {fp.relative_to(vault)!s}")
+    content = fp.read_text(encoding="utf-8", errors="replace")
+    try:
+        stat = fp.stat()
+        size = stat.st_size
+        modified = dt.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        size = None
+        modified = None
+    return {
+        "ok": True,
+        "vault": vault.name,
+        "kind": str(fp.relative_to(vault)).replace("\\", "/"),
+        "content": content,
+        "size": size,
+        "modified": modified,
+    }

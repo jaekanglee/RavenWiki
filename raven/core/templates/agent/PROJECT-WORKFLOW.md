@@ -107,6 +107,7 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9�
 | `read` | `wiki_graph(project?)` | 페이지 간 링크 그래프 | `query` |
 | `read` | `wiki_log(tail_n=20)` | log.md 최근 N개 구조화 JSON | `query` |
 | `read` | `wiki_stale_detect()` | ADR-2026-07-06 §1.3 — stale 후보 + evidence + suggested_action | `lint` |
+| `read` | `wiki_get_guide(kind)` | **v0.7.91+** Lite bootstrap 3종 read-only (`_meta/agents/SCHEMA.md` / `_meta/agents/PROJECT-WORKFLOW.md` / `log.md`). 화이트리스트 외 403, `wiki_stale_detect`로 stale 정책 확인 가능 | `query` |
 | `write` | `wiki_update(slug, content, frontmatter?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
 | `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?, user_command=False)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만, ADR-2026-07-02) | `ingest` |
 | `write` | `wiki_archive(slug, reason?, actor?, idempotency_key?)` | ADR-2026-07-06 §1.3 — `_archive/` 격리 (1.5배 본문 가드 회피) | `archive` |
