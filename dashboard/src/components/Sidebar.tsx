@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
-import { NewFolderButton } from "./NewFolderButton";
 import { nodeColor } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
 import { SearchBar } from "./SearchBar";
@@ -15,30 +14,13 @@ interface SidebarProps {
   activeVault: string;
   onSelectVault: (name: string) => void;
   onRefresh?: () => void;
-  onTreeChange?: () => void;
-  /** Controlled drawer state owned by Layout. Off-canvas only kicks in
-   *  inside @media (max-width: 744px); no-op above the breakpoint. */
+  /** Controlled drawer state. Off-canvas only kicks in inside @media (max-width: 744px). */
   open: boolean;
   onClose: () => void;
-  theme?: "light" | "dark";
-  onToggleTheme?: () => void;
-  /** v0.7.97.2+: 현재 라우트 pathname — nav 활성 표시용 */
-  currentPath: string;
+  currentPath?: string;
 }
 
 const VAULT_OPEN_KEY = "__vault__";
-
-// v0.7.97.2+: 사이드바 nav. 헤더에서 이관됨. 모바일 drawer에서도 표시.
-const SIDEBAR_NAV = [
-  { to: "/", label: "홈", icon: "🏠", match: (p: string) => p === "/" },
-  { to: "/graph", label: "그래프", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
-  { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
-  { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
-  { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
-  { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
-  { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
-  { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
-];
 
 function openFoldersStorageKey(vault: string): string {
   return `raven.sidebar.openFolders.${vault}`;
@@ -123,12 +105,8 @@ export function Sidebar({
   onRefresh,
   open,
   onClose,
-  theme = "light",
-  onToggleTheme = () => {},
-  currentPath,
 }: SidebarProps) {
   const navigate = useNavigate();
-  const activePage = activePageFromPath(currentPath);
   const [filter, setFilter] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
 
@@ -158,7 +136,7 @@ export function Sidebar({
       style={{
         borderRight: "1px solid var(--color-hairline)",
         width: 288,
-        padding: "20px 16px",
+        padding: "16px 16px 20px",
         background: "var(--color-canvas)",
         flexShrink: 0,
         display: "flex",
@@ -178,37 +156,24 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* v0.7.97.2+: nav tabs (헤더에서 이관) — 사이드바 최상단 primary nav */}
-      <nav
-        className="sidebar-nav"
-        aria-label="주요 탐색"
-        style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 16 }}
-      >
-        {SIDEBAR_NAV.map((t) => {
-          const isActive = t.match(currentPath);
-          return (
-            <Link
-              key={t.to}
-              to={t.to}
-              className={clsx("sidebar-nav-item", isActive && "sidebar-nav-item-active")}
-              onClick={onClose}
-              aria-current={isActive ? "page" : undefined}
-            >
-              <span aria-hidden className="sidebar-nav-icon">{t.icon}</span>
-              <span className="sidebar-nav-label">{t.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* v0.7.97.3+: 사이드바는 explorer 역할로 복귀.
+          nav는 헤더 아래 section nav 레일, theme는 헤더 우측, 모두 빠짐. */}
 
-      <div
-        style={{ height: 1, background: "var(--color-hairline)", margin: "4px 0 16px" }}
-        aria-hidden
-      />
+      {/* v0.7.97+: 헤더에서 이관된 전역 검색 */}
+      {vaults.length > 0 && (
+        <SearchBar
+          vault={activeVault}
+          variant="sidebar"
+          onSelect={(slug) => {
+            navigate(`/page/${activeVault}/${slug}`);
+            onClose();
+          }}
+        />
+      )}
 
       {/* Vault selector */}
       {vaults.length > 0 && (
-        <div className="sidebar-vault-selector-container">
+        <div className="sidebar-vault-selector-container" style={{ marginTop: 12 }}>
           <div
             className="sidebar-label"
             style={{
@@ -271,30 +236,18 @@ export function Sidebar({
         </div>
       )}
 
-      {/* v0.7.97+: 헤더에서 이관된 전역 검색. 필터와 역할 분리. */}
+      {/* 필터 */}
       {vaults.length > 0 && (
-        <>
-          <div style={{ marginTop: 12 }}>
-            <SearchBar
-              vault={activeVault}
-              variant="sidebar"
-              onSelect={(slug) => {
-                navigate(`/page/${activeVault}/${slug}`);
-                onClose();
-              }}
-            />
-          </div>
-          <label className="sidebar-filter-label" style={{ marginTop: 10 }}>
-            <span className="sr-only">파일 또는 폴더 필터</span>
-            <input
-              className="sidebar-filter-input"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="파일 또는 폴더 필터..."
-              aria-label="파일 또는 폴더 필터"
-            />
-          </label>
-        </>
+        <label className="sidebar-filter-label" style={{ marginTop: 10 }}>
+          <span className="sr-only">파일 또는 폴더 필터</span>
+          <input
+            className="sidebar-filter-input"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="파일 또는 폴더 필터..."
+            aria-label="파일 또는 폴더 필터"
+          />
+        </label>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", marginTop: 12 }}>
@@ -304,7 +257,7 @@ export function Sidebar({
             tree={filterTree(activeTree, filter)}
             isActive={true}
             showMeta={false}
-            activeSlug={activePage?.vault === activeVault ? activePage.slug : null}
+            activeSlug={null /* pageSlug은 사용 안 함, page 이동 시 tree highlight는 별도 로직 필요 */}
             filterActive={filter.trim().length > 0}
             onSelect={() => {}}
             onClose={onClose}
@@ -318,7 +271,6 @@ export function Sidebar({
           )
         )}
 
-        {/* raw/ 섹션 */}
         {activeVaultMeta && activeRawItems.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div
@@ -343,7 +295,7 @@ export function Sidebar({
             </div>
             <RawTree
               items={activeRawItems}
-              selectedPath={activePage?.vault === activeVault ? activePage.slug : null}
+              selectedPath={null}
               onSelect={(path) => {
                 const rel = path.replace(/^raw\//, "");
                 navigate(`/raw/${activeVault}/${rel}`);
@@ -355,42 +307,12 @@ export function Sidebar({
         )}
       </div>
 
+      {/* Mini Stats Widget */}
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--color-hairline)" }}>
-        {/* Mini Stats Widget */}
         <SidebarStatsWidget activeVault={activeVault} />
-
-        <div className="sidebar-theme-switch-container" style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            className={clsx("sidebar-theme-btn", theme === "light" && "sidebar-theme-btn-active")}
-            onClick={() => { if (theme !== "light") onToggleTheme(); }}
-          >
-            ☀️ 라이트
-          </button>
-          <button
-            type="button"
-            className={clsx("sidebar-theme-btn", theme === "dark" && "sidebar-theme-btn-active")}
-            onClick={() => { if (theme !== "dark") onToggleTheme(); }}
-          >
-            🌙 다크
-          </button>
-        </div>
       </div>
     </aside>
   );
-}
-
-// ─── helpers ────────────────────────────────────────────────
-function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
-  let match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
-  if (match) {
-    return { vault: decodeURIComponent(match[1]), slug: decodeURIComponent(match[2]) };
-  }
-  match = pathname.match(/^\/raw\/([^/]+)\/(.+)$/);
-  if (match) {
-    return { vault: decodeURIComponent(match[1]), slug: `raw/${decodeURIComponent(match[2])}` };
-  }
-  return null;
 }
 
 function displayTitle(node: TNode): string {
@@ -435,8 +357,6 @@ function VaultTreeGroup({
 
   return (
     <div style={{ marginBottom: 8 }}>
-      {/* v0.7.97.2+: vault row를 div + role=button 으로 변경 (중첩 <button> 회귀 해결).
-          NewPageButton 안의 button이 유효한 HTML 구조 안에 들어가도록. */}
       <div
         role="button"
         tabIndex={0}
@@ -454,19 +374,9 @@ function VaultTreeGroup({
         }}
         aria-expanded={open}
       >
-        <span
-          aria-hidden
-          className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}
-        >
+        <span aria-hidden className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}>
           <svg viewBox="0 0 12 12" width="14" height="14" aria-hidden>
-            <path
-              d="M4 2 L8 6 L4 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
         <span className="sidebar-vault-name">{vault.name}</span>
@@ -501,7 +411,6 @@ function VaultTreeGroup({
   );
 }
 
-// TreeLeaf + SidebarStatsWidget 동일 로직 보존 (v0.6.16+ 표준)
 function TreeLeaf({
   node,
   vault,
@@ -566,7 +475,6 @@ function TreeLeaf({
     );
   }
 
-  // page
   const isActive = slugMatchesActive(node.path, activeSlug);
   return (
     <button
