@@ -37,6 +37,7 @@ describe("Sidebar folder hover menu (v0.6.22)", () => {
           vaults={[{ name: "test", path: "/tmp/test", mode: "personal", owner: "user", default: true }]}
           trees={{ test: TREE }}
           activeVault="test"
+          activeSlug={null}
           onSelectVault={() => {}}
           onRefresh={() => {}}
           open={true}
