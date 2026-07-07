@@ -252,6 +252,14 @@ export function GuidesViewer({
               raven meta sync --lite
             </code>
             또는 VaultManage의 '지침 업뎃'을 사용하세요.
+            <br />
+            <span style={{ opacity: 0.85 }}>
+              외부 LLM 에이전트는 표준 MCP
+              <code style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}>
+                wiki_get_guide(vault, kind)
+              </code>
+              로도 같은 3종을 조회할 수 있습니다 (v0.7.91+).
+            </span>
           </div>
         )}
       </aside>
