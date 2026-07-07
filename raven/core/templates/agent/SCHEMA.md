@@ -78,10 +78,16 @@ aliases: [old-slug-1]     # 선택
 
 - slug = vault-relative path. `raven page new foo` → `content/foo`. `raven page new meta/x` → `_meta/x` (명시).
 - 절대 금지: `~`, `/` 시작, `..`
-- 물리 파일명(확장자 제외)은 frontmatter `title`을 그대로 슬러그화: 공백/특수문자는 하이픈(`-`), 영문은 소문자화.
+- **title 1:1 매칭 (필수, ADR-2026-07-08 lint #15)**: 물리 파일명(확장자 제외)은 frontmatter `title`을 **그대로 슬러그화**한 결과여야 합니다 — 공백/특수문자는 하이픈(`-`)으로 치환, 영문은 소문자화. title과 slug가 1:1 매칭되지 않으면 lint #15 (`🟡 warning`)이 감지합니다.
+  - ✅ `title: 로컬 개발 포트 매트릭스` → `로컬-개발-포트-매트릭스.md`
+  - ❌ `title: 로컬 개발 포트 매트릭스` → `port-matrix-local-dev.md` (영문 임의 변환)
 - **언어 보존 (필수)**: `title`의 언어를 파일명에서 임의로 번역/음차하지 않습니다. 한글 `title` → 한글 파일명, 영문 `title` → 영문 파일명.
   - ✅ `title: 볼트 동기화 설정` → `볼트-동기화-설정.md`
   - ❌ `title: 볼트 동기화 설정` → `vault-sync-setup.md`
+- **의미 있는 슬러그 (필수)**: 슬러그는 사람이 읽을 수 있는 단어여야 합니다. 약어(예: `p1-2`)나 시스템 내부 코드만으로 구성된 슬러그는 의미가 불명확하므로 지양. 의미 있는 핵심 단어를 우선적으로 슬러그에 포함시키세요.
+- **journal/ADR 컨벤션 예외**:
+  - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택), slug에는 날짜를 박지 않음 (`created/updated`와 구분)
+  - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합 (ADR 식별자)
 - 타이틀과 무관한 임의/기계적 파일명(예: `note-1234.md`) 금지.
 
 ## Type Taxonomy (9종)
@@ -232,6 +238,7 @@ north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 �
 | 12 | log size > 500 entries | 🔵 info |
 | 13 | cognitive governance | 🔵 info |
 | 14 | tier integrity | 🔴 critical / 🟡 warning |
+| 15 | **slug-title 1:1 매칭** (ADR-2026-07-08) — frontmatter `title` 슬러그화 결과 ≠ 파일명 | 🟡 warning |
 
 ### System Areas (type 면제)
 

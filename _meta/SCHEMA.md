@@ -151,7 +151,12 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 
 ## Conventions
 
-- **파일명**: title을 슬러그화 (공백/특수문자 → `-`, 영문 소문자). 한글 title → 한글 파일명 (음차/번역 금지)
+- **파일명 = title 슬러그 (ADR-2026-07-08 lint #15, 1:1 매칭 필수)**: frontmatter `title`을 그대로 슬러그화 — 공백/특수문자는 `-`, 영문은 소문자화. title과 slug가 다르면 lint #15가 감지. 한글이든 영문이든 title의 언어를 파일명에서 임의로 번역/음차 ❌.
+  - ✅ `title: 로컬 개발 포트 매트릭스` → `로컬-개발-포트-매트릭스.md`
+  - ❌ `title: 로컬 개발 포트 매트릭스` → `port-matrix-local-dev.md` (영문 임의 변환)
+  - **예외 (journal/ADR 컨벤션)**:
+    - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택)
+    - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합
 - **인코딩**: UTF-8
 - **줄바꿈**: LF
 - **위키링크**: `[[wikilinks]]` (slug = vault-relative path, 예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)
@@ -214,6 +219,7 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 12. 🔵 log size > 500 entries — v0.7.66+
 13. 🔵 cognitive governance 강화 — v0.7.66+
 14. 🔴/🟡 tier integrity (v0.7.66+) — Tier 1 leak / _meta/agents/ 보존 검증
+15. 🟡 slug-title 1:1 매칭 (ADR-2026-07-08) — frontmatter `title` 슬러그화 결과 ≠ 파일명. `wiki_rename`으로 수리 가능 (PWW §6.5 #15)
 
 ## 빌드 원칙
 
