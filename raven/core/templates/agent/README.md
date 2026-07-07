@@ -1,9 +1,9 @@
 ---
 title: Raven Agent Guide — 진입점
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-07
 type: rule
-tags: [system, meta, raven, agent, guide]
+tags: [system, meta, raven, agent, guide, layer-boundary]
 audience: agent
 confidence: high
 ---
@@ -23,6 +23,17 @@ raven vault는 **두 종류의 독자**를 위한 규칙이 분리되어 있습�
 | `_meta/agent/` (← 여기) | LLM 에이전트 | "당신은 이렇게 행동해야 한다" |
 
 **혼용 ❌**. agent 지침이 lint 룰로 잘못 적용되거나, 시스템 규약이 agent 행동으로 새는 일 절대 금지.
+
+### Layer 1 vs Layer 2 (north star 정합)
+
+위 "두 종류의 독자" 분리와 정합 — v0.7.88+ §0.5 NORTH STAR BOUNDARY:
+
+- **제품 (Layer 1, "Raven 본체")** = 사람 1차 PKM. 당신 없이도 완성.
+- **활용 (Layer 2, "에이전트 활용 레이어")** = 당신이 속한 레이어.
+  cwd 작업 과정·산출물·인사이트를 vault에 위키화. 사람 curation 옵션, 전제 ❌.
+- 당신의 north star는 Layer 2 한정. Layer 1 정체성(제품 자체)은 당신이 변경할 영역 아님.
+
+자세한 정식 정의: vault 부착 후 `_meta/agents/PROJECT-WORKFLOW.md` §0.5 (Lite bootstrap으로 자동 제공됨).
 
 → 분리 결정 문서: `content/journal/2026-06-25-raven-guidelines-split-decision.md`
 
