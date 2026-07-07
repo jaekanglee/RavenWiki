@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
@@ -135,7 +135,9 @@ export function Sidebar({
   const [filter, setFilter] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
 
-  // v0.7.97.4+: 사이드바 width + drag state
+  // v0.7.97.4+: 사이드바 width + drag state. 성능 최적화 — drag 중엔 ref로 DOM 직접 조작,
+  // state/commit은 drag 끝나면 1회만. 매 픽셀 React re-render 방지.
+  const asideRef = useRef<HTMLElement>(null);
   const [width, setWidth] = useState<number>(() => readSidebarWidth());
   const [isMobile, setIsMobile] = useState(false);
 
@@ -146,6 +148,13 @@ export function Sidebar({
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
   }, []);
+
+  // width 변경 시 aside DOM에 직접 반영 (state는 resize 끝나면 1회만 set)
+  useEffect(() => {
+    if (asideRef.current && !isMobile) {
+      asideRef.current.style.width = `${width}px`;
+    }
+  }, [width, isMobile]);
 
   function toggleFavorite(name: string) {
     setFavorites((prev) => {
@@ -162,12 +171,16 @@ export function Sidebar({
   const activeRawItems = rawItems[activeVault] ?? [];
 
   // v0.7.97.4+: resize drag handlers. 데스크탑에서만 활성화.
+  // v0.7.97.4.1+: drag 중 setState 호출 제거 → 매 픽셀 React re-render 방지.
+  // aside DOM width 직접 조작 (ref 기반), drag 끝나면 state 1회 commit + localStorage.
   function onResizeStart(e: React.PointerEvent<HTMLDivElement>) {
     if (isMobile) return;
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = width;
     const target = e.currentTarget;
+    const aside = asideRef.current;
+    if (!aside) return;
     target.setPointerCapture(e.pointerId);
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
@@ -178,7 +191,8 @@ export function Sidebar({
         SIDEBAR_WIDTH_MAX,
         Math.max(SIDEBAR_WIDTH_MIN, startWidth + dx)
       );
-      setWidth(next);
+      // DOM 직접 — React re-render 우회
+      aside.style.width = `${next}px`;
     };
     const onUp = (ev: PointerEvent) => {
       try { target.releasePointerCapture(ev.pointerId); } catch {}
@@ -186,11 +200,13 @@ export function Sidebar({
       document.removeEventListener("pointerup", onUp);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
-      // 최종 값 persist
+      const dx = ev.clientX - startX;
       const finalWidth = Math.min(
         SIDEBAR_WIDTH_MAX,
-        Math.max(SIDEBAR_WIDTH_MIN, startWidth + (ev.clientX - startX))
+        Math.max(SIDEBAR_WIDTH_MIN, startWidth + dx)
       );
+      // drag 끝났을 때만 state 1회 commit → localStorage + 다음 mount 시 유지
+      setWidth(finalWidth);
       writeSidebarWidth(finalWidth);
     };
     document.addEventListener("pointermove", onMove);
@@ -200,11 +216,15 @@ export function Sidebar({
   function onResizeDoubleClick() {
     setWidth(SIDEBAR_WIDTH_DEFAULT);
     writeSidebarWidth(SIDEBAR_WIDTH_DEFAULT);
+    if (asideRef.current) {
+      asideRef.current.style.width = `${SIDEBAR_WIDTH_DEFAULT}px`;
+    }
   }
 
   return (
     <aside
       id="primary-sidebar"
+      ref={asideRef}
       className={clsx(
         "layout-sidebar",
         "sidebar-offcanvas",
@@ -213,7 +233,7 @@ export function Sidebar({
       )}
       style={{
         borderRight: "1px solid var(--color-hairline)",
-        // v0.7.97.4+: width 동적 (resize). 모바일은 fixed width로 덮어씀.
+        // v0.7.97.4.1+: width는 useEffect에서 DOM 직접 조작. 인라인은 모바일 fallback만.
         width: isMobile ? undefined : width,
         padding: "16px 16px 20px",
         background: "var(--color-canvas)",
