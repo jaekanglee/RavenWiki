@@ -25,8 +25,8 @@ confidence: high
 3. (있다면) `content/index.md` 또는 content tree — vault 전체 구조 카탈로그
 4. 요청과 직접 관련된 폴더/페이지 3-5개 (project, issue, 결정 기록(`type: rule`), 최근 `journal`)
 5. `_meta/agents/SCHEMA.md` — 데이터 계약 (frontmatter / type 9종 / tag taxonomy)
-6. `content/` 만 쓰기 — `_meta/system/` 절대 ❌, `_meta/agents/`는 read-only (→ §0.5 §2)
-7. `wiki_lint` 실행 — 커밋 전 필수, 새 무결성 에러 0 확인
+6. `content/` 만 쓰기 — `_meta/system/` 절대 ❌, `_meta/agents/`는 read-only (→ §0.5 §5)
+7. `wiki_lint` 실행 — 커밋 전 필수, 새 무결성 에러 0 확인 (§6)
 
 > "파악했다"고 말하기 전에 §0 **파악 완료 기준** 충족 확인.
 
@@ -59,7 +59,7 @@ confidence: high
 
 ### 4) 추측 금지 (도메인/구조/타입)
 
-도메인, 팀, 프로젝트, 폴더명, 분류, 구조, type — 무엇이든 모르면 **이미 쓰이는 것을 보고** 그대로 따르세요. **컨텍스트를 가정하지 마세요.** 기준이 모호하면 새 구조를 만들기 전에 사용자에게 확인합니다. (실제 사례: §1 MCP 도구 표, §7.5 정리 절차, §8 멀티 에이전트 — 모두 본 원칙을 따름.)
+도메인, 팀, 프로젝트, 폴더명, 분류, 구조, type — 무엇이든 모르면 **이미 쓰이는 것을 보고** 그대로 따르세요. **컨텍스트를 가정하지 마세요.** 기준이 모호하면 새 구조를 만들기 전에 사용자에게 확인합니다. (실제 사례: §1 MCP 도구 표, §6.5 정리 절차, §7.5 멀티 에이전트 — 모두 본 원칙을 따름.)
 
 ### 5) `_meta/system/` 절대 수정 금지 + `_meta/agents/` read-only
 
@@ -77,25 +77,23 @@ Lite bootstrap 정책(v0.7.65+): vault 진입 시 받는 것은 `_meta/agents/` 
 |---|---|
 | §0 | Quick Start (30초) — 행동 시작 7단계 |
 | §0.5 | North Star — Layer 1/2 + 제품 정체성 (normative 5건) |
-| §1 | MCP 도구 9종 (요약) — 권한 모드별 표 |
-| §1.5 | MCP 도달법 — HTTP localhost (v0.7.81+) |
+| §1 | MCP 사용법 (도구 10종 + 도달법 + 권한 모드) |
 | §2 | 권한 — vault 내부 영역 (raw/ / content/ / _meta/ / log.md) |
 | §3 | 저장 결정 — 4가지 신호 (쓰기 전 체크) |
-| §4 | 분업 / 트리거 (사실) |
-| §5 | 형식 요구사항 (BLUF, 슬러그, 요약) |
-| §6 | 폴더 구조 권장 |
-| §7 | 일관성 체크리스트 (쓰기 후) |
-| §7.1 | 에이전트 자율 점검 가이드 (RAG 4원칙) |
-| §7.5 | 큐레이션 기본 점검 (정리 모드 표준 순서) |
-| §8 | 멀티 에이전트 협업 규칙 |
-| §9 | 하지 말 것 (→ §0.5 / §2 / §3) |
-| §10 | 다음 단계 (raw/log.md/_meta/agents opt-in 확장) |
+| §4 | 문서 작성 규칙 (BLUF, 슬러그, 요약) |
+| §5 | 폴더 구조 권장 |
+| §6 | 검증 절차 (체크리스트 + 자율점검 + 큐레이션) |
+| §7 | 분업 / 트리거 (사실) |
+| §7.5 | 멀티 에이전트 협업 규칙 |
+| §8 | 하지 말 것 (→ §0.5 / §2 / §3) |
+| §8.5 | 부록: 에이전트 스스로 판단/기억할 영역 |
+| §9 | 다음 단계 (raw/log.md/_meta/agents opt-in 확장) |
 
 ---
 
-## §1. MCP 도구 9종 (요약)
+## §1. MCP 사용법 (도구 10종 + 도달법 + 권한 모드)
 
-Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9개 도구를 제공합니다.
+Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 10개 도구를 제공합니다.
 각 도구의 full 시그니처는 **클라이언트의 `tools/list` 응답**(MCP 표준 자동 discovery)으로
 확인할 수 있습니다 — 별도 문서 참조 없이 schema가 자동 제공됩니다.
 
@@ -116,7 +114,8 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9�
 
 > **모든 도구는 `vault=<등록된 vault 이름>` 인자 필수** — Raven MCP 서버는 다중 vault 등록을 지원하며, 도구 호출 시 어떤 vault를 조작할지 명시해야 합니다.
 
-`wiki_update` 사용 규약 (v0.7.66+):
+### §1.1 `wiki_update` 사용 규약 (v0.7.66+)
+
 - `content` = 본문 마크다운. 메타데이터는 **`frontmatter` 파라미터**로 전달 (권장).
   content 선두에 `---` frontmatter 블록을 넣으면 자동으로 메타로 승격되지만,
   파라미터 분리가 정확하다.
@@ -135,12 +134,12 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9�
 > "에이전트가 스테일 갱신·격리 루프" 실행 기반. `wiki_update`의 1.5배 가드는 §0.5
 > north star 구현.
 
-## §1.5 MCP 도달법 — HTTP localhost (v0.7.81+)
+### §1.2 MCP 도달법 — HTTP localhost (v0.7.81+)
 
 Raven은 표준 **Model Context Protocol (JSON-RPC)** 서버입니다. **HTTP localhost 방식만
 지원합니다** — 단일 흐름으로 단순화 (v0.7.81+ HTTP-only 재설계).
 
-### 1단계: 운영자가 서버 띄우기 (1회)
+#### 운영자가 서버 띄우기 (1회)
 
 ```bash
 python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <read|write|admin>
@@ -150,7 +149,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 - 모드 (read/write/admin) 한 번 정하면 프로세스 수명 동안 고정
 - **포트 8766 기본값** (API 8765는 Dashboard backend) — 변경 가능하지만 운영자가 일관성 유지 권장
 
-### 2단계: 외부 MCP 클라이언트에 URL 등록 (1줄)
+#### 외부 MCP 클라이언트에 URL 등록 (1줄)
 
 ```json
 {"url": "http://localhost:8766/mcp"}
@@ -162,16 +161,16 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 - vault 디렉토리 경로 의존성 0
 - stdio spawn 보안 sandbox 우회 (일부 클라이언트는 stdio 차단)
 
-### 3단계: 표준 흐름
+#### 표준 흐름
 
-1. `tools/list` 호출 → MCP 표준 자동 discovery → 9개 도구 schema 즉시
+1. `tools/list` 호출 → MCP 표준 자동 discovery → 10개 도구 schema 즉시
 2. 첫 호출 시 `vault=<이름>` 인자 필수 (다중 vault 지원)
    - `vault` 이름 = 디렉토리 basename (예: `~/Raven/my-vault/` → `my-vault`)
 3. `wiki_search(vault="my-vault", query="...", top_k=10)` 등으로 자유 탐색
 
 > **도메인/구조/타입 추측 ❌** (→ §0.5). `wiki_search`로 먼저 확인.
 
-### 권한 모드 (read / write / admin)
+### §1.3 권한 모드 (read / write / admin)
 
 서버 시작 시 `--mode`로 고정, 한 프로세스 내에서 변경 불가:
 
@@ -184,7 +183,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 > **자율 운영 정책**: `admin` 모드 MCP 서버를 *에이전트가* 운영하지 마세요 — 사람 운영자
 > 전용입니다. 일반 에이전트는 `read` (기본) 또는 `write` (필요 시)로 충분합니다.
 
-### 트러블슈팅
+#### 트러블슈팅
 
 | 증상 | 해결 |
 |---|---|
@@ -192,7 +191,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 | "permission_denied" | 운영자에게 `write`/`admin` 모드로 재시작 요청 |
 | "vault not found" | `vault` 인자가 디렉토리 basename과 일치하는지 확인 |
 
-### 포트 매트릭스 (v0.7.83+)
+### §1.4 포트 매트릭스 (v0.7.83+)
 
 - **API**: `http://localhost:8765` (Dashboard backend)
 - **MCP**: `http://localhost:8766/mcp` (외부 에이전트 표준 endpoint)
@@ -201,7 +200,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 운영자가 `./raven.sh` 또는 `make restart-all`로 3개 모두 자동 관리 — silent stale 방지
 (AGENTS.md §9). MCP는 *별도 띄울 필요 없음*.
 
-### vault 운영자가 외부 에이전트에게 전달해야 할 것
+### §1.5 vault 운영자가 외부 에이전트에게 전달해야 할 것
 
 **vault 경로 한 가지만** 전달하면 충분합니다 (예: `~/Raven/my-vault/`).
 
@@ -242,15 +241,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 
 모두 "아니오"면 저장하지 마세요. vault는 신호 대 잡음비가 높은 공간입니다.
 
-## §4. 분업 / 트리거 (사실)
-
-- 사람: 결정(rule), 컨셉(concept), 사람(person) — 사람 review 후 확정
-  - 에이전트가 이 타입을 작성할 땐 `tags`에 `draft`를 넣어 시작하고, 사람
-    확인 후 `review` → `final`로 승격한다 (draft 태그는 lint #13 면제)
-- 에이전트: 저널(journal), 빌드/링크체크 — 자동 가능
-- 트리거: 사용자 "X 정리해줘" → journal/concept 작성(사람 confirm) / 새 raw/ 파일 → 사람 명시 명령 시 compile / 새 결정 → 관련 페이지에 wikilink 추가
-
-## §5. 형식 요구사항
+## §4. 문서 작성 규칙
 
 - **BLUF**: 페이지 첫 줄에 결론/결정 1문장
 - frontmatter는 구조화, 본문은 자연스러운 문장으로 작성
@@ -262,13 +253,15 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 - 헤더는 순수 자연어 (`## 결론`, 영문 괄호 병기 금지)
 - 위키링크는 맥락 설명과 함께: `- [[content/x]] — 이 링크가 본문과 어떤 관계인지 1줄`
 
-## §6. 폴더 구조 권장
+## §5. 폴더 구조 권장
 
 - `content/decisions/`, `content/concepts/`, `content/journal/`, `content/issues/`, `content/projects/`, `content/people/`
 - `raw/` — source material (LLM Wiki +α 켠 경우)
 - vault가 이미 다른 구조면 그 구조를 따르세요 (강제 아님, → §0.5 추측 금지)
 
-## §7. 일관성 체크리스트
+## §6. 검증 절차 (체크리스트 + 자율점검 + 큐레이션)
+
+### §6.1 일관성 체크리스트
 
 페이지 작성 후 확인:
 
@@ -282,7 +275,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 - [ ] 모든 쓰기 완료 후 `wiki_lint`를 실행하여 새로운 무결성 에러가 발생하지 않는지 셀프 검증함
 - [ ] §3 저장 신호 4가지 통과
 
-### §7.1 에이전트 자율 점검 가이드 (Self-Verification Checklist)
+### §6.2 에이전트 자율 점검 가이드 (Self-Verification Checklist)
 
 작업 완료 보고 전에 스스로 다음 기준을 만족했는지 재검증하십시오:
 
@@ -293,7 +286,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
     *   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출)**: 단순히 검색 결과를 나열하는 대신 문제 해결의 성공 기준에 직접 trace되는 정보만 정밀 추출했는가?
     *   **Root-Cause Investigation (컴파일 전 원인 조사)**: 문서 간 정보 충돌 시 임의로 덮어쓰지 않고, 히스토리(`log.md` 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
 
-## §7.5 큐레이션 기본 점검 (정리 모드 표준 순서)
+### §6.5 큐레이션 기본 점검 (정리 모드 표준 순서)
 
 vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처리한다.
 각 항목의 괄호는 **에이전트가 실제로 할 수 있는 조치 수준**이다.
@@ -313,7 +306,15 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 `raven garden` / `raven curator`는 **사람 운영자 전용 CLI**다 — 에이전트는
 실행할 수 없으므로, 정리가 필요한 항목은 위 절차대로 감지·발의까지만 한다.
 
-## §8. 멀티 에이전트 협업 규칙
+## §7. 분업 / 트리거 (사실)
+
+- 사람: 결정(rule), 컨셉(concept), 사람(person) — 사람 review 후 확정
+  - 에이전트가 이 타입을 작성할 땐 `tags`에 `draft`를 넣어 시작하고, 사람
+    확인 후 `review` → `final`로 승격한다 (draft 태그는 lint #13 면제)
+- 에이전트: 저널(journal), 빌드/링크체크 — 자동 가능
+- 트리거: 사용자 "X 정리해줘" → journal/concept 작성(사람 confirm) / 새 raw/ 파일 → 사람 명시 명령 시 compile / 새 결정 → 관련 페이지에 wikilink 추가
+
+## §7.5 멀티 에이전트 협업 규칙
 
 - **폴더 분리**: 프로필별 `content/{profile_name}/` 전용 서브폴더 내에서만 작성. 타 프로필 영역 수정 필요 시 사용자 승인 또는 `_meta/`에 교차 참조.
 - **락/재시도**: MCP 쓰기 도구의 락 획득 상태/에러 반환을 확인하고, 실패 시 백오프 후 재시도. 병렬 작업이 빈번하면 프로필별 독립 브랜치/워크트리 후 순차 통합.
@@ -323,7 +324,7 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 - **`SCHEMA.md`**: 에이전트가 임의 수정 금지 — 변경 필요 시 사용자 승인 또는 `type: issue` 문서로 발의.
 - **`_meta/collections.yaml`**: 변경 전 `raven collection validate` 필수.
 
-## §9. 하지 말 것
+## §8. 하지 말 것
 
 > 각 항목의 normative 정의 위치: §0.5, §2, §3.
 
@@ -334,13 +335,9 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 - ❌ type 9종 외 새 타입 정의 → §0.5 §3 (제품 정체성)
 - ❌ §3 저장 신호 모두 미통과 노트 작성 → §3
 - ❌ vault 외부 시스템/폴더 수정 → §0.5 §3 (제품 정체성)
-- ❌ 한글 title 문서를 영문/로마자 파일명으로 저장 → §5
+- ❌ 한글 title 문서를 영문/로마자 파일명으로 저장 → §4
 
-## §10. 다음 단계
-
-LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md/_meta/agents opt-in 확장).
-
-## §11. 이 문서에 없는 것 — 에이전트 스스로 판단/기억할 영역
+## §8.5 부록: 에이전트 스스로 판단/기억할 영역
 
 아래는 이 vault 문서가 의도적으로 다루지 않는 영역입니다. Raven은 "무엇이
 있는지(사실)"까지만 알려주고, "언제/어떻게 판단할지"는 당신 자신의 운영
@@ -349,7 +346,7 @@ LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md
 
 - **검색 판단**: `wiki_search`가 있다는 사실은 여기 있지만, "새 페이지
   쓰기 전에 중복을 확인할지"는 당신의 판단입니다.
-- **정리/폐기 판단**: 무엇을 점검하는지는 §7.5에 있지만, "언제 정리를
+- **정리/폐기 판단**: 무엇을 점검하는지는 §6.5에 있지만, "언제 정리를
   시작할지"는 당신의 판단입니다. (`raven garden`/`raven curator`는 사람
   전용 CLI — 당신의 조치 수단은 `wiki_lint` 감지 + `wiki_update` 수리 +
   `type: issue` 발의까지입니다.)
@@ -357,3 +354,7 @@ LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md
   "왜 그게 좋은 글쓰기인가"는 여기서 가르치지 않습니다.
 - 이 vault를 반복해서 다루며 얻은 **이 vault 특유의 교훈**은 문서를
   직접 고치지 말고 당신의 메모리에 쌓으십시오.
+
+## §9. 다음 단계
+
+LLM Wiki 패턴을 더 켜고 싶다면 → `docs/vault-patterns.md` (raw/log.md/_meta/agents opt-in 확장).
