@@ -77,9 +77,12 @@ def test_new_project_workflow_has_operating_facts() -> None:
 
 def test_new_project_workflow_has_boundary_declaration() -> None:
     content = NEW_PROJECT_WORKFLOW.read_text(encoding="utf-8")
-    assert "이 문서에 없는 것" in content
+    # v0.7.92+: §11 → §8.5 (부록 통합) — 헤더 문구는 "에이전트 스스로
+    # 판단/기억할 영역" 으로 정정. boundary declaration 본문 4항목은 그대로.
+    assert "에이전트 스스로 판단/기억할 영역" in content
     assert "검색 판단" in content
     assert "정리/폐기 판단" in content
+    assert "글쓰기 품질 판단" in content
 
 
 def test_project_workflow_is_only_in_agent_template() -> None:
