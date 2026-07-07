@@ -141,6 +141,7 @@ Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진�
 >
 > → **에이전트 ↔ Raven은 MCP만**. `agent = Agent.named(...)` Python 코드 ❌ (사람/스크립트 보조용으로만).
 > → 자세한 도식: `_meta/diagrams/three-flows.png`.
+> → **Lite bootstrap 3종 read 사례 (v0.7.93+)**: 사람 운영자 = `GET /api/vaults/{name}/guide/{kind}` (Dashboard drawer) / 외부 에이전트 = `wiki_get_guide(vault, kind)` (MCP). **contract 1:1 (화이트리스트 + 응답 shape)** — 같은 surface를 두 layer가 다른 진입점으로 조회. **Dashboard가 MCP를 직접 호출하지 않는 이유**: Tier 1 (사람 도구) ↔ Tier 1 (REST) 가 자연스럽고, MCP는 Tier 2 (에이전트) 진입점. layer 경계 보존.
 
 ---
 
