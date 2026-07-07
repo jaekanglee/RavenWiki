@@ -1,16 +1,21 @@
-# Changelog v0.7.88 — PROJECT-WORKFLOW.md §0.5 NORTH STAR BOUNDARY 추가 (2026-07-07)
+# Changelog v0.7.88 — Layer 1/2 north star 정합 묶음 (5 commit, 2026-07-07)
 
-> **BLUF**: 외부 LLM 에이전트가 vault 진입 시 Layer 1 (Raven 제품, 사람 1차 PKM) vs Layer 2 (에이전트 활용 레이어) 의 경계를 즉시 인식하도록, `PROJECT-WORKFLOW.md` §0 끝에 `§0.5 North Star 경계` 섹션을 신설하고 도입 인용구의 톤을 사람 1차로 정정했습니다. Lite bootstrap = Layer 1 sub-feature (자동 주입은 Raven 제품 동작) 명시, Layer 2 north star = cwd 작업 산출물/인사이트를 사람 curation 옵션만 두고 vault 위키화.
+> **BLUF**: 외부 LLM 에이전트가 vault 진입 시 Layer 1 (Raven 제품, 사람 1차 PKM) vs Layer 2 (에이전트 활용 레이어) 의 경계를 즉시 인식하도록 5개 commit 묶음 정합 — (1) `PROJECT-WORKFLOW.md` §0.5 NORTH STAR BOUNDARY 신설 (Layer 1/2 정의 + Lite bootstrap = Layer 1 sub-feature + Layer 2 north star = cwd 산출물 위키화), (2) §1 MCP 도구 표 정확화 (actor?/user_command 누락 보강), (3) `.env` 자동 로드 + `RAVEN_MCP_MODE` SOT (Layer 2 운용 시 vault 운영자가 write로 전환), (4) `agent/README.md` 진입점 정합 단락 (Tier 1), (5) `AGENTS.md §0.5` Layer 1/2 라벨 명시. Layer 1 leak 0 (vendor-neutral, "vault-bootstrap"/SCHEMA 직접 표기 → 추상어), 4-pass 리뷰 (Claude×2 + agy --print).
 
 이전 changelog: `_meta/changelog-v0.7.87.md`
 
 ---
 
-## §0 — commit 1개
+## §0 — commit 5개
 
 | commit | 항목 | 파일 | 변경 |
 |---|---|---|---|
 | `a0bc5ac` | A. PROJECT-WORKFLOW.md — §0.5 layer-separation (Layer 1 vs Layer 2) | `raven/core/templates/agent/PROJECT-WORKFLOW.md` | +43/−3 |
+| `7cfffef` | B. changelog v0.7.88 자체 (SOT 갱신) | `_meta/changelog-v0.7.88.md` | +104/−0 |
+| `369bfb7` | C. .env auto-load + `RAVEN_MCP_MODE` SOT (Layer 2 모드 = write, 기본 read) | `.env.example`, `raven.sh` | +16/−0 |
+| `d47982b` | D. PROJECT-WORKFLOW.md §1 — MCP 도구 표 정확화 (actor? + user_command) | `raven/core/templates/agent/PROJECT-WORKFLOW.md` | +2/−2 |
+| `364b4ed` | E. agent/README.md — Layer 1/2 boundary 단락 추가 (v0.7.88+) | `raven/core/templates/agent/README.md` | +13/−2 |
+| `931cf63` | F. AGENTS.md §0.5 — Layer 1/2 라벨 명시 (Raven dev 팀 운영 문서) | `AGENTS.md` | +7/−0 |
 
 ---
 
@@ -86,10 +91,13 @@
 
 | 검증 | 결과 |
 |---|---|
-| Layer 1 leak 0건 | ✅ |
-| Vendor neutrality 0건 | ✅ |
-| Layer 정의 self-contained | ✅ |
-| raven-dev 동기화 일치 | ✅ (cp -p, diff -q 0) |
+| Layer 1 leak 0건 (5 commit 모두) | ✅ (grep `vault-bootstrap\|SCHEMA[^.()\[]` 0건) |
+| Vendor neutrality 0건 (5 commit 모두) | ✅ (grep `Claude\|Cursor\|Hermes\|Codex\|Antigravity\|...` 0건) |
+| Layer 정의 self-contained | ✅ (PROJECT-WORKFLOW.md §0.5 / agent/README.md / AGENTS.md §0.5 셋 모두 Layer 1/2 정합) |
+| raven-dev 동기화 일치 | ✅ (cp -p, diff -q 0) — 5 vault 모두 sha256 동일 (Dashboard에서 일괄 sync 완료) |
+| .env 자동 로드 동작 | ✅ (unset RAVEN_MCP_MODE → ./raven.sh restart → MCP --mode write 자동 인식) |
+| MCP 권한 모드 | `RAVEN_MCP_MODE=write` (Layer 2 north star 운용) — production 자체 검증 |
+| `wiki_*` 도구 actor 시그니처 | ✅ (5 write 도구 모두 `Optional[str] actor` 확인 — 코드 차원 provenance 작동) |
 | `pytest tests/` | (문서 패치 — 코드 무관) N/A |
 
 ---
@@ -98,7 +106,7 @@
 
 | 사이클 | 항목 |
 |---|---|
-| v0.7.85 | PROJECT-WORKFLOW.md CRUD 가이드 + RAG 4원칙 보강 |
-| v0.7.86 | raven.sh status() MCP mode 정확성 silent hotfix |
-| v0.7.87 | Dashboard 다크 `--color-primary-bg` override 누락 patch |
-| **v0.7.88** | **PROJECT-WORKFLOW.md §0.5 layer-separation (Layer 1 vs Layer 2)** |
+| v0.7.85 | PROJECT-WORKFLOW.md CRUD 가이드 + RAG 4원칙 보강 (commit `6a116e6`) |
+| v0.7.86 | raven.sh status() MCP mode 정확성 silent hotfix (commit `5f67126`, `764abbe`) |
+| v0.7.87 | Dashboard 다크 `--color-primary-bg` override 누락 patch (commit `7f9329f`) |
+| **v0.7.88** | **Layer 1/2 north star 정합 묶음 (5 commit — §0.5, §1 표, .env, agent/README, AGENTS.md)** |
