@@ -94,8 +94,8 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 9�
 | `read` | `wiki_log(tail_n=20)` | log.md 최근 N개 구조화 JSON | `query` |
 | `read` | `wiki_stale_detect()` | ADR-2026-07-06 §1.3 — stale 후보 + evidence + suggested_action | `lint` |
 | `write` | `wiki_update(slug, content, frontmatter?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
-| `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만) | `ingest` |
-| `write` | `wiki_archive(slug, reason?)` | ADR-2026-07-06 §1.3 — `_archive/` 격리 (1.5배 본문 가드 회피) | `archive` |
+| `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?, user_command=False)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만, ADR-2026-07-02) | `ingest` |
+| `write` | `wiki_archive(slug, reason?, actor?, idempotency_key?)` | ADR-2026-07-06 §1.3 — `_archive/` 격리 (1.5배 본문 가드 회피) | `archive` |
 | `admin` | `wiki_delete(slug, actor?, idempotency_key?)` | 페이지 영구 삭제 (archive와 다름 — 사람 운영자 전용) | `delete` |
 | `admin` | `wiki_rename(old_slug, new_slug, actor?, idempotency_key?)` | slug 변경 + 인바운드 wikilink 재작성 | `rename` |
 
