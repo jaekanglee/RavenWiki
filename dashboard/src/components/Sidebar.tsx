@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
-import { nodeColor } from "./GraphCanvas";
+import { nodeColor, typeLabel } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
 import { SearchBar } from "./SearchBar";
 import type { TreeNode as TNode, VaultMeta } from "../types";
@@ -430,10 +430,32 @@ export function Sidebar({
   );
 }
 
+// v0.7.98+ page 라벨 폴리시.
+// 1) frontmatter title이 있으면 그대로 (정확).
+// 2) title이 slug와 같거나 비어있으면 (대부분의 경우), path의 마지막 segment를
+//    사람이 읽기 좋게 변환: 하이픈/언더스코어 → 공백, 선행/후행 점/공백 제거.
+// 3) 그래도 빈 문자열이면 path 그대로.
 function displayTitle(node: TNode): string {
-  if (node.type === "page") return node.title ?? node.path;
+  if (node.type !== "page") {
+    const parts = node.path.split("/");
+    return parts[parts.length - 1] || node.path;
+  }
+  const raw = (node.title ?? "").trim();
+  if (raw && raw !== node.path) {
+    // title이 있고 slug와 다른 경우 (사람이 의도적으로 title 지정) — 그대로.
+    return raw;
+  }
+  // title이 slug와 같거나 비어있음 → 마지막 segment 폴리시.
   const parts = node.path.split("/");
-  return parts[parts.length - 1] || node.path;
+  const last = parts[parts.length - 1] || node.path;
+  if (!last) return node.path;
+  // .md 확장자 제거 후 하이픈/언더스코어 → 공백.
+  const noExt = last.replace(/\.md$/i, "");
+  const humanized = noExt
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return humanized || node.path;
 }
 
 function VaultTreeGroup({
@@ -558,7 +580,7 @@ function TreeLeaf({
           className="sidebar-tree-dir-row"
           onClick={() => onToggleFolder(node.path)}
           aria-expanded={isOpen}
-          style={{ paddingLeft: 8 + depth * 12 }}
+          style={{ paddingLeft: 8 + depth * 10 }}
         >
           <span aria-hidden className={clsx("sidebar-chevron", isOpen && "sidebar-chevron-open")}>
             <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
@@ -591,6 +613,7 @@ function TreeLeaf({
   }
 
   const isActive = slugMatchesActive(node.path, activeSlug);
+  const label = typeLabel(node.pageType);
   return (
     <button
       type="button"
@@ -599,10 +622,11 @@ function TreeLeaf({
         navigate(`/page/${vault}/${node.path.replace(/^content\//, "")}`);
         onClose();
       }}
-      style={{ paddingLeft: 8 + depth * 12 }}
+      style={{ paddingLeft: 8 + depth * 10 }}
       title={node.title ?? node.path}
     >
       <span aria-hidden className="sidebar-tree-page-dot" style={{ background: nodeColor(node.pageType) }} />
+      {label && <span aria-hidden className="sidebar-tree-page-pill" data-type={node.pageType}>{label}</span>}
       <span className="sidebar-tree-page-label">{displayTitle(node)}</span>
     </button>
   );

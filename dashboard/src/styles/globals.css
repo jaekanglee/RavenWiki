@@ -1647,37 +1647,97 @@ mark {
   background: var(--color-surface-soft);
   color: var(--color-ink);
 }
-.sidebar-tree-leaf {
+/* v0.7.98+ Sidebar Explorer — page row (md 문서).
+   기존 .sidebar-tree-leaf* (dead code) → .sidebar-tree-page-* 로 교체.
+   v0.7.97.4+ 사이드바 폭 default 288px → page 라벨이 depth 깊어질 때
+   truncate 되어야 하므로 min-width: 0 + ellipsis 필수. */
+.sidebar-tree-page-row {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
+  min-height: 28px;
   font-size: 13px;
   font-weight: 400;
   color: var(--color-ink);
+  background: transparent;
+  border: none;
   border-radius: 3px;
-  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
   font-family: var(--font-display);
+  letter-spacing: 0.1px;
+  transition: background 0.12s ease;
 }
-.sidebar-tree-leaf:hover {
+.sidebar-tree-page-row:hover {
   background: var(--color-surface-soft);
 }
-.sidebar-tree-leaf-active {
+.sidebar-tree-page-row-active {
   background: rgba(59, 130, 246, 0.10);
   color: var(--color-ink);
   font-weight: 600;
 }
-.sidebar-tree-leaf-active .sidebar-tree-leaf-dot {
+.sidebar-tree-page-row-active .sidebar-tree-page-dot {
   transform: scale(1.25);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
-.sidebar-tree-leaf-dot {
+.sidebar-tree-page-dot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
   /* background은 inline style로 type별 색 주입 */
+}
+
+/* v0.7.98+ Type pill — page row에 SCHEMA 9종 type 텍스트 라벨.
+   type 색은 dot과 일관성 유지하되 채도는 낮춰 (10~14% alpha) 라벨이
+   라벨답게 보이고 텍스트 우선순위 방해 안 함. */
+.sidebar-tree-page-pill {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 1.5;
+  white-space: nowrap;
+  /* 기본 (data-type 없는 fallback) — surface-soft */
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+  border: 1px solid var(--color-hairline);
+}
+/* SCHEMA 9종 type별 pill 색 (TYPE_COLORS 정합). */
+.sidebar-tree-page-pill[data-type="concept"]   { background: rgba(34, 197, 94, 0.12);  color: #15803d; border-color: rgba(34, 197, 94, 0.25); }
+.sidebar-tree-page-pill[data-type="person"]    { background: rgba(236, 72, 153, 0.12); color: #be185d; border-color: rgba(236, 72, 153, 0.25); }
+.sidebar-tree-page-pill[data-type="tool"]      { background: rgba(107, 114, 128, 0.14); color: #374151; border-color: rgba(107, 114, 128, 0.25); }
+.sidebar-tree-page-pill[data-type="comparison"]{ background: rgba(239, 68, 68, 0.12);  color: #b91c1c; border-color: rgba(239, 68, 68, 0.25); }
+.sidebar-tree-page-pill[data-type="project"]   { background: rgba(249, 115, 22, 0.12); color: #c2410c; border-color: rgba(249, 115, 22, 0.25); }
+.sidebar-tree-page-pill[data-type="rule"]      { background: rgba(99, 102, 241, 0.12); color: #4338ca; border-color: rgba(99, 102, 241, 0.25); }
+.sidebar-tree-page-pill[data-type="query"]     { background: rgba(234, 179, 8, 0.14);  color: #a16207; border-color: rgba(234, 179, 8, 0.30); }
+.sidebar-tree-page-pill[data-type="journal"]   { background: rgba(6, 182, 212, 0.12);  color: #0e7490; border-color: rgba(6, 182, 212, 0.25); }
+.sidebar-tree-page-pill[data-type="issue"]     { background: rgba(168, 85, 247, 0.12); color: #7e22ce; border-color: rgba(168, 85, 247, 0.25); }
+/* 다크 모드 — 자동 톤 보정 */
+.dark .sidebar-tree-page-pill[data-type="concept"]    { color: #86efac; }
+.dark .sidebar-tree-page-pill[data-type="person"]     { color: #f9a8d4; }
+.dark .sidebar-tree-page-pill[data-type="tool"]       { color: #d1d5db; }
+.dark .sidebar-tree-page-pill[data-type="comparison"] { color: #fca5a5; }
+.dark .sidebar-tree-page-pill[data-type="project"]    { color: #fdba74; }
+.dark .sidebar-tree-page-pill[data-type="rule"]       { color: #a5b4fc; }
+.dark .sidebar-tree-page-pill[data-type="query"]      { color: #fde68a; }
+.dark .sidebar-tree-page-pill[data-type="journal"]    { color: #67e8f9; }
+.dark .sidebar-tree-page-pill[data-type="issue"]      { color: #d8b4fe; }
+
+.sidebar-tree-page-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Sidebar Revamp UI components ─── */
