@@ -1805,6 +1805,51 @@ mark {
   justify-content: center;
 }
 
+/* v0.7.97.3+: Global section nav 레일 — 헤더 아래 1줄 좌정렬 가로 탭.
+   vault tree 탐색과 섹션 전환의 위계 분리. */
+.section-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.section-nav-tab:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.section-nav-tab-active {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* v0.7.97.3+: 헤더 theme 토글 버튼 (slim pill) */
+.app-header-theme-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  color: var(--color-muted);
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.app-header-theme-btn:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.app-header-theme-btn-active {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-raised);
+}
+
 .graph-canvas-frame {
   flex: 1;
   min-height: 0;
@@ -2190,37 +2235,39 @@ mark {
   border-color: var(--color-ink);
 }
 
+/* v0.7.97.3+: 사이드바 — 데스크탑은 항상 노출, 모바일만 off-canvas drawer.
+   Codex 안 1 (유틸리티 헤더 + 별도 탭 레일) — explorer는 사이드바 복귀. */
 .sidebar-offcanvas {
-  position: fixed !important;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  width: 320px !important;
-  max-width: 90vw;
-  z-index: 50;
-  transform: translateX(-100%);
-  transition: transform 0.22s ease-out;
-  border-right: 1px solid var(--color-hairline);
-  box-shadow: none;
+  position: relative;
+  height: 100%;
+  flex-shrink: 0;
 }
-.sidebar-offcanvas-open {
-  transform: translateX(0);
-  box-shadow: var(--shadow-overlay);
+@media (max-width: 744px) {
+  .sidebar-offcanvas {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 320px !important;
+    max-width: 90vw;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease-out;
+    border-right: 1px solid var(--color-hairline);
+    box-shadow: none;
+  }
+  .sidebar-offcanvas-open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-overlay);
+  }
 }
 
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.36);
-  z-index: 40;
+  z-index: 55;
   animation: sidebar-backdrop-fade-in 0.15s ease-out forwards;
-}
-
-@media (max-width: 744px) {
-  .sidebar-offcanvas {
-    width: 84vw !important;
-    max-width: 360px;
-  }
 }
 
 @keyframes sidebar-backdrop-fade-in {
