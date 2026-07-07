@@ -975,70 +975,6 @@ mark {
   color: var(--color-ink);
 }
 
-/* v0.7.97+: 헤더 nav pill — icon + label, hover/active 배경 */
-.nav-link-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-}
-.nav-link-pill:hover {
-  background: var(--color-surface-soft);
-  color: var(--color-ink);
-}
-.nav-link-pill.nav-link-active {
-  background: var(--color-surface-soft);
-  color: var(--color-ink);
-  font-weight: 600;
-}
-.nav-link-pill .nav-link-icon {
-  font-size: 15px;
-  line-height: 1;
-}
-
-/* v0.7.97+: 헤더 theme 토글 버튼 */
-.app-header-theme-btn {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: var(--radius-full);
-  color: var(--color-muted);
-  line-height: 1;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-.app-header-theme-btn:hover {
-  background: var(--color-surface-soft);
-  color: var(--color-ink);
-}
-.app-header-theme-btn-active {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  box-shadow: var(--shadow-raised);
-}
-
-/* v0.7.97+: 헤더 반응형 — 좁아지면 nav 라벨 숨김 (icon-only), 중앙 crumb 숨김 */
-@media (max-width: 1024px) {
-  .nav-link-pill .nav-link-label {
-    display: none;
-  }
-  .nav-link-pill {
-    padding: 6px 8px;
-  }
-}
-@media (max-width: 744px) {
-  .app-header-center {
-    display: none;
-  }
-  .app-header-brand span:last-child {
-    display: none;
-  }
-}
-
 /* Active Vault Indicator Chip */
 .active-vault-chip {
   display: inline-flex;
@@ -1837,6 +1773,36 @@ mark {
 }
 .sidebar-favorite-btn-active {
   color: var(--color-primary);
+}
+
+/* v0.7.97.2+: 사이드바 primary nav (헤더에서 이관). 옵시디안/Notion 스타일. */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.sidebar-nav-item:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.sidebar-nav-item-active {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.sidebar-nav-icon {
+  font-size: 16px;
+  line-height: 1;
+  width: 18px;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .graph-canvas-frame {

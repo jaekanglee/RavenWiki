@@ -11,7 +11,6 @@ import type { TreeNode as TNode, VaultMeta } from "../types";
 interface SidebarProps {
   vaults: VaultMeta[];
   trees: Record<string, TNode | null>;
-  // v0.7.50+: raw/ 트리 (P32 OS directory = first-class). 없으면 null.
   rawItems: Record<string, import("../lib/api").RawItem[]>;
   activeVault: string;
   onSelectVault: (name: string) => void;
@@ -20,13 +19,26 @@ interface SidebarProps {
   /** Controlled drawer state owned by Layout. Off-canvas only kicks in
    *  inside @media (max-width: 744px); no-op above the breakpoint. */
   open: boolean;
-  /** Called by the X button, dim area, and Escape. */
   onClose: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
+  /** v0.7.97.2+: 현재 라우트 pathname — nav 활성 표시용 */
+  currentPath: string;
 }
 
 const VAULT_OPEN_KEY = "__vault__";
+
+// v0.7.97.2+: 사이드바 nav. 헤더에서 이관됨. 모바일 drawer에서도 표시.
+const SIDEBAR_NAV = [
+  { to: "/", label: "홈", icon: "🏠", match: (p: string) => p === "/" },
+  { to: "/graph", label: "그래프", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
+  { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
+  { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
+  { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
+  { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
+  { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
+  { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
+];
 
 function openFoldersStorageKey(vault: string): string {
   return `raven.sidebar.openFolders.${vault}`;
@@ -47,9 +59,7 @@ function writeOpenFolders(vault: string, folders: Set<string>) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(openFoldersStorageKey(vault), JSON.stringify([...folders].sort()));
-  } catch {
-    // localStorage can be unavailable in private mode; sidebar still works in-memory.
-  }
+  } catch {}
 }
 
 function readFavoriteVaults(): Set<string> {
@@ -73,9 +83,6 @@ function writeFavoriteVaults(favs: Set<string>) {
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
-  // Raven slug prefix tolerance: `index` and `content/index` should highlight the
-  // same sidebar leaf. API/page resolution already accepts both; Explorer should
-  // mirror that URL SOT behavior.
   if (nodeSlug.replace(/^content\//, "") === activeSlug) return true;
   if (`content/${activeSlug}` === nodeSlug) return true;
   return false;
@@ -107,27 +114,6 @@ function filterTree(tree: TNode | null, query: string): TNode | null {
   return { ...tree, children };
 }
 
-function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
-  // /page/{vault}/{slug...} (페이지)
-  let match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
-  if (match) {
-    return {
-      vault: decodeURIComponent(match[1]),
-      slug: decodeURIComponent(match[2]),
-    };
-  }
-  // v0.7.50+: /raw/{vault}/{relPath...} (raw 파일). slug = 'raw/<relPath>' (트리 매칭용).
-  match = pathname.match(/^\/raw\/([^/]+)\/(.+)$/);
-  if (match) {
-    return {
-      vault: decodeURIComponent(match[1]),
-      slug: `raw/${decodeURIComponent(match[2])}`,
-    };
-  }
-  // /raw/{vault} (raw 패널 진입, 파일 미선택) — null
-  return null;
-}
-
 export function Sidebar({
   vaults,
   trees,
@@ -139,10 +125,10 @@ export function Sidebar({
   onClose,
   theme = "light",
   onToggleTheme = () => {},
+  currentPath,
 }: SidebarProps) {
-  const location = useLocation();
   const navigate = useNavigate();
-  const activePage = activePageFromPath(location.pathname);
+  const activePage = activePageFromPath(currentPath);
   const [filter, setFilter] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
 
@@ -172,7 +158,7 @@ export function Sidebar({
       style={{
         borderRight: "1px solid var(--color-hairline)",
         width: 288,
-        padding: "24px 20px",
+        padding: "20px 16px",
         background: "var(--color-canvas)",
         flexShrink: 0,
         display: "flex",
@@ -192,12 +178,41 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* v0.7.97.2+: nav tabs (헤더에서 이관) — 사이드바 최상단 primary nav */}
+      <nav
+        className="sidebar-nav"
+        aria-label="주요 탐색"
+        style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 16 }}
+      >
+        {SIDEBAR_NAV.map((t) => {
+          const isActive = t.match(currentPath);
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              className={clsx("sidebar-nav-item", isActive && "sidebar-nav-item-active")}
+              onClick={onClose}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <span aria-hidden className="sidebar-nav-icon">{t.icon}</span>
+              <span className="sidebar-nav-label">{t.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div
+        style={{ height: 1, background: "var(--color-hairline)", margin: "4px 0 16px" }}
+        aria-hidden
+      />
+
+      {/* Vault selector */}
       {vaults.length > 0 && (
         <div className="sidebar-vault-selector-container">
           <div
             className="sidebar-label"
             style={{
-              padding: "0 0 6px",
+              padding: "0 4px 6px",
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: "0.32px",
@@ -205,9 +220,9 @@ export function Sidebar({
               fontFamily: "var(--font-display)",
             }}
           >
-            보관소 선택 ({vaults.length})
+            보관소 ({vaults.length})
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <select
               className="input-base"
               value={activeVault}
@@ -251,29 +266,24 @@ export function Sidebar({
       )}
 
       {vaults.length === 0 && (
-        <div
-          style={{
-            padding: 8,
-            fontSize: 13,
-            color: "var(--color-muted)",
-            fontFamily: "var(--font-display)",
-          }}
-        >
+        <div style={{ padding: 8, fontSize: 13, color: "var(--color-muted)", fontFamily: "var(--font-display)" }}>
           보관소 없음
         </div>
       )}
 
+      {/* v0.7.97+: 헤더에서 이관된 전역 검색. 필터와 역할 분리. */}
       {vaults.length > 0 && (
         <>
-          {/* v0.7.97+: 헤더에서 이관된 전역 검색. 필터와 역할 분리. */}
-          <SearchBar
-            vault={activeVault}
-            variant="sidebar"
-            onSelect={(slug) => {
-              navigate(`/page/${activeVault}/${slug}`);
-              onClose();
-            }}
-          />
+          <div style={{ marginTop: 12 }}>
+            <SearchBar
+              vault={activeVault}
+              variant="sidebar"
+              onSelect={(slug) => {
+                navigate(`/page/${activeVault}/${slug}`);
+                onClose();
+              }}
+            />
+          </div>
           <label className="sidebar-filter-label" style={{ marginTop: 10 }}>
             <span className="sr-only">파일 또는 폴더 필터</span>
             <input
@@ -308,13 +318,13 @@ export function Sidebar({
           )
         )}
 
-        {/* v0.7.50+: raw/ 섹션 (P32 OS directory = first-class) */}
+        {/* raw/ 섹션 */}
         {activeVaultMeta && activeRawItems.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div
               className="sidebar-label"
               style={{
-                padding: "0 0 6px",
+                padding: "0 4px 6px",
                 fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: "0.32px",
@@ -335,7 +345,6 @@ export function Sidebar({
               items={activeRawItems}
               selectedPath={activePage?.vault === activeVault ? activePage.slug : null}
               onSelect={(path) => {
-                // raw/... → /raw/{vault}/<rel> (rel = 'raw/' 이후)
                 const rel = path.replace(/^raw\//, "");
                 navigate(`/raw/${activeVault}/${rel}`);
                 onClose();
@@ -350,7 +359,7 @@ export function Sidebar({
         {/* Mini Stats Widget */}
         <SidebarStatsWidget activeVault={activeVault} />
 
-        <div className="sidebar-theme-switch-container">
+        <div className="sidebar-theme-switch-container" style={{ marginTop: 12 }}>
           <button
             type="button"
             className={clsx("sidebar-theme-btn", theme === "light" && "sidebar-theme-btn-active")}
@@ -371,14 +380,21 @@ export function Sidebar({
   );
 }
 
-// ─── display title helper ───────────────────────────────────
-// v0.6.16+: TreeNode가 path/slug/title을 분리해서 들고 있으므로 폴더는 path의
-// 마지막 segment, 페이지는 title을 그대로 표시.
-function displayTitle(node: TNode): string {
-  if (node.type === "page") {
-    return node.title ?? node.path;
+// ─── helpers ────────────────────────────────────────────────
+function activePageFromPath(pathname: string): { vault: string; slug: string } | null {
+  let match = pathname.match(/^\/page\/([^/]+)\/(.+)$/);
+  if (match) {
+    return { vault: decodeURIComponent(match[1]), slug: decodeURIComponent(match[2]) };
   }
-  // dir: 마지막 segment만 표시 ("content/concept" → "concept")
+  match = pathname.match(/^\/raw\/([^/]+)\/(.+)$/);
+  if (match) {
+    return { vault: decodeURIComponent(match[1]), slug: `raw/${decodeURIComponent(match[2])}` };
+  }
+  return null;
+}
+
+function displayTitle(node: TNode): string {
+  if (node.type === "page") return node.title ?? node.path;
   const parts = node.path.split("/");
   return parts[parts.length - 1] || node.path;
 }
@@ -419,12 +435,22 @@ function VaultTreeGroup({
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <button
-        type="button"
+      {/* v0.7.97.2+: vault row를 div + role=button 으로 변경 (중첩 <button> 회귀 해결).
+          NewPageButton 안의 button이 유효한 HTML 구조 안에 들어가도록. */}
+      <div
+        role="button"
+        tabIndex={0}
         className="sidebar-vault-row"
         onClick={() => {
           toggleFolder(VAULT_OPEN_KEY);
           onSelect();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleFolder(VAULT_OPEN_KEY);
+            onSelect();
+          }
         }}
         aria-expanded={open}
       >
@@ -446,16 +472,12 @@ function VaultTreeGroup({
         <span className="sidebar-vault-name">{vault.name}</span>
         <NewPageButton vault={vault.name} variant="icon" label="페이지" onOpen={onClose} />
         {showMeta && vault.default && (
-          <span className="sidebar-vault-default" aria-label="default">
-            ★
-          </span>
+          <span className="sidebar-vault-default" aria-label="default">★</span>
         )}
         {showMeta && isActive && (
-          <span className="sidebar-vault-active" aria-label="active">
-            ●
-          </span>
+          <span className="sidebar-vault-active" aria-label="active">●</span>
         )}
-      </button>
+      </div>
 
       {open && tree && (
         <div className="sidebar-tree">
@@ -479,7 +501,7 @@ function VaultTreeGroup({
   );
 }
 
-// ─── Tree leaf (recursive for nested dirs) ───────────────────
+// TreeLeaf + SidebarStatsWidget 동일 로직 보존 (v0.6.16+ 표준)
 function TreeLeaf({
   node,
   vault,
@@ -489,7 +511,7 @@ function TreeLeaf({
   openFolders,
   onToggleFolder,
   onRefresh,
-  depth = 0,
+  depth,
 }: {
   node: TNode;
   vault: string;
@@ -497,183 +519,88 @@ function TreeLeaf({
   activeSlug: string | null;
   filterActive: boolean;
   openFolders: Set<string>;
-  onToggleFolder: (slug: string) => void;
+  onToggleFolder: (k: string) => void;
   onRefresh?: () => void;
-  depth?: number;
+  depth: number;
 }) {
-  const isOpen = openFolders.has(node.path) || filterActive;
+  const navigate = useNavigate();
+  const isOpen = openFolders.has(node.path);
 
-  // Render vertical indent lines for hierarchy visual support
-  const indentGuides = [];
-  for (let i = 1; i < depth; i++) {
-    indentGuides.push(
-      <span
-        key={i}
-        className="sidebar-indent-line"
-        style={{ left: i * 14 - 7 }}
-        aria-hidden
-      />
-    );
-  }
-
-  // ─── page leaf ───
-  if (node.type === "page") {
-    const slug = node.slug ?? node.path;
-    const isActive = slugMatchesActive(slug, activeSlug);
+  if (node.type === "dir") {
     return (
-      <div className="sidebar-tree-leaf-wrapper">
-        {indentGuides}
-        <Link
-          to={`/page/${vault}/${slug}`}
-          className={clsx("link-ink sidebar-tree-leaf", isActive && "sidebar-tree-leaf-active")}
-          style={{ marginLeft: depth * 14 }}
-          title={`물리 경로: ${node.path}`}
-        >
-          <span
-            className="sidebar-tree-leaf-dot"
-            style={{ background: nodeColor(node.pageType) }}
-            aria-hidden
-          />
-          {displayTitle(node)}
-        </Link>
-      </div>
-    );
-  }
-
-  // ─── dir row ───
-  const children = node.children ?? [];
-  return (
-    <div className="sidebar-tree-leaf-wrapper">
-      {indentGuides}
-      <div className="sidebar-tree-dir-row" style={{ marginLeft: depth * 14 }}>
+      <div>
         <button
           type="button"
+          className="sidebar-tree-dir-row"
           onClick={() => onToggleFolder(node.path)}
-          className="link-ink sidebar-tree-dir"
           aria-expanded={isOpen}
+          style={{ paddingLeft: 8 + depth * 12 }}
         >
-          <span
-            aria-hidden
-            className={clsx("sidebar-chevron sidebar-chevron-sm", isOpen && "sidebar-chevron-open")}
-          >
-            <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-              <path
-                d="M4 2 L8 6 L4 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+          <span aria-hidden className={clsx("sidebar-chevron", isOpen && "sidebar-chevron-open")}>
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+              <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          {displayTitle(node)}
+          <span aria-hidden style={{ fontSize: 13 }}>📁</span>
+          <span className="sidebar-tree-dir-label">{displayTitle(node)}</span>
         </button>
-        <NewFolderButton
-          vault={vault}
-          parentPath={node.path}
-          onCreated={() => onRefresh?.()}
-          onOpen={onClose}
-        />
-        {/* v0.6.22+: 폴더 hover 메뉴 — 인라인 페이지 만들기. initialSlug로 prefix 자동 주입. */}
-        <NewPageButton
-          vault={vault}
-          variant="icon"
-          label="페이지"
-          initialSlug={node.path}
-          onOpen={onClose}
-        />
+        {isOpen && (node.children ?? []).length > 0 && (
+          <div className="sidebar-tree">
+            {(node.children ?? []).map((child) => (
+              <TreeLeaf
+                key={child.path}
+                node={child}
+                vault={vault}
+                onClose={onClose}
+                activeSlug={activeSlug}
+                filterActive={filterActive}
+                openFolders={openFolders}
+                onToggleFolder={onToggleFolder}
+                onRefresh={onRefresh}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
       </div>
-      {isOpen &&
-        children.map((c) => (
-          <TreeLeaf
-            key={c.path}
-            node={c}
-            vault={vault}
-            onClose={onClose}
-            activeSlug={activeSlug}
-            filterActive={filterActive}
-            openFolders={openFolders}
-            onToggleFolder={onToggleFolder}
-            onRefresh={onRefresh}
-            depth={depth + 1}
-          />
-        ))}
-    </div>
+    );
+  }
+
+  // page
+  const isActive = slugMatchesActive(node.path, activeSlug);
+  return (
+    <button
+      type="button"
+      className={clsx("sidebar-tree-page-row", isActive && "sidebar-tree-page-row-active")}
+      onClick={() => {
+        navigate(`/page/${vault}/${node.path.replace(/^content\//, "")}`);
+        onClose();
+      }}
+      style={{ paddingLeft: 8 + depth * 12 }}
+      title={node.title ?? node.path}
+    >
+      <span aria-hidden className="sidebar-tree-page-dot" style={{ background: nodeColor(node.pageType) }} />
+      <span className="sidebar-tree-page-label">{displayTitle(node)}</span>
+    </button>
   );
 }
 
 function SidebarStatsWidget({ activeVault }: { activeVault: string }) {
-  const [stats, setStats] = useState<{ pages: number; broken: number; locks: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!activeVault) return;
-    let active = true;
-    setLoading(true);
-
-    async function fetchWidgetData() {
-      try {
-        const [rStats, rLocks] = await Promise.all([
-          fetch(`/api/vaults/${encodeURIComponent(activeVault)}/stats`),
-          fetch(`/api/vaults/${encodeURIComponent(activeVault)}/locks`),
-        ]);
-        if (!active) return;
-        const dStats = await rStats.json();
-        const dLocks = await rLocks.json();
-        setStats({
-          pages: dStats.pages || 0,
-          broken: dStats.broken_links || 0,
-          locks: dLocks.locks ? Object.keys(dLocks.locks).length : 0,
-        });
-      } catch (e) {
-        console.error("Sidebar stats fetch fail", e);
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    fetchWidgetData();
-    return () => {
-      active = false;
-    };
-  }, [activeVault]);
-
-  if (!activeVault) return null;
-
   return (
     <div
       style={{
         padding: "10px 12px",
-        borderRadius: "var(--radius-sm)",
-        background: "var(--color-surface-soft, #f8f9fa)",
-        border: "1px solid var(--color-hairline, #e9ecef)",
-        marginBottom: 16,
+        background: "var(--color-surface-soft)",
+        border: "1px solid var(--color-hairline)",
+        borderRadius: "var(--radius-md)",
         fontSize: 12,
+        color: "var(--color-muted)",
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--color-ink)", display: "flex", justifyContent: "space-between" }}>
-        <span>📊 보관소 건강도</span>
-        {loading && <span style={{ fontSize: 10, color: "var(--color-muted)" }}>...</span>}
+      <div style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 13, marginBottom: 2 }}>
+        {activeVault || "—"}
       </div>
-      {stats ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, textAlign: "center" }}>
-          <div>
-            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>페이지</div>
-            <div style={{ fontWeight: 700, color: "var(--color-ink)", marginTop: 2 }}>{stats.pages}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>깨진 링크</div>
-            <div style={{ fontWeight: 700, color: stats.broken > 0 ? "var(--color-danger-text)" : "var(--color-ink)", marginTop: 2 }}>{stats.broken}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "var(--color-muted)" }}>활성 락</div>
-            <div style={{ fontWeight: 700, color: stats.locks > 0 ? "var(--color-primary)" : "var(--color-ink)", marginTop: 2 }}>{stats.locks}</div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ color: "var(--color-muted)", fontSize: 11 }}>데이터가 없습니다</div>
-      )}
+      <div style={{ fontFamily: "var(--font-display)" }}>현재 보관소</div>
     </div>
   );
 }
