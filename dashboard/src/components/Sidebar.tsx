@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
@@ -21,6 +21,31 @@ interface SidebarProps {
 }
 
 const VAULT_OPEN_KEY = "__vault__";
+
+// v0.7.97.4+: 사이드바 resize. 데스크탑에서만. localStorage 영속화.
+const SIDEBAR_WIDTH_KEY = "raven.sidebar.width";
+const SIDEBAR_WIDTH_DEFAULT = 288;
+const SIDEBAR_WIDTH_MIN = 200;
+const SIDEBAR_WIDTH_MAX = 480;
+
+function readSidebarWidth(): number {
+  if (typeof window === "undefined") return SIDEBAR_WIDTH_DEFAULT;
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    const n = raw ? parseInt(raw, 10) : NaN;
+    if (!Number.isFinite(n)) return SIDEBAR_WIDTH_DEFAULT;
+    return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, n));
+  } catch {
+    return SIDEBAR_WIDTH_DEFAULT;
+  }
+}
+
+function writeSidebarWidth(w: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w));
+  } catch {}
+}
 
 function openFoldersStorageKey(vault: string): string {
   return `raven.sidebar.openFolders.${vault}`;
@@ -110,6 +135,18 @@ export function Sidebar({
   const [filter, setFilter] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(() => readFavoriteVaults());
 
+  // v0.7.97.4+: 사이드바 width + drag state
+  const [width, setWidth] = useState<number>(() => readSidebarWidth());
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 744px)");
+    const onChange = () => setIsMobile(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
   function toggleFavorite(name: string) {
     setFavorites((prev) => {
       const next = new Set(prev);
@@ -124,6 +161,47 @@ export function Sidebar({
   const activeTree = trees[activeVault] ?? null;
   const activeRawItems = rawItems[activeVault] ?? [];
 
+  // v0.7.97.4+: resize drag handlers. 데스크탑에서만 활성화.
+  function onResizeStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (isMobile) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = width;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const next = Math.min(
+        SIDEBAR_WIDTH_MAX,
+        Math.max(SIDEBAR_WIDTH_MIN, startWidth + dx)
+      );
+      setWidth(next);
+    };
+    const onUp = (ev: PointerEvent) => {
+      try { target.releasePointerCapture(ev.pointerId); } catch {}
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      // 최종 값 persist
+      const finalWidth = Math.min(
+        SIDEBAR_WIDTH_MAX,
+        Math.max(SIDEBAR_WIDTH_MIN, startWidth + (ev.clientX - startX))
+      );
+      writeSidebarWidth(finalWidth);
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }
+
+  function onResizeDoubleClick() {
+    setWidth(SIDEBAR_WIDTH_DEFAULT);
+    writeSidebarWidth(SIDEBAR_WIDTH_DEFAULT);
+  }
+
   return (
     <aside
       id="primary-sidebar"
@@ -135,15 +213,29 @@ export function Sidebar({
       )}
       style={{
         borderRight: "1px solid var(--color-hairline)",
-        width: 288,
+        // v0.7.97.4+: width 동적 (resize). 모바일은 fixed width로 덮어씀.
+        width: isMobile ? undefined : width,
         padding: "16px 16px 20px",
         background: "var(--color-canvas)",
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
         height: "100%",
+        position: "relative",
       }}
     >
+      {/* v0.7.97.4+: resize handle (desktop only) */}
+      {!isMobile && (
+        <div
+          className="sidebar-resize-handle"
+          onPointerDown={onResizeStart}
+          onDoubleClick={onResizeDoubleClick}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="사이드바 크기 조정 (더블클릭 시 기본값)"
+          title="끌어서 크기 조절 · 더블클릭 시 기본값"
+        />
+      )}
       <div className="sidebar-top-actions">
         <button
           type="button"
