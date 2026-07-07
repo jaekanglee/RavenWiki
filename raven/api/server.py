@@ -2239,6 +2239,147 @@ def read_guide(name: str, kind: str) -> dict:
     }
 
 
+# v0.7.94+: Lite bootstrap 3종 diff vs 템플릿.
+# v0.7.89 read_guide와 동일한 화이트리스트 (Tier 1 leak 방지). Template은
+# raven/core/templates/{agent/,log.md} (raven install source of truth).
+# 운영자가 "내 vault의 SCHEMA가 왜 mismatch?" 즉시 진단 가능.
+import difflib as _difflib
+
+_LITE_TEMPLATE_MAP: dict[str, str] = {
+    # kind (URL path, vault-relative)        → vault-relative filesystem path
+    "_meta/agents/SCHEMA.md":          "_meta/agents/SCHEMA.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "_meta/agents/PROJECT-WORKFLOW.md",
+    "log.md":                            "log.md",
+}
+
+# v0.7.94+: 템플릿은 raven install source of truth (raven/core/templates/).
+# 화이트 3종 (Lite bootstrap) 가 vault 에 주입될 때 사용된 원본.
+_LITE_TEMPLATE_SRC: dict[str, str] = {
+    # kind (URL path)                        → template-relative path
+    "_meta/agents/SCHEMA.md":          "agent/SCHEMA.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "agent/PROJECT-WORKFLOW.md",
+    "log.md":                            "log.md",
+}
+
+
+@app.get("/api/vaults/{name}/guide-diff/{kind:path}")
+def read_guide_diff(name: str, kind: str) -> dict:
+    """Lite bootstrap 3종 unified diff (vault vs 템플릿).
+
+    difflib 표준 라이브러리 (외부 의존성 0). 응답 shape:
+        {
+          ok, vault, kind,
+          identical: bool,
+          template_path: str,   # 비교 대상 (raven install 경로)
+          diff_lines: [         # unified diff 라인 (None이면 동일)
+            {tag: '+'/'-'/' '/'', content: str, old_lineno?, new_lineno?},
+            ...
+          ],
+          stats: {added, removed, equal},
+          truncated: bool       # 200줄 초과 시 압축
+        }
+
+    AGENTS.md §4 Lite bootstrap 정책: 3종은 운영자가 직접 편집 ❌. mismatch는
+    Raven 버전 갱신 또는 `raven meta sync --lite`로 해결. 이 endpoint는 진단용.
+    """
+    v = _vault_or_404(name)
+    candidates = [kind, kind.lstrip("/")]
+    if "/" in kind:
+        candidates.append(kind.split("/")[-1])
+    rel_target: str | None = None
+    template_src: str | None = None
+    for c in candidates:
+        if c in _LITE_TEMPLATE_MAP:
+            rel_target = _LITE_TEMPLATE_MAP[c]
+            template_src = _LITE_TEMPLATE_SRC[c]
+            break
+    if rel_target is None or template_src is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
+                f"Allowed: {sorted(_LITE_TEMPLATE_MAP.keys())}"
+            ),
+        )
+    fp = v.root / rel_target
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"guide file not present: {rel_target!r}")
+
+    # 템플릿 (raven install source of truth) 읽기
+    from pathlib import Path as _Path
+    template_root = _Path(__file__).resolve().parent.parent / "core" / "templates"
+    template_fp = template_root / template_src
+    if not template_fp.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"template file not found (raven install corruption?): {template_src!r}",
+        )
+
+    try:
+        vault_text = fp.read_text(encoding="utf-8", errors="replace")
+        template_text = template_fp.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"failed to read files: {e}")
+
+    # 라인 단위 split + unified diff
+    vault_lines = vault_text.splitlines(keepends=True)
+    template_lines = template_text.splitlines(keepends=True)
+    diff_iter = _difflib.unified_diff(
+        template_lines, vault_lines,
+        fromfile=f"template/{rel_target}",
+        tofile=f"vault/{rel_target}",
+        lineterm="",
+    )
+    raw_diff = list(diff_iter)
+    identical = len(raw_diff) == 0
+
+    # 200줄 압축 (대형 PROJECT-WORKFLOW.md 333줄 — diff 가독성)
+    MAX_DIFF_LINES = 200
+    truncated = len(raw_diff) > MAX_DIFF_LINES
+    display_diff = raw_diff[:MAX_DIFF_LINES] if truncated else raw_diff
+
+    # unified_diff 출력은 "--- file\n+++ file\n@@ ...\n" 헤더 + diff 라인.
+    # Frontend 가독성 위해 라인별 구조화.
+    diff_lines = []
+    added = removed = equal = 0
+    for line in display_diff:
+        if line.startswith("---") or line.startswith("+++"):
+            # 헤더 라인은 무시 (path만)
+            continue
+        if line.startswith("@@"):
+            # hunk 헤더 (구간 정보) — 패스
+            continue
+        if line.startswith("+"):
+            diff_lines.append({"tag": "+", "content": line[1:]})
+            added += 1
+        elif line.startswith("-"):
+            diff_lines.append({"tag": "-", "content": line[1:]})
+            removed += 1
+        else:
+            # ' ' (공백 prefix) — 동일 라인
+            diff_lines.append({"tag": " ", "content": line[1:] if line.startswith(" ") else line})
+            equal += 1
+
+    return {
+        "ok": True,
+        "vault": name,
+        "kind": rel_target,
+        "identical": identical,
+        "template_path": str(template_fp),
+        "diff_lines": diff_lines if not identical else [],
+        "stats": {
+            "added": added if not identical else 0,
+            "removed": removed if not identical else 0,
+            "equal": equal if not identical else (len(vault_lines)),
+        },
+        "truncated": truncated,
+        "truncation_note": (
+            f"diff > {MAX_DIFF_LINES} lines — 상위 {MAX_DIFF_LINES}줄만 표시. "
+            "전체 비교는 CLI `diff` 사용."
+        ) if truncated else None,
+    }
+
+
 @app.put("/api/vaults/{name}/raw/{path:path}")
 def write_raw(
     name: str,

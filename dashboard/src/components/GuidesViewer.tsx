@@ -14,7 +14,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchGuide,
+  fetchGuideDiff,
   LITE_GUIDE_KINDS,
+  type LiteGuideDiffResult,
+  type LiteGuideDiffLine,
   type LiteGuideKind,
   type LiteGuideResult,
   type VaultInfo,
@@ -43,6 +46,137 @@ const KIND_META: Record<
   },
 };
 
+// v0.7.94+: unified diff 렌더 (vault vs raven install 템플릿).
+// 외부 의존성 0 — DOM 직접 생성. CSS 토큰 활용 (var(--color-success-text) 등).
+function DiffView({ diff, loading, error }: {
+  diff: LiteGuideDiffResult | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div style={{ padding: 16, color: "var(--color-muted)", fontSize: 13 }}>
+        diff 계산 중…
+      </div>
+    );
+  }
+  if (error) {
+    return <EmptyState title="diff 실패" description={error} />;
+  }
+  if (!diff) {
+    return <EmptyState title="diff 데이터 없음" description="다시 시도해 주세요." />;
+  }
+  if (diff.identical) {
+    return (
+      <div
+        style={{
+          padding: 16,
+          background: "var(--color-success-bg, #d4f4dd)",
+          color: "var(--color-success-text, #0e6b2e)",
+          borderRadius: "var(--radius-sm)",
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        ✓ 이 vault의 {diff.kind} 가 raven 설치 템플릿과 완전히 일치합니다.
+        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 6, color: "var(--color-muted)" }}>
+          템플릿: {diff.template_path}
+        </div>
+      </div>
+    );
+  }
+  const { added, removed } = diff.stats;
+  return (
+    <div>
+      <div
+        style={{
+          padding: "8px 12px",
+          marginBottom: 8,
+          background: "var(--color-surface-soft)",
+          border: "1px solid var(--color-hairline)",
+          borderRadius: "var(--radius-sm)",
+          fontSize: 12,
+          color: "var(--color-ink)",
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <span style={{ color: "var(--color-success-text)", fontWeight: 600 }}>
+          + {added} 추가
+        </span>
+        <span style={{ color: "var(--color-danger-text)", fontWeight: 600 }}>
+          − {removed} 삭제
+        </span>
+        <span style={{ color: "var(--color-muted)", fontSize: 11, marginLeft: "auto" }}>
+          vs raven 설치 템플릿
+        </span>
+      </div>
+      {diff.truncated && diff.truncation_note && (
+        <div
+          style={{
+            padding: "6px 10px",
+            marginBottom: 8,
+            background: "var(--color-warning-bg, #fff4d6)",
+            color: "var(--color-warning-text, #7a5a00)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: 11,
+          }}
+        >
+          ⚠ {diff.truncation_note}
+        </div>
+      )}
+      <pre
+        style={{
+          margin: 0,
+          padding: 12,
+          background: "var(--color-canvas)",
+          border: "1px solid var(--color-hairline)",
+          borderRadius: "var(--radius-sm)",
+          fontSize: 12,
+          fontFamily: "ui-monospace, SFMono-Regular, monospace",
+          lineHeight: 1.5,
+          overflow: "auto",
+        }}
+      >
+        {diff.diff_lines.map((line, i) => (
+          <DiffLineRow key={i} line={line} />
+        ))}
+      </pre>
+    </div>
+  );
+}
+
+function DiffLineRow({ line }: { line: LiteGuideDiffLine }) {
+  const tag = line.tag;
+  const bg =
+    tag === "+"
+      ? "var(--color-success-bg, #d4f4dd)"
+      : tag === "-"
+        ? "var(--color-danger-bg, #fbe0e0)"
+        : "transparent";
+  const color =
+    tag === "+"
+      ? "var(--color-success-text, #0e6b2e)"
+      : tag === "-"
+        ? "var(--color-danger-text, #a01010)"
+        : "var(--color-ink)";
+  return (
+    <div
+      style={{
+        background: bg,
+        color,
+        padding: "0 6px",
+        whiteSpace: "pre",
+        minHeight: "1.5em",
+      }}
+    >
+      <span style={{ display: "inline-block", width: 14, opacity: 0.6 }}>{tag === " " ? "" : tag}</span>
+      {line.content}
+    </div>
+  );
+}
+
 export interface GuidesViewerProps {
   vaults: VaultInfo[];
   activeVault: string;
@@ -66,6 +200,11 @@ export function GuidesViewer({
   const [guide, setGuide] = useState<LiteGuideResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // v0.7.94+: preview / diff view toggle. diff 모드일 때만 fetchGuideDiff 호출.
+  const [viewMode, setViewMode] = useState<"preview" | "diff">("preview");
+  const [diff, setDiff] = useState<LiteGuideDiffResult | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
 
   // vaultLocked: drawer 외부에서 activeVault 변경 시 (drawer 재오픈 등) 동기화.
   useEffect(() => {
@@ -95,6 +234,37 @@ export function GuidesViewer({
   useEffect(() => {
     loadGuide();
   }, [loadGuide]);
+
+  // v0.7.94+: diff 로딩 — viewMode=diff 일 때만 fetch.
+  const loadDiff = useCallback(async () => {
+    if (!activeVault) return;
+    setDiffLoading(true);
+    setDiffError(null);
+    try {
+      const r = await fetchGuideDiff(activeVault, activeKind);
+      if (!r) {
+        setDiff(null);
+        setDiffError("diff fetch 실패 (vault 또는 파일 부재).");
+      } else {
+        setDiff(r);
+      }
+    } catch (e) {
+      setDiff(null);
+      setDiffError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setDiffLoading(false);
+    }
+  }, [activeVault, activeKind]);
+
+  useEffect(() => {
+    if (viewMode === "diff") loadDiff();
+  }, [viewMode, loadDiff]);
+
+  // activeKind 변경 시 viewMode=preview로 리셋 (diff 결과 stale 방지).
+  useEffect(() => {
+    setViewMode("preview");
+    setDiff(null);
+  }, [activeKind]);
 
   const activeMeta = useMemo(() => KIND_META[activeKind], [activeKind]);
 
@@ -325,6 +495,55 @@ export function GuidesViewer({
               flexShrink: 0,
             }}
           >
+            {/* v0.7.94+: preview / diff 토글. compact(drawer) 에서만 표시. */}
+            {compact && (
+              <div
+                role="tablist"
+                style={{
+                  display: "inline-flex",
+                  border: "1px solid var(--color-hairline)",
+                  borderRadius: "var(--radius-sm)",
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === "preview"}
+                  onClick={() => setViewMode("preview")}
+                  data-testid="guide-view-preview"
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 12,
+                    border: "none",
+                    background: viewMode === "preview" ? "var(--color-primary-bg)" : "transparent",
+                    color: "var(--color-ink)",
+                    cursor: "pointer",
+                    fontWeight: viewMode === "preview" ? 600 : 400,
+                  }}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === "diff"}
+                  onClick={() => setViewMode("diff")}
+                  data-testid="guide-view-diff"
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 12,
+                    border: "none",
+                    background: viewMode === "diff" ? "var(--color-primary-bg)" : "transparent",
+                    color: "var(--color-ink)",
+                    cursor: "pointer",
+                    fontWeight: viewMode === "diff" ? 600 : 400,
+                  }}
+                >
+                  Diff
+                </button>
+              </div>
+            )}
             {guide && (
               <span
                 style={{
@@ -339,7 +558,10 @@ export function GuidesViewer({
             )}
             <button
               type="button"
-              onClick={loadGuide}
+              onClick={() => {
+                loadGuide();
+                if (viewMode === "diff") loadDiff();
+              }}
               className="btn-secondary"
               style={{
                 padding: "4px 10px",
@@ -398,10 +620,12 @@ export function GuidesViewer({
         </div>
 
         <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-          {loading ? (
+          {loading || diffLoading ? (
             <div style={{ padding: 16, color: "var(--color-muted)", fontSize: 13 }}>
               불러오는 중…
             </div>
+          ) : viewMode === "diff" ? (
+            <DiffView diff={diff} loading={diffLoading} error={diffError} />
           ) : error ? (
             <EmptyState title="파일이 없습니다" description={error} />
           ) : guide ? (

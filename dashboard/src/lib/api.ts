@@ -604,3 +604,35 @@ export async function fetchGuide(
   if (!r.ok) return null;
   return r.json();
 }
+
+// v0.7.94+: Lite bootstrap 3종 unified diff (vault vs raven install 템플릿).
+// difflib 표준 라이브러리 (외부 의존성 0). 운영자가 "내 vault의 SCHEMA가
+// 왜 mismatch?" 즉시 진단 가능.
+export interface LiteGuideDiffLine {
+  tag: "+" | "-" | " ";
+  content: string;
+}
+export interface LiteGuideDiffResult {
+  ok: boolean;
+  vault: string;
+  kind: LiteGuideKind;
+  identical: boolean;
+  template_path: string;
+  diff_lines: LiteGuideDiffLine[];
+  stats: { added: number; removed: number; equal: number };
+  truncated: boolean;
+  truncation_note: string | null;
+}
+
+export async function fetchGuideDiff(
+  vault: string,
+  kind: LiteGuideKind
+): Promise<LiteGuideDiffResult | null> {
+  // URL: /api/vaults/{name}/guide-diff/{kind} (v0.7.94+, FastAPI route
+  // 매칭 충돌 회피 — /guide/{kind:path}/diff 는 path 매칭이 {kind}/diff 까지 흡수).
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/guide-diff/${encodeURIComponent(kind)}`
+  );
+  if (!r.ok) return null;
+  return r.json();
+}
