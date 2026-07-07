@@ -184,6 +184,8 @@ export function Sidebar({
     target.setPointerCapture(e.pointerId);
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
+    // v0.7.97.4.2+: drag 중 transition 무력화 (paint 비용 차단)
+    document.body.classList.add("sidebar-resizing");
 
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
@@ -200,6 +202,7 @@ export function Sidebar({
       document.removeEventListener("pointerup", onUp);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
+      document.body.classList.remove("sidebar-resizing");
       const dx = ev.clientX - startX;
       const finalWidth = Math.min(
         SIDEBAR_WIDTH_MAX,
