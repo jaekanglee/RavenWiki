@@ -14,6 +14,7 @@ import {
 import { EmptyState } from "../components/ui/EmptyState";
 import { EmptyIcon } from "../lib/emptyIcons";
 import { Button } from "../components/ui/Button";
+import { ButtonIcon } from "../components/ui/ButtonIcon";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Toast } from "../components/ui/Toast";
 
@@ -290,7 +291,7 @@ export function LintPage() {
         </label>
         <Button onClick={load} variant="secondary" size="sm">
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <EmptyIcon.Refresh />새로고침
+            <ButtonIcon.Refresh />새로고침
           </span>
         </Button>
         <label
