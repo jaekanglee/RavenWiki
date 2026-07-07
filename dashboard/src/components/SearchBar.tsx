@@ -5,20 +5,25 @@ import { useDebounced } from "../lib/useDebounced";
 
 /**
  * SearchBar — pill-shaped (search-bar-pill token).
- * 9999px radius, 64px height, hairline + shadow border.
+ * 9999px radius, header 64px / sidebar 40px height, hairline + shadow border.
  * Single Rausch "search orb" button on the right.
  *
  * ARIA combobox with full keyboard navigation + touch selection.
  *
  * v0.7.69+: 220ms debounce 통일 (SearchPage와 동일). useDebounced hook 사용 —
  * §13 재사용 hook 추출. IME 조합 중 / 빠른 typing 시 /api/vaults/{}/search 폭주 방지.
+ *
+ * v0.7.97+: variant prop. header (default, 64px) / sidebar (40px) — 헤더 그룹화
+ * 사이클에서 검색을 사이드바로 이관하면서 추가. dropdown combobox 동작은 동일.
  */
 export function SearchBar({
   vault,
   onSelect,
+  variant = "header",
 }: {
   vault: string;
   onSelect?: (slug: string) => void;
+  variant?: "header" | "sidebar";
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
@@ -30,6 +35,10 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const listboxId = `search-results-${vault}`;
+  // v0.7.97+: variant별 사이즈 토큰.
+  const SIZE = variant === "sidebar"
+    ? { height: 40, btn: 36, fontSize: 14, paddingX: 16, btnFont: 16 }
+    : { height: 64, btn: 48, fontSize: 15, paddingX: 24, btnFont: 18 };
 
   // Reset activeIndex whenever query changes.
   useEffect(() => {
@@ -131,7 +140,7 @@ export function SearchBar({
         style={{
           display: "flex",
           alignItems: "center",
-          height: 64,
+          height: SIZE.height,
           background: "var(--color-canvas)",
           border: focused
             ? "2px solid var(--color-ink)"
@@ -140,7 +149,7 @@ export function SearchBar({
           boxShadow: focused
             ? "var(--shadow-card)"
             : "0 1px 2px var(--shadow-base)",
-          padding: "0 6px 0 24px",
+          padding: `0 6px 0 ${SIZE.paddingX}px`,
           transition: "border-color 0.12s ease, box-shadow 0.12s ease",
         }}
       >
@@ -172,7 +181,7 @@ export function SearchBar({
             border: "none",
             outline: "none",
             background: "transparent",
-            fontSize: 15,
+            fontSize: SIZE.fontSize,
             color: "var(--color-ink)",
             fontFamily: "inherit",
           }}
@@ -180,8 +189,8 @@ export function SearchBar({
         <button
           aria-label="검색"
           style={{
-            width: 48,
-            height: 48,
+            width: SIZE.btn,
+            height: SIZE.btn,
             borderRadius: "var(--radius-full)",
             background: "var(--color-primary)",
             color: "var(--color-on-primary)",
@@ -190,7 +199,7 @@ export function SearchBar({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 18,
+            fontSize: SIZE.btnFont,
             flexShrink: 0,
           }}
         >

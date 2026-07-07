@@ -1,7 +1,6 @@
-import { Outlet, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
+import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
-import { SearchBar } from "./SearchBar";
 import { fetchRawList, fetchVaults, fetchTree, getActiveVault, setActiveVault, type RawItem } from "../lib/api";
 import { useEffect, useState } from "react";
 import { VaultPicker } from "./VaultPicker";
@@ -27,7 +26,6 @@ export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: 
 }
 
 export function Layout() {
-  const navigate = useNavigate();
   const [vault, setVault] = useState<string>(() => getActiveVault() || "");
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -177,78 +175,72 @@ export function Layout() {
 
       <main className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
         <header
-          className="top-nav-row flex items-center gap-4 px-8"
+          className="top-nav-row flex items-center px-8"
           style={{
-            height: 80,
+            height: 64,
             borderBottom: "1px solid var(--color-hairline)",
             background: "var(--color-canvas)",
+            // v0.7.97+: 헤더 두 클러스터를 좌/우 끝으로 분리. 가운데는 비움.
+            justifyContent: "space-between",
+            gap: 16,
           }}
         >
-          {/* Hamburger — mobile only (≤744px). */}
-          <button
-            type="button"
-            className="header-hamburger"
-            onClick={() => setMobileNavOpen((v) => !v)}
-            aria-label="메뉴 열기"
-            aria-expanded={isMobile && mobileNavOpen}
-            aria-controls="primary-sidebar"
-          >
-            <span aria-hidden style={{ fontSize: 22, lineHeight: 1 }}>
-              ☰
-            </span>
-          </button>
+          {/* Left cluster: hamburger + brand + vault */}
+          <div className="top-nav-left flex items-center gap-3" style={{ flexShrink: 0 }}>
+            {/* Hamburger — mobile only (≤744px). */}
+            <button
+              type="button"
+              className="header-hamburger"
+              onClick={() => setMobileNavOpen((v) => !v)}
+              aria-label="메뉴 열기"
+              aria-expanded={isMobile && mobileNavOpen}
+              aria-controls="primary-sidebar"
+            >
+              <span aria-hidden style={{ fontSize: 22, lineHeight: 1 }}>
+                ☰
+              </span>
+            </button>
 
-          {/* Wordmark — pure brand, no vault info */}
-          <Link
-            to="/"
-            className="text-ink"
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              letterSpacing: "-0.2px",
-              color: "var(--color-ink)",
-              textDecoration: "none",
-              flexShrink: 0,
-            }}
-          >
-            <span aria-hidden style={{ marginRight: 6 }}>🐦</span>Raven
-          </Link>
+            {/* Wordmark — pure brand, no vault info */}
+            <Link
+              to="/"
+              className="text-ink"
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                letterSpacing: "-0.2px",
+                color: "var(--color-ink)",
+                textDecoration: "none",
+                flexShrink: 0,
+              }}
+            >
+              <span aria-hidden style={{ marginRight: 6 }}>🐦</span>Raven
+            </Link>
 
-          {/* Active Vault Indicator */}
-          {vault && (
-            <div className="flex items-center" style={{ flexShrink: 0, gap: 12 }}>
-              <div
-                style={{
-                  height: 16,
-                  width: 1,
-                  background: "var(--color-hairline-strong)",
-                }}
-              />
-              <VaultPicker
-                active={vault}
-                onChange={(name) => {
-                  setVault(name);
-                  setActiveVault(name);
-                  setRefreshKey((k) => k + 1);
-                }}
-              />
-            </div>
-          )}
-
-          {/* Search bar */}
-          <div className="top-nav-search flex-1 flex justify-center min-w-0">
-            <div style={{ width: "100%", maxWidth: 560 }}>
-              <SearchBar
-                vault={vault}
-                onSelect={(s) => {
-                  navigate(`/page/${vault}/${s}`);
-                }}
-              />
-            </div>
+            {/* Active Vault Indicator */}
+            {vault && (
+              <div className="flex items-center" style={{ flexShrink: 0, gap: 12 }}>
+                <div
+                  style={{
+                    height: 16,
+                    width: 1,
+                    background: "var(--color-hairline-strong)",
+                  }}
+                />
+                <VaultPicker
+                  active={vault}
+                  onChange={(name) => {
+                    setVault(name);
+                    setActiveVault(name);
+                    setRefreshKey((k) => k + 1);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Right-side product tabs */}
-          <nav className="top-nav-tabs flex items-center gap-1">
+          {/* Right cluster: nav tabs (v0.7.97+: SearchBar는 Sidebar로 이관됨) */}
+          <nav className="top-nav-tabs flex items-center gap-1" style={{ flexShrink: 0 }}>
             {NAV_TABS.map((t) => (
               <Link
                 key={t.to}
@@ -274,14 +266,22 @@ export function Layout() {
 
         <div
           className="page-content flex-1 overflow-y-auto"
-          style={{ padding: "32px 64px", background: "var(--color-canvas)" }}
+          style={{
+            // v0.7.97+: 컨텐츠 센터 컨테이너. 좌측 쏠림 → 가운데 정렬.
+            padding: "32px 64px",
+            background: "var(--color-canvas)",
+            display: "flex",
+            justifyContent: "center",
+          }}
         >
-          <Outlet
-            context={{
-              vault,
-              refresh: () => setRefreshKey((k) => k + 1),
-            }}
-          />
+          <div style={{ width: "100%", maxWidth: 1200 }}>
+            <Outlet
+              context={{
+                vault,
+                refresh: () => setRefreshKey((k) => k + 1),
+              }}
+            />
+          </div>
         </div>
       </main>
     </div>

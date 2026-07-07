@@ -1053,20 +1053,16 @@ mark {
  *   1280px — comfortable desktop (single-line layout)
  */
 
-/* Top nav — wrap onto a second row when there isn't room for everything. */
+/* Top nav — wrap onto a second row when there isn't room for everything.
+ * v0.7.97+: top-nav-search 제거됨 (사이드바로 이관). wrap만 유지. */
 @media (max-width: 1279px) {
   .top-nav-row {
     flex-wrap: wrap;
     height: auto !important;
-    min-height: 80px;
+    min-height: 64px;
     padding-top: 12px;
     padding-bottom: 12px;
     gap: 12px;
-  }
-  .top-nav-search {
-    order: 3;
-    flex-basis: 100%;
-    max-width: none !important;
   }
   .top-nav-tabs {
     overflow-x: auto;
@@ -1771,6 +1767,32 @@ mark {
   color: var(--color-ink);
   box-shadow: var(--shadow-raised);
   font-weight: 600;
+}
+
+/* v0.7.97+: 즐겨찾기 버튼 토큰화 (Sidebar 인라인 style 제거) */
+.sidebar-favorite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+.sidebar-favorite-btn:hover,
+.sidebar-favorite-btn:focus {
+  background-color: var(--color-favorite-hover-bg);
+  border-color: var(--color-primary);
+}
+.sidebar-favorite-btn-active {
+  color: var(--color-primary);
 }
 
 .graph-canvas-frame {

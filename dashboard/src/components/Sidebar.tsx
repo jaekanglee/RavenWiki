@@ -5,6 +5,7 @@ import { NewPageButton } from "./NewPageButton";
 import { NewFolderButton } from "./NewFolderButton";
 import { nodeColor } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
+import { SearchBar } from "./SearchBar";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
 interface SidebarProps {
@@ -236,38 +237,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => toggleFavorite(activeVault)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-favorite-hover-bg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.borderColor = "var(--color-hairline)";
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-favorite-hover-bg)";
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.borderColor = "var(--color-hairline)";
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 0,
-                width: 38,
-                height: 38,
-                fontSize: 16,
-                border: "1px solid var(--color-hairline)",
-                borderRadius: "var(--radius-sm)",
-                backgroundColor: "transparent",
-                color: favorites.has(activeVault) ? "var(--color-primary)" : "var(--color-muted)",
-                cursor: "pointer",
-                transition: "background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease",
-                outline: "none",  // focus 시 기본 outline 대신 border-color로 표현
-              }}
+              className={clsx(
+                "sidebar-favorite-btn",
+                favorites.has(activeVault) && "sidebar-favorite-btn-active"
+              )}
               title={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
               aria-label={favorites.has(activeVault) ? "즐겨찾기 해제" : "즐겨찾기 추가"}
             >
@@ -291,16 +264,27 @@ export function Sidebar({
       )}
 
       {vaults.length > 0 && (
-        <label className="sidebar-filter-label">
-          <span className="sr-only">파일 또는 폴더 필터</span>
-          <input
-            className="sidebar-filter-input"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="파일 또는 폴더 필터..."
-            aria-label="파일 또는 폴더 필터"
+        <>
+          {/* v0.7.97+: 헤더에서 이관된 전역 검색. 필터와 역할 분리. */}
+          <SearchBar
+            vault={activeVault}
+            variant="sidebar"
+            onSelect={(slug) => {
+              navigate(`/page/${activeVault}/${slug}`);
+              onClose();
+            }}
           />
-        </label>
+          <label className="sidebar-filter-label" style={{ marginTop: 10 }}>
+            <span className="sr-only">파일 또는 폴더 필터</span>
+            <input
+              className="sidebar-filter-input"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="파일 또는 폴더 필터..."
+              aria-label="파일 또는 폴더 필터"
+            />
+          </label>
+        </>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", marginTop: 12 }}>
