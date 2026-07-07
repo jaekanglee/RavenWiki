@@ -13,6 +13,7 @@ import {
 import { EmptyState } from "../components/ui/EmptyState";
 import { EmptyIcon } from "../lib/emptyIcons";
 import { Button } from "../components/ui/Button";
+import { ButtonIcon } from "../components/ui/ButtonIcon";
 
 // v0.7.62+ 모바일 breakpoint (744px). 744 이하면 세로 stack 레이아웃으로 전환.
 const MOBILE_BREAKPOINT = 744;
@@ -443,7 +444,7 @@ export function WorkspacePage() {
         <div style={{ display: "flex", gap: 8 }}>
           <Button onClick={loadStatus} variant="secondary" size="sm">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <EmptyIcon.Refresh />새로고침
+              <ButtonIcon.Refresh />새로고침
             </span>
           </Button>
           <button

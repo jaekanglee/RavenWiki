@@ -5,6 +5,9 @@
 //
 // 사용처: dashboard/src/components/ui/EmptyState.tsx 호출처 13곳 (SearchPage,
 // PageView, GraphPage, LintPage, WorkspacePage, GardenPage, RawPanel).
+//
+// ⚠ 40×40 hero icon 전용. Button 안 inline으로 쓸 때는 ButtonIcon 사용.
+//   EmptyIcon.Refresh는 v0.7.96+ ButtonIcon.Refresh로 이전됨.
 import React from "react";
 
 const STROKE = {
@@ -43,15 +46,6 @@ export const EmptyIcon = {
       <polyline points="14 2 14 8 20 8" />
       <line x1="9" y1="13" x2="15" y2="13" />
       <line x1="9" y1="17" x2="13" y2="17" />
-    </svg>
-  ),
-  // 새로고침 (LintPage/LogPage/WorkspacePage)
-  Refresh: () => (
-    <svg {...baseSvg(40)} {...STROKE}>
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-      <path d="M8 16H3v5" />
     </svg>
   ),
   // GraphPage 1 — 그래프 로딩 중 (스피너 대용)

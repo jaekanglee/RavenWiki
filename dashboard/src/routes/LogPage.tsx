@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { fetchLog, fetchLogStatus, type LogEntry, type LogStatus } from "../lib/api";
 import { Button } from "../components/ui/Button";
-import { EmptyIcon } from "../lib/emptyIcons";
+import { ButtonIcon } from "../components/ui/ButtonIcon";
 
 /**
  * LogPage — log.md timeline viewer (data table).
@@ -217,7 +217,7 @@ export function LogPage() {
         </label>
         <Button onClick={load} variant="secondary" size="sm">
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <EmptyIcon.Refresh />새로고침
+            <ButtonIcon.Refresh />새로고침
           </span>
         </Button>
         <Button onClick={() => setRawMode(!rawMode)} variant="secondary" size="sm">
