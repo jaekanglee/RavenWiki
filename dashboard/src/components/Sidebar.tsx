@@ -12,6 +12,8 @@ interface SidebarProps {
   trees: Record<string, TNode | null>;
   rawItems: Record<string, import("../lib/api").RawItem[]>;
   activeVault: string;
+  /** v0.7.99+: 현재 PageView의 slug. 사이드바 트리에서 해당 행을 active 강조. */
+  activeSlug: string | null;
   onSelectVault: (name: string) => void;
   onRefresh?: () => void;
   /** Controlled drawer state. Off-canvas only kicks in inside @media (max-width: 744px). */
@@ -126,6 +128,7 @@ export function Sidebar({
   trees,
   rawItems,
   activeVault,
+  activeSlug,
   onSelectVault,
   onRefresh,
   open,
@@ -372,7 +375,7 @@ export function Sidebar({
             tree={filterTree(activeTree, filter)}
             isActive={true}
             showMeta={false}
-            activeSlug={null /* pageSlug은 사용 안 함, page 이동 시 tree highlight는 별도 로직 필요 */}
+            activeSlug={activeSlug}
             filterActive={filter.trim().length > 0}
             onSelect={() => {}}
             onClose={onClose}
@@ -491,6 +494,25 @@ function VaultTreeGroup({
       return next;
     });
   }
+
+  // v0.7.99+: activeSlug가 nested 폴더 안일 때 부모 폴더들 자동 펼침.
+  // slug가 "content/concept/llm-wiki-패턴" → ["content", "content/concept"] 폴더 펼침.
+  // VAULT_OPEN_KEY도 함께 펼침(루트 vault row 토글 = 사이드바 펼침).
+  // activeSlug가 null이거나 다른 vault slug면 아무것도 안 함.
+  useEffect(() => {
+    if (!activeSlug) return;
+    setOpenFolders((prev) => {
+      const parts = activeSlug.split("/").slice(0, -1); // leaf 제외
+      const ancestors = [VAULT_OPEN_KEY, ...parts];
+      let changed = false;
+      const next = new Set(prev);
+      for (const a of ancestors) {
+        if (!next.has(a)) { next.add(a); changed = true; }
+      }
+      if (changed) writeOpenFolders(vault.name, next);
+      return changed ? next : prev;
+    });
+  }, [activeSlug, vault.name]);
 
   return (
     <div style={{ marginBottom: 8 }}>

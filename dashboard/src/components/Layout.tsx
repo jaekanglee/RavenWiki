@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, Navigate } from "react-router-dom";
+import { Outlet, Link, useLocation, useMatch, Navigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { fetchRawList, fetchVaults, fetchTree, getActiveVault, setActiveVault, type RawItem } from "../lib/api";
@@ -33,6 +33,13 @@ export function Layout() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
+
+  // v0.7.99+: 현재 path에서 page slug 추출. /page/:vault/* 패턴에 매치될 때만.
+  // Sidebar의 VaultTreeGroup activeSlug prop으로 흘러서, PageView 진입 시
+  // 사이드바 트리에서 해당 문서 행이 active 강조됨 (v0.7.97 §6 후속).
+  // App.tsx 라우트 정의: /page/:vault/* — wildcard `*`에 slug가 들어옴.
+  const pageMatch = useMatch("/page/:vault/*");
+  const activeSlug = pageMatch?.params["*"] ?? null;
 
   // theme state — 헤더에서 toggle
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -119,6 +126,7 @@ export function Layout() {
         trees={trees}
         rawItems={rawItems}
         activeVault={vault}
+        activeSlug={activeSlug}
         onSelectVault={(name) => { setVault(name); setActiveVault(name); setRefreshKey((k) => k + 1); }}
         onRefresh={() => setRefreshKey((k) => k + 1)}
         open={mobileNavOpen}
