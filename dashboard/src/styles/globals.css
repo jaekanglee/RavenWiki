@@ -975,6 +975,70 @@ mark {
   color: var(--color-ink);
 }
 
+/* v0.7.97+: 헤더 nav pill — icon + label, hover/active 배경 */
+.nav-link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+.nav-link-pill:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.nav-link-pill.nav-link-active {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.nav-link-pill .nav-link-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* v0.7.97+: 헤더 theme 토글 버튼 */
+.app-header-theme-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  color: var(--color-muted);
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.app-header-theme-btn:hover {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+}
+.app-header-theme-btn-active {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-raised);
+}
+
+/* v0.7.97+: 헤더 반응형 — 좁아지면 nav 라벨 숨김 (icon-only), 중앙 crumb 숨김 */
+@media (max-width: 1024px) {
+  .nav-link-pill .nav-link-label {
+    display: none;
+  }
+  .nav-link-pill {
+    padding: 6px 8px;
+  }
+}
+@media (max-width: 744px) {
+  .app-header-center {
+    display: none;
+  }
+  .app-header-brand span:last-child {
+    display: none;
+  }
+}
+
 /* Active Vault Indicator Chip */
 .active-vault-chip {
   display: inline-flex;
@@ -1053,27 +1117,7 @@ mark {
  *   1280px — comfortable desktop (single-line layout)
  */
 
-/* Top nav — wrap onto a second row when there isn't room for everything.
- * v0.7.97+: top-nav-search 제거됨 (사이드바로 이관). wrap만 유지. */
-@media (max-width: 1279px) {
-  .top-nav-row {
-    flex-wrap: wrap;
-    height: auto !important;
-    min-height: 64px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    gap: 12px;
-  }
-  .top-nav-tabs {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    max-width: 100%;
-    -webkit-overflow-scrolling: touch;
-  }
-  .top-nav-tabs::-webkit-scrollbar {
-    height: 4px;
-  }
-}
+
 
 /* Page-local graph — Obsidian-style context minimap embedded below documents. */
 .page-local-graph {
