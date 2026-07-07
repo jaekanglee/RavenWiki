@@ -17,6 +17,16 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
+# Auto-load .env if present (Git-ignored. Set RAVEN_MCP_MODE etc. without
+# shell-wide rc). v0.7.88+: enables per-project configuration. Shell env
+# still wins (later assignment after source).
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
 PID_DIR="tmp"
 API_PID="$PID_DIR/api.pid"
 DASHBOARD_PID="$PID_DIR/dashboard.pid"
