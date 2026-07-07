@@ -33,20 +33,40 @@ interface Props {
   onFullscreen?: () => void;
 }
 
-// SCHEMA 8종(확장 매핑) — type별 노드 색상. 미분류/미인식 → default gray.
+// SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
+// v0.7.98+ 동기화: 기존 8종(decision/manual/pattern/insight) → SCHEMA 9종 정합.
+// SOT: _meta/SCHEMA.md §Type Taxonomy (concept/person/comparison/project/tool/rule/query/journal/issue)
 const TYPE_COLORS: Record<string, string> = {
-  decision: "#a855f7",
   concept: "#22c55e",
-  manual: "#3b82f6",
-  pattern: "#f97316",
-  insight: "#eab308",
-  journal: "#06b6d4",
   person: "#ec4899",
-  comparison: "#ef4444",
   tool: "#6b7280",
+  comparison: "#ef4444",
+  project: "#f97316",
   rule: "#6366f1",
+  query: "#eab308",
+  journal: "#06b6d4",
+  issue: "#a855f7",
 };
 const DEFAULT_COLOR = "#9ca3af";
+
+// v0.7.98+ Sidebar Explorer에서 사용하는 짧은 type 라벨 (3-4글자).
+// SCHEMA 9종 정합. 미인식 type은 빈 문자열 → 라벨 미표시.
+const TYPE_LABELS: Record<string, string> = {
+  concept: "개념",
+  person: "인물",
+  tool: "도구",
+  comparison: "비교",
+  project: "프로젝트",
+  rule: "규칙",
+  query: "Q&A",
+  journal: "일지",
+  issue: "이슈",
+};
+
+export function typeLabel(type: string | undefined): string {
+  if (!type) return "";
+  return TYPE_LABELS[type] ?? "";
+}
 
 // Community palette (v0.6.15+ Louvain). 같은 community id → 같은 색.
 // palette는 type 색과 다르도록 의도적으로 선택 — 구조 vs metadata 시각 구분.
