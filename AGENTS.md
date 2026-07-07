@@ -29,6 +29,13 @@ confidence: high
 >
 > — **Obsidian 모티브 (자유 vault) + Karpathy LLM Wiki (2026) 영감 + 자체 구현체.** 분업: 사람은 source curate + 방향 결정, **원하면** vault의 특정 영역에서 LLM Wiki 패턴(raw/, log.md, _meta/agents/)을 켜서 에이전트가 compile / cross-reference / lint / consistency를 도울 수 있음. **컴파일 후 reuse, 매번 재구성 ❌.**
 >
+> **Layer 1 / 2 라벨 (v0.7.88+ 정합)**: 위 North Star를 두 레이어로 명시:
+> - **Layer 1 (제품)** = Raven 본체. 사람 1차 PKM. 에이전트 없이도 완성.
+> - **Layer 2 (활용)** = 에이전트 활용 레이어 (옵션, 사용자 켤 때만).
+>   에이전트 자신의 cwd 작업 산출물·인사이트를 vault에 위키화. 사람 curation 옵션, 전제 ❌.
+>
+> Lite bootstrap (vault 자동 주입) = Layer 1 sub-feature. 자세한 정식 정의는 vault 부착 후 `_meta/agents/PROJECT-WORKFLOW.md` §0.5.
+>
 > ⚠️ **v0.6.31~v0.6.36 호환 노트**: v0.6.31~36은 "LLM Wiki self-host 구현체" 톤으로 박혀 있었음. v0.6.37에서 사용자 north star 재정렬 — LLM Wiki는 영감/출발점이며 Raven은 Obsidian 대체 자체 구현체. **changelog 원문은 역사 보존**.
 
 ---
