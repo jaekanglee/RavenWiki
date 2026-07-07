@@ -154,6 +154,9 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 - **파일명 = title 슬러그 (ADR-2026-07-08 lint #15, 1:1 매칭 필수)**: frontmatter `title`을 그대로 슬러그화 — 공백/특수문자는 `-`, 영문은 소문자화. title과 slug가 다르면 lint #15가 감지. 한글이든 영문이든 title의 언어를 파일명에서 임의로 번역/음차 ❌.
   - ✅ `title: 로컬 개발 포트 매트릭스` → `로컬-개발-포트-매트릭스.md`
   - ❌ `title: 로컬 개발 포트 매트릭스` → `port-matrix-local-dev.md` (영문 임의 변환)
+  - **main name + 부속어 예외**: `title`이 "Main Name — 부속 설명" 형식일 때, slug는 main name만 사용 가능 (부속어 = 본문만). lint #15 통과.
+    - ✅ `title: MCP Physical Lock — 동시성 충돌 물리적 강제` → `mcp-physical-lock.md` (main name)
+    - ❌ `title: MCP Physical Lock — 동시성 충돌 물리적 강제` → `mcp-physical-lock-동시성-충돌-물리적-강제.md` (full 1:1)
   - **예외 (journal/ADR 컨벤션)**:
     - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택)
     - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합

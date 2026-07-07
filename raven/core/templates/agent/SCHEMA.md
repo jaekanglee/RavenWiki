@@ -85,6 +85,9 @@ aliases: [old-slug-1]     # 선택
   - ✅ `title: 볼트 동기화 설정` → `볼트-동기화-설정.md`
   - ❌ `title: 볼트 동기화 설정` → `vault-sync-setup.md`
 - **의미 있는 슬러그 (필수)**: 슬러그는 사람이 읽을 수 있는 단어여야 합니다. 약어(예: `p1-2`)나 시스템 내부 코드만으로 구성된 슬러그는 의미가 불명확하므로 지양. 의미 있는 핵심 단어를 우선적으로 슬러그에 포함시키세요.
+- **main name + 부속어 예외 (lint #15 정합)**: `title`이 "Main Name — 부속 설명" 형식일 때, slug는 main name (첫 3-4 단어)까지만 사용 가능. 부속어(설명)는 본문에만. lint #15는 main name까지가 1:1이면 통과. 
+  - ✅ `title: MCP Physical Lock — 동시성 충돌 물리적 강제 (v0.7.42)` → `mcp-physical-lock.md` (main name만)
+  - ❌ `title: MCP Physical Lock — 동시성 충돌 물리적 강제 (v0.7.42)` → `mcp-physical-lock-동시성-충돌-물리적-강제-(v0-7-42).md` (full 1:1은 의미 중복)
 - **journal/ADR 컨벤션 예외**:
   - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택), slug에는 날짜를 박지 않음 (`created/updated`와 구분)
   - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합 (ADR 식별자)
