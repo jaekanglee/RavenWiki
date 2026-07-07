@@ -91,9 +91,9 @@ Lite bootstrap 정책(v0.7.65+): vault 진입 시 받는 것은 `_meta/agents/` 
 
 ---
 
-## §1. MCP 사용법 (도구 10종 + 도달법 + 권한 모드)
+## §1. MCP 사용법 (도구 13종 + 도달법 + 권한 모드)
 
-Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 10개 도구를 제공합니다.
+Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 13개 도구를 제공합니다.
 각 도구의 full 시그니처는 **클라이언트의 `tools/list` 응답**(MCP 표준 자동 discovery)으로
 확인할 수 있습니다 — 별도 문서 참조 없이 schema가 자동 제공됩니다.
 
@@ -105,19 +105,19 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 10
 | `read` | `wiki_graph(project?)` | 페이지 간 링크 그래프 | `query` |
 | `read` | `wiki_log(tail_n=20)` | log.md 최근 N개 구조화 JSON | `query` |
 | `read` | `wiki_stale_detect()` | ADR-2026-07-06 §1.3 — stale 후보 + evidence + suggested_action | `lint` |
-| `read` | `wiki_get_guide(kind)` | **v0.7.91+** Lite bootstrap 3종 read-only (`_meta/agents/SCHEMA.md` / `_meta/agents/PROJECT-WORKFLOW.md` / `log.md`). 화이트리스트 외 403, `wiki_stale_detect`로 stale 정책 확인 가능 | `query` |
+| `read` | `wiki_get_guide(kind)` | **v0.7.91+** Lite bootstrap 3종 read-only viewer (`_meta/agents/SCHEMA.md` / `_meta/agents/PROJECT-WORKFLOW.md` / `log.md`). 화이트리스트 외 403, `wiki_stale_detect`로 stale 정책 확인 가능 | `query` |
 | `read` | `wiki_get_guide_diff(kind)` | **v0.7.95+** Lite bootstrap 3종 vs raven 설치 템플릿 unified diff (200줄 truncation, v0.7.94 REST 1:1). "내 vault 지침이 왜 mismatch?" 진단 | `lint` |
-| `write` | `wiki_update(slug, content, frontmatter?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
+| `write` | `wiki_update(slug, content, frontmatter_data?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
 | `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?, user_command=False)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만, ADR-2026-07-02) | `ingest` |
-| `write` | `wiki_archive(slug, reason?, actor?, idempotency_key?)` | ADR-2026-07-06 §1.3 — `_archive/` 격리 (1.5배 본문 가드 회피) | `archive` |
+| `write` | `wiki_archive(slug, reason?, actor?, idempotency_key?)` | ADR-2026-07-06 §1.3 — `archive/<YYYY-MM-DD>/<slug>.md` 격리 (1.5배 본문 가드 회피) | `archive` |
 | `admin` | `wiki_delete(slug, actor?, idempotency_key?)` | 페이지 영구 삭제 (archive와 다름 — 사람 운영자 전용) | `delete` |
-| `admin` | `wiki_rename(old_slug, new_slug, actor?, idempotency_key?)` | slug 변경 + 인바운드 wikilink 재작성 | `rename` |
+| `admin` | `wiki_rename(old_slug, new_slug, actor?, idempotency_key?)` | slug 변경 + 인바운드 wikilink 재작성 (lint #15 자동 수리) | `rename` |
 
 > **모든 도구는 `vault=<등록된 vault 이름>` 인자 필수** — Raven MCP 서버는 다중 vault 등록을 지원하며, 도구 호출 시 어떤 vault를 조작할지 명시해야 합니다.
 
 ### §1.1 `wiki_update` 사용 규약 (v0.7.66+)
 
-- `content` = 본문 마크다운. 메타데이터는 **`frontmatter` 파라미터**로 전달 (권장).
+- `content` = 본문 마크다운. 메타데이터는 **`frontmatter_data` 파라미터**로 전달 (권장).
   content 선두에 `---` frontmatter 블록을 넣으면 자동으로 메타로 승격되지만,
   파라미터 분리가 정확하다.
 - 신규 slug는 생성된다 (upsert). 단, 이 vault에서는 frontmatter의 `type`이
@@ -177,7 +177,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 
 | 모드 | 제공 도구 | 일반 사용 |
 |---|---|---|
-| `read` | 6종 (검색/조회/lint/graph/log/stale_detect) | 기본. 안전. 권장 시작점 |
+| `read` | 8종 (검색/조회/lint/graph/log/stale_detect/get_guide/get_guide_diff) | 기본. 안전. 권장 시작점 |
 | `write` | + `wiki_update`, `wiki_ingest`, `wiki_archive` | vault 페이지 생성/수정/격리 |
 | `admin` | + `wiki_delete`, `wiki_rename` | 사람 운영자 전용 — 위험 액션 |
 
@@ -273,7 +273,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 - [ ] 일지/저널 문서의 경우 최상단에 3줄 이내의 `# 요약` 섹션이 포함됨
 - [ ] wikilink ≥ 1 + 맥락 설명 (Orphan 방지)
 - [ ] 본문이 사람 문장으로 읽힘 (운영 메타/JSON/빈 TBD 금지)
-- [ ] 모든 쓰기 완료 후 `wiki_lint`를 실행하여 새로운 무결성 에러가 발생하지 않는지 셀프 검증함
+- [ ] 모든 쓰기 완료 후 별도로 `wiki_lint()` 도구를 호출하여 새로운 무결성 에러가 발생하지 않는지 셀프 검증함
 - [ ] §3 저장 신호 4가지 통과
 
 ### §6.2 에이전트 자율 점검 가이드 (Self-Verification Checklist)
@@ -281,11 +281,11 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 작업 완료 보고 전에 스스로 다음 기준을 만족했는지 재검증하십시오:
 
 *   **지식 밀도**: 이 문서가 훗날 다른 에이전트나 사람이 참고할 만큼 지식 밀도가 높은가?
-*   **RAG 4원칙**:
+*   **RAG 4원칙** (AGENTS.md §15.2와 동일):
     *   **Think Before Searching (검색 전 사색)**: 뇌피셜로 지식 유무를 추정하지 않고 가정을 검증하기 위해 전문 검색(`wiki_search`)을 계획하여 실행했는가?
     *   **Surgical Retrieval (외과 수술식 조회)**: 불필요한 대량 컨텍스트 대신 정밀한 키워드로 최소한의 정밀한 탐색을 수행했는가?
     *   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출)**: 단순히 검색 결과를 나열하는 대신 문제 해결의 성공 기준에 직접 trace되는 정보만 정밀 추출했는가?
-    *   **Root-Cause Investigation (컴파일 전 원인 조사)**: 문서 간 정보 충돌 시 임의로 덮어쓰지 않고, 히스토리(`log.md` 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
+    *   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사)**: 문서 간 정보 충돌 시 임의로 덮어쓰지 않고, 히스토리(`log.md` 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
 
 ### §6.5 큐레이션 기본 점검 (정리 모드 표준 순서)
 
@@ -299,10 +299,13 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 3. #4 orphan(유예 경과) — 관련 페이지에서 인바운드 링크 연결 시도, 불가 시
    아카이브 후보로 `type: issue` 발의 (발의만)
 4. #7 stale — 사실이 바뀐 페이지는 갱신, 판단 불가면 `type: issue` 발의
-5. #10 frontmatter 불완전 — `wiki_update`의 frontmatter 파라미터로 보수 (수리 가능)
+5. #10 frontmatter 불완전 — `wiki_update`의 `frontmatter_data` 파라미터로 보수 (수리 가능)
 6. #8 200줄 초과 — 분할안 제안 (발의만)
 7. #12 log 500건 도달 — 사람에게 `raven log rotate` 요청 (사람 전용)
-8. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
+8. **#15 slug-title 불일치 (ADR-2026-07-08)** — `wiki_rename(new_slug)`으로 자동 수리.
+   단 기존 wikilink 추적성 보존이 필요하면 `aliases`에 옛 slug 보존 (SCHEMA.md L74-75).
+   vault 운영자가 일괄 호출 결정 — 에이전트 자율 일괄 rename ❌ (north star "원문 보존" 위배)
+9. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
 
 `raven garden` / `raven curator`는 **사람 운영자 전용 CLI**다 — 에이전트는
 실행할 수 없으므로, 정리가 필요한 항목은 위 절차대로 감지·발의까지만 한다.
@@ -318,7 +321,7 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 ## §7.5 멀티 에이전트 협업 규칙
 
 - **폴더 분리**: 프로필별 `content/{profile_name}/` 전용 서브폴더 내에서만 작성. 타 프로필 영역 수정 필요 시 사용자 승인 또는 `_meta/`에 교차 참조.
-- **락/재시도**: MCP 쓰기 도구의 락 획득 상태/에러 반환을 확인하고, 실패 시 백오프 후 재시도. 병렬 작업이 빈번하면 프로필별 독립 브랜치/워크트리 후 순차 통합.
+- **advisory lock**: `wiki_update` 응답에 첨부되는 `_lock_holder` 필드는 **advisory** 정보 — write는 락 상태와 무관하게 진행됩니다. 동시성 보호가 아니라 **충돌 감지/감사 목적**이며, 동시 쓰기 시 사용자 책임입니다 (`AGENTS.md §3` "멀티 에이전트 write = experimental"). idempotency_key로 네트워크 재시도만 보장됩니다. 동시성 빈번 시 프로필별 폴더 분리(위) 또는 사람 운영자에게 순차화 요청.
 - **log.md**: 액션 뒤에 프로필 식별자 접두사 (`## [YYYY-MM-DD] create | slug [profile-name]`). 동시 대량 작업 시 기록 시점을 미세하게 엇갈리게.
 - **wiki.db**: 직접 SQL 수정 금지 — 반드시 `raven build`로 마크다운에서 재컴파일.
 - **`_meta/index.md`**: 직접 파싱/수정 금지 — `raven build`의 index builder만 갱신 가능.
