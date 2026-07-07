@@ -2179,6 +2179,66 @@ def read_raw(name: str, path: str):
     }
 
 
+# v0.7.89+: Lite bootstrap 3종 read-only viewer (Dashboard /guides 페이지).
+# 화이트리스트 외 경로는 403. SCHEMA/PROJECT-WORKFLOW는 vault create 시 Lite bootstrap으로
+# 자동 주입되고 log.md는 빈 헤더로 시작 → 운영자가 "이 vault의 지침이 뭐지?"를 즉시 확인.
+# v0.7.65+ AGENTS.md §4: 이 3종이 외부 에이전트에게 노출되는 유일한 Tier 2 표면.
+_LITE_GUIDE_WHITELIST: dict[str, str] = {
+    # kind (URL path)              → vault-relative filesystem path
+    "_meta/agents/SCHEMA.md":          "_meta/agents/SCHEMA.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "_meta/agents/PROJECT-WORKFLOW.md",
+    "log.md":                            "log.md",
+}
+
+
+@app.get("/api/vaults/{name}/guide/{kind:path}")
+def read_guide(name: str, kind: str) -> dict:
+    """Lite bootstrap 3종 read-only viewer (Dashboard /guides).
+
+    kind must be in _LITE_GUIDE_WHITELIST. 그 외 경로는 403.
+    """
+    v = _vault_or_404(name)
+    # 화이트리스트 매칭 (kind 자체 또는 kind의 basename 모두 시도 — '/kind' vs 'kind' 호환).
+    candidates = [kind, kind.lstrip("/"), kind.split("/")[-1] if "/" in kind else kind]
+    rel_target: str | None = None
+    for c in candidates:
+        if c in _LITE_GUIDE_WHITELIST:
+            rel_target = _LITE_GUIDE_WHITELIST[c]
+            break
+    if rel_target is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
+                f"Allowed: {sorted(_LITE_GUIDE_WHITELIST.keys())}"
+            ),
+        )
+    fp = v.root / rel_target
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"guide file not present: {rel_target!r}")
+    if fp.is_dir():
+        raise HTTPException(status_code=400, detail=f"guide path is a directory: {rel_target!r}")
+    try:
+        content = fp.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"failed to read guide: {e}")
+    try:
+        stat = fp.stat()
+        size = stat.st_size
+        modified = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        size = None
+        modified = None
+    return {
+        "ok": True,
+        "vault": name,
+        "kind": rel_target,
+        "content": content,
+        "size": size,
+        "modified": modified,
+    }
+
+
 @app.put("/api/vaults/{name}/raw/{path:path}")
 def write_raw(
     name: str,
