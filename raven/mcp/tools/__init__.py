@@ -684,3 +684,116 @@ def read_guide(vault: Path, kind: str) -> dict[str, Any]:
         "size": size,
         "modified": modified,
     }
+
+
+# v0.7.95+: Lite bootstrap 3종 unified diff (vault vs raven install 템플릿).
+# v0.7.94 REST surface 와 1:1 contract. difflib 표준 (외부 의존성 0).
+# 에이전트가 "내 vault 지침이 왜 mismatch?" 진단 가능 (Dashboard drawer 와
+# 같은 surface). 화이트리스트 3종 fail-closed 동일 (Tier 1 leak 방지).
+_MAX_DIFF_LINES = 200
+_LITE_GUIDE_DIFF_TEMPLATE: dict[str, str] = {
+    # kind (URL path)                        → template-relative path
+    "_meta/agents/SCHEMA.md":          "agent/SCHEMA.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "agent/PROJECT-WORKFLOW.md",
+    "log.md":                            "log.md",
+}
+
+
+def _resolve_guide_template(kind: str) -> tuple[str, str]:
+    """Return (vault-relative path, template-relative path) for ``kind``.
+
+    화이트 3종만 매칭. 비화이트는 GuideNotFoundError.
+    """
+    candidates = [kind, kind.lstrip("/")]
+    if "/" in kind:
+        candidates.append(kind.split("/")[-1])
+    for c in candidates:
+        if c in LITE_GUIDE_KINDS:
+            return c, _LITE_GUIDE_DIFF_TEMPLATE[c]
+    raise GuideNotFoundError(
+        f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
+        f"Allowed: {sorted(LITE_GUIDE_KINDS)}"
+    )
+
+
+def read_guide_diff(vault: Path, kind: str) -> dict[str, Any]:
+    """Unified diff of a Lite bootstrap file vs raven install template.
+
+    Returns the same shape as the REST endpoint:
+        {ok, vault, kind, identical, template_path, diff_lines, stats, truncated, truncation_note}
+
+    Errors:
+        GuideNotFoundError: ``kind`` not whitelisted.
+        FileNotFoundError: vault / kind ok but the file isn't on disk.
+        RuntimeError: template file not found (raven install corruption).
+    """
+    import difflib
+
+    rel_target, template_src = _resolve_guide_template(kind)
+    fp = vault / rel_target
+    if not fp.exists():
+        raise FileNotFoundError(f"guide file not present: {rel_target!s}")
+
+    # Template path: raven install source of truth. server.py와 동일
+    # layout 가정 (raven/core/templates/{agent,log.md}).
+    from pathlib import Path as _P
+    template_root = _P(__file__).resolve().parent.parent.parent / "core" / "templates"
+    template_fp = template_root / template_src
+    if not template_fp.exists():
+        raise RuntimeError(
+            f"template file not found (raven install corruption?): {template_src!r}"
+        )
+
+    try:
+        vault_text = fp.read_text(encoding="utf-8", errors="replace")
+        template_text = template_fp.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        raise OSError(f"failed to read files: {e}")
+
+    vault_lines = vault_text.splitlines(keepends=True)
+    template_lines = template_text.splitlines(keepends=True)
+    raw_diff = list(
+        difflib.unified_diff(
+            template_lines, vault_lines,
+            fromfile=f"template/{template_src}",
+            tofile=f"vault/{rel_target}",
+            lineterm="",
+        )
+    )
+    identical = len(raw_diff) == 0
+    truncated = len(raw_diff) > _MAX_DIFF_LINES
+    display_diff = raw_diff[:_MAX_DIFF_LINES] if truncated else raw_diff
+
+    diff_lines: list[dict[str, str]] = []
+    added = removed = equal = 0
+    for line in display_diff:
+        if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
+            continue
+        if line.startswith("+"):
+            diff_lines.append({"tag": "+", "content": line[1:]})
+            added += 1
+        elif line.startswith("-"):
+            diff_lines.append({"tag": "-", "content": line[1:]})
+            removed += 1
+        else:
+            diff_lines.append({"tag": " ", "content": line[1:] if line.startswith(" ") else line})
+            equal += 1
+
+    return {
+        "ok": True,
+        "vault": vault.name,
+        "kind": rel_target,
+        "identical": identical,
+        "template_path": str(template_fp),
+        "diff_lines": diff_lines if not identical else [],
+        "stats": {
+            "added": added if not identical else 0,
+            "removed": removed if not identical else 0,
+            "equal": equal if not identical else len(vault_lines),
+        },
+        "truncated": truncated,
+        "truncation_note": (
+            f"diff > {_MAX_DIFF_LINES} lines — 상위 {_MAX_DIFF_LINES}줄만 표시. "
+            "전체 비교는 CLI `diff` 사용."
+        ) if truncated else None,
+    }

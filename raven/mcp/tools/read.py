@@ -1,12 +1,13 @@
 """read.py — read-only MCP tools (always permitted).
 
 Tools:
-    wiki_search     — FTS5 BM25
-    wiki_get_page   — single page + backlinks/tags/outbound
-    wiki_lint       — raven.core.lint (14 checks), same runner as the REST API
-    wiki_graph      — nodes + edges
-    wiki_log        — last N log.md entries
-    wiki_get_guide  — Lite bootstrap 3종 read-only viewer (v0.7.91+, /api/vaults/{name}/guide/ 동일 surface)
+    wiki_search       — FTS5 BM25
+    wiki_get_page     — single page + backlinks/tags/outbound
+    wiki_lint         — raven.core.lint (14 checks), same runner as the REST API
+    wiki_graph        — nodes + edges
+    wiki_log          — last N log.md entries
+    wiki_get_guide    — Lite bootstrap 3종 read-only viewer (v0.7.91+)
+    wiki_get_guide_diff — Lite bootstrap 3종 unified diff (v0.7.95+, vs raven install template)
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from typing import Optional
 
 from raven.mcp import db
 from raven.mcp.tools import VaultContext
-from raven.mcp.tools import LITE_GUIDE_KINDS, _resolve_guide_path
+from raven.mcp.tools import LITE_GUIDE_KINDS, _resolve_guide_path, read_guide, read_guide_diff
 
 
 # ─────────────── 1. wiki_search ───────────────
@@ -120,5 +121,27 @@ def wiki_get_guide(
     from disk is technically a vault-external system call).
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
-    from raven.mcp.tools import read_guide as _read_guide
-    return _read_guide(vault=ctx.vault, kind=kind)
+    return read_guide(vault=ctx.vault, kind=kind)
+
+
+# ─────────────── 7. wiki_get_guide_diff (v0.7.95+) ───────────────
+
+
+def wiki_get_guide_diff(
+    kind: str,
+    ctx: Optional[VaultContext] = None,
+) -> dict:
+    """Unified diff of a Lite bootstrap file vs raven install template.
+
+    Mirrors ``GET /api/vaults/{name}/guide-diff/{kind:path}`` (v0.7.94) so
+    MCP and REST expose the same diagnostic surface. The 3-kind whitelist
+    is enforced by ``_resolve_guide_template`` — anything else raises
+    ``GuideNotFoundError`` (MCP tool error).
+
+    Useful for agents to diagnose "why is my vault's PROJECT-WORKFLOW
+    mismatched?" without reaching into the filesystem. The diff is
+    line-based (difflib.unified_diff) and truncated at 200 lines for
+    large files like PROJECT-WORKFLOW.md.
+    """
+    ctx = ctx or VaultContext(vault=db._default_vault())
+    return read_guide_diff(vault=ctx.vault, kind=kind)
