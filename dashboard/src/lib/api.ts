@@ -575,3 +575,32 @@ export async function fetchWorkspaceFile(
   if (!r.ok) return null;
   return r.json();
 }
+
+// v0.7.89+: Lite bootstrap 3종 read-only viewer (Dashboard /guides 페이지).
+// kind ∈ {"_meta/agents/SCHEMA.md", "_meta/agents/PROJECT-WORKFLOW.md", "log.md"}
+export const LITE_GUIDE_KINDS = [
+  "_meta/agents/SCHEMA.md",
+  "_meta/agents/PROJECT-WORKFLOW.md",
+  "log.md",
+] as const;
+export type LiteGuideKind = (typeof LITE_GUIDE_KINDS)[number];
+
+export interface LiteGuideResult {
+  ok: boolean;
+  vault: string;
+  kind: LiteGuideKind;
+  content: string;
+  size: number | null;
+  modified: string | null;
+}
+
+export async function fetchGuide(
+  vault: string,
+  kind: LiteGuideKind
+): Promise<LiteGuideResult | null> {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/guide/${encodeURIComponent(kind)}`
+  );
+  if (!r.ok) return null;
+  return r.json();
+}

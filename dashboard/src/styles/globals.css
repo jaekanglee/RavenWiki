@@ -2196,6 +2196,12 @@ mark {
   to   { opacity: 1; }
 }
 
+/* v0.7.89+: 지침 drawer slide-in (VaultManage 우측). */
+@keyframes raven-drawer-slide {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
 /* Search bar collapses to a single tappable pill on phones (per airbnb rule). */
 @media (max-width: 744px) {
   .search-bar-pill {

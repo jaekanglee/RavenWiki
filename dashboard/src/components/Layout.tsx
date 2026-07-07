@@ -13,6 +13,8 @@ const NAV_TABS = [
   { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
   { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
   { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
+  // v0.7.89+: /guides는 TOP nav에 두지 않음 (탭 9개 과잉). VaultManage 행 액션
+  // "📖 지침 보기"가 새 탭으로 deep-link (/guides?vault=X) → 직접 진입도 가능.
   { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
   { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
   { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },

@@ -4,6 +4,7 @@ import { Toast } from "../components/ui/Toast";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
+import { GuidesViewer } from "../components/GuidesViewer";
 
 // v0.7.72+: 4개 action icon 이모지 → Lucide SVG (currentColor → var(--color-ink) 자동 상속).
 // ui-ux 스킬 §P: 이모지 ❌ (OS별 렌더링 차이, 다크모드 깨짐).
@@ -43,6 +44,14 @@ const ActionIcon = {
       <path d="M10 11v6" />
       <path d="M14 11v6" />
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  ),
+  // v0.7.89+: '지침 보기' 액션 — BookText (Lucide outline). 새 탭 /guides?vault=X.
+  BookText: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
     </svg>
   ),
 };
@@ -106,6 +115,19 @@ export function VaultManage() {
   // v0.7.75+: vault 일괄 bootstrap 상태 (페이지 진입 시 자동 검사)
   const [bootstrapStatus, setBootstrapStatus] = useState<Record<string, BootstrapStatus>>({});
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  // v0.7.89+: '지침 보기' drawer — 같은 탭 우측 inline expand (Jira/Notion 스타일).
+  // 컨텍스트 100% 유지 (다른 vault들의 status 비교 가능). 새 탭 ❌.
+  const [activeGuideVault, setActiveGuideVault] = useState<string | null>(null);
+
+  // Esc로 drawer 닫기.
+  useEffect(() => {
+    if (!activeGuideVault) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveGuideVault(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [activeGuideVault]);
 
   // ─── bootstrap / verify ─────────────────────────────
   async function handleVerify(name: string) {
@@ -397,6 +419,96 @@ export function VaultManage() {
   return (
     <div style={{ maxWidth: 960 }}>
       <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
+
+      {/* v0.7.89+: '지침 보기' drawer — 같은 탭 우측 inline expand.
+          window.open ❌ (컨텍스트 손실) → drawer ✅ (Jira/Notion 스타일).
+          Esc로 닫기, backdrop 클릭으로 닫기, ✕ 버튼. */}
+      {activeGuideVault && (
+        <>
+          <div
+            onClick={() => setActiveGuideVault(null)}
+            aria-hidden
+            data-testid="guide-drawer-backdrop"
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.18)",
+              zIndex: 50,
+            }}
+          />
+          <aside
+            role="dialog"
+            aria-label={`지침 viewer — ${activeGuideVault}`}
+            data-testid="guide-drawer"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "min(960px, 90vw)",
+              background: "var(--color-canvas)",
+              borderLeft: "1px solid var(--color-hairline)",
+              boxShadow: "-8px 0 24px rgba(0,0,0,0.08)",
+              zIndex: 51,
+              display: "flex",
+              flexDirection: "column",
+              animation: "raven-drawer-slide 0.18s ease-out",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "16px 24px",
+                borderBottom: "1px solid var(--color-hairline)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", letterSpacing: "0.32px", fontFamily: "var(--font-display)" }}>
+                  지침 (read-only) · in {activeGuideVault}
+                </div>
+                <div style={{ fontSize: 13, color: "var(--color-ink)", marginTop: 2 }}>
+                  Lite bootstrap 3종 — SCHEMA / PROJECT-WORKFLOW / log.md
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveGuideVault(null)}
+                aria-label="drawer 닫기"
+                title="닫기 (Esc)"
+                style={{
+                  width: 32,
+                  height: 32,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-hairline)",
+                  background: "transparent",
+                  color: "var(--color-ink)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ flex: 1, padding: "16px 24px 24px", overflow: "hidden", minHeight: 0 }}>
+              <GuidesViewer
+                vaults={vaults as unknown as Parameters<typeof GuidesViewer>[0]["vaults"]}
+                activeVault={activeGuideVault}
+                vaultLocked
+                compact
+                onClose={() => setActiveGuideVault(null)}
+              />
+            </div>
+          </aside>
+        </>
+      )}
       {/* v0.7.82+: banner 자세히 모달 — mismatch/missing 파일 목록 */}
       <Modal
         open={Boolean(bootstrapDetail)}
@@ -785,6 +897,17 @@ export function VaultManage() {
                         >
                           <ActionIcon.Refresh />
                         </button>
+                        {/* v0.7.89+: '지침 보기' — 같은 탭 우측 drawer inline expand.
+                            window.open ❌ (컨텍스트 손실) → drawer ✅ (Jira/Notion 스타일). */}
+                        <button
+                          onClick={() => setActiveGuideVault(v.name)}
+                          disabled={busy}
+                          style={btnGhost}
+                          title="지침 보기 (read-only, 우측 drawer)"
+                          aria-label={`view guides for ${v.name}`}
+                        >
+                          <ActionIcon.BookText />
+                        </button>
                         <button
                           onClick={() => {
                             setEditingName(v.name);
@@ -891,6 +1014,16 @@ export function VaultManage() {
                     >
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <ActionIcon.Refresh />지침 당겨오기
+                      </span>
+                    </button>
+                    {/* v0.7.89+: '지침 보기' — 같은 탭 우측 drawer (window.open ❌). */}
+                    <button
+                      onClick={() => setActiveGuideVault(v.name)}
+                      disabled={busy}
+                      style={{ ...btnGhost, marginRight: 0, width: "100%" }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <ActionIcon.BookText />지침 보기
                       </span>
                     </button>
                     <button
