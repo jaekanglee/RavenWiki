@@ -1830,6 +1830,23 @@ mark {
   font-weight: 600;
 }
 
+/* v0.7.97.4.2+: sidebar resize 중 transition 무력화 (drag 버벅임 해결).
+   body에 .sidebar-resizing class 부착 시 사이드바 내부 모든 transition/transform 끔.
+   drag 끝나면 class 제거 → 원래 transition 복귀. */
+.sidebar-resizing .sidebar-offcanvas,
+.sidebar-resizing .sidebar-offcanvas * {
+  transition: none !important;
+  animation: none !important;
+}
+/* v0.7.97.4.2+: drag 중 페이지 영역 layout thrash 방지.
+   main + page-content에 layout containment → 사이드바 resize가 페이지 내부에 영향 안 줌.
+   transition도 같이 끔. */
+.sidebar-resizing main,
+.sidebar-resizing .page-content {
+  contain: layout !important;
+  transition: none !important;
+}
+
 /* v0.7.97.4+: 사이드바 resize handle */
 .sidebar-resize-handle {
   position: absolute;
