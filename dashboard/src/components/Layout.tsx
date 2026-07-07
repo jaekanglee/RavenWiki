@@ -12,8 +12,6 @@ const NAV_TABS = [
   { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
   { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
   { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
-  // v0.7.89+: /guides는 TOP nav에 두지 않음 (탭 9개 과잉). VaultManage 행 액션
-  // "📖 지침 보기"가 새 탭으로 deep-link (/guides?vault=X) → 직접 진입도 가능.
   { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
   { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
   { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
@@ -25,34 +23,55 @@ export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: 
   return vaults.find((v) => v.default)?.name || vaults[0]?.name || "";
 }
 
+// v0.7.97+: 헤더 중앙에 표시되는 경로 crumb. 라우트에서 페이지 컨텍스트 추출.
+// /page/{vault}/{slug...} → "홈 / {slug last segment}"
+// /raw/{vault}/{rel} → "raw / {file}"
+// /graph /search 등 → 라벨 그대로
+function HeaderBreadcrumb({ vault, pathname }: { vault: string; pathname: string }) {
+  let crumb: string | null = null;
+  let m = pathname.match(/^\/page\/[^/]+\/(.+)$/);
+  if (m) {
+    const slug = decodeURIComponent(m[1]);
+    const segs = slug.split("/").filter(Boolean);
+    crumb = segs[segs.length - 1] || slug;
+  } else {
+    m = pathname.match(/^\/raw\/[^/]+\/(.+)$/);
+    if (m) crumb = `raw / ${decodeURIComponent(m[1]).split("/").pop()}`;
+    else {
+      const tab = NAV_TABS.find((t) => t.match(pathname) && t.to !== "/");
+      if (tab) crumb = tab.label;
+    }
+  }
+  if (!crumb) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+      <span aria-hidden style={{ color: "var(--color-hairline-strong)" }}>/</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{crumb}</span>
+    </span>
+  );
+}
+
 export function Layout() {
   const [vault, setVault] = useState<string>(() => getActiveVault() || "");
   const [vaults, setVaults] = useState<VaultMeta[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [trees, setTrees] = useState<Record<string, TreeNode | null>>({});
-  // v0.7.50+: raw/ 폴더 트리 (P32 OS directory = first-class).
   const [rawItems, setRawItems] = useState<Record<string, RawItem[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const location = useLocation();
 
-  // ─── load theme ─────────────────────────────────────────────
-  // v0.7.59+: localStorage에 저장된 사용자 명시 선택이 항상 우선 (OS follows ❌).
-  // localStorage가 비어 있으면 OS `prefers-color-scheme` 폴백.
-  // html.dark + data-color-mode 양쪽 set (CSS 양쪽 selector 일관성).
+  // theme state — 헤더에서 토글
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
     try {
       const stored = window.localStorage.getItem("theme");
       if (stored === "dark" || stored === "light") return stored;
-    } catch {
-      // localStorage 접근 실패 (private mode 등) — OS 폴백
-    }
+    } catch {}
     if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
     return "light";
   });
 
-  // theme 변경 시 즉시 localStorage 박기 + html.dark + data-color-mode 모두 set.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const root = window.document.documentElement;
@@ -63,29 +82,13 @@ export function Layout() {
       root.classList.remove("dark");
       root.setAttribute("data-color-mode", "light");
     }
-    try {
-      window.localStorage.setItem("theme", theme);
-    } catch {
-      // localStorage 쓰기 실패 — 무시
-    }
+    try { window.localStorage.setItem("theme", theme); } catch {}
   }, [theme]);
 
-  // ─── load all vaults ────────────────────────────────────────
   useEffect(() => {
-    fetchVaults()
-      .then((vs) => {
-        setVaults(vs);
-        setLoaded(true);
-      })
-      .catch(() => {
-        setVaults([]);
-        setLoaded(true);
-      });
+    fetchVaults().then((vs) => { setVaults(vs); setLoaded(true); }).catch(() => { setVaults([]); setLoaded(true); });
   }, [refreshKey]);
 
-  // Graph/Search/Log/Lint rely on Layout outlet context. If localStorage is empty
-  // (fresh browser / cleared PWA state), keep the UI on the API default vault instead
-  // of passing an empty string that makes routes skip their fetches.
   useEffect(() => {
     if (vaults.length === 0) return;
     const next = chooseLayoutVault(vaults, vault, getActiveVault());
@@ -94,9 +97,6 @@ export function Layout() {
     setActiveVault(next);
   }, [vaults, vault]);
 
-  // ─── build tree per vault (in parallel) ─────────────────────
-  // v0.6.16+: 폴더는 1차 시민. fetchTree가 OS 디렉토리 + .md 파일을 모두 반환.
-  // 빈 폴더도 children: []으로 포함. Sidebar가 그대로 렌더.
   useEffect(() => {
     if (vaults.length === 0) return;
     Promise.all(vaults.map((v) => fetchTree(v.name)))
@@ -107,7 +107,6 @@ export function Layout() {
       });
   }, [vaults, refreshKey]);
 
-  // v0.7.50+: fetch raw/ 트리 (각 vault마다). 404면 빈 배열 (raw/ 없는 vault).
   useEffect(() => {
     if (vaults.length === 0) return;
     Promise.all(vaults.map((v) => fetchRawList(v.name)))
@@ -118,7 +117,6 @@ export function Layout() {
       });
   }, [vaults, refreshKey]);
 
-  // Track narrow viewport so the drawer width adapts on small screens.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 744px)");
@@ -128,15 +126,9 @@ export function Layout() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  // Drawer stays open across route changes. Users close it explicitly via dim area,
-  // Escape, or the sidebar close button. This keeps desktop explorer navigation stable.
-
-  // Escape closes the drawer.
   useEffect(() => {
     if (!mobileNavOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileNavOpen(false);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileNavOpen(false); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileNavOpen]);
@@ -145,6 +137,8 @@ export function Layout() {
     return <Navigate to="/vault/new" replace />;
   }
 
+  const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
+
   return (
     <div className="flex h-screen" style={{ background: "var(--color-canvas)" }}>
       <Sidebar
@@ -152,136 +146,171 @@ export function Layout() {
         trees={trees}
         rawItems={rawItems}
         activeVault={vault}
-        onSelectVault={(name) => {
-          setVault(name);
-          setActiveVault(name);
-          setRefreshKey((k) => k + 1);
-        }}
+        onSelectVault={(name) => { setVault(name); setActiveVault(name); setRefreshKey((k) => k + 1); }}
         onRefresh={() => setRefreshKey((k) => k + 1)}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
-        theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
       />
 
-      {/* Drawer backdrop */}
-      {mobileNavOpen && (
-        <div
-          className="sidebar-backdrop"
-          onClick={() => setMobileNavOpen(false)}
-          aria-hidden
-        />
-      )}
+      {mobileNavOpen && <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} aria-hidden />}
 
       <main className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
+        {/* v0.7.97+: 헤더 — sticky 56px 풀폭. 좌(brand) / 중앙(현재 컨텍스트) / 우(nav + theme).
+            노션/옵시디안/Linear 스타일. 헤더는 가볍고, 페이지가 메인. */}
         <header
-          className="top-nav-row flex items-center px-8"
+          className="app-header"
           style={{
-            height: 64,
+            height: 56,
             borderBottom: "1px solid var(--color-hairline)",
             background: "var(--color-canvas)",
-            // v0.7.97+: 헤더 두 클러스터를 좌/우 끝으로 분리. 가운데는 비움.
-            justifyContent: "space-between",
-            gap: 16,
+            boxShadow: "0 1px 0 var(--shadow-base)",
+            flexShrink: 0,
+            position: "sticky",
+            top: 0,
+            zIndex: 50,
           }}
         >
-          {/* Left cluster: hamburger + brand + vault */}
-          <div className="top-nav-left flex items-center gap-3" style={{ flexShrink: 0 }}>
-            {/* Hamburger — mobile only (≤744px). */}
-            <button
-              type="button"
-              className="header-hamburger"
-              onClick={() => setMobileNavOpen((v) => !v)}
-              aria-label="메뉴 열기"
-              aria-expanded={isMobile && mobileNavOpen}
-              aria-controls="primary-sidebar"
-            >
-              <span aria-hidden style={{ fontSize: 22, lineHeight: 1 }}>
-                ☰
-              </span>
-            </button>
-
-            {/* Wordmark — pure brand, no vault info */}
-            <Link
-              to="/"
-              className="text-ink"
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                letterSpacing: "-0.2px",
-                color: "var(--color-ink)",
-                textDecoration: "none",
-                flexShrink: 0,
-              }}
-            >
-              <span aria-hidden style={{ marginRight: 6 }}>🐦</span>Raven
-            </Link>
-
-            {/* Active Vault Indicator */}
-            {vault && (
-              <div className="flex items-center" style={{ flexShrink: 0, gap: 12 }}>
-                <div
-                  style={{
-                    height: 16,
-                    width: 1,
-                    background: "var(--color-hairline-strong)",
-                  }}
-                />
-                <VaultPicker
-                  active={vault}
-                  onChange={(name) => {
-                    setVault(name);
-                    setActiveVault(name);
-                    setRefreshKey((k) => k + 1);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Right cluster: nav tabs (v0.7.97+: SearchBar는 Sidebar로 이관됨) */}
-          <nav className="top-nav-tabs flex items-center gap-1" style={{ flexShrink: 0 }}>
-            {NAV_TABS.map((t) => (
+          <div
+            className="app-header-inner"
+            style={{
+              height: "100%",
+              maxWidth: 1440,
+              margin: "0 auto",
+              padding: "0 20px",
+              display: "grid",
+              gridTemplateColumns: "auto 1fr auto",
+              alignItems: "center",
+              gap: 16,
+            }}
+          >
+            {/* Left — hamburger + brand */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                className="header-hamburger"
+                onClick={() => setMobileNavOpen((v) => !v)}
+                aria-label="메뉴 열기"
+                aria-expanded={isMobile && mobileNavOpen}
+                aria-controls="primary-sidebar"
+              >
+                <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>☰</span>
+              </button>
               <Link
-                key={t.to}
-                to={t.to}
-                className={clsx("nav-link", t.match(location.pathname) && "nav-link-active")}
+                to="/"
+                className="app-header-brand"
                 style={{
+                  fontSize: 17,
+                  fontWeight: 700,
+                  letterSpacing: "-0.2px",
+                  color: "var(--color-ink)",
+                  textDecoration: "none",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
                 }}
-                aria-current={t.match(location.pathname) ? "page" : undefined}
               >
-                <span aria-hidden style={{ fontSize: 14 }}>
-                  {t.icon}
-                </span>
-                {t.label}
+                <span aria-hidden style={{ fontSize: 18 }}>🐦</span>
+                <span>Raven</span>
               </Link>
-            ))}
-          </nav>
+              {/* v0.7.97+: VaultPicker도 헤더 좌측에 inline. compact pill. */}
+              {vault && (
+                <>
+                  <span aria-hidden style={{ color: "var(--color-hairline-strong)", margin: "0 4px" }}>·</span>
+                  <VaultPicker
+                    active={vault}
+                    onChange={(name) => { setVault(name); setActiveVault(name); setRefreshKey((k) => k + 1); }}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Center — 현재 컨텍스트 crumb */}
+            <div
+              className="app-header-center"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                justifyContent: "center",
+                minWidth: 0,
+                color: "var(--color-muted)",
+                fontSize: 13,
+                fontFamily: "var(--font-display)",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {vault && <HeaderBreadcrumb vault={vault} pathname={location.pathname} />}
+            </div>
+
+            {/* Right — nav tabs + theme */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <nav className="app-header-nav" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                {NAV_TABS.map((t) => (
+                  <Link
+                    key={t.to}
+                    to={t.to}
+                    className={clsx("nav-link nav-link-pill", t.match(location.pathname) && "nav-link-active")}
+                    aria-current={t.match(location.pathname) ? "page" : undefined}
+                    title={t.label}
+                  >
+                    <span aria-hidden className="nav-link-icon">{t.icon}</span>
+                    <span className="nav-link-label">{t.label}</span>
+                  </Link>
+                ))}
+              </nav>
+              <div
+                className="app-header-theme"
+                style={{
+                  marginLeft: 6,
+                  display: "flex",
+                  border: "1px solid var(--color-hairline)",
+                  borderRadius: "var(--radius-full)",
+                  padding: 2,
+                  gap: 2,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => theme !== "light" && toggleTheme()}
+                  aria-label="라이트 테마"
+                  title="라이트"
+                  className={clsx("app-header-theme-btn", theme === "light" && "app-header-theme-btn-active")}
+                  style={{ fontSize: 13, padding: "3px 8px" }}
+                >
+                  ☀️
+                </button>
+                <button
+                  type="button"
+                  onClick={() => theme !== "dark" && toggleTheme()}
+                  aria-label="다크 테마"
+                  title="다크"
+                  className={clsx("app-header-theme-btn", theme === "dark" && "app-header-theme-btn-active")}
+                  style={{ fontSize: 13, padding: "3px 8px" }}
+                >
+                  🌙
+                </button>
+              </div>
+            </div>
+          </div>
         </header>
 
         <div
           className="page-content flex-1 overflow-y-auto"
           style={{
-            // v0.7.97+: 컨텐츠 센터 컨테이너. 좌측 쏠림 → 가운데 정렬.
-            padding: "32px 64px",
+            width: "100%",
+            maxWidth: 1440,
+            margin: "0 auto",
+            padding: "32px 40px",
             background: "var(--color-canvas)",
-            display: "flex",
-            justifyContent: "center",
           }}
         >
-          <div style={{ width: "100%", maxWidth: 1200 }}>
-            <Outlet
-              context={{
-                vault,
-                refresh: () => setRefreshKey((k) => k + 1),
-              }}
-            />
-          </div>
+          <Outlet
+            context={{
+              vault,
+              refresh: () => setRefreshKey((k) => k + 1),
+            }}
+          />
         </div>
       </main>
     </div>
