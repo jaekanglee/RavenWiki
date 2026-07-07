@@ -1830,6 +1830,39 @@ mark {
   font-weight: 600;
 }
 
+/* v0.7.97.4+: 사이드바 resize handle */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: var(--color-primary);
+  opacity: 0.35;
+}
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 32px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.sidebar-resize-handle:hover::after {
+  background: var(--color-hairline-strong);
+}
+
 /* v0.7.97.3+: 헤더 theme 토글 버튼 (slim pill) */
 .app-header-theme-btn {
   border: none;
