@@ -54,8 +54,19 @@ export function nodeColor(type: string | undefined): string {
   return TYPE_COLORS[type] ?? DEFAULT_COLOR;
 }
 
-export function nodeSize(weight: number | undefined): number {
-  return 4 + Math.sqrt(Math.max(weight ?? 1, 1)) * 2.5;
+/**
+ * v0.7.139+: 노드 사이즈 — weight(=degree, 연결 수)에 로그-스케일로 비례.
+ * 옛 sqrt 공식(weight 1 vs 24가 2.6배 차이)으로는 빽빽한 캔버스에서 hub가
+ * 묻혔고, leaf는 너무 작아 모바일 tap 타겟도 안 됐다. log2(1+w) 스케일은
+ * weight 1~24 구간을 14~43px로 펼쳐서 leaf 가독 + hub-강조 양쪽을 잡는다.
+ *   - normal: 8 + log2(1+w)*6  (leaf 14, w=10 → 33.9, w=24 → 42.9)
+ *   - dense:  10 + log2(1+w)*7 (leaf 17, w=10 → 38.0, w=24 → 48.0)
+ */
+export function nodeSize(weight: number | undefined, density: "normal" | "dense" = "normal"): number {
+  const w = Math.max(weight ?? 1, 1);
+  const multiplier = density === "dense" ? 7 : 6;
+  const base = density === "dense" ? 10 : 8;
+  return base + Math.log2(1 + w) * multiplier;
 }
 
 // Sidebar와 GraphPage에서 사용하는 타입 라벨 매핑 및 typeLabel 헬퍼 복원 (v0.7.132+)
@@ -82,6 +93,61 @@ const isJSDOM =
     window.navigator.userAgent.includes("Node.js"));
 
 const GRAPH_SCALE_MULTIPLIER = 2.8;
+const DIRECT_CLICK_PADDING_PX = 10;
+const DIRECT_MOUSE_MOVE_TOLERANCE_PX = 8;
+const DIRECT_TOUCH_MOVE_TOLERANCE_PX = 14;
+const DOUBLE_CLICK_DELAY_MS = 200;
+
+interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+interface HitTestNode {
+  id: string;
+  x?: number;
+  y?: number;
+  weight?: number;
+}
+
+export function isStationaryClickGesture(
+  start: CanvasPoint | null,
+  end: CanvasPoint,
+  pointerType: "mouse" | "touch"
+): boolean {
+  if (!start) return true;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const tolerance = pointerType === "touch"
+    ? DIRECT_TOUCH_MOVE_TOLERANCE_PX
+    : DIRECT_MOUSE_MOVE_TOLERANCE_PX;
+  return Math.hypot(dx, dy) <= tolerance;
+}
+
+export function findClosestNodeHit<T extends HitTestNode>(
+  nodes: T[],
+  point: CanvasPoint,
+  density: "normal" | "dense",
+  padding = DIRECT_CLICK_PADDING_PX
+): T | null {
+  let closest: T | null = null;
+  let closestDistSq = Number.POSITIVE_INFINITY;
+
+  for (const node of nodes) {
+    if (typeof node.x !== "number" || typeof node.y !== "number") continue;
+    const dx = point.x - node.x;
+    const dy = point.y - node.y;
+    const distSq = dx * dx + dy * dy;
+    const radius = nodeSize(node.weight, density) + padding;
+    if (distSq > radius * radius) continue;
+    if (distSq < closestDistSq) {
+      closest = node;
+      closestDistSq = distSq;
+    }
+  }
+
+  return closest;
+}
 
 // Vault Halo 색상 스키마
 const VAULT_HALO_COLORS = [
@@ -102,26 +168,8 @@ function resolveVaultColor(vaultName: string): string {
   return VAULT_HALO_COLORS[idx];
 }
 
-function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-}
+// rounded-rect 헬퍼 제거 — v0.7.139+: onRenderFramePre에서 그리던 vault halo 박스를
+// 삭제하면서 호출처가 사라졌다. 향후 다른 캔버스 도형이 필요하면 재도입.
 
 const graphButtonStyle = {
   border: "1px solid var(--graph-border)",
@@ -152,83 +200,78 @@ export function GraphCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const graphInstanceRef = useRef<any>(null);
   const isDense = density === "dense";
+  // v0.7.139+: fitView 트리거 추적. scope 전환(all ↔ current) 또는 첫 데이터 로드 시에만
+  // 호출하기 위해 직전 isDense와 노드 수를 보관. 검색/필터로 nodes가 바뀌어도
+  // 사용자의 pan/zoom 위치가 reset되지 않는다.
+  const prevIsDenseRef = useRef<boolean | null>(null);
+  const prevNodeCountRef = useRef<number>(0);
+  const graphNodesRef = useRef<any[]>([]);
+  const pressStartRef = useRef<{ point: CanvasPoint; pointerType: "mouse" | "touch" } | null>(null);
+  const pendingClickRef = useRef<{ nodeId: string; timeoutId: number } | null>(null);
+  const clickHandlersRef = useRef({
+    onNodeClick,
+    onNodeDoubleClick,
+  });
 
-  const [interactionMode, setInteractionMode] = useState<"pointer" | "hand">(
-    isDense ? "hand" : "pointer"
-  );
-  const [hoveredNode, setHoveredNode] = useState<any>(null);
+  const [hoveredNode, setHoveredNodeState] = useState<any>(null);
+  // v0.7.139+: 현재 zoom 배율 (force-graph의 zoom() 값). onZoom 콜백에서 갱신.
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  // v0.7.139+: hoveredNode를 ref로도 미러링. force-graph의 linkColor/linkWidth/
+  // nodeCanvasObject는 effect 등록 시점의 클로저를 매 paint call에서 호출하므로,
+  // 매번 최신 hover 상태를 보려면 ref가 필요. ref 덕분에 hoveredNode 변경 시
+  // effect가 재실행되지 않아 — 캔버스가 pan/zoom 위치를 잃지 않고, 클릭이 무효화되지 않음.
+  const hoveredNodeRef = useRef<any>(null);
+  const setHoveredNode = (node: any) => {
+    hoveredNodeRef.current = node;
+    setHoveredNodeState(node);
+  };
 
-  // 1. 하이라이트 및 인접 관계 집합 계산
-  const highlightNodes = useMemo(() => {
-    const set = new Set<string>();
-    if (hoveredNode) {
-      set.add(hoveredNode.id);
-      edges.forEach((e) => {
-        if (e.source === hoveredNode.id) set.add(e.target);
-        if (e.target === hoveredNode.id) set.add(e.source);
-      });
-    }
-    if (externalHighlightNodeId) {
-      set.add(externalHighlightNodeId);
-      edges.forEach((e) => {
-        if (e.source === externalHighlightNodeId) set.add(e.target);
-        if (e.target === externalHighlightNodeId) set.add(e.source);
-      });
-    }
-    return set;
-  }, [hoveredNode, externalHighlightNodeId, edges]);
-
-  const highlightLinks = useMemo(() => {
-    const set = new Set<string>();
-    edges.forEach((e, idx) => {
-      const id = `e${idx}`;
-      if (hoveredNode && (e.source === hoveredNode.id || e.target === hoveredNode.id)) {
-        set.add(id);
-      }
-      if (
-        externalHighlightNodeId &&
-        (e.source === externalHighlightNodeId || e.target === externalHighlightNodeId)
-      ) {
-        set.add(id);
-      }
-    });
-    return set;
-  }, [hoveredNode, externalHighlightNodeId, edges]);
-
-  // Space 단축키 처리
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    clickHandlersRef.current = { onNodeClick, onNodeDoubleClick };
+  }, [onNodeClick, onNodeDoubleClick]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      if (
-        activeEl &&
-        (activeEl.tagName === "INPUT" ||
-          activeEl.tagName === "TEXTAREA" ||
-          activeEl.getAttribute("contenteditable") === "true")
-      ) {
-        return;
-      }
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        setInteractionMode("hand");
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        setInteractionMode(isDense ? "hand" : "pointer");
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+  useEffect(() => {
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
+      if (pendingClickRef.current) {
+        window.clearTimeout(pendingClickRef.current.timeoutId);
+        pendingClickRef.current = null;
+      }
     };
-  }, [isDense]);
+  }, []);
+
+  // 1. 하이라이트 및 인접 관계 집합 계산 (ref 기반 — effect deps 안 들어감)
+  const highlightNodesRef = useRef<Set<string>>(new Set());
+  const highlightLinksRef = useRef<Set<string>>(new Set());
+
+  const recomputeHighlights = (hover: any, extId: string | null | undefined, edgeList: typeof edges) => {
+    const nodeSet = new Set<string>();
+    const linkSet = new Set<string>();
+    if (hover) {
+      nodeSet.add(hover.id);
+      edgeList.forEach((e) => {
+        if (e.source === hover.id) nodeSet.add(e.target);
+        if (e.target === hover.id) nodeSet.add(e.source);
+      });
+    }
+    if (extId) {
+      nodeSet.add(extId);
+      edgeList.forEach((e) => {
+        if (e.source === extId) nodeSet.add(e.target);
+        if (e.target === extId) nodeSet.add(e.source);
+      });
+    }
+    edgeList.forEach((e, idx) => {
+      const id = `e${idx}`;
+      if (hover && (e.source === hover.id || e.target === hover.id)) linkSet.add(id);
+      if (extId && (e.source === extId || e.target === extId)) linkSet.add(id);
+    });
+    highlightNodesRef.current = nodeSet;
+    highlightLinksRef.current = linkSet;
+  };
+
+  // (v0.7.139+: 이동 모드 토글 제거 — force-graph native pan/zoom이 항상 동작한다.
+  // Space 단축키 핸들러도 함께 제거됨. dense 모드에서도 노드 탭 → 인사이트,
+  // 더블탭 → 페이지 이동, 드래그 → 캔버스 팬으로 통일.)
 
   // 2. force-graph 인스턴스 초기 생성 (런타임 callable 우회를 위해 캐스팅 및 default export 감지 방어 적용)
   useEffect(() => {
@@ -283,22 +326,22 @@ export function GraphCanvas({
     }));
 
     graph.graphData({ nodes: formattedNodes, links: formattedLinks });
+    graphNodesRef.current = formattedNodes;
+
+    // v0.7.139+: 데이터 변경 시점에 highlight ref를 미리 계산. hover 중에는
+    // setHoveredNode → ref 동기화만 하고 effect는 재실행되지 않아, 캔버스
+    // pan/zoom 위치와 클릭 상태가 보존된다.
+    recomputeHighlights(hoveredNodeRef.current, externalHighlightNodeId, edges);
 
     // 드래그 제어
-    graph.enableNodeDrag(!isDense && interactionMode === "pointer");
+    // v0.7.139+: 노드 드래그 완전 비활성화 — 모바일/터치패드에서 살짝만 손가락이 움직여도
+    // force-graph이 drag로 인식해서 click이 무시되는 버그 방지. dense 모드는 이전부터 off.
+    // 사용자가 위치를 미세 조정하고 싶을 땐 '배치 초기화' 버튼으로 force-directed 재배치.
+    graph.enableNodeDrag(false);
 
     // 이벤트 리스너 바인딩
-    let lastClick = 0;
     graph
-      .onNodeClick((node: any) => {
-        const now = Date.now();
-        if (now - lastClick < 280) {
-          onNodeDoubleClick?.(node.id);
-        } else {
-          onNodeClick?.(node.id);
-        }
-        lastClick = now;
-      })
+      .onNodeClick(() => {})
       .onNodeHover((node: any) => {
         if (node) {
           onNodeInspect?.(node as GraphNode);
@@ -316,7 +359,113 @@ export function GraphCanvas({
             y: node.y / GRAPH_SCALE_MULTIPLIER,
           },
         });
+      })
+      // v0.7.139+: zoom 변경 시 배율 표시 갱신 (pinch / ctrl+wheel / programmatic).
+      .onZoom(({ k }: { k: number }) => {
+        setZoomLevel(k);
       });
+
+    const queueResolvedNodeClick = (nodeId: string) => {
+      const pending = pendingClickRef.current;
+      if (pending && pending.nodeId === nodeId) {
+        window.clearTimeout(pending.timeoutId);
+        pendingClickRef.current = null;
+        clickHandlersRef.current.onNodeDoubleClick?.(nodeId);
+        return;
+      }
+
+      if (pending) {
+        window.clearTimeout(pending.timeoutId);
+        pendingClickRef.current = null;
+      }
+
+      pendingClickRef.current = {
+        nodeId,
+        timeoutId: window.setTimeout(() => {
+          if (pendingClickRef.current?.nodeId !== nodeId) return;
+          pendingClickRef.current = null;
+          clickHandlersRef.current.onNodeClick?.(nodeId);
+        }, DOUBLE_CLICK_DELAY_MS),
+      };
+    };
+
+    const getScreenPoint = (clientX: number, clientY: number) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return null;
+      const screenX = clientX - rect.left;
+      const screenY = clientY - rect.top;
+      if (typeof graph.screen2canvasCoords === "function") {
+        return graph.screen2canvasCoords(screenX, screenY);
+      }
+      return graph.screen2GraphCoords(screenX, screenY);
+    };
+
+    const runDirectHitDetection = (clientX: number, clientY: number, pointerType: "mouse" | "touch") => {
+      const start = pressStartRef.current;
+      if (!isStationaryClickGesture(start?.point ?? null, { x: clientX, y: clientY }, pointerType)) {
+        pressStartRef.current = null;
+        return;
+      }
+
+      const canvasPoint = getScreenPoint(clientX, clientY);
+      if (!canvasPoint) {
+        pressStartRef.current = null;
+        return;
+      }
+
+      const hitNode = findClosestNodeHit(
+        graphNodesRef.current,
+        canvasPoint,
+        isDense ? "dense" : "normal"
+      );
+
+      pressStartRef.current = null;
+      if (!hitNode) return;
+      queueResolvedNodeClick(hitNode.id);
+    };
+
+    const handleMouseDown = (ev: MouseEvent) => {
+      pressStartRef.current = {
+        point: { x: ev.clientX, y: ev.clientY },
+        pointerType: "mouse",
+      };
+    };
+
+    const handleTouchStart = (ev: TouchEvent) => {
+      if (ev.touches.length !== 1) {
+        pressStartRef.current = null;
+        return;
+      }
+      const touch = ev.touches[0];
+      pressStartRef.current = {
+        point: { x: touch.clientX, y: touch.clientY },
+        pointerType: "touch",
+      };
+    };
+
+    const handleMouseUp = (ev: MouseEvent) => {
+      runDirectHitDetection(ev.clientX, ev.clientY, "mouse");
+    };
+
+    const handleTouchEnd = (ev: TouchEvent) => {
+      if (ev.changedTouches.length !== 1) {
+        pressStartRef.current = null;
+        return;
+      }
+      const touch = ev.changedTouches[0];
+      runDirectHitDetection(touch.clientX, touch.clientY, "touch");
+    };
+
+    const handleTouchCancel = () => {
+      pressStartRef.current = null;
+    };
+
+    const container = containerRef.current;
+    container?.addEventListener("mousedown", handleMouseDown, { passive: true });
+    container?.addEventListener("touchstart", handleTouchStart, { passive: true });
+    container?.addEventListener("mouseup", handleMouseUp, { passive: true });
+    container?.addEventListener("touchend", handleTouchEnd, { passive: true });
+    container?.addEventListener("touchcancel", handleTouchCancel, { passive: true });
 
     // 엣지 스타일 정의
     const crossVaultEdgeIds = new Set<string>();
@@ -332,18 +481,18 @@ export function GraphCanvas({
 
     graph
       .linkColor((link: any) => {
-        const isHighlighted = highlightLinks.has(link.id);
+        const isHighlighted = highlightLinksRef.current.has(link.id);
         return isHighlighted
           ? "var(--graph-edge-highlight)"
           : "var(--graph-edge)";
       })
       .linkWidth((link: any) => {
-        const isHighlighted = highlightLinks.has(link.id);
+        const isHighlighted = highlightLinksRef.current.has(link.id);
         return isHighlighted ? 2.2 : 0.8;
       })
       // 하이라이트 시 연결선을 타고 흐르는 이펙트 적용 (Premium Wow-factor)
       .linkDirectionalParticles((link: any) => {
-        const isHighlighted = highlightLinks.has(link.id);
+        const isHighlighted = highlightLinksRef.current.has(link.id);
         return isHighlighted ? 4 : 0;
       })
       .linkDirectionalParticleWidth(2.6)
@@ -353,19 +502,23 @@ export function GraphCanvas({
     graph.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       if (!node || node.x === undefined || node.y === undefined) return;
       const scale = globalScale || 1;
-      const size = nodeSize(node.weight);
-      const isHovered = hoveredNode && hoveredNode.id === node.id;
-      const isHighlighted = highlightNodes.has(node.id);
+      const size = nodeSize(node.weight, isDense ? "dense" : "normal");
+      // v0.7.139+: ref로 최신 hover state를 매 paint call에서 읽는다 (effect 재실행 없음).
+      const currentHover = hoveredNodeRef.current;
+      const isHovered = currentHover && currentHover.id === node.id;
+      const isHighlighted = highlightNodesRef.current.has(node.id);
       const isPersistent = persistentHighlightNodeId === node.id;
       const isFocused =
         isHovered || isPersistent || externalHighlightNodeId === node.id;
 
-      // 1. 노드 본체 (원)
+      // 1. 노드 본체 (원) — zoom 보정 없이 픽셀 그대로 그린다.
+      // force-graph의 `nodeVal/nodeRelSize` 자동 보정에 의존하지 않으므로
+      // baseSize를 zoom-out에서도 가독성 있게 키웠다 (옛 공식 대비 1.7~2배).
       ctx.beginPath();
       ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
-      
+
       // 흐릿한 비포커스 처리
-      const hasFocusActive = externalHighlightNodeId || hoveredNode || externalHighlightType;
+      const hasFocusActive = externalHighlightNodeId || currentHover || externalHighlightType;
       ctx.fillStyle = hasFocusActive && !isFocused && !isHighlighted
         ? `${nodeColor(node.type)}36`
         : nodeColor(node.type);
@@ -380,12 +533,23 @@ export function GraphCanvas({
         : "var(--graph-node-outline)";
       ctx.stroke();
 
-      // 이중 링 효과
+      // 이중 링 효과 (focused)
       if (isFocused) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, size + 2.5 / scale, 0, 2 * Math.PI, false);
         ctx.strokeStyle = "var(--graph-edge-highlight)";
         ctx.lineWidth = 0.8 / scale;
+        ctx.stroke();
+      }
+
+      // v0.7.139+: vault 소속 ring — 전체 vault 모드에서만, 노드 바깥쪽에 vault 색 1.2px ring.
+      // 같은 vault 노드들이 시각적으로 묶여 보이고, FA2 자연 클러스터 위에 색 식별 레이어 추가.
+      // focused 상태에선 highlight ring이 더 중요해서 vault ring은 안 그림.
+      if (showVaultRing && node.vault && !isFocused) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 1.2 / scale, 0, 2 * Math.PI, false);
+        ctx.strokeStyle = resolveVaultColor(node.vault);
+        ctx.lineWidth = 1.2 / scale;
         ctx.stroke();
       }
 
@@ -423,91 +587,47 @@ export function GraphCanvas({
       }
     });
 
-    // Vault Centroids 및 Halo 배경 렌더링
-    graph.onRenderFramePre((ctx: CanvasRenderingContext2D, globalScale: number) => {
-      if (!vaultCentroids || vaultCentroids.length === 0) return;
-      const scale = globalScale || 1;
+    // Vault 소속 ring — v0.7.139+: onRenderFramePre에서 그리던 📁 halo 박스를 제거하고,
+    // 대신 노드 외곽선에 vault 색 1.2px ring을 추가. 같은 vault의 노드들이
+    // 시각적으로 묶여 보이지만 5개 박스가 떠다니는 잡음은 사라진다.
+    // current scope(단일 vault)에서는 모든 노드가 같은 vault이므로 ring이 무의미 → 스킵.
+    const showVaultRing = isDense;
 
-      vaultCentroids.forEach((vc) => {
-        if (
-          !vc ||
-          !Number.isFinite(vc.x) ||
-          !Number.isFinite(vc.y) ||
-          !Number.isFinite(vc.radius) ||
-          vc.radius <= 0
-        ) {
-          return;
-        }
-        const resolvedColor = resolveVaultColor(vc.vault);
-
-        const cx = vc.x * GRAPH_SCALE_MULTIPLIER;
-        const cy = vc.y * GRAPH_SCALE_MULTIPLIER;
-        const cradius = vc.radius * GRAPH_SCALE_MULTIPLIER;
-
-        // 1. Halo Radial Gradient 배경 원 그리기
-        ctx.beginPath();
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cradius);
-        grad.addColorStop(0, resolvedColor + "22");
-        grad.addColorStop(0.6, resolvedColor + "08");
-        grad.addColorStop(1, "transparent");
-
-        ctx.fillStyle = grad;
-        ctx.arc(cx, cy, cradius, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // 2. Centroid Label 그리기 (📁 Vault이름)
-        const fontSize = Math.max(11, Math.min(15, 9 + 5 * scale)) / scale;
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        const text = `📁 ${vc.vault}`;
-        const textWidth = ctx.measureText(text).width;
-        const padding = 5 / scale;
-        
-        ctx.fillStyle = "var(--graph-tooltip-bg)";
-        ctx.strokeStyle = "var(--graph-tooltip-border)";
-        ctx.lineWidth = 0.8 / scale;
-
-        const boxW = textWidth + padding * 2.2;
-        const boxH = fontSize + padding * 1.6;
-
-        drawRoundedRect(
-          ctx,
-          cx - boxW / 2,
-          cy - boxH / 2,
-          boxW,
-          boxH,
-          5 / scale
-        );
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = "var(--graph-text)";
-        ctx.fillText(text, cx, cy);
-      });
-    });
-
-    // fitView 1회 초기 설정
-    if (nodes.length > 0) {
-      setTimeout(() => {
-        graph.zoomToFit(300, 32);
-      }, 50);
+    // v0.7.139+: fitView는 scope 전환(all ↔ current) 또는 첫 데이터 로드 시에만.
+    // 검색/필터로 nodes가 바뀌어도 사용자의 pan/zoom 위치를 보존한다.
+    const scopeChanged = prevIsDenseRef.current !== isDense;
+    const firstLoad = prevNodeCountRef.current === 0 && nodes.length > 0;
+    if (scopeChanged || firstLoad) {
+      if (nodes.length > 0) {
+        setTimeout(() => {
+          if (graphInstanceRef.current) {
+            graphInstanceRef.current.zoomToFit(300, 32);
+          }
+        }, 50);
+      }
     }
+    prevIsDenseRef.current = isDense;
+    prevNodeCountRef.current = nodes.length;
+
+    return () => {
+      container?.removeEventListener("mousedown", handleMouseDown);
+      container?.removeEventListener("touchstart", handleTouchStart);
+      container?.removeEventListener("mouseup", handleMouseUp);
+      container?.removeEventListener("touchend", handleTouchEnd);
+      container?.removeEventListener("touchcancel", handleTouchCancel);
+    };
   }, [
     nodes,
     edges,
     isDense,
-    interactionMode,
-    vaultCentroids,
-    hoveredNode,
-    highlightNodes,
-    highlightLinks,
+    // v0.7.139+: vaultCentroids는 더 이상 canvas에서 직접 사용하지 않음 (이전엔 📁 halo 박스를 그렸음).
+    // 대신 노드 외곽선에 vault 색 ring을 직접 그리므로 centroid 데이터 자체가 불필요.
+    // deriveVaultCentroids()는 GraphPage에서 여전히 호출 중 (line 188) — 향후 insight 용도로 보존.
+    // v0.7.139+: hoveredNode/highlightNodes/highlightLinks는 ref 기반이라 effect deps에서 제외.
+    // hover 시 effect가 재실행되지 않아 — 캔버스 pan/zoom 위치가 유지되고 클릭이 무효화되지 않음.
     externalHighlightNodeId,
     persistentHighlightNodeId,
     externalHighlightType,
-    onNodeClick,
-    onNodeDoubleClick,
     onNodeInspect,
     onPositionsChange,
   ]);
@@ -517,6 +637,23 @@ export function GraphCanvas({
       graphInstanceRef.current.zoomToFit(360, 40);
     }
   };
+
+  // v0.7.139+: programmatic zoom (factor 1.6 / 0.625). force-graph의 zoom(k)는 중심을
+  // 그대로 두고 배율만 바꿔 pan/zoom UX와 일관됨.
+  const ZOOM_STEP = 1.6;
+  const zoomIn = () => {
+    const g = graphInstanceRef.current;
+    if (!g) return;
+    g.zoom((g.zoom() ?? 1) * ZOOM_STEP, 400);
+  };
+  const zoomOut = () => {
+    const g = graphInstanceRef.current;
+    if (!g) return;
+    g.zoom((g.zoom() ?? 1) / ZOOM_STEP, 400);
+  };
+  // 배율 표시 — 1.0 = 100%. 줌이 1 근처일 때만 "100%"로 단순화, 그 외엔 백분율로 표시.
+  const zoomPercent = Math.round(zoomLevel * 100);
+  const zoomLabel = `${zoomPercent}%`;
 
   const resetLayout = () => {
     if (graphInstanceRef.current) {
@@ -549,7 +686,12 @@ export function GraphCanvas({
           [JSDOM Test Mock Graph Canvas]
         </div>
       ) : (
-        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+        // v0.7.139+: touchAction:none — 모바일에서 캔버스 pan이 pull-to-refresh로
+        // 새지 않도록 모든 native touch gesture를 우리가 처리.
+        <div
+          ref={containerRef}
+          style={{ width: "100%", height: "100%", touchAction: "none" }}
+        />
       )}
 
       {/* 툴바 컨트롤 레이어 */}
@@ -564,25 +706,6 @@ export function GraphCanvas({
           pointerEvents: "auto",
         }}
       >
-        <button
-          type="button"
-          onClick={() => setInteractionMode((m) => (m === "pointer" ? "hand" : "pointer"))}
-          style={{
-            ...graphButtonStyle,
-            background:
-              interactionMode === "hand"
-                ? "var(--graph-edge-highlight)"
-                : "var(--graph-surface)",
-            color: interactionMode === "hand" ? "#ffffff" : "var(--graph-text)",
-            borderColor:
-              interactionMode === "hand"
-                ? "var(--graph-edge-highlight)"
-                : "var(--graph-border)",
-          }}
-          title="이동 모드(hand) 활성화 시 노드/관계선 방해 없이 자유롭게 이동/줌 가능 (단축키: Space)"
-        >
-          {interactionMode === "hand" ? "✋ 이동 모드" : "👆 선택 모드"}
-        </button>
         {onFullscreen && (
           <button
             type="button"
@@ -602,6 +725,39 @@ export function GraphCanvas({
           title="모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
         >
           맞춤보기
+        </button>
+        {/* v0.7.139+: 줌 컨트롤 (− / 배율 / +). 모바일/데스크탑 공통 */}
+        <button
+          type="button"
+          onClick={zoomOut}
+          style={{ ...graphButtonStyle, minWidth: 32, padding: "6px 8px" }}
+          aria-label="그래프 축소"
+          title="축소 (단축키: −)"
+        >
+          −
+        </button>
+        <span
+          aria-live="polite"
+          style={{
+            ...graphButtonStyle,
+            cursor: "default",
+            minWidth: 52,
+            textAlign: "center",
+            fontVariantNumeric: "tabular-nums",
+          }}
+          title={`현재 줌 배율 — 더블클릭으로 100%로 리셋`}
+          onDoubleClick={() => graphInstanceRef.current?.zoomTo(1, 200)}
+        >
+          {zoomLabel}
+        </span>
+        <button
+          type="button"
+          onClick={zoomIn}
+          style={{ ...graphButtonStyle, minWidth: 32, padding: "6px 8px" }}
+          aria-label="그래프 확대"
+          title="확대 (단축키: +)"
+        >
+          +
         </button>
         <button
           type="button"

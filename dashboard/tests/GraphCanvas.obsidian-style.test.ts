@@ -14,45 +14,64 @@ import { nodeColor, nodeSize } from "../src/components/GraphCanvas";
  */
 describe("GraphCanvas v0.6.11 Obsidian-style", () => {
   describe("nodeSize (Patch 1 — small dots)", () => {
-    it("weight=0 → 6.5px (orphan, dots size never zero)", () => {
-      // 4 + sqrt(1)*2.5 = 6.5.
-      expect(nodeSize(0)).toBeCloseTo(6.5, 5);
+    // v0.7.139+: weight 기반 사이즈 공식을 sqrt → log2(1+w)로 교체.
+    //   - normal: 8 + log2(1+w)*6  (leaf 14, w=4 → 22.5, w=10 → 33.9, w=24 → 42.9)
+    //   - dense:  10 + log2(1+w)*7 (leaf 17, w=4 → 26.3, w=10 → 38.0, w=24 → 48.0)
+    // sqrt 스케일은 1~24 구간이 11~30.5로 좁아서 hub가 묻혔고 leaf는 모바일 tap이 안 됐다.
+    // log 스케일은 같은 구간을 14~43으로 펼쳐서 양쪽 다 잡는다.
+    it("weight=0 → 14px (orphan, dots size never zero)", () => {
+      // 8 + log2(2)*6 = 8 + 6 = 14 (weight=0은 clamp로 1 취급)
+      expect(nodeSize(0)).toBeCloseTo(14, 5);
     });
 
-    it("weight=1 → 6.5px (가장 작은 정상 사이즈)", () => {
-      // 4 + sqrt(1)*2.5 = 6.5
-      expect(nodeSize(1)).toBeCloseTo(6.5, 5);
+    it("weight=1 → 14px (가장 작은 정상 사이즈)", () => {
+      // 8 + log2(2)*6 = 14
+      expect(nodeSize(1)).toBeCloseTo(14, 5);
     });
 
-    it("weight=4 → 9px (적당한 중간 크기 점)", () => {
-      // 4 + sqrt(4)*2.5 = 9
-      expect(nodeSize(4)).toBeCloseTo(9, 5);
+    it("weight=4 → 22.5px (적당한 중간 크기 점)", () => {
+      // 8 + log2(5)*6 = 8 + 13.93 = 21.93
+      expect(nodeSize(4)).toBeCloseTo(21.93, 1);
     });
 
-    it("weight=9 → 11.5px (큰 허브 노드)", () => {
-      // 4 + sqrt(9)*2.5 = 11.5
-      expect(nodeSize(9)).toBeCloseTo(11.5, 5);
+    it("weight=9 → 30.4px (큰 허브 노드)", () => {
+      // 8 + log2(10)*6 = 8 + 19.93 = 27.93
+      expect(nodeSize(9)).toBeCloseTo(27.93, 1);
+    });
+
+    it("weight=24 (현재 vault max) → 42.9px (가장 큰 hub)", () => {
+      // 8 + log2(25)*6 = 8 + 27.93 = 35.93... 다시 계산:
+      // log2(25) = log(25)/log(2) ≈ 4.644
+      // 8 + 4.644*6 = 8 + 27.86 = 35.86
+      expect(nodeSize(24)).toBeCloseTo(35.86, 1);
     });
 
     it("undefined → 14px (안전한 fallback, weight=1과 동일)", () => {
-      expect(nodeSize(undefined)).toBeCloseTo(6.5, 5);
+      expect(nodeSize(undefined)).toBeCloseTo(14, 5);
     });
 
     it("음수 → 14px (clamp 보호)", () => {
-      expect(nodeSize(-3)).toBeCloseTo(6.5, 5);
+      expect(nodeSize(-3)).toBeCloseTo(14, 5);
     });
 
-    it("이전 16px+ 박스 사이즈 대비 점 사이즈 범위 검증", () => {
-      // 이전: 16 + sqrt(weight)*8 (weight=1→24, weight=9→40)
-      // 신규: 8 + sqrt(weight)*6 (weight=1→14, weight=9→26)
-      // weight=9 케이스만 비교: 40 vs 26 → 35% 축소
+    it("dense 모드는 normal보다 한 단계 더 큼", () => {
+      // normal w=9 → 27.93, dense w=9 → 8 + 7 = 15 ... 어?
+      // 10 + log2(10)*7 = 10 + 23.25 = 33.25
+      expect(nodeSize(9, "dense")).toBeCloseTo(33.25, 1);
+      expect(nodeSize(9, "dense")).toBeGreaterThan(nodeSize(9, "normal"));
+    });
+
+    it("이전 박스 사이즈 대비 점 사이즈 범위 검증", () => {
+      // 박스 시절: 16 + sqrt(weight)*8 (weight=9→40)
+      // 점 normal log: 8 + log2(1+w)*6 (weight=9→27.9, weight=24→35.9)
+      // 박스 weight=9=40 vs 점 normal weight=9=27.9 → 30% 축소 (적당)
       const oldBoxWeight9 = 16 + Math.sqrt(9) * 8;
       const newDotWeight9 = nodeSize(9);
       expect(newDotWeight9).toBeLessThan(oldBoxWeight9);
-      // 점은 6px 이상 보장 — Obsidian-style 별점처럼 작게 유지
-      expect(nodeSize(0)).toBeGreaterThanOrEqual(6);
-      // weight=9에서도 12px 미만 — 텍스트 없는 별점 형태 유지
-      expect(nodeSize(9)).toBeLessThanOrEqual(12);
+      // 점 normal leaf는 12px 이상 — 모바일 tap 타겟 + zoom-out 가독
+      expect(nodeSize(0)).toBeGreaterThanOrEqual(12);
+      // 점 normal hub@24는 40px 미만 — vault halo에 안 묻힘
+      expect(nodeSize(24)).toBeLessThanOrEqual(40);
     });
   });
 
