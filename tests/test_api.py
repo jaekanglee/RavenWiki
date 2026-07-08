@@ -165,6 +165,7 @@ def test_api_page_update_preserves_created(client, isolated_env):
 def test_api_page_get_maps_container_internal_root_to_host_path(client, isolated_env, monkeypatch):
     internal_root = isolated_env["reg_root"] / "internal-root"
     host_root = isolated_env["target_root"] / "host-root"
+    host_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(internal_root))
     monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
 
@@ -256,10 +257,12 @@ def test_api_vaults_list(client, isolated_env):
 def test_api_vault_create_persists_host_display_path(client, isolated_env, monkeypatch):
     runtime_root = isolated_env["reg_root"] / "runtime-root"
     host_root = isolated_env["target_root"] / "host-root"
+    host_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(runtime_root))
     monkeypatch.setenv("RAVEN_VAULTS_DIR", str(host_root))
 
     display_target = host_root / "alpha"
+    display_target.mkdir(parents=True, exist_ok=True)
     resp = client.post("/api/vaults", json={
         "name": "alpha",
         "path": str(display_target),
@@ -529,6 +532,36 @@ def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
 
 
 # ─── v0.6.12 Patch 1: graph 좌표 정규화 (±500) ─────
+
+
+def test_api_vault_graph_all_scope_prefixes_node_ids_by_vault(client, isolated_env):
+    """All-vault graph uses {vault}:{slug} ids so registered vaults can share slugs safely."""
+    left = isolated_env["target_root"] / "gv_all_left"
+    right = isolated_env["target_root"] / "gv_all_right"
+    client.post("/api/vaults", json={"name": "gv_all_left", "path": str(left), "bootstrap": False})
+    client.post("/api/vaults", json={"name": "gv_all_right", "path": str(right), "bootstrap": False})
+    client.post(
+        "/api/vaults/gv_all_left/pages",
+        json={"slug": "content/shared", "title": "Left Shared", "content": "see [[content/only-left]]"},
+    )
+    client.post("/api/vaults/gv_all_left/pages", json={"slug": "content/only-left", "title": "Only Left"})
+    client.post("/api/vaults/gv_all_right/pages", json={"slug": "content/shared", "title": "Right Shared"})
+
+    current_resp = client.get("/api/vaults/gv_all_left/graph")
+    assert current_resp.status_code == 200
+    assert {n["id"] for n in current_resp.json()["nodes"]} >= {"content/shared", "content/only-left"}
+
+    all_resp = client.get("/api/vaults/gv_all_left/graph?scope=all")
+    assert all_resp.status_code == 200, all_resp.text
+    data = all_resp.json()
+    ids = {n["id"] for n in data["nodes"]}
+    assert "gv_all_left:content/shared" in ids
+    assert "gv_all_right:content/shared" in ids
+    assert "content/shared" not in ids
+    assert {n["vault"] for n in data["nodes"]} >= {"gv_all_left", "gv_all_right"}
+    assert {"source": "gv_all_left:content/shared", "target": "gv_all_left:content/only-left"} in data["edges"]
+    assert data["scope"] == "all"
+    assert data["stats"]["vaults"] == 2
 
 
 def test_api_vault_graph_xy_normalized_to_pm500(client, isolated_env):
