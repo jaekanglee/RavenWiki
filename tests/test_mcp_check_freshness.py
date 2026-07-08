@@ -8,7 +8,7 @@ import pytest
 def _setup_vault(tmp_path: Path, *, with_stamp: bool = True):
     root = tmp_path / "v"
     agents = root / "_meta" / "agents"
-    agents.mkdir(parents=True)
+    agents.mkdir(parents=True, exist_ok=True)
     (root / "log.md").write_text("# log\n", encoding="utf-8")
     (agents / "SCHEMA.md").write_text("# SCHEMA v1\n", encoding="utf-8")
     (agents / "PROJECT-WORKFLOW.md").write_text("# PWW v1\n", encoding="utf-8")

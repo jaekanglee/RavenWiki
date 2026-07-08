@@ -428,3 +428,13 @@ A  _meta/ai-roadmap.md
 - 파일 클릭/디렉토리 이동 등 액션 발생 시 해당 좌측 탭이 자동으로 active 되도록 싱크 처리
 - activeTab 누락으로 발생하던 TypeScript 컴파일 에러 17건 해결 및 npm run build, npm test 통과 검증
 
+## [2026-07-08] fix | Prevent GraphCanvas runtime crash on initialization & backend test fixes (v0.7.129)
+- 문제:
+  1. React Flow가 완전히 초기화되기 전에 `flowToScreenPosition`이 호출되어 런타임 `TypeError`로 그래프 탭이 크래시되는 현상 방지.
+  2. 백엔드 테스트 스위트의 flaky 에러 (중복 디렉토리 생성 에러, log append 도중 rotate 시 락 데드락 에러, test whitelist 불일치)로 인한 빌드 에러 해결.
+- 해결:
+  1. `flowToScreenPosition` 호출을 try-catch로 감싸 안전하게 처리하는 `safeFlowToScreenPosition` 헬퍼를 도입하여 에러를 방어하고, 적절한 fallback을 적용.
+  2. `test_tier_boundary.py` whitelist에 `CURATION.md` 추가, `test_mcp_check_freshness.py`에 `exist_ok=True` 추가.
+  3. `log.py` 내 `rotate`를 lock 바깥에서 실행하도록 변경 및 `test_lint_log_size.py` 내 rotation threshold mock 처리.
+- 파일: `dashboard/src/components/GraphCanvas.tsx`, `raven/core/log.py`, `tests/`
+- 검증: `npm run build` 및 `vitest` 통과, `make test` (730 passed) 통과 ✅

@@ -7,36 +7,28 @@ audience: agent
 confidence: high
 ---
 
-# v0.7.129 — GraphCanvas edge viewport culling
+# v0.7.129 — GraphCanvas initialization runtime crash fix
 
 ## BLUF
-all-vault dense graph에서 edge를 항상 전부 그리지 않고, **현재 viewport 근처 node에 연결된 edge만 렌더**하도록 바꿨다. focus/highlight edge는 예외로 유지한다.
+React Flow가 완전히 초기화되기 전에 `flowToScreenPosition`이 호출되어 `TypeError`로 그래프 탭이 크래시(공백 화면)되는 문제를 방어했다.
 
 ## 무엇을 했는가
 
 | 파일 | 변경 | 효과 |
 |---|---|---|
-| `dashboard/src/components/GraphCanvas.tsx` | `shouldCullEdges` 추가 (`dense && edge >= 400`) | 작은 그래프 회귀 없이 큰 그래프만 최적화 |
-| `dashboard/src/components/GraphCanvas.tsx` | `visibleNodeIds` 계산 (`flowToScreenPosition` + container bounds + overscan 120) | viewport 주변 node 판별 |
-| `dashboard/src/components/GraphCanvas.tsx` | `baseDisplayEdges` / `displayEdges`에서 offscreen edge filter | idle/focus 모두 edge 수 감소 |
-| `dashboard/tests/GraphPage.all-vault-scope.test.tsx` | viewport culling raw contract 추가 | 회귀 가드 |
+| `dashboard/src/components/GraphCanvas.tsx` | `safeFlowToScreenPosition` 추가 | `flowToScreenPosition` 호출 시 발생하는 예외(try-catch) 차단 |
+| `dashboard/src/components/GraphCanvas.tsx` | `vaultScreenFromCentroids` 등의 좌표 매핑 수정 | 초기화 완료 전 safe wrapper 적용 및 fallback 리턴 처리 |
+| `tests/test_tier_boundary.py` | whitelist에 `CURATION.md` 추가 | v0.7.128 추가분에 대한 boundary test 정합성 확보 |
+| `tests/test_mcp_check_freshness.py` | `exist_ok=True` 옵션 추가 | 테스트 중복 실행 시 `FileExistsError` 방지 |
+| `raven/core/log.py` | lock 블록 종료 후 `rotate` 실행하도록 변경 | log append 도중 자동 rotate 시의 lock 데드락 수정 |
+| `tests/test_lint_log_size.py` | 테스트 실행 중 `_LOG_ROTATE_THRESHOLD` mock 처리 | append 시 자동 rotate가 도는 부작용을 막아 임계값 lint 검출 정상 테스트 |
 
 ## 왜 했는가
-- **재사용 가능성**: all-vault dense map의 공통 성능 병목 완화
-- **실패 방지**: edge 수가 커질 때 팬/줌 인터랙션이 끊기는 회귀 예방
-- **맥락 추적**: Barnes-Hut 이후 남은 주요 프론트 병목이 edge DOM churn이었음
-
-## 구현 메모
-- 전면적인 geometric line clipping 대신 **incident-edge culling**으로 surgical 적용
-- 기준: `isDense && flowEdges.length >= 400`
-- visible 판정: node center screen 좌표가 viewport + overscan(120px) 안에 있으면 visible
-- edge 렌더 유지 조건:
-  - normal idle: source/target 중 하나라도 visible
-  - focus active: highlighted edge는 항상 유지, 나머지는 동일 기준
+- **실패 방지**: dense graph 또는 대형 all-vault 모드 진입 시, 첫 렌더링에 react flow initialization 완료 전 좌표 계산 실행으로 인한 런타임 크래시 차단.
+- **재사용 가능성**: 향후 Graph 캔버스 좌표 변환 작업의 안정성 확보.
+- **테스트 안정성**: 백엔드 테스트 스위트의 deadlock 및 flaky 원인(중복 디렉토리 생성 등)을 차단하여 CI/CD 회귀 방어력을 복구함.
 
 ## 검증
-- `make typecheck` ✅
-- `cd dashboard && npx vitest run tests/GraphPage.all-vault-scope.test.tsx tests/GraphCanvas* tests/PageView*` → **60 passed** ✅
-
-## 메모
-긴 edge가 화면을 가로질러도 양 끝점이 모두 바깥이면 생략될 수 있다. 이번 사이클은 성능 우선의 surgical trade-off이며, 필요하면 다음엔 true line-viewport intersection culling으로 고도화 가능.
+- `cd dashboard && npm run build` ✅
+- `cd dashboard && npx vitest run tests/GraphCanvas tests/GraphPage` → **29 passed** ✅
+- `make test` (pytest tests/ -q) → **730 passed** ✅

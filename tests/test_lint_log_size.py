@@ -45,13 +45,19 @@ def test_log_size_below_threshold(vault):
 
 def test_log_size_at_threshold(vault):
     """500 entries → info 1."""
-    for i in range(LOG_ROTATE_THRESHOLD):
-        append(vault, "chore", f"entry {i}")
-    issues = check_log_size(vault)
-    assert len(issues) == 1
-    assert issues[0]["id"] == "#12"
-    assert issues[0]["severity"] == "info"
-    assert "500" in issues[0]["message"]
+    from raven.core import log
+    orig = getattr(log, "_LOG_ROTATE_THRESHOLD", 500)
+    try:
+        log._LOG_ROTATE_THRESHOLD = None
+        for i in range(LOG_ROTATE_THRESHOLD):
+            append(vault, "chore", f"entry {i}")
+        issues = check_log_size(vault)
+        assert len(issues) == 1
+        assert issues[0]["id"] == "#12"
+        assert issues[0]["severity"] == "info"
+        assert "500" in issues[0]["message"]
+    finally:
+        log._LOG_ROTATE_THRESHOLD = orig
 
 
 def test_log_size_no_log_file(vault):
@@ -62,8 +68,14 @@ def test_log_size_no_log_file(vault):
 
 def test_log_size_above_threshold(vault):
     """600 entries → 1개 info."""
-    for i in range(600):
-        append(vault, "chore", f"entry {i}")
-    issues = check_log_size(vault)
-    assert len(issues) == 1
-    assert issues[0]["id"] == "#12"
+    from raven.core import log
+    orig = getattr(log, "_LOG_ROTATE_THRESHOLD", 500)
+    try:
+        log._LOG_ROTATE_THRESHOLD = None
+        for i in range(600):
+            append(vault, "chore", f"entry {i}")
+        issues = check_log_size(vault)
+        assert len(issues) == 1
+        assert issues[0]["id"] == "#12"
+    finally:
+        log._LOG_ROTATE_THRESHOLD = orig
