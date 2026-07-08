@@ -73,7 +73,7 @@ def test_new_project_workflow_has_operating_facts() -> None:
     assert "실패/리스크 기록" in content
     assert "체크리스트" in content
     assert "BLUF" in content
-    # v0.7.106+: Layer 2 정체성 (normative 부속 [N6])
+    # v0.7.107+: Layer 2 정체성 (normative 부속 [N6])
     assert "Layer 2" in content
     assert "사람 1차 운영 인덱스" in content
     # v0.7.106+: §3 4신호 lint 면제
@@ -85,6 +85,8 @@ def test_new_project_workflow_has_operating_facts() -> None:
     # v0.7.107+: §8.4 audit log 정책
     assert "Audit log" in content
     assert "permission_denied" in content
+    # v0.7.109+: §6.5 #10+#4 누적 위험 (C4)
+    assert "누적 위험" in content
 
 
 def test_new_project_workflow_has_boundary_declaration() -> None:

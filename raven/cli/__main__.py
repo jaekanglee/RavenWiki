@@ -35,7 +35,7 @@ link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, PROJECT-WORKFLOW.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
-lint_app = typer.Typer(help="vault lint 17개 (v0.7.107+) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title 등.")
+lint_app = typer.Typer(help="vault lint 18개 (v0.7.109+) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title/audit violation pattern 등.")
 migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
 note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
 collection_app = typer.Typer(help="collection sync — vault FS ↔ yaml diff (Stateless Curator 합의안 v3).")
@@ -1163,9 +1163,9 @@ def link_check(
 def build(
     vault: Optional[str] = typer.Option(None, "--vault"),
     db: Optional[Path] = typer.Option(None, "--db", help="output db path (default: <vault>/wiki.db)"),
-    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 17개 실행 (v0.7.107+)"),
+    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 18개 실행 (v0.7.109+)"),
 ) -> None:
-    """Rebuild wiki.db for the active vault. lint 17개 자동 실행 (v0.7.107+)."""
+    """Rebuild wiki.db for the active vault. lint 18개 자동 실행 (v0.7.109+)."""
     v = _resolve_vault_or_die(vault)
     result = db_module.build_db(v, db_path=db, run_lint=lint_after)
     if result["ok"]:
@@ -1374,7 +1374,7 @@ def lint_run(
     json_out: bool = typer.Option(False, "--json"),
     write_log: bool = typer.Option(False, "--log", help="log.md에 lint entry 자동 append"),
 ) -> None:
-    """vault에 대해 lint 17개 실행 (v0.7.107+)."""
+    """vault에 대해 lint 18개 실행 (v0.7.109+)."""
     v = _resolve_vault_or_die(vault)
     result = lint_module.run_all(v)
     issues = result["issues"]
@@ -1412,7 +1412,7 @@ def lint_run(
             log_module.append(
                 v,
                 action="lint",
-                subject=f"lint 17개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                subject=f"lint 18개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
                 extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
             )
         except Exception:
