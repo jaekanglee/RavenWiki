@@ -168,16 +168,45 @@ class VaultRegistry:
 
     def list(self) -> list[VaultMeta]:
         default = self._data.get("default", "")
-        return [
-            VaultMeta.from_json(name, data, default)
-            for name, data in self._data.get("vaults", {}).items()
-        ]
+        vaults_data = self._data.get("vaults", {})
+        out = []
+        dirty = False
+        for name, data in list(vaults_data.items()):
+            meta = VaultMeta.from_json(name, data, default)
+            # v0.7.121+: 자가치유 (Self-heal)
+            # .registry.json의 저장 경로가 존재하지 않아 fallback 경로로 정상 복구된 경우,
+            # .registry.json 파일에 복구된 실제 물리 경로를 자동으로 덮어써준다.
+            saved_path_str = data.get("path", "")
+            if saved_path_str:
+                try:
+                    resolved_saved = Path(saved_path_str).expanduser().resolve()
+                    if str(meta.path) != str(resolved_saved) and meta.path.exists():
+                        self._data["vaults"][name]["path"] = str(meta.path)
+                        dirty = True
+                except Exception:
+                    pass
+            out.append(meta)
+        if dirty:
+            self._save()
+        return out
 
     def get(self, name: str) -> Optional[VaultMeta]:
         data = self._data.get("vaults", {}).get(name)
         if not data:
             return None
-        return VaultMeta.from_json(name, data, self._data.get("default", ""))
+        meta = VaultMeta.from_json(name, data, self._data.get("default", ""))
+        
+        # v0.7.121+: 자가치유 (Self-heal)
+        saved_path_str = data.get("path", "")
+        if saved_path_str:
+            try:
+                resolved_saved = Path(saved_path_str).expanduser().resolve()
+                if str(meta.path) != str(resolved_saved) and meta.path.exists():
+                    self._data["vaults"][name]["path"] = str(meta.path)
+                    self._save()
+            except Exception:
+                pass
+        return meta
 
     def default(self) -> Optional[VaultMeta]:
         """The registry-default vault (or first if none marked)."""
