@@ -322,6 +322,60 @@ function edgesRefChanged(
   return false;
 }
 
+function pointInsideExpandedRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  overscan: number
+): boolean {
+  return x >= -overscan && y >= -overscan && x <= width + overscan && y <= height + overscan;
+}
+
+function segmentIntersectsExpandedRect(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  width: number,
+  height: number,
+  overscan: number
+): boolean {
+  const left = -overscan;
+  const top = -overscan;
+  const right = width + overscan;
+  const bottom = height + overscan;
+
+  if (pointInsideExpandedRect(ax, ay, width, height, overscan)) return true;
+  if (pointInsideExpandedRect(bx, by, width, height, overscan)) return true;
+
+  const dx = bx - ax;
+  const dy = by - ay;
+  let t0 = 0;
+  let t1 = 1;
+
+  const clip = (p: number, q: number) => {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+    return true;
+  };
+
+  return (
+    clip(-dx, ax - left) &&
+    clip(dx, right - ax) &&
+    clip(-dy, ay - top) &&
+    clip(dy, bottom - ay) &&
+    t0 <= t1
+  );
+}
+
 /**
  * v0.7.124+: vault centroid (server coords) → screen coords 일괄 변환.
  * useEffect(첫 mount)와 handleMove(pan/zoom) 양쪽에서 동일 로직을 공유.
@@ -498,6 +552,9 @@ function GraphCanvasInner({
   // 시각 정보보다 성능 이득이 더 크다.)
   const shouldCullEdges = isDense && flowEdges.length >= 400;
   const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set());
+  const [screenNodeCenters, setScreenNodeCenters] = useState<Map<string, { x: number; y: number }>>(
+    () => new Map()
+  );
 
   const safeFlowToScreenPosition = useCallback(
     (pos: { x: number; y: number }) => {
@@ -513,6 +570,7 @@ function GraphCanvasInner({
   const recomputeVisibleNodeIdsNow = useCallback(() => {
     if (!shouldCullEdges) {
       setVisibleNodeIds(new Set(flowNodes.map((n) => n.id)));
+      setScreenNodeCenters(new Map());
       return;
     }
     const el = containerRef.current;
@@ -520,6 +578,7 @@ function GraphCanvasInner({
     const rect = el.getBoundingClientRect();
     const overscan = 120;
     const next = new Set<string>();
+    const centers = new Map<string, { x: number; y: number }>();
     for (const node of flowNodes) {
       const size = typeof (node.data as any)?.size === "number" ? Number((node.data as any).size) : 8;
       const screen = safeFlowToScreenPosition({
@@ -530,16 +589,13 @@ function GraphCanvasInner({
         next.add(node.id);
         continue;
       }
-      if (
-        screen.x >= -overscan &&
-        screen.y >= -overscan &&
-        screen.x <= rect.width + overscan &&
-        screen.y <= rect.height + overscan
-      ) {
+      centers.set(node.id, { x: screen.x, y: screen.y });
+      if (pointInsideExpandedRect(screen.x, screen.y, rect.width, rect.height, overscan)) {
         next.add(node.id);
       }
     }
     setVisibleNodeIds(next);
+    setScreenNodeCenters(centers);
   }, [shouldCullEdges, flowNodes, safeFlowToScreenPosition]);
 
   const recomputeVisibleNodeIds = useCallback(() => {
@@ -706,15 +762,27 @@ function GraphCanvasInner({
     return out;
   }, [isDense, flowEdges]);
 
+  const edgeTouchesViewport = useCallback(
+    (edge: { source: string; target: string }) => {
+      if (!shouldCullEdges) return true;
+      if (visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target))) return true;
+      const el = containerRef.current;
+      if (!el) return true;
+      const src = screenNodeCenters.get(String(edge.source));
+      const tgt = screenNodeCenters.get(String(edge.target));
+      if (!src || !tgt) return true;
+      const rect = el.getBoundingClientRect();
+      return segmentIntersectsExpandedRect(src.x, src.y, tgt.x, tgt.y, rect.width, rect.height, 120);
+    },
+    [shouldCullEdges, visibleNodeIds, screenNodeCenters]
+  );
+
   // v0.7.127+: idle 상태에서는 edge object churn을 줄이기 위해 base edge set을 먼저 만든다.
   // dense 모드에서 특히 cross-vault edge opacity 계산이 고정이므로 focus가 없을 때는
   // 이 memoized 배열을 그대로 사용. highlight 시에만 overlay 스타일 객체를 새로 만든다.
   const baseDisplayEdges = useMemo(() => {
     return flowEdges
-      .filter((edge) => {
-        if (!shouldCullEdges) return true;
-        return visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target));
-      })
+      .filter((edge) => edgeTouchesViewport({ source: String(edge.source), target: String(edge.target) }))
       .map((edge) => {
         const isCrossVault = crossVaultEdgeIds.has(edge.id);
         const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
@@ -729,15 +797,14 @@ function GraphCanvasInner({
           },
         };
       });
-  }, [flowEdges, isDense, crossVaultEdgeIds, shouldCullEdges, visibleNodeIds]);
+  }, [flowEdges, isDense, crossVaultEdgeIds, edgeTouchesViewport]);
 
   const displayEdges = useMemo(() => {
     if (!focus.active) return baseDisplayEdges;
     return flowEdges
       .filter((edge) => {
         if (focus.edgeIds.has(edge.id)) return true;
-        if (!shouldCullEdges) return true;
-        return visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target));
+        return edgeTouchesViewport({ source: String(edge.source), target: String(edge.target) });
       })
       .map((edge) => {
         const highlighted = focus.edgeIds.has(edge.id);
@@ -754,7 +821,7 @@ function GraphCanvasInner({
           },
         };
       });
-  }, [baseDisplayEdges, flowEdges, focus, isDense, crossVaultEdgeIds, shouldCullEdges, visibleNodeIds]);
+  }, [baseDisplayEdges, flowEdges, focus, isDense, crossVaultEdgeIds, edgeTouchesViewport]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
