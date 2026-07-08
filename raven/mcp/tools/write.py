@@ -380,6 +380,22 @@ def wiki_update(
         }
     if _is_immutable_agent_path(slug):
         rel = abs_path.relative_to(vault_path)
+        # v0.7.107+ (G5 audit log, PWW §8.4): permission_denied와 별개로
+        # 시도 자체를 log.md에 audit 레코드 append (north star "원문 보존" 직접 보호).
+        # append()는 9종 action enum — "chore"로 audit 의미 표기 (raw file append).
+        try:
+            log_path = vault_path / "log.md"
+            if log_path.exists():
+                ts = now_iso()
+                actor = actor_norm or "unknown"
+                audit_line = (
+                    f"\n## [{ts[:10]}] chore | audit blocked write: {rel} "
+                    f"(actor={actor}, slug={slug}, result=permission_denied)\n"
+                )
+                with log_path.open("a", encoding="utf-8") as f:
+                    f.write(audit_line)
+        except Exception:
+            pass  # audit 실패는 본 동작을 막지 않음
         return {
             "ok": False,
             "message": (
