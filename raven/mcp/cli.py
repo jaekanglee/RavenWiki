@@ -168,6 +168,27 @@ def register_tools(mcp: Any, mode: str) -> None:
         except GuideNotFoundError as e:
             raise ValueError(str(e)) from e
 
+    # ─── 7.5. wiki_check_freshness (v0.7.114+, ADR-2026-07-08) ───
+    # Lite bootstrap 3종 hash + cache mismatch. silent warn 기본.
+    # HTTP 클라이언트는 동일 동작을 X-Guide-Hash 헤더로도 받을 수 있음 (ADR §2.1).
+    @mcp.tool(
+        name="wiki_check_freshness",
+        description=(
+            VAULT_ARG_NOTE
+            + "ADR-2026-07-08: lite bootstrap 3종 (SCHEMA.md / PROJECT-WORKFLOW.md / log.md) "
+            + "SHA256 + 캐시 mismatch → freshness_warning. cache_hash 형식 = "
+            + "'SCHEMA=abc,PROJECT-WORKFLOW=def' (명시) 또는 'abc,def' (순서 고정). "
+            + "Silent warn 기본 — 강제 read ❌. Stamp은 _meta/agents/.guide-version 자동."
+        ),
+    )
+    def wiki_check_freshness(vault: str, cache_hash: str | None = None) -> dict:
+        from raven.mcp.tools.guide import check_freshness
+        from raven.mcp.tools import resolve_vault_path
+        return check_freshness(
+            vault_root=resolve_vault_path(vault),
+            cache_hash=cache_hash,
+        )
+
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
         @mcp.tool(
