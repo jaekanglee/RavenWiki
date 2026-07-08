@@ -230,8 +230,16 @@ def append(
     if note:
         details.append(f"reason: {note}")
     if extra:
+        # v0.7.117: extra value 타입별 분기.
+        #   str → 기존 그대로 "{k}: {v}"
+        #   dict → "{k}: <key>=<val>, <key>=<val>, ..." (lint by_check 등 가독성)
+        # 기존 caller는 모두 str을 미리 직렬화해서 넘기므로 회귀 없음.
         for k, v in extra.items():
-            details.append(f"{k}: {v}")
+            if isinstance(v, dict):
+                items = ", ".join(f"{kk}={vv}" for kk, vv in v.items())
+                details.append(f"{k}: {items}")
+            else:
+                details.append(f"{k}: {v}")
 
     entry = LogEntry(
         date=entry_date,

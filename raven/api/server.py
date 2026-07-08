@@ -1987,9 +1987,28 @@ def get_lint(
     severity: Optional[str] = Query(None, description="critical|warning|info"),
     write_log: bool = Query(False, description="log.md에 lint entry 자동 append"),
 ):
-    """lint 12개 (카파시 가이드) 실행."""
+    """lint 12개 (카파시 가이드) 실행.
+
+    v0.7.117 (Fix D): lint_module.run_all() 자체가 예외로 raise되면 (예: 특정
+    check가 RuntimeError/ValueError) 응답은 500으로 propagate되지 않고
+    ok=False + empty counts로 graceful degrade. log fail = lint fail 분리.
+    """
     v = _vault_or_404(name)
-    result = lint_module.run_all(v)
+    try:
+        result = lint_module.run_all(v)
+    except Exception as exc:  # AGENTS.md §9: silent 버그 정책 — silent swallow ❌
+        import sys
+        sys.stderr.write(
+            f"⚠️  lint run_all failed for vault {name!r}: "
+            f"{type(exc).__name__}: {exc}\n"
+        )
+        result = {
+            "ok": False,
+            "counts": {"critical": 0, "warning": 0, "info": 0, "total": 0},
+            "by_check": {},
+            "issues": [],
+            "error": f"{type(exc).__name__}: {exc}",
+        }
     issues = result["issues"]
     if check:
         issues = [i for i in issues if i.get("id") == check]
@@ -2002,7 +2021,7 @@ def get_lint(
                 v,
                 action="lint",
                 subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
-                extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
+                extra={"by_check": result["by_check"]},
             )
         except Exception as exc:  # AGENTS.md §9: silent 버그 정책 — silent swallow ❌
             import sys

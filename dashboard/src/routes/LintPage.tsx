@@ -83,8 +83,11 @@ export function LintPage() {
       setSummary(sum);
       setResult(full);
       if (writeLog && full) {
+        // v0.7.117 (Fix C): setWriteLog(false) 자동 reset 제거.
+        // 사용자가 의도적으로 켠 토글이 즉시 풀리면 재호출 시 write_log=false가
+        // 전달되어 "log 기록"이 off-by-one 으로 한 번 누락됨. 사용자가 직접
+        // 체크 해제할 때까지 유지 (의도 명시성).
         setLastWriteResult(`[${new Date().toLocaleTimeString()}] log 기록됨`);
-        setWriteLog(false);
       }
     } finally {
       setLoading(false);
