@@ -19,6 +19,9 @@ Markdown PKM vault의 무결성을 확인한다. 일부 check는 Karpathy LLM Wi
     #12 log size > 500 entries         (check_log_size)
     #13 cognitive governance           (check_cognitive_governance)
     #14 tier integrity                 (check_tier_integrity)
+    #15 slug-title 1:1 매칭 (ADR-2026-07-08, check_slug_title_1to1)
+    #16 vault growth rate anomaly      (v0.7.107, check_vault_growth_rate)
+    #17 duplicate title candidate      (v0.7.107, check_duplicate_title)
 
 v0.5.0: #12 (log_size) + #1-3 (link_module) 선반영.
 v0.5.1: #4-#11 추가. 12/12 완성.
@@ -51,6 +54,14 @@ STALE_DAYS = 90
 PAGE_SIZE_LINES = 200
 TAG_PROMOTION_THRESHOLD = 3  # 같은 custom 태그 N+ 페이지 → core 승격 추천 (#9)
 INDEX_COMPLETE_BUILD_REQUIRED = True  # build 후에만 검증
+
+# v0.7.107+: #16 (vault growth rate) — 7일 rolling page count 증가율
+VAULT_GROWTH_WINDOW_DAYS = 7
+VAULT_GROWTH_BASELINE_DAYS = 30
+VAULT_GROWTH_SIGMA_THRESHOLD = 3.0  # 3σ over baseline
+
+# v0.7.107+: #17 (duplicate title candidate) — title 유사도 threshold
+DUPLICATE_TITLE_THRESHOLD = 0.8  # TF/IDF or Levenshtein ratio
 
 # #13 cognitive governance (Zettelkasten/LLM Wiki quality signal, v0.5.3+)
 # 면제: type ∈ {rule, journal, query, issue} 또는 _meta/ 안 페이지 (운영 문서).
@@ -490,7 +501,163 @@ def check_log_size(vault: Vault) -> list[dict]:
     return []
 
 
-# v0.6.33+: Tier 1 leak — Karpathy LLM Wiki 3-Layer 분리의 vault 침투 감지.
+def check_vault_growth_rate(vault: Vault) -> list[dict]:
+    """#16 vault growth rate anomaly (v0.7.107+, SCHEMA.md L248).
+
+    7일 rolling window의 page count 증가율이 과거 30일 baseline의 3σ 초과 시
+    info. north star "증분 누적" 위반 패턴 감지 → 사람 운영자 큐레이션 트리거.
+
+    면제: _meta/ 안 페이지 (운영 문서). baseline 30일 데이터 부족 시 skip.
+    """
+    today = date.today()
+    baseline_start = today.toordinal() - VAULT_GROWTH_BASELINE_DAYS
+    window_start = today.toordinal() - VAULT_GROWTH_WINDOW_DAYS
+
+    # 일별 created 카운트
+    daily: dict[int, int] = {}
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        fm = _parse_fm(fp)
+        created_str = fm.get("created")
+        try:
+            created = date.fromisoformat(created_str) if created_str else None
+        except Exception:
+            created = None
+        if not created:
+            continue
+        d_ord = created.toordinal()
+        if d_ord < baseline_start:
+            continue
+        daily[d_ord] = daily.get(d_ord, 0) + 1
+
+    if not daily:
+        return []
+
+    # baseline (7일 window 제외한 나머지) 일별 평균 + σ
+    baseline_days = [d for d in daily if d < window_start]
+    if len(baseline_days) < 3:
+        return []  # baseline 부족
+
+    base_counts = [daily[d] for d in baseline_days]
+    mean = sum(base_counts) / len(base_counts)
+    variance = sum((c - mean) ** 2 for c in base_counts) / len(base_counts)
+    sigma = variance ** 0.5
+
+    # 7일 window 합계
+    window_count = sum(daily.get(d, 0) for d in range(window_start, today.toordinal() + 1))
+
+    # 일평균 환산
+    window_mean = window_count / VAULT_GROWTH_WINDOW_DAYS
+    z_score = (window_mean - mean) / sigma if sigma > 0 else 0
+
+    if z_score > VAULT_GROWTH_SIGMA_THRESHOLD:
+        return [_mk_issue(
+            "#16", "info", "(vault)",
+            f"vault growth rate anomaly: 7일 window {window_count} pages "
+            f"(일평균 {window_mean:.1f}) > baseline {mean:.1f} + {VAULT_GROWTH_SIGMA_THRESHOLD}σ ({z_score:.1f}σ). "
+            f"north star '증분 누적' 위반 패턴 — 사람 큐레이션 권장",
+        )]
+    return []
+
+
+def check_duplicate_title(vault: Vault) -> list[dict]:
+    """#17 duplicate title candidate (v0.7.107+, SCHEMA.md L249).
+
+    title 유사도 > 0.8 (SequenceMatcher.ratio) 페이지 2개+ → 🟡 warning.
+    큐레이션: [[wikilink]] 상호 link 또는 합병 발의 (type: issue).
+
+    면제: _meta/ 안 페이지 (운영 문서).
+    """
+    from difflib import SequenceMatcher
+    titles: list[tuple[str, str]] = []  # (slug, title)
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        fm = _parse_fm(fp)
+        title = fm.get("title")
+        if not title or not isinstance(title, str):
+            continue
+        titles.append((slug, title.strip()))
+
+    out: list[dict] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    n = len(titles)
+    for i in range(n):
+        for j in range(i + 1, n):
+            slug_i, t_i = titles[i]
+            slug_j, t_j = titles[j]
+            pair = tuple(sorted([slug_i, slug_j]))
+            if pair in seen_pairs:
+                continue
+            ratio = SequenceMatcher(None, t_i.lower(), t_j.lower()).ratio()
+            if ratio >= DUPLICATE_TITLE_THRESHOLD:
+                seen_pairs.add(pair)
+                out.append(_mk_issue(
+                    "#17", "warning", f"{slug_i} ↔ {slug_j}",
+                    f"duplicate title candidate (similarity {ratio:.2f}): "
+                    f"'{t_i[:40]}' ↔ '{t_j[:40]}' — 큐레이션: [[wikilink]] 상호 link 또는 type: issue 합병 발의",
+                ))
+    return out
+
+
+def check_slug_title_1to1(vault: Vault) -> list[dict]:
+    """#15 slug-title 1:1 매칭 (ADR-2026-07-08, v0.7.100+).
+
+    frontmatter title 슬러그화 결과 ≠ 파일명 → 🟡 warning. SCHEMA.md L81-85 정의.
+    """
+    import unicodedata
+    def slugify(s: str) -> str:
+        s = unicodedata.normalize("NFC", s)
+        s = re.sub(r"[^\w\s가-힣\-\+\(\)]", "-", s, flags=re.UNICODE)
+        s = re.sub(r"[\s_]+", "-", s)
+        s = s.replace("+-", "plus").replace("+", "-")
+        s = re.sub(r"-+", "-", s).strip("-")
+        out = []
+        for c in s:
+            if c.isascii() and c.isalpha():
+                out.append(c.lower())
+            else:
+                out.append(c)
+        return "".join(out)
+
+    out: list[dict] = []
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        # ADR 컨벤션: decision/adr-YYYY-MM-DD-* + journal/{title-slug}.md
+        if slug.startswith("decision/adr-"):
+            continue
+        if slug.startswith("journal/"):
+            continue
+        if slug.endswith("/index") or slug == "index":
+            continue  # _index 자동 카탈로그
+        fm = _parse_fm(fp)
+        title = fm.get("title")
+        if not title or not isinstance(title, str):
+            continue
+        title_slug = slugify(title)
+        cur_base = slug.split("/")[-1]
+        if cur_base != title_slug:
+            # main name + 부속어 예외: 첫 N 단어가 매치하면 1:1 통과
+            cur_words = cur_base.split("-")
+            title_words = title_slug.split("-")
+            # main name이 일치하면 1:1로 간주 (단 짧은 title은 그대로 검사)
+            if len(title_words) <= 1:
+                continue
+            if cur_words[:len(title_words)] != title_words:
+                out.append(_mk_issue(
+                    "#15", "warning", slug,
+                    f"slug-title 불일치: slug='{cur_base}', title_slug='{title_slug}' "
+                    f"(ADR-2026-07-08 §2.1 — 운영자 명시 결정으로 wiki_rename)",
+                ))
+    return out
+
+
+# v0.6.33+: Tier 1 leak 패턴 — Karpathy LLM Wiki 3-Layer 분리의 vault 침투 감지.
 #
 # 카파시 LLM Wiki 패턴의 핵심: vault는 Layer 2 (사용자/에이전트가 쓰는 곳)지,
 # Layer 1 (raven internal docs — OPERATIONS.md / agent/* / raven-policy.md) 이
@@ -771,12 +938,14 @@ def _legacy_link_issues(vault: Vault) -> list[dict]:
 
 
 def run_all(vault: Vault) -> dict:
-    """14 check 모두 실행. counts + issues list 반환.
+    """17 check 모두 실행 (v0.7.107+). counts + issues list 반환.
 
     v0.6.33+: #14 tier_integrity 추가 — Karpathy 3-Layer 분리를 lint로 자동 검증.
     v0.7.68 (평가 B#8): 이 호출 동안만 파일 스캔/frontmatter 파싱을 캐시한다
     (`_ScanCache`) — 개별 check_* 직접 호출이나 다른 run_all() 호출로는 절대
     새지 않아, 파일이 바뀐 뒤 재실행하는 기존 호출 패턴을 그대로 보존한다.
+    v0.7.100+ (ADR-2026-07-08): #15 slug-title 1:1 매칭.
+    v0.7.107+: #16 vault growth rate anomaly, #17 duplicate title candidate.
     """
     _scan_local.cache = _ScanCache()
     try:
@@ -795,6 +964,11 @@ def run_all(vault: Vault) -> dict:
         issues.extend(check_log_size(vault))
         issues.extend(check_cognitive_governance(vault))
         issues.extend(check_tier_integrity(vault))  # v0.6.33+
+        # v0.7.100+ (ADR-2026-07-08)
+        issues.extend(check_slug_title_1to1(vault))
+        # v0.7.107+
+        issues.extend(check_vault_growth_rate(vault))
+        issues.extend(check_duplicate_title(vault))
     finally:
         _scan_local.cache = None
 
