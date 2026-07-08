@@ -140,6 +140,15 @@
   --graph-tooltip-bg: rgba(255, 255, 255, 0.96);
   --graph-tooltip-border: rgba(148, 163, 184, 0.42);
   --graph-tooltip-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  /* v0.7.123+ all-vault dense 모드에서 vault별 halo 색. 결정적 매핑을 위해
+     6색 고정 팔레트(구조적 다양성 팔레트). vault 이름 정렬 후 modulo 인덱스.
+     v0.7.123 §13.2 예외: 구조적 팔레트는 정적 hex 인라인 허용 + 상수명+주석 필수. */
+  --graph-vault-halo-1: #38bdf8; /* sky */
+  --graph-vault-halo-2: #f97316; /* orange */
+  --graph-vault-halo-3: #a855f7; /* violet */
+  --graph-vault-halo-4: #22c55e; /* green */
+  --graph-vault-halo-5: #eab308; /* amber */
+  --graph-vault-halo-6: #ec4899; /* pink */
 
   /* ── <mark> — search-result highlight (commit 7c98738 이후 API 응답에 포함).
    *    Soft BMW Blue background + dark ink text — readable, on-brand,
@@ -1163,35 +1172,9 @@ mark {
   user-select: none;
   white-space: nowrap;
 }
-.graph-page-toggle-community {
-  /* Toggle 옆에 palette 15색 dot가 따라붙어 살짝 더 두꺼움. */
-  padding: 2px 4px 2px 0;
-  border-radius: 4px;
-  transition: opacity 0.15s ease;
-}
-.graph-page-toggle-community-off {
-  /* OFF일 때 dot는 흐릿하게 — 이 옵션이 비활성임을 한눈에 인지. */
-  opacity: 0.55;
-}
-.graph-page-toggle-palette {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-  /* ON/OFF 전환 시 dot들도 같이 페이드. */
-  transition: opacity 0.15s ease;
-}
-.graph-page-toggle-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1px solid var(--graph-border);
-  flex-shrink: 0;
-}
 .graph-page-control-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 1.5fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr) auto;
+  grid-template-columns: minmax(150px, 0.55fr) minmax(240px, 1.5fr) minmax(180px, 0.8fr) auto;
   gap: 14px;
   align-items: start;
 }
@@ -1333,6 +1316,19 @@ mark {
   font-size: 12px;
   color: var(--color-muted);
   word-break: break-all;
+}
+.graph-vault-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+  border: 1px solid var(--color-hairline);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .graph-detail-chip {
   display: inline-flex;

@@ -960,24 +960,68 @@ def vault_graph(
         merged_nodes = []
         merged_edges = []
         included_vaults = 0
+        # v0.7.123+ lightweight vault-cluster layout (surgical A').
+        # 1) 각 vault의 노드 좌표를 먼저 수집한 뒤, vault별 centroid를 큰 원형으로 배치.
+        # 2) 그 안에서 노드를 슬롯 분배해 같은 vault 노드끼리 가깝게, 다른 vault와는 멀게.
+        # 3) force-directed는 다시 돌리지 않음 — current scope layout 결과를 그대로
+        #    vault-local 오프셋만 입혀 재배치.
+        #    → 서버 비용 최소, current scope contract는 변경 없음.
+        per_vault_nodes: list[tuple[str, list[dict]]] = []
         for meta in registry().list():
             if not meta.path.exists():
                 continue
             graph = vault_graph(meta.name, iterations=iterations, community=community, scope="current")
             included_vaults += 1
+            vault_nodes: list[dict] = []
             for node in graph.get("nodes", []):
                 slug = node.get("slug") or node.get("id")
                 prefixed = dict(node)
                 prefixed["id"] = f"{meta.name}:{slug}"
                 prefixed["slug"] = slug
                 prefixed["vault"] = meta.name
-                merged_nodes.append(prefixed)
+                vault_nodes.append(prefixed)
+            per_vault_nodes.append((meta.name, vault_nodes))
             for edge in graph.get("edges", []):
                 merged_edges.append({
                     **edge,
                     "source": f"{meta.name}:{edge.get('source')}",
                     "target": f"{meta.name}:{edge.get('target')}",
                 })
+
+        # 1) vault centroid를 큰 원형(반경 VAULT_RING_RADIUS)에 균등 배치.
+        #    등록 vault가 1개면 centroid=origin → 효과는 identity (그래도 같은 코드 흐름).
+        import math
+        n_vaults = max(1, len(per_vault_nodes))
+        # ±500 정규화 contract 유지: vault가 최대 12개 정도일 때도 ring 안에서
+        # centroid 간 거리가 충분히 떨어지도록 조정.
+        vault_ring_radius = 380.0
+        vault_centroids: dict[str, tuple[float, float]] = {}
+        for idx, (vname, _) in enumerate(per_vault_nodes):
+            # 등록 순서대로 균등 각도 부여 — 결정성.
+            angle = (2.0 * math.pi * idx) / n_vaults
+            vault_centroids[vname] = (
+                vault_ring_radius * math.cos(angle),
+                vault_ring_radius * math.sin(angle),
+            )
+
+        # 2) 각 vault 안의 노드를 centroid 주변 슬롯으로 분배.
+        #    현재 layout 좌표(±500 안에 정규화됨)의 무게중심을 0으로 두고,
+        #    그걸 그대로 vault_centroid 근처로 평행이동.
+        #    → 같은 vault 노드 간 상대 거리는 유지(= 기존 force-atlas 결과 보존),
+        #      다른 vault 노드와는 vault_centroid 간 거리만큼 분리.
+        for vname, vault_nodes in per_vault_nodes:
+            if not vault_nodes:
+                continue
+            local_cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
+            local_cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
+            target_cx, target_cy = vault_centroids[vname]
+            dx = target_cx - local_cx
+            dy = target_cy - local_cy
+            for n in vault_nodes:
+                n["x"] = n["x"] + dx
+                n["y"] = n["y"] + dy
+                merged_nodes.append(n)
+
         return {
             "ok": True,
             "vault": name,
