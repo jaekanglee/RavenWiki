@@ -1121,6 +1121,10 @@ def run_all(vault: Vault) -> dict:
         issues.extend(check_audit_violation_pattern(vault))
         # v0.7.114+ (ADR-2026-07-08) — Lite bootstrap 3종 freshness 검사
         issues.extend(check_guide_freshness(vault))
+        # v0.7.127+ (Semantic Quality Guards)
+        issues.extend(check_placeholder_text(vault))
+        issues.extend(check_contextless_wikilinks(vault))
+        issues.extend(check_journal_summary_completeness(vault))
     finally:
         _scan_local.cache = None
 
@@ -1357,6 +1361,195 @@ def check_guide_freshness(vault):
             out.append(_mk_issue(
                 "#19", "info", "_meta/agents/PROJECT-WORKFLOW.md",
                 f"stamp stale — stamp={stamp_hash[:8]}.. vault_hash={vault_hash[:8]}..",
+            ))
+
+    return out
+
+
+def check_placeholder_text(vault: Vault) -> list[dict]:
+    """#20 empty or placeholder text (v0.7.127+).
+
+    본문이나 frontmatter 내에 TBD, N/A, '추후 작성', '임시', 'placeholder' 문구 감지 시 critical 에러 반환.
+    면제:
+      - _meta/ 하위 페이지
+      - wip/, scratch/ 하위 페이지
+      - tags에 wip, draft, scratch, memo, quick이 포함된 경우
+      - status ∈ {draft, archived}
+    """
+    out: list[dict] = []
+    exempt_tags = {"wip", "draft", "scratch", "memo", "quick"}
+    patterns = [
+        r"\btbd\b", r"\bn/a\b", r"\bplaceholder\b",
+        r"추후\s*작성", r"임시\s*작성", r"내용\s*없음", r"비어\s*있음"
+    ]
+    regexes = [re.compile(p, re.IGNORECASE) for p in patterns]
+
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        if slug.startswith("content/wip/") or slug.startswith("content/scratch/") or slug.startswith("wip/") or slug.startswith("scratch/"):
+            continue
+        try:
+            text = _read_text(fp)
+        except Exception:
+            continue
+        meta, body = _split_fm_body(text)
+        if not meta:
+            continue
+
+        pstatus = (meta.get("status") or "current").strip().lower()
+        if pstatus in {"draft", "archived"}:
+            continue
+
+        tags = meta.get("tags") or []
+        if isinstance(tags, list):
+            tags_set = {t.strip().lower() for t in tags if isinstance(t, str)}
+            if tags_set & exempt_tags:
+                continue
+
+        # Frontmatter 텍스트 검사
+        fm_text = ""
+        m = re.search(r"^(---\n)(.+?)(\n---)", text, re.DOTALL | re.MULTILINE)
+        if m:
+            fm_text = m.group(2)
+
+        detected = []
+        for rx in regexes:
+            if rx.search(fm_text) or rx.search(body):
+                detected.append(rx.pattern)
+
+        if detected:
+            out.append(_mk_issue(
+                "#20", "critical", slug,
+                f"플레이스홀더 또는 비어 있는 텍스트 발견: {', '.join(detected)}",
+            ))
+    return out
+
+
+def check_contextless_wikilinks(vault: Vault) -> list[dict]:
+    """#21 contextless wikilinks (v0.7.127+).
+
+    [[wikilink]] 뒤에 맥락적 설명(예: 하이픈 '—' 또는 ':' 뒤의 텍스트가 8자 미만)이 결여된 경우 warning 반환.
+    면제:
+      - _meta/ 하위 페이지
+      - content/_index/ 하위 페이지 및 content/index.md (자동 생성 카탈로그 영역)
+      - wip/, scratch/ 하위 페이지
+      - status ∈ {archived}
+    """
+    out: list[dict] = []
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/") or slug.startswith("content/_index/") or slug == "content/index.md":
+            continue
+        if slug.startswith("content/wip/") or slug.startswith("content/scratch/") or slug.startswith("wip/") or slug.startswith("scratch/"):
+            continue
+        try:
+            text = _read_text(fp)
+        except Exception:
+            continue
+        meta, body = _split_fm_body(text)
+        if not meta:
+            continue
+
+        pstatus = (meta.get("status") or "current").strip().lower()
+        if pstatus == "archived":
+            continue
+
+        lines = body.splitlines()
+        for idx, line in enumerate(lines):
+            for m in re.finditer(r"\[\[([^\[\]]+?)\]\]", line):
+                raw_link = m.group(0)
+                link_end_idx = m.end()
+
+                right_text = line[link_end_idx:].strip()
+
+                context_desc = right_text
+                for separator in ["—", "-", ":"]:
+                    if separator in right_text:
+                        context_desc = right_text.split(separator, 1)[1].strip()
+                        break
+
+                cleaned_desc = re.sub(r"[\[\]\(\)\{\}\.\,\!\?\*\#\-\s]", "", context_desc)
+                if len(cleaned_desc) < 8:
+                    out.append(_mk_issue(
+                        "#21", "warning", slug,
+                        f"라인 {idx+1}: 맥락 없는 wikilink {raw_link} 감지 (최소 8자 이상의 설명 필요)",
+                    ))
+    return out
+
+
+def check_journal_summary_completeness(vault: Vault) -> list[dict]:
+    """#22 journal/issue 요약 검증 (v0.7.127+).
+
+    type=journal 또는 type=issue인 경우, 본문 최상단에 `# 요약` 섹션이 존재하고,
+    3줄 이하의 유의미한 요약이 포함되어 있는지 검증.
+    """
+    out: list[dict] = []
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        try:
+            text = _read_text(fp)
+        except Exception:
+            continue
+        meta, body = _split_fm_body(text)
+        if not meta:
+            continue
+        ptype = (meta.get("type") or "").strip().lower()
+        if ptype not in {"journal", "issue"}:
+            continue
+
+        pstatus = (meta.get("status") or "current").strip().lower()
+        if pstatus == "archived":
+            continue
+
+        lines = body.splitlines()
+        summary_idx = -1
+        for idx, line in enumerate(lines):
+            if re.match(r"^#\s+요약\b", line.strip()):
+                summary_idx = idx
+                break
+
+        if summary_idx == -1:
+            out.append(_mk_issue(
+                "#22", "warning", slug,
+                f"{ptype} 문서에 '# 요약' 섹션이 누락되었습니다.",
+            ))
+            continue
+
+        summary_lines = []
+        for line in lines[summary_idx+1:]:
+            s = line.strip()
+            if s.startswith("#"):
+                break
+            if s:
+                summary_lines.append(s)
+
+        if not summary_lines:
+            out.append(_mk_issue(
+                "#22", "warning", slug,
+                f"요약 섹션이 비어 있습니다.",
+            ))
+            continue
+
+        if len(summary_lines) > 3:
+            out.append(_mk_issue(
+                "#22", "warning", slug,
+                f"요약 섹션이 3줄을 초과합니다 (현재 {len(summary_lines)}줄).",
+            ))
+
+        combined_summary = " ".join(summary_lines)
+        log_patterns = [
+            r"exit code\s+\d+", r"errorcode\s+\d+", r"\[\d{4}-\d{2}-\d{2}\]",
+            r"\bexception\b", r"\btraceback\b", r"build\s+failed", r"lint\s+failed"
+        ]
+        detected_logs = [p for p in log_patterns if re.search(p, combined_summary, re.IGNORECASE)]
+        if detected_logs:
+            out.append(_mk_issue(
+                "#22", "warning", slug,
+                f"요약 섹션에 단순 기계 로그/에러 메시지 복사 정황 감지: {', '.join(detected_logs)}",
             ))
 
     return out
