@@ -117,6 +117,7 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 13
 | `write` | `wiki_update(slug, content, frontmatter_data?, actor?, idempotency_key?)` | 페이지 생성/갱신 (upsert) | `save` |
 | `write` | `wiki_ingest(source, project?, mode="auto", actor?, idempotency_key?, user_command=False)` | raw/ 외부 자료 일괄 정리 (사람 명시 명령 시에만, ADR-2026-07-02) | `ingest` |
 | `write` | `wiki_archive(slug, reason?, actor?, idempotency_key?)` | ADR-2026-07-06 §1.3 — `archive/<YYYY-MM-DD>/<slug>.md` 격리 (1.5배 본문 가드 회피) | `archive` |
+| `read` | `wiki_check_freshness(vault: str, cache_hash?: str)` | **v0.7.114+** lite bootstrap 3종 SHA256 + 캐시 mismatch → `freshness_warning`. ADR-2026-07-08 — silent warn 기본, 강제 read ❌. HTTP 클라이언트는 `X-Guide-Hash` 헤더도 동등 진단 | `lint` |
 | `admin` | `wiki_delete(slug, actor?, idempotency_key?)` | 페이지 영구 삭제 (archive와 다름 — 사람 운영자 전용) | `delete` |
 | `admin` | `wiki_rename(old_slug, new_slug, actor?, idempotency_key?)` | slug 변경 + 인바운드 wikilink 재작성 (lint #15 자동 수리) | `rename` |
 
@@ -172,10 +173,15 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 
 #### 표준 흐름
 
-1. `tools/list` 호출 → MCP 표준 자동 discovery → 10개 도구 schema 즉시
+1. `tools/list` 호출 → MCP 표준 자동 discovery → 13개 도구 schema 즉시
 2. 첫 호출 시 `vault=<이름>` 인자 필수 (다중 vault 지원)
    - `vault` 이름 = 디렉토리 basename (예: `~/Raven/my-vault/` → `my-vault`)
 3. `wiki_search(vault="my-vault", query="...", top_k=10)` 등으로 자유 탐색
+
+> **HTTP-only 정책 (v0.7.81+)**: Raven MCP 서버는 stdio transport 미지원.
+> 외부 에이전트는 HTTP localhost (`http://127.0.0.1:8766/mcp`)로만 연결.
+> 헤더 기반 freshness 가드 (v0.7.114+)는 HTTP 전용 — stdio 클라이언트는
+> `wiki_check_freshness()` 도구 호출로 동등 진단.
 
 > **도메인/구조/타입 추측 ❌** (→ §0.5). `wiki_search`로 먼저 확인.
 
@@ -393,6 +399,12 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
   `type: issue` 발의까지입니다.)
 - **글쓰기 품질 판단**: 이 vault는 BLUF로 시작하는 형식을 요구하지만,
   "왜 그게 좋은 글쓰기인가"는 여기서 가르치지 않습니다.
+- **지침 freshness 인지** (v0.7.114+, ADR-2026-07-08): `wiki_check_freshness`는
+  silent warn만 던집니다. "언제 vault 부속을 다시 읽을지"는 당신의 판단입니다.
+  단, freshness_warning이 떴는데 무시하면 옛날 정책으로 작업하게 됩니다 —
+  사람 운영자가 "지침 업데이트됐는데 왜 옛날 거 쓰냐"고 묻기 전에 인지하세요.
+  ⚠️ Telegram 환경에서는 log.md tail 확인이 비현실적이므로, 첫 mismatch 시
+  운영자에게 1회 신호가 전달됩니다 — 이후 silent.
 - 이 vault를 반복해서 다루며 얻은 **이 vault 특유의 교훈**은 문서를
   직접 고치지 말고 당신의 메모리에 쌓으십시오.
 

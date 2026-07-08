@@ -58,6 +58,84 @@ app.add_middleware(
 )
 
 
+# v0.7.114+ (ADR-2026-07-08): Lite bootstrap freshness 가드 미들웨어.
+# vault 부속(SCHEMA.md / PROJECT-WORKFLOW.md)의 SHA256을 매 응답에 X-Guide-Hash로 echo.
+# X-Guide-Hash 요청 헤더가 있으면 cache_hash로 파싱, mismatch 시 응답 body에
+# `freshness_warning` 첨부 + log.md audit append. silent warn — 강제 read ❌.
+# HTTP 전용 (stdio 미지원). MCP HTTP transport 와 REST API 동일 동작.
+_FRESHNESS_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_FRESHNESS_USER_AGENT_LIKE_PREFIXES = ("agent", "mcp", "ai-")
+
+
+def _resolve_request_vault(vault_name: Optional[str]) -> Optional[Vault]:
+    """URL path의 vault 이름으로 Vault 객체 resolve. 실패 시 None."""
+    if not vault_name:
+        return None
+    meta = registry().get(vault_name)
+    if not meta:
+        return None
+    try:
+        return Vault.load(meta)
+    except Exception:
+        return None
+
+
+def _extract_vault_name_from_path(path: str) -> Optional[str]:
+    """/api/vaults/{name}/... 형태에서 name 추출."""
+    parts = path.strip("/").split("/")
+    if len(parts) >= 3 and parts[0] == "api" and parts[1] == "vaults":
+        return parts[2]
+    return None
+
+
+@app.middleware("http")
+async def freshness_middleware(request, call_next):
+    """Lite bootstrap freshness 가드 — ADR-2026-07-08.
+
+    Request 헤더 X-Guide-Hash: SCHEMA=abc,PROJECT-WORKFLOW=def
+    → vault 부속 hash 재계산 후 mismatch 시 freshness_warning 첨부.
+
+    Response 헤더 X-Guide-Hash: SCHEMA=...,PROJECT-WORKFLOW=...
+    → agent가 다음 호출 시 cache_hash로 사용.
+    """
+    from raven.mcp.tools.guide import check_freshness
+
+    cache_hash = request.headers.get("X-Guide-Hash")
+    vault_name = _extract_vault_name_from_path(request.url.path)
+    vault = _resolve_request_vault(vault_name) if vault_name else None
+
+    response = await call_next(request)
+
+    if vault is None:
+        return response
+
+    try:
+        info = check_freshness(vault_root=vault.root, cache_hash=cache_hash)
+    except Exception:
+        # hash 계산 실패 시 silent skip (성능/안정성 우선)
+        return response
+
+    # 응답 헤더 echo (모든 응답에 — agent가 다음 호출 시 사용)
+    from raven.mcp.tools.guide import _format_hash_for_header
+    guides_for_header = {
+        k: {"vault_hash": v.get("vault_hash") if isinstance(v, dict) else None}
+        for k, v in info.get("guides", {}).items()
+        if isinstance(v, dict)
+    }
+    formatted = _format_hash_for_header(guides_for_header)
+    if formatted:
+        response.headers["X-Guide-Hash"] = formatted
+
+    # mismatch — write 도구일 때만 freshness_warning 첨부
+    if info.get("stale") and request.method in _FRESHNESS_WRITE_METHODS:
+        response.headers["X-Guide-Freshness-Warning"] = (
+            "stale_guide: cache_hash != vault_hash. "
+            + "Kinds=" + ",".join(info.get("stale_kinds", []))
+        )
+
+    return response
+
+
 # ────────────────────────── helpers ──────────────────────────
 
 

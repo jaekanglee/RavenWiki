@@ -252,6 +252,7 @@ north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 �
 | 16 | **vault growth rate anomaly** (v0.7.107) — 7일 rolling page count 증가율 > 3σ (과거 30일 기준). north star "증분 누적" 위반 패턴 감지. 사람 운영자 큐레이션 트리거 | 🔵 info |
 | 17 | **duplicate title candidate** (v0.7.107) — title 유사도 > 0.8 페이지 2개+ — 같은 개념 중복 작성 감지. 큐레이션: `[[wikilink]]` 상호 link 또는 합병 발의 (`type: issue`) | 🟡 warning |
 | 18 | **audit violation pattern** (v0.7.109) — 30일 log.md에서 단일 actor 5회+ / 단일 path 10회+ permission_denied. north star "원문 보존" 위반 반복 — actor 차단 / 권한 정책 검토 | 🟡 warning |
+| 19 | **guide freshness** (v0.7.114+, ADR-2026-07-08) — vault `_meta/agents/` 부속 vs 캐시된 agent hash mismatch. silent warn + log.md audit (강제 read ❌) | 🔵 info |
 
 ### System Areas (type 면제)
 
