@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { GraphCanvas, typeLabel } from "../components/GraphCanvas";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
@@ -194,6 +194,29 @@ export function GraphPage() {
     navigate(`/page/${nodeVault(node, vault)}/${nodeSlug(node)}`);
   };
 
+  // v0.7.126+: GraphCanvas가 drag-end마다 (id → {x,y})를 보낸다. current
+  // scope에서만 persist (all-scope는 "{vault}:{slug}" 형태라 분해 필요,
+  // 별도 사이클에서 처리). fetch 실패는 silent — 다음 atlas 계산 시
+  // 사용자 좌표가 사라지지만 retry 가능.
+  const persistPositions = useCallback(
+    (positions: Record<string, { x: number; y: number }>) => {
+      if (graphScope !== "current" || !vault) return;
+      const slugPositions: Record<string, { x: number; y: number }> = {};
+      for (const [id, xy] of Object.entries(positions)) {
+        const node = graphNodeMap.get(id);
+        const slug = node?.slug ?? (id.includes(":") ? null : id);
+        if (slug) slugPositions[slug] = xy;
+      }
+      if (Object.keys(slugPositions).length === 0) return;
+      fetch(`/api/vaults/${encodeURIComponent(vault)}/graph/positions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ positions: slugPositions }),
+      }).catch(() => {});
+    },
+    [graphScope, vault, graphNodeMap]
+  );
+
   const controlsSection = (
     <div className="graph-page-control-grid">
       <SelectField
@@ -348,6 +371,7 @@ export function GraphPage() {
             density={graphScope === "all" ? "dense" : "normal"}
             vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}
             onFullscreen={() => setShowFullGraph(true)}
+            onPositionsChange={persistPositions}
           />
         )}
       </div>

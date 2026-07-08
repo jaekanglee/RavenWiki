@@ -6,6 +6,70 @@ node positions inline in the HTTP handler file. `server.py` now imports them.
 """
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
+
+GRAPH_POSITIONS_FILENAME = ".graph_positions.json"
+
+
+def load_user_positions(vault_root: Path | str) -> dict[str, tuple[float, float]]:
+    """vault 루트의 `.graph_positions.json`에서 사용자 지정 좌표를 읽는다.
+
+    v0.7.126+: dashboard GraphCanvas의 노드 드래그 위치를 영구 저장하기 위한
+    sidecar. 파일이 없거나 손상되면 빈 dict 반환 (forceatlas 결과 그대로 사용).
+
+    결정론: 같은 파일 내용이면 항상 같은 dict. JSON 스키마는 ``{"positions":
+    {"<slug>": {"x": float, "y": float}}}``. slug 외 키는 무시.
+    """
+    import json
+
+    p = Path(vault_root) / GRAPH_POSITIONS_FILENAME
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    positions = raw.get("positions") if isinstance(raw, dict) else None
+    if not isinstance(positions, dict):
+        return {}
+    out: dict[str, tuple[float, float]] = {}
+    for slug, xy in positions.items():
+        if not isinstance(slug, str) or not isinstance(xy, dict):
+            continue
+        raw_x: object = xy.get("x")  # type: ignore[arg-type]
+        raw_y: object = xy.get("y")  # type: ignore[arg-type]
+        if not isinstance(raw_x, (int, float)) or not isinstance(raw_y, (int, float)):
+            continue
+        out[slug] = (float(raw_x), float(raw_y))
+    return out
+
+
+def save_user_positions(
+    vault_root: Path | str,
+    positions: dict[str, tuple[float, float]],
+) -> dict[str, Any]:
+    """`.graph_positions.json`에 사용자 좌표를 저장.
+
+    결정론: 입력 dict 순서대로 JSON 직렬화 (Python 3.7+ dict는 insertion order
+    보존). v.root 자체에는 절대 손대지 않고 sidecar만 갱신.
+    """
+    import json
+    import time
+
+    p = Path(vault_root) / GRAPH_POSITIONS_FILENAME
+    payload = {
+        "schema": 1,
+        "updated_at": time.time(),
+        "positions": {slug: {"x": float(x), "y": float(y)} for slug, (x, y) in positions.items()},
+    }
+    p.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return {"ok": True, "count": len(payload["positions"]), "path": str(p)}
+
 
 def normalize_layout(
     ids: list[str],
