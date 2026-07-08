@@ -191,6 +191,11 @@ class PageUpdate(BaseModel):
     tags: Optional[list[str]] = None
 
 
+class FeedbackPayload(BaseModel):
+    feedback: str
+    actor: str = "user"
+
+
 class LogAppend(BaseModel):
     action: str = Field(..., description="ingest|update|create|archive|delete|lint|build|migrate|chore")
     subject: str
@@ -1735,6 +1740,98 @@ def update_page(name: str, slug: str, payload: PageUpdate):
         "vault": name,
         "slug": result.slug,
         "created": result.created_date,
+    }
+
+
+@app.post("/api/vaults/{name}/pages/{slug:path}/feedback")
+def add_page_feedback(name: str, slug: str, payload: FeedbackPayload):
+    """Add a user feedback / correction instruction to a page.
+
+    This appends a feedback comment block under ## 피드백 section in the markdown body,
+    and sets frontmatter `progress` to 'in-progress'.
+    """
+    import re
+    from datetime import datetime, timezone
+
+    v = _vault_or_404(name)
+    _safe_slug_or_400(slug, v)
+
+    try:
+        normalized = slug_module.normalize_prefix(slug)
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+        md_file = safe_path.with_suffix(".md")
+        if not md_file.exists():
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
+    except slug_module.SlugError:
+        raise HTTPException(status_code=400, detail="Invalid slug")
+
+    try:
+        text = md_file.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+    # Parse existing frontmatter and body
+    from raven.core.frontmatter import parse as fm_parse
+    meta, body = fm_parse(text)
+
+    # Set progress: in-progress
+    if not isinstance(meta, dict):
+        meta = {}
+    
+    # Preserve existing title/type/tags if write_page demands it,
+    # but write_page accepts explicit parameters. 
+    # We will pass progress in extra_meta.
+    extra = dict(meta) if meta else {}
+    extra["progress"] = "in-progress"
+
+    # Format feedback comment
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    feedback_line = f"* **{now_str} ({payload.actor})**: {payload.feedback}"
+
+    # Search for ## 피드백 heading in body
+    body_lines = body.splitlines()
+    feedback_idx = -1
+    for idx, line in enumerate(body_lines):
+        if re.match(r"^##\s+피드백\b", line.strip()):
+            feedback_idx = idx
+            break
+
+    if feedback_idx != -1:
+        # Insert feedback comment immediately below the heading
+        body_lines.insert(feedback_idx + 1, feedback_line)
+        new_body = "\n".join(body_lines)
+    else:
+        # Append ## 피드백 section to the bottom
+        body_stripped = body.rstrip()
+        new_body = (
+            body_stripped +
+            "\n\n## 피드백\n" +
+            feedback_line + "\n"
+        )
+
+    # Write back utilizing the contracts.write_page (preserving metadata and indexing)
+    result = contracts.write_page(
+        v,
+        slug,
+        new_body,
+        title=meta.get("title"),
+        type=meta.get("type"),
+        tags=meta.get("tags"),
+        extra_meta=extra,
+        overwrite=True,
+        enforce_protected_paths=True,
+    )
+
+    if not result.ok:
+        if result.error == "permission_denied":
+            raise HTTPException(status_code=403, detail=result.message or result.error)
+        raise HTTPException(status_code=400, detail=result.error)
+
+    return {
+        "ok": True,
+        "vault": name,
+        "slug": result.slug,
+        "progress": "in-progress",
     }
 
 
