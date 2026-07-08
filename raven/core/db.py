@@ -103,14 +103,71 @@ def connect(vault: Vault) -> sqlite3.Connection:
     entirely missing — a stale DB (markdown edited after the last build)
     was served as-is, so search/graph/backlinks silently returned outdated
     data. Now every connect() checks `garden.db_is_stale()` first.
+
+    v0.7.119 (ADR-2026-07-09): also checks `db_schema_drift()` — pre-v0.7.119
+    `db_is_stale()` only watched markdown mtime vs db mtime. Existing vaults
+    whose wiki.db was built before the v0.7.67 schema migration (e.g.
+    `homelab` / `babymoa` / `hermes-infra` — `links` table is still
+    `src/dst/kind/intent`, `tags` is `(name, count)`, no `pages_fts`) had
+    a *newer mtime* than their markdown (because someone rebuilt once
+    against the wrong schema) so the stale guard returned False and the
+    /garden endpoint silently 500'd on every request. Schema drift guard
+    triggers a one-shot rebuild — markdown SoT is rebuilt into the
+    canonical schema, old db is overwritten.
     """
     if not vault.db_path.exists():
         build_db(vault)
     else:
         from . import garden as _garden
-        if _garden.db_is_stale(vault):
+        if _garden.db_is_stale(vault) or db_schema_drift(vault):
             build_db(vault)
     return sqlite3.connect(f"file:{vault.db_path}?mode=ro", uri=True)
+
+
+def db_schema_drift(vault: Vault) -> bool:
+    """True when the wiki.db schema no longer matches the canonical contract.
+
+    v0.7.119 (ADR-2026-07-09): detects pre-v0.7.67 schema state on existing
+    vaults — `links` was `src/dst/kind/intent` (now `source_slug/target_slug/
+    context/intent`), `tags` was `(name, count)` (now `(page_slug, tag)`),
+    and `pages_fts` did not exist. The drift was silent because
+    `db_is_stale()` only watched markdown mtime vs db mtime, and the stale
+    db could be *newer* than the markdown (a one-shot rebuild against the
+    wrong schema). Returning True here forces a rebuild through the
+    canonical schema path, after which `connect()` opens cleanly.
+
+    Cheap: three PRAGMA table_info calls, one SELECT name FROM
+    sqlite_master. Never raises — returns True on any inspection error
+    so the caller rebuilds rather than serving broken schema.
+    """
+    if not vault.db_path.exists():
+        return False  # connect() handles "missing" via build_db directly
+    try:
+        conn = sqlite3.connect(f"file:{vault.db_path}?mode=ro", uri=True)
+        try:
+            # 1. links table must have source_slug + target_slug (canonical).
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(links)").fetchall()}
+            if not {"source_slug", "target_slug"}.issubset(cols):
+                return True
+            # 2. tags table must have page_slug + tag (canonical M:N join).
+            tag_cols = {row[1] for row in conn.execute("PRAGMA table_info(tags)").fetchall()}
+            if not {"page_slug", "tag"}.issubset(tag_cols):
+                return True
+            # 3. pages_fts virtual table must exist (FTS5 index).
+            fts_exists = conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='pages_fts' LIMIT 1"
+            ).fetchone()
+            if fts_exists is None:
+                return True
+            return False
+        finally:
+            conn.close()
+    except Exception:
+        # Inspection failed (corrupt db, locked, permissions) — treat as
+        # drift so caller rebuilds rather than serving whatever we just
+        # couldn't read. AGENTS.md §9 silent failure policy.
+        return True
 
 
 def search_fts(

@@ -368,11 +368,20 @@ export interface StalePage {
   age_days: number;
 }
 
+export type GardenLinkCandidate =
+  | string
+  | {
+      slug: string;
+      title?: string;
+      reason?: string;
+      score?: number;
+    };
+
 export interface OrphanPage {
   slug: string;
   title: string;
   type: string;
-  link_candidates: string[];
+  link_candidates: GardenLinkCandidate[];
 }
 
 export interface GardenResult {

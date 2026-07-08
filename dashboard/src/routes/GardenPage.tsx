@@ -433,39 +433,38 @@ export function GardenPage() {
                       </span>
                     ) : (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {p.link_candidates.map((cand) => (
-                          <div
-                            key={cand}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: "4px 8px",
-                              backgroundColor: "var(--color-surface-soft)",
-                              borderRadius: 4,
-                              border: "1px solid var(--color-hairline)",
-                            }}
-                          >
-                            <span style={{ fontSize: 12, color: "var(--color-ink)", wordBreak: "break-all" }}>
-                              {cand}
-                            </span>
-                            <button
-                              onClick={() => handleConnectLink(p.slug, cand)}
+                        {p.link_candidates.map((cand) => {
+                          const candSlug = typeof cand === "string" ? cand : cand.slug;
+                          const candTitle = typeof cand === "string" ? cand : cand.title || cand.slug;
+                          const candReason = typeof cand === "string" ? "" : cand.reason || "";
+                          return (
+                            <div
+                              key={candSlug}
+                              title={candReason}
                               style={{
-                                padding: "2px 6px",
-                                fontSize: 10,
-                                borderRadius: 3,
-                                border: "none",
-                                backgroundColor: "var(--color-ink)",
-                                color: "var(--color-surface-soft)",
-                                cursor: "pointer",
-                                fontWeight: 600,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "4px 8px",
+                                backgroundColor: "var(--color-surface-soft)",
+                                borderRadius: 4,
+                                border: "1px solid var(--color-hairline)",
                               }}
                             >
-                              연결
-                            </button>
-                          </div>
-                        ))}
+                              <span style={{ fontSize: 12, color: "var(--color-ink)", wordBreak: "break-all" }}>
+                                {candTitle}
+                              </span>
+                              <Button
+                                onClick={() => handleConnectLink(p.slug, candSlug)}
+                                variant="secondary"
+                                size="sm"
+                                style={{ padding: "2px 6px", fontSize: 10 }}
+                              >
+                                연결
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
