@@ -49,9 +49,12 @@ describe("GraphPage all-vault scope contract", () => {
   it("reprojects vault centroids to screen space on every viewport change", () => {
     // v0.7.123+: halo/label은 ReactFlow 바깥 형제라 viewport transform을 자동으로
     // 안 받는다. flowToScreenPosition + onMove로 매 pan/zoom마다 갱신해야 한다.
+    // v0.7.124+: 좌표 변환 로직은 vaultScreenFromCentroids 헬퍼로 추출되어
+    // mount useEffect와 handleMove가 공유한다. 헬퍼 안에 zoom 비례 radius 로직
+    // (`vc.radius * zoom`)이 그대로 남아 있어야 contract가 유지된다.
     expect(GraphCanvasSrc).toContain('vaultScreenPositions');
     expect(GraphCanvasSrc).toContain('flowToScreenPosition({ x: vc.x, y: vc.y })');
-    expect(GraphCanvasSrc).toMatch(/setVaultScreenPositions\([\s\S]*?vc\.radius \* zoom/);
+    expect(GraphCanvasSrc).toMatch(/vaultScreenFromCentroids[\s\S]*?vc\.radius \* zoom/);
     // onMove 핸들러 안에서 재계산 트리거
     const handleMoveMatch = GraphCanvasSrc.match(
       /const handleMove = useCallback\(\(\) => \{[\s\S]*?setVaultScreenPositions/
