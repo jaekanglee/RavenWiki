@@ -815,6 +815,31 @@ def test_atlas_layout_normalized_and_deterministic():
         assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
 
 
+def test_atlas_layout_large_graph_barnes_hut_is_deterministic_and_normalized():
+    """v0.7.127+: large graph는 Barnes-Hut 근사로 전환되어도 결정론/정규화 유지."""
+    from raven.api.server import _forceatlas_layout
+
+    ids = [f"n{i}" for i in range(220)]
+    edges: list[tuple[str, str]] = []
+    for i in range(220):
+        if i + 1 < 220:
+            edges.append((f"n{i}", f"n{i+1}"))
+        if i + 2 < 220 and i % 3 == 0:
+            edges.append((f"n{i}", f"n{i+2}"))
+        if i + 11 < 220 and i % 11 == 0:
+            edges.append((f"n{i}", f"n{i+11}"))
+
+    out1 = _forceatlas_layout(ids, edges, weights={"n0": 8, "n55": 5, "n110": 5}, iterations=120)
+    out2 = _forceatlas_layout(ids, edges, weights={"n0": 8, "n55": 5, "n110": 5}, iterations=120)
+
+    assert out1 == out2
+    assert set(out1) == set(ids)
+    assert len({out1[s] for s in ids}) > 10
+    for slug, (x, y) in out1.items():
+        assert -501.0 <= x <= 501.0, f"x out of ±500 range: {x} (id={slug})"
+        assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
+
+
 # ─── Louvain community detection (v0.6.15+) ───
 
 

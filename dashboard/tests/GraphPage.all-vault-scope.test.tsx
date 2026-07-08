@@ -31,10 +31,7 @@ describe("GraphPage all-vault scope contract", () => {
     expect(GraphCanvasSrc).toContain('density?: "normal" | "dense"');
     expect(GraphCanvasSrc).toContain('const isDense = density === "dense"');
     expect(GraphCanvasSrc).toContain('const showLabel = !isDense || highlighted || persistent');
-    // v0.7.123+: dense base opacity는 cross-vault 분기와 함께 3-way로 분기된다.
-    // 단순 const baseOpacity → if/else 흐름. (이전 단일 baseOpacity 박힘 회귀 가드는 dim 분기 test로 보강)
-    expect(GraphCanvasSrc).toContain('isDense ? 0.18 : 0.6');
-    expect(GraphCanvasSrc).toContain('isDense && isCrossVault');
+    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;');
   });
 
   it("renders vault halos and centroid labels only in all-vault scope", () => {
@@ -82,7 +79,15 @@ describe("GraphPage all-vault scope contract", () => {
     // intra-vault edge는 dense base(0.18) 유지.
     expect(GraphCanvasSrc).toContain('crossVaultEdgeIds');
     expect(GraphCanvasSrc).toMatch(/srcVault\s*!==\s*tgtVault/);
-    expect(GraphCanvasSrc).toContain('isDense && isCrossVault');
-    expect(GraphCanvasSrc).toContain('opacity = 0.08');
+    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;');
+    expect(GraphCanvasSrc).toContain('if (!focus.active) return baseDisplayEdges;');
+  });
+
+  it("fans out drag persist per vault in all-scope mode", () => {
+    expect(GraphPageSrc).toContain('Promise.allSettled');
+    expect(GraphPageSrc).toContain('entries.map(([targetVault, pos]) =>');
+    expect(GraphPageSrc).toContain('/graph/positions');
+    expect(GraphPageSrc).toContain('nodeVault(node ?? ({ id } as GraphNode), vault)');
+    expect(GraphPageSrc).toContain('nodeSlug(node ?? ({ id } as GraphNode))');
   });
 });
