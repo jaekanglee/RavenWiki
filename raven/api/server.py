@@ -1966,7 +1966,7 @@ def get_garden(name: str):
             "slug": item["slug"],
             "title": item["title"],
             "type": item["type"],
-            "link_candidates": candidates,  # list of slugs
+            "link_candidates": candidates,  # list of {slug,title,reason,score} objects
         })
 
     return {
