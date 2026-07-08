@@ -919,6 +919,8 @@ from raven.core.graph import (
     louvain_communities as _louvain_communities,
     constellation_layout as _constellation_layout,
     forceatlas_layout as _forceatlas_layout,
+    load_user_positions as _load_user_positions,
+    save_user_positions as _save_user_positions,
 )
 
 
@@ -1111,6 +1113,15 @@ def vault_graph(
             layout_coords = _forceatlas_layout(
                 ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
             )
+            # v0.7.126+: 사용자가 노드를 드래그해 저장한 좌표(.graph_positions.json)가
+            # 있으면 forceatlas 결과를 덮어쓴다. 결정적 — 같은 파일/같은 노드면
+            # 항상 같은 결과. 일부 slug만 override되면 나머지는 atlas 좌표 유지.
+            user_pos = _load_user_positions(v.root)
+            if user_pos:
+                for node in nodes:
+                    xy = user_pos.get(node["slug"])
+                    if xy is not None:
+                        layout_coords[node["id"]] = xy
             for node in nodes:
                 xy = layout_coords.get(node["id"], (0.0, 0.0))
                 node["x"] = xy[0]
@@ -1216,6 +1227,13 @@ def vault_graph(
     layout_coords = _forceatlas_layout(
         ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
     )
+    # v0.7.126+: 사용자 드래그 좌표(.graph_positions.json) override.
+    user_pos = _load_user_positions(v.root)
+    if user_pos:
+        for node in nodes:
+            xy = user_pos.get(node["slug"])
+            if xy is not None:
+                layout_coords[node["id"]] = xy
     for node in nodes:
         xy = layout_coords.get(node["id"], (0.0, 0.0))
         node["x"] = xy[0]
@@ -1228,6 +1246,39 @@ def vault_graph(
         "edges": edges,
         "stats": {"nodes": len(nodes), "edges": len(edges)},
     }
+
+
+class GraphPositionsBody(BaseModel):
+    """POST /api/vaults/{name}/graph/positions body.
+
+    v0.7.126+: dashboard GraphCanvas의 노드 드래그 위치 영구 저장용.
+    결정론: 입력 dict 순서 보존되어 .graph_positions.json에 그대로 직렬화.
+    """
+
+    positions: dict[str, dict[str, float]]
+
+
+@app.post("/api/vaults/{name}/graph/positions")
+def set_graph_positions(name: str, body: GraphPositionsBody):
+    """vault의 사용자 정의 그래프 노드 좌표를 `<vault>/.graph_positions.json`에 저장.
+
+    v0.7.126+: dashboard에서 노드를 드래그한 뒤, GraphCanvas가 이 endpoint로
+    좌표를 보내면 다음 `GET /api/vaults/{name}/graph` 호출 시 forceatlas 좌표
+    대신 이 좌표가 사용된다. 빈 dict 보내면 기존 좌표도 그대로 유지(merge).
+
+    권한: vault owner만 가능 (Vault.write API와 동일한 정책).
+    """
+    v = _vault_or_404(name)
+    existing = _load_user_positions(v.root)
+    for slug, xy in body.positions.items():
+        if not isinstance(slug, str) or not isinstance(xy, dict):
+            continue
+        raw_x = xy.get("x")
+        raw_y = xy.get("y")
+        if not isinstance(raw_x, (int, float)) or not isinstance(raw_y, (int, float)):
+            continue
+        existing[slug] = (float(raw_x), float(raw_y))
+    return _save_user_positions(v.root, existing)
 
 
 @app.get("/api/vaults/{name}/pages/{slug:path}")

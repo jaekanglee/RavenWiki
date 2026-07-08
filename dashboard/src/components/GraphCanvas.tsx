@@ -35,6 +35,12 @@ interface Props {
   density?: "normal" | "dense";
   /** all-vault 모드에서 vault 소속을 보여주는 centroid + halo 표식. */
   vaultCentroids?: VaultCentroid[];
+  /**
+   * v0.7.126+: 노드 드래그 종료 시점(dragging=false + position 변화)에 호출.
+   * GraphPage가 받아서 batch로 POST /api/vaults/{vault}/graph/positions 보냄.
+   * 키는 node.id (= GraphNode.slug 또는 "{vault}:{slug}" for all-scope).
+   */
+  onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void;
 }
 
 export interface VaultCentroid {
@@ -361,6 +367,7 @@ function GraphCanvasInner({
   onFullscreen,
   density = "normal",
   vaultCentroids,
+  onPositionsChange,
 }: Props) {
   const isDense = density === "dense";
   const containerRef = useRef<HTMLDivElement>(null);
@@ -479,6 +486,29 @@ function GraphCanvasInner({
   // every render reuses the memoized server layout nodes.
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(rfNodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(rfEdges);
+
+  // v0.7.126+: drag-end 감지 wrapper. xyflow의 NodeChange 중 position change의
+  // dragging=false가 drag 끝점. 그 시점에 (id → position) dict를 모아 부모에
+  // 1회 callback. 그래야 매 mousemove마다 POST가 안 날아간다.
+  const handleNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChange>[0]) => {
+      onNodesChange(changes);
+      if (!onPositionsChange) return;
+      const moved: Record<string, { x: number; y: number }> = {};
+      for (const change of changes) {
+        if (
+          change.type === "position" &&
+          change.dragging === false &&
+          change.position &&
+          typeof change.id === "string"
+        ) {
+          moved[change.id] = { x: change.position.x, y: change.position.y };
+        }
+      }
+      if (Object.keys(moved).length > 0) onPositionsChange(moved);
+    },
+    [onNodesChange, onPositionsChange]
+  );
 
   // Sync server-computed layout into xyflow's controlled state. We compare
   // id/position explicitly so dragging the user around does NOT get clobbered
@@ -848,7 +878,7 @@ function GraphCanvasInner({
       <ReactFlow
         nodes={displayNodes as any}
         edges={displayEdges}
-        onNodesChange={onNodesChange as any}
+        onNodesChange={handleNodesChange as any}
         onEdgesChange={onEdgesChange as any}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
