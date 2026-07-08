@@ -277,7 +277,7 @@ export function RawPanel() {
           display: "grid",
           gridTemplateColumns: "minmax(240px, 1fr) minmax(0, 2.5fr)",
           gap: 16,
-          alignItems: "start",
+          alignItems: "stretch",
         }}
       >
         {/* 좌: 트리 */}
@@ -320,6 +320,10 @@ export function RawPanel() {
             borderRadius: 8,
             padding: 16,
             minHeight: 240,
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: "calc(100vh - 220px)",
+            overflow: "hidden",
           }}
         >
           {!relPath ? (
@@ -412,19 +416,32 @@ export function RawPanel() {
                 </div>
               )}
 
-              <TextField
-                label=""
-                value={editMode ? draft : content.content}
-                onChange={(e) => setDraft(e.target.value)}
-                multiline
-                readOnly={!editMode}
-                rows={20}
-                style={{
-                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                }}
-              />
+              <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+                <textarea
+                  value={editMode ? draft : content.content}
+                  onChange={(e) => setDraft(e.target.value)}
+                  readOnly={!editMode}
+                  spellCheck={false}
+                  style={{
+                    flex: 1,
+                    width: "100%",
+                    height: "100%",
+                    padding: "12px 14px",
+                    fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "var(--color-ink)",
+                    background: "var(--color-canvas)",
+                    border: "1px solid var(--color-hairline)",
+                    borderRadius: 6,
+                    outline: "none",
+                    resize: "none",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    tabSize: 2,
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
