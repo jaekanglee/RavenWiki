@@ -864,8 +864,9 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
       - type ∈ {rule, journal, query} (SCHEMA §X)
       - _meta/ 안 페이지 (운영 문서)
       - .vault.json 내 disable_cognitive_governance=True 인 경우 (글로벌 비활성화)
-      - wip/, scratch/ 하위 경로 페이지 (임시 작성 영역)
+      - wip/, scratch/ 하위 경위 페이지 (임시 작성 영역)
       - tags 내 wip, draft, scratch, memo, quick 단어가 포함된 경우 (초안 면제)
+      - status ∈ {draft, stale, contested, archived} (v0.7.113+ status 머신 5종 연동)
 
     v0.5.3: info 등급 — 페이지 lint 통과에 영향 ❌. v0.6.x에서 warning 격상 후보.
     """
@@ -901,6 +902,10 @@ def check_cognitive_governance(vault: Vault) -> list[dict]:
         # 면제: type 면제
         ptype = (meta.get("type") or "").strip().lower()
         if ptype in COG_GOV_EXEMPT_TYPES:
+            continue
+        # 면제: status 머신 draft/stale/contested/archived (v0.7.113+)
+        pstatus = (meta.get("status") or "current").strip().lower()
+        if pstatus in {"draft", "stale", "contested", "archived"}:
             continue
         # 면제: 초안/임시 태그 면제
         tags = meta.get("tags") or []
@@ -1125,12 +1130,20 @@ def run_all(vault: Vault) -> dict:
         cid = iss.get("id", "?")
         by_check[cid] = by_check.get(cid, 0) + 1
 
+    # v0.7.113+ (ADR-2026-07-08): type=issue + draft 7일+ → status=current 자동 승격.
+    # lint #18 audit 통과가 전제.
+    try:
+        promoted = _auto_promote_draft_issues(vault)
+    except Exception:
+        promoted = 0
+
     return {
         "ok": counts["critical"] == 0,
         "vault": vault.meta.name,
         "counts": counts,
         "issues": issues,
         "by_check": by_check,
+        "draft_promoted": promoted,
     }
 
 
@@ -1165,3 +1178,120 @@ def run_lint(vault: Vault) -> dict:
         "issues": full["issues"],
         "by_check": full["by_check"],
     }
+
+
+# ────────────────────────── v0.7.113+ draft 자동 current 머신 (ADR-2026-07-08) ──────────────────────────
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+_DRAFT_AUTO_PROMOTE_DAYS = 7
+_ISO_FMT = "%Y-%m-%d"
+
+
+def _parse_iso_date(s):
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s[:10], _ISO_FMT).replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _audit_violation_clean(vault):
+    """lint #18 audit violation 패턴이 감지되지 않으면 True."""
+    try:
+        violations = check_audit_violation_pattern(vault)
+        return not violations
+    except Exception:
+        return False
+
+
+def _auto_promote_draft_issues(vault):
+    """type=issue + status=draft + created+7일+ → status=current 자동 승격.
+    lint #18 audit 위반 없음이 전제. log.md에 audit 레코드 append.
+    """
+    if not _audit_violation_clean(vault):
+        return 0
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_DRAFT_AUTO_PROMOTE_DAYS)
+    promoted = 0
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/"):
+            continue
+        try:
+            text = _read_text(fp)
+        except Exception:
+            continue
+        meta, body = _split_fm_body(text)
+        if not meta:
+            continue
+        ptype = (meta.get("type") or "").strip().lower()
+        pstatus = (meta.get("status") or "").strip().lower()
+        if ptype != "issue" or pstatus != "draft":
+            continue
+        created = _parse_iso_date(meta.get("created"))
+        if not created or created > cutoff:
+            continue
+        new_text = _swap_status_in_fm(text, "draft", "current")
+        if new_text:
+            stamp_line = (
+                f"\n- {{actor: agent, action: draft→current, "
+                f"at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}, "
+                f"evidence: ADR-2026-07-08 lint #13}}\n"
+            )
+            new_text = _append_agent_stamp(new_text, stamp_line)
+            fp.write_text(new_text, encoding="utf-8")
+            promoted += 1
+            try:
+                _append_log_audit(vault, slug, "draft→current")
+            except Exception:
+                pass
+    return promoted
+
+
+def _swap_status_in_fm(text, old, new):
+    """frontmatter 안의 status 필드를 swap. 실패 시 None."""
+    import re
+    m = re.search(r"^(---\n)(.+?)(\n---)", text, re.DOTALL | re.MULTILINE)
+    if not m:
+        return None
+    head, fm, tail = m.group(1), m.group(2), m.group(3)
+    new_fm_lines = []
+    replaced = False
+    for line in fm.split("\n"):
+        if line.startswith("status:"):
+            new_fm_lines.append(f"status: {new}")
+            replaced = True
+        else:
+            new_fm_lines.append(line)
+    if not replaced:
+        new_fm_lines.append(f"status: {new}")
+    return head + "\n".join(new_fm_lines) + tail
+
+
+def _append_agent_stamp(text, line):
+    """frontmatter 직후 body에 agents: 리스트 stamp append (없으면 만들기)."""
+    import re
+    m = re.search(r"^(---\n.+?\n---\n)", text, re.DOTALL | re.MULTILINE)
+    if not m:
+        return text + line
+    head = m.group(1)
+    rest = text[len(head):]
+    if rest.lstrip().startswith("agents:"):
+        idx = rest.index("agents:")
+        return head + rest[:idx] + "agents:\n" + line + rest[idx + len("agents:"):]
+    return head + "agents:\n" + line + rest
+
+
+def _append_log_audit(vault, slug, action):
+    log_path = vault.root / "log.md"
+    if not log_path.exists():
+        return
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    line = (
+        f"\n## [{date_str}] auto-promote | {slug} | "
+        f"action={action} | actor=agent | reason=ADR-2026-07-08\n"
+    )
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(line)

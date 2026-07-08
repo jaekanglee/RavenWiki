@@ -106,7 +106,7 @@ aliases: [old-slug-1]     # 선택
 | `rule` | 규칙 | ⚠️ draft → 사람 review → final |
 | `query` | 검색 결과 / 질문 페이지 | ✅ 자유 |
 | `journal` | 일지/메모 | ✅ 자율 (event_date + §3 4신호) |
-| `issue` | 문제 분석 / 장애 / 추적 | ❌ 발의만 (PWW §6.5 #4/#7/#8) |
+| `issue` | 문제 분석 / 장애 / 추적 | ✅ 자율 (status=draft default, 7일+ 자동 current, ADR-2026-07-08) |
 
 > **decision (ADR)** — `type: rule` + `decision/adr-YYYY-MM-DD-{slug}.md` 컨벤션 (SCHEMA L99). 사람 1차 작성, 에이전트 보조.
 
@@ -116,11 +116,12 @@ aliases: [old-slug-1]     # 선택
 > 발견하여 갱신(부분 overwrite + provenance) 또는 격리(archive 이동) 액션으로 vault를 최신 정합화
 > 상태로 유지한다." 본 상태 머신은 그 실행 기반.
 
-모든 vault 페이지는 frontmatter `status:` 필드로 다음 4상태 중 하나를 갖는다 (생략 시 `current`).
+모든 vault 페이지는 frontmatter `status:` 필드로 다음 5상태 중 하나를 갖는다 (생략 시 `current`).
 
 | status | 의미 | 진입 트리거 | 검색·링크 노출 |
 |---|---|---|---|
-| `current` | 사실 검증됨, 권위 있음 | 사람 최초 작성, 또는 에이전트 갱신 완료 | ✅ 정상 |
+| `current` | 사실 검증됨, 권위 있음 | 사람 최초 작성, 또는 에이전트 갱신 완료 / type=issue + draft 7일+ 자동 | ✅ 정상 |
+| `draft` | 발행됐지만 사람 review 전 (type=issue 기본값) | type=issue 발행 시 자동 | ✅ 노출, 헤더 경고 |
 | `stale` | 90일+ 미검증 또는 사실 변경 의심 | `wiki_stale_detect` (MCP) / lint #7 | ⚠️ 헤더 경고 |
 | `contested` | 다른 페이지와 모순 발견 | lint #5 (모순 룰) 자동 감지 | ⚠️ 헤더 경고, 양쪽 cross-link |
 | `archived` | 격리됨, 더 이상 활성 페이지 아님 | `wiki_archive` (MCP) / 사람 CLI | ❌ 검색·그래프 제외, 전문은 `archive/<YYYY-MM-DD>/<slug>.md` 보존 |
@@ -131,6 +132,9 @@ aliases: [old-slug-1]     # 선택
 - `stale → archived`: 사람 승인 또는 자동 격리 정책 만족 시.
 - `current ↔ contested`: 모순 발견/해소 시. **자동 전환 금지** — 사람이 명시적으로 `contested: true` 박거나 lint #5가 cross-link 증거 제시 시에만.
 - `archived → current`: **사람 승인 필수** (에이전트 자율 복귀 ❌).
+- `draft → current`: 사람 명시 turn OR **type=issue + created+7d 경과 + lint #18 audit 통과 시 자동** (ADR-2026-07-08).
+- `draft → archived`: 사람 명시 turn (현재 backlog 정리).
+- `current → draft`: 사람 명시 turn (재검토).
 
 ### 전이 기록
 
@@ -434,7 +438,9 @@ north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 �
 > {BLUF: 이 이슈의 핵심 원인 및 상태 1줄 요약}
 
 ## 상태
-{열림(Open) / 진행중(In Progress) / 해결됨(Resolved)}
+- status frontmatter: `draft` (기본, ADR-2026-07-08) / `current` (검증됨) / `stale` / `contested` / `archived`
+- 진행: 열림(Open) / 진행중(In Progress) / 해결됨(Resolved)
+- 발행 시 status=draft 자동. 7일+ 유지 + lint #18 통과 시 current 자동 승격.
 
 ## 문제 상황
 {발생한 문제의 현상 및 재현 경로.}

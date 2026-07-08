@@ -32,6 +32,8 @@ interface NewIssueButtonProps {
   initialSlug?: string;
   /** Called once on trigger click, before modal opens. Mobile sidebar uses this to auto-close. */
   onOpen?: () => void;
+  /** ADR-2026-07-08: 기본 사람 트리거. agent 호출 시 명시 (lint #18 audit log 기록). */
+  actor?: "human" | "agent";
 }
 
 const ISO_TODAY = () => new Date().toISOString().slice(0, 10);
@@ -97,6 +99,7 @@ export function NewIssueButton({
   vault: vaultProp,
   initialSlug = "content/issues",
   onOpen,
+  actor = "human",
 }: NewIssueButtonProps) {
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
@@ -153,12 +156,15 @@ export function NewIssueButton({
       related,
     });
     try {
+      // ADR-2026-07-08: agent도 자율 발행. status=draft default.
+      // actor는 frontmatter agents: 라인에 stamp (lint #18 audit).
+      const stamp = `\n\n<!-- actor=${actor} published_at=${new Date().toISOString()} -->\n`;
       await createPage(vault, {
         slug,
         title: title.trim(),
         type: "issue",
-        content,
-        tags: ["issue", severity, kind],
+        content: content + stamp,
+        tags: ["issue", severity, kind, "draft"],
       });
       setOpen(false);
       nav(`/page/${encodeURIComponent(vault)}/${slug}`);
@@ -179,7 +185,7 @@ export function NewIssueButton({
         }}
         className="sidebar-icon-action"
         aria-label={`${vault} 보관소에 새 이슈 발행`}
-        title="새 이슈 발행 (사람 운영자 전용)"
+        title={`새 이슈 발행 (${actor === "human" ? "사람 운영자" : "agent 자율"} — ADR-2026-07-08)`}
       >
         ⚠
       </button>
