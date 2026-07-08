@@ -303,10 +303,10 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 2. #5 모순 — 충돌 페이지를 덮어쓰지 말고 양쪽에 `contested: true` +
    `contradictions` 상호 링크, 원인은 log.md 역추적 (수리 가능)
 3. #4 orphan(유예 경과) — 관련 페이지에서 인바운드 링크 연결 시도, 불가 시
-   아카이브 후보로 `type: issue` 발의 (발의만)
-4. #7 stale — 사실이 바뀐 페이지는 갱신, 판단 불가면 `type: issue` 발의
+   `type: issue` 자율 발행 (status=draft, ADR-2026-07-08)
+4. #7 stale — 사실이 바뀐 페이지는 갱신, 판단 불가면 `type: issue` 자율 발행 (status=draft)
 5. #10 frontmatter 불완전 — `wiki_update`의 `frontmatter_data` 파라미터로 보수 (수리 가능)
-6. #8 200줄 초과 — 분할안 제안 (발의만)
+6. #8 200줄 초과 — `type: issue` 자율 발행 (status=draft, 자동 current 7일+)
 7. #12 log 500건 도달 — 사람에게 `raven log rotate` 요청 (사람 전용)
 8. **#15 slug-title 불일치 (ADR-2026-07-08)** — `wiki_rename(new_slug)`으로 자동 수리.
    단 기존 wikilink 추적성 보존이 필요하면 `aliases`에 옛 slug 보존 (SCHEMA.md L74-75).
@@ -333,10 +333,10 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 | `concept` / `rule` / `person` | ⚠️ draft → 사람 review → final | ✅ | PWW §7 L312 (사람 1차 review) |
 | `comparison` / `project` / `tool` / `query` | ✅ 자유 | ✅ | §3 4신호 통과 |
 | **`journal`** | ✅ **자율 가능** | ✅ | PWW §7 L316 — `event_date` frontmatter, §3 4신호 |
-| **`issue`** | ❌ **발의만** (직접 write ❌) | ✅ | PWW §6.5 #4/#7/#8 (orphan/stale/200줄 초과 시 발의) |
+| **`issue`** | ✅ **자율 (status=draft default, 7일+ 자동 current)** | ✅ | ADR-2026-07-08 — 사람 curation 옵션 (Layer 2 north star 일관성) |
 | **`decision`** (ADR) | ❌ (사람 1차) | ✅ (에이전트 보조) | SCHEMA L99 — `type: rule` + decision/ 폴더 컨벤션 |
 
-**`type: issue` = 사람 운영자가 작성**. 에이전트는 **"이건 issue로 만들 가치가 있다"는 발의**만 (예: `type: rule` 페이지에 "후속 issue 필요: ..." wikilink + log.md 노트).
+**`type: issue` = 사람/agent 공통 발행** (ADR-2026-07-08). 발행 시 status=draft default. 사람 명시 turn 또는 7일+ draft 유지 + lint #18 통과 시 status=current 자동 승격. 사람 review는 severity=high 큐 / 명시 turn으로만 개입.
 
 **`type: decision` = ADR**. SCHEMA L99 권고: `type: rule` + `decision/` 폴더. 사람 1차 작성, 에이전트는 draft 작성 후 사람 review만.
 
