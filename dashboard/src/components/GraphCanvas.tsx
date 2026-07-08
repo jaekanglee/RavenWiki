@@ -165,6 +165,8 @@ function ObsidianNode({
     persistent?: boolean;
     isClusterNode?: boolean;
     showLabel?: boolean;
+    interactionMode?: "pointer" | "hand";
+    isDraggable?: boolean;
   };
 }) {
   const { zoom } = useViewport();
@@ -206,9 +208,9 @@ function ObsidianNode({
           boxShadow: isEmphasized
             ? "var(--graph-node-glow)"
             : "0 0 0 1px var(--graph-node-outline)",
-          cursor: "grab",
-          pointerEvents: "all",
-          touchAction: "none",
+          cursor: data.interactionMode === "hand" ? "grab" : "pointer",
+          pointerEvents: data.interactionMode === "hand" ? "none" : "all",
+          touchAction: data.isDraggable ? "none" : "pan-x pan-y pinch-zoom",
           transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
           transform: data.persistent ? "scale(1.45)" : "scale(1)",
         }}
@@ -425,6 +427,45 @@ function GraphCanvasInner({
 }: Props) {
   const isDense = density === "dense";
   const containerRef = useRef<HTMLDivElement>(null);
+  const [interactionMode, setInteractionMode] = useState<"pointer" | "hand">(
+    isDense ? "hand" : "pointer"
+  );
+
+  // Space 키 누르고 있는 동안 임시로 hand 모드로 전환 (단, 입력 필드 포커스 시 예외)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.getAttribute("contenteditable") === "true")
+      ) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault(); // 스크롤 방지
+        setInteractionMode("hand");
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setInteractionMode(isDense ? "hand" : "pointer");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isDense]);
+
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
     id: string;
@@ -511,7 +552,13 @@ function GraphCanvasInner({
           type: "obsidian" as const,
           position: { x, y },
           // Primary UX: color means document type. Community ids stay backend/internal.
-          data: { color: nodeColor(type), size, title },
+          data: {
+            color: nodeColor(type),
+            size,
+            title,
+            interactionMode,
+            isDraggable: !isDense && interactionMode === "pointer",
+          },
         };
       }) as any,
     [nodes]
@@ -725,7 +772,7 @@ function GraphCanvasInner({
       const orgSize = (node.data as any).size ?? 6;
       let opacity = !focus.active || highlighted || persistent ? 1 : 0.22;
       const title = (node.data as any).title ?? id;
-      const showLabel = !isDense || highlighted || persistent;
+      const showLabel = !isDense || highlighted || persistent || zoom > 0.55;
 
       // scaleMode === "PLANET"
       const isMoon = orgSize <= 6 && !highlighted && !persistent;
@@ -785,7 +832,7 @@ function GraphCanvasInner({
       .filter((edge) => edgeTouchesViewport({ source: String(edge.source), target: String(edge.target) }))
       .map((edge) => {
         const isCrossVault = crossVaultEdgeIds.has(edge.id);
-        const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
+        const opacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;
         return {
           ...edge,
           animated: false,
@@ -794,6 +841,7 @@ function GraphCanvasInner({
             stroke: "var(--graph-edge)",
             strokeWidth: 1,
             strokeOpacity: opacity,
+            pointerEvents: "none" as const,
           },
         };
       });
@@ -809,7 +857,7 @@ function GraphCanvasInner({
       .map((edge) => {
         const highlighted = focus.edgeIds.has(edge.id);
         const isCrossVault = crossVaultEdgeIds.has(edge.id);
-        const baseOpacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
+        const baseOpacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;
         return {
           ...edge,
           animated: highlighted && !isDense,
@@ -818,6 +866,7 @@ function GraphCanvasInner({
             stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
             strokeWidth: highlighted ? 1.5 : 1,
             strokeOpacity: highlighted ? 0.85 : baseOpacity,
+            pointerEvents: "none" as const,
           },
         };
       });
@@ -1051,7 +1100,7 @@ function GraphCanvasInner({
         // Patch 3: 노드 드래그 활성화 (xyflow v12 기본값 true이지만 명시).
         //   모바일에서 노드를 잡고 캔버스 자유 이동 가능. 메모리상 이동 — 백엔드
         //   저장은 다음 라운드(v0.6.13 후보).
-        nodesDraggable={true}
+        nodesDraggable={!isDense && interactionMode === "pointer"}
         nodesConnectable={false}
         // Patch 5: programmatic fitView 사용 → prop `fitView` 제거 (중복 fit 방지).
         // Patch 3: 모바일/데스크탑 gesture 강화
@@ -1105,45 +1154,51 @@ function GraphCanvasInner({
             return (
               <div
                 key={vc.vault}
-                className="graph-vault-halo"
-                data-vault={vc.vault}
                 style={{
                   position: "absolute",
                   left: vc.x,
                   top: vc.y,
-                  width: vc.radius * 2,
-                  height: vc.radius * 2,
-                  transform: "translate(-50%, -50%)",
-                  borderRadius: "50%",
-                  background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
-                  opacity: 0.18,
                   pointerEvents: "none",
                 }}
-              />
+              >
+                {/* Halo Circle */}
+                <div
+                  className="graph-vault-halo"
+                  data-vault={vc.vault}
+                  style={{
+                    position: "absolute",
+                    transform: "translate(-50%, -50%)",
+                    width: vc.radius * 2,
+                    height: vc.radius * 2,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                    opacity: 0.16,
+                  }}
+                />
+                {/* Centroid Label (v0.7.132+) */}
+                <div
+                  className="graph-vault-centroid-label"
+                  style={{
+                    position: "absolute",
+                    transform: "translate(-50%, -50%)",
+                    color: "var(--graph-text)",
+                    background: "var(--graph-tooltip-bg)",
+                    border: "1px solid var(--graph-tooltip-border)",
+                    boxShadow: "var(--graph-tooltip-shadow)",
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    fontSize: Math.max(11, Math.min(15, 9 + 5 * zoom)),
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    opacity: Math.max(0.4, Math.min(0.9, zoom * 1.2)),
+                    transition: "opacity 120ms ease-out, font-size 120ms ease-out",
+                  }}
+                >
+                  📁 {vc.vault}
+                </div>
+              </div>
             );
           })}
-          {vaultScreenPositions.map((vc) => (
-            <div
-              key={`${vc.vault}-label`}
-              className="graph-vault-label"
-              data-vault={vc.vault}
-              style={{
-                position: "absolute",
-                left: vc.x,
-                top: vc.y - vc.radius - 8,
-                transform: "translate(-50%, -100%)",
-                color: vaultColors.get(vc.vault) ?? "var(--graph-vault-halo-1)",
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: "0.05em",
-                textShadow: "0 0 6px var(--graph-canvas-bg), 0 0 12px var(--graph-canvas-bg)",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-              }}
-            >
-              {vc.vault}
-            </div>
-          ))}
         </div>
       )}
 
@@ -1159,6 +1214,19 @@ function GraphCanvasInner({
           pointerEvents: "auto",
         }}
       >
+        <button
+          type="button"
+          onClick={() => setInteractionMode((m) => (m === "pointer" ? "hand" : "pointer"))}
+          style={{
+            ...graphButtonStyle,
+            background: interactionMode === "hand" ? "var(--graph-edge-highlight)" : "var(--graph-surface)",
+            color: interactionMode === "hand" ? "#ffffff" : "var(--graph-text)",
+            borderColor: interactionMode === "hand" ? "var(--graph-edge-highlight)" : "var(--graph-border)",
+          }}
+          title="이동 모드(hand) 활성화 시 노드/관계선 방해 없이 자유롭게 이동/줌 가능 (단축키: Space)"
+        >
+          {interactionMode === "hand" ? "✋ 이동 모드" : "👆 선택 모드"}
+        </button>
         {onFullscreen && (
           <button
             type="button"

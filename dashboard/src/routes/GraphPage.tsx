@@ -181,11 +181,12 @@ export function GraphPage() {
     [graph.nodes]
   );
 
-  // v0.7.123+ all-vault 모드에서만 vault halo/labal 데이터를 만든다.
-  // current scope에서는 GraphCanvas에 prop 자체를 안 넘겨서 halo/labal 비활성.
+  // v0.7.123+ all-vault 모드에서만 vault halo/core 데이터를 만든다.
+  // 현재 화면에 실제로 그려지는 filteredGraph 기준으로 centroid를 계산해야
+  // hide-orphans / 검색 / 타입 필터와 centroid 위치가 어긋나지 않는다.
   const vaultCentroids = useMemo(
-    () => (graphScope === "all" ? deriveVaultCentroids(graph) : []),
-    [graph, graphScope]
+    () => (graphScope === "all" ? deriveVaultCentroids(filteredGraph) : []),
+    [filteredGraph, graphScope]
   );
 
   const openGraphNode = (nodeId: string) => {

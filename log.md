@@ -438,3 +438,20 @@ A  _meta/ai-roadmap.md
   3. `log.py` 내 `rotate`를 lock 바깥에서 실행하도록 변경 및 `test_lint_log_size.py` 내 rotation threshold mock 처리.
 - 파일: `dashboard/src/components/GraphCanvas.tsx`, `raven/core/log.py`, `tests/`
 - 검증: `npm run build` 및 `vitest` 통과, `make test` (730 passed) 통과 ✅
+
+## [2026-07-09] UI/UX | all-vault graph UI/UX improvements & vault labels (v0.7.132)
+- 문제: 
+  1. 전체 볼트(all-vault) 그래프 뷰에서 각 vault 영역을 구분하는 Halo만 보이고 해당 구역이 어떤 vault인지 직관적으로 보여주는 라벨이 누락되어 인지가 어려움.
+  2. 고밀도(dense) 모드에서 화면의 깔끔함을 위해 문서 텍스트 라벨을 일괄 차단하여 줌인을 해도 문서 제목을 확인할 수 없는 UX적 답답함 유발.
+  3. cross-vault edge의 투명도(opacity=0.08)가 너무 낮아 vault 간 지식의 상호 연결성을 발견하기 어려움.
+  4. Centroid 계산 시 필터 전의 그래프를 사용하여 검색/타입 필터 적용 시 캔버스의 실제 노드 위치와 Centroid가 불일치하는 버그.
+  5. 고밀도 모드에서 노드가 가득 차면 캔버스 빈 곳을 터치/클릭할 수 없어 노드 자체가 뷰포트 드래그(Pan) 및 핀치 줌 이벤트를 가로채 캔버스 조작이 마비되는 현상.
+- 해결:
+  1. `GraphCanvas.tsx`에 `graph-vault-centroid-label` 엘리먼트를 추가하여 각 vault 구역의 중앙에 이름을 상시 텍스트로 노출(줌 비율에 맞춰 투명도/크기 동적 보간).
+  2. `zoom > 0.55` 조건일 때 노드 라벨(`showLabel`)이 활성화되도록 개선하여 줌인 시 문서 제목이 보이도록 수정.
+  3. dense 모드에서 cross-vault edge의 opacity를 `0.15`로, intra-vault edge opacity를 `0.24`로 올려 연결 시인성 회복.
+  4. Centroid 계산 기준을 `filteredGraph`로 정합하고, `cluster_compaction = 0.78`을 도입하여 all-vault 레이아웃 시 Vault 간 분리감을 명확히 함.
+  5. Figma/Miro 스타일의 `이동 모드(Hand Mode)` 및 `Space 단축키` 메커니즘을 전격 도입하여, Hand 모드 시 모든 노드의 `pointerEvents`를 `none`으로 강제하고 `touchAction`을 완화해 제스처 간섭을 원천 해결 (dense 진입 시 자동 활성화).
+- 파일: `dashboard/src/components/GraphCanvas.tsx`, `dashboard/src/routes/GraphPage.tsx`, `dashboard/tests/GraphPage.all-vault-scope.test.tsx`, `raven/api/server.py`, `log.md`
+- 검증: `make typecheck` 통과, vitest 11 passed, pytest 730 passed ✅
+
