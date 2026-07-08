@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
+import { NewIssueButton } from "./NewIssueButton";
 import { nodeColor, typeLabel } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
 import { SearchBar } from "./SearchBar";
@@ -638,6 +639,7 @@ function VaultTreeGroup({
         </span>
         <span className="sidebar-vault-name">{vault.name}</span>
         <NewPageButton vault={vault.name} variant="icon" label="페이지" onOpen={onClose} />
+        <NewIssueButton vault={vault.name} initialSlug={`content/issues`} onOpen={onClose} />
         {showMeta && vault.default && (
           <span className="sidebar-vault-default" aria-label="default">★</span>
         )}
