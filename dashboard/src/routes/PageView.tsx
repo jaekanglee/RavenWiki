@@ -156,6 +156,14 @@ export function PageView() {
   // slug/vault haven't changed — otherwise the article stays stale until
   // the user navigates away and back.
   const [reloadKey, setReloadKey] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    if (page?.filePath) {
+      navigator.clipboard.writeText(page.filePath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     if (!slug) {
@@ -274,13 +282,90 @@ export function PageView() {
             page.filePath ? (
               <div
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
                   fontSize: 11,
                   fontFamily: "ui-monospace, SFMono-Regular, monospace",
                   color: "var(--color-muted)",
                   wordBreak: "break-all",
+                  backgroundColor: "var(--color-surface-hover, rgba(0,0,0,0.02))",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  maxWidth: "100%",
                 }}
               >
-                📄 물리 파일 경로: {page.filePath}
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0, color: "var(--color-ink-muted)" }}
+                >
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <line x1="2" y1="10" x2="22" y2="10" />
+                  <line x1="6" y1="6" x2="6.01" y2="6" />
+                  <line x1="10" y1="6" x2="10.01" y2="6" />
+                </svg>
+                <span>물리 파일 경로: {page.filePath}</span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  title="복사하기"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "none",
+                    border: "none",
+                    padding: "2px",
+                    cursor: "pointer",
+                    color: copied ? "var(--color-success, #10b981)" : "var(--color-muted)",
+                    borderRadius: "3px",
+                    marginLeft: "4px",
+                    flexShrink: 0,
+                    transition: "color 0.2s, background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--color-surface-active, rgba(0,0,0,0.05))";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                >
+                  {copied ? (
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
               </div>
             ) : null
           }
