@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
@@ -89,6 +89,94 @@ function writeFavoriteVaults(favs: Set<string>) {
   } catch {}
 }
 
+
+const SCHEMA_TYPE_ORDER = [
+  "concept",
+  "rule",
+  "journal",
+  "issue",
+  "project",
+  "tool",
+  "person",
+  "comparison",
+  "query",
+] as const;
+
+const SCHEMA_TYPE_RANK: Record<string, number> = Object.fromEntries(
+  SCHEMA_TYPE_ORDER.map((type, idx) => [type, idx])
+);
+
+const CANONICAL_GROUP_PREFIX = "__canonical";
+const HIDDEN_CATALOG_PATHS = new Set(["content/index"]);
+
+function isHiddenCatalogNode(node: TNode): boolean {
+  if (node.path === "content/_index" || node.path.startsWith("content/_index/")) return true;
+  if (node.type === "page" && HIDDEN_CATALOG_PATHS.has(node.path)) return true;
+  return false;
+}
+
+function normalizePageType(pageType?: string): string {
+  const raw = (pageType ?? "").trim().toLowerCase();
+  return raw && raw !== "?" ? raw : "misc";
+}
+
+function collectPages(node: TNode, out: TNode[]) {
+  if (isHiddenCatalogNode(node)) return;
+  if (node.type === "page") {
+    out.push(node);
+    return;
+  }
+  for (const child of node.children ?? []) collectPages(child, out);
+}
+
+export function normalizeSidebarTree(tree: TNode | null): TNode | null {
+  if (!tree) return tree;
+  const pages: TNode[] = [];
+  collectPages(tree, pages);
+
+  const groups = new Map<string, TNode[]>();
+  for (const page of pages) {
+    const type = normalizePageType(page.pageType);
+    const bucket = groups.get(type) ?? [];
+    bucket.push(page);
+    groups.set(type, bucket);
+  }
+
+  const typeNames = [...groups.keys()].sort((a, b) => {
+    const ar = SCHEMA_TYPE_RANK[a] ?? 999;
+    const br = SCHEMA_TYPE_RANK[b] ?? 999;
+    if (ar !== br) return ar - br;
+    return a.localeCompare(b);
+  });
+
+  return {
+    ...tree,
+    children: typeNames.map((type) => ({
+      type: "dir" as const,
+      path: `${CANONICAL_GROUP_PREFIX}/${type}`,
+      children: [...(groups.get(type) ?? [])].sort((a, b) =>
+        displayTitle(a).localeCompare(displayTitle(b), "ko") || a.path.localeCompare(b.path)
+      ),
+    })),
+  };
+}
+
+function findTreeAncestors(tree: TNode | null, predicate: (node: TNode) => boolean): string[] {
+  if (!tree) return [];
+  const stack: string[] = [];
+  function visit(node: TNode): boolean {
+    if (predicate(node)) return true;
+    if (node.type !== "dir") return false;
+    stack.push(node.path);
+    for (const child of node.children ?? []) {
+      if (visit(child)) return true;
+    }
+    stack.pop();
+    return false;
+  }
+  return visit(tree) ? stack.filter((path) => path !== tree.path) : [];
+}
+
 function slugMatchesActive(nodeSlug: string, activeSlug: string | null): boolean {
   if (!activeSlug) return false;
   if (nodeSlug === activeSlug) return true;
@@ -171,6 +259,10 @@ export function Sidebar({
 
   const activeVaultMeta = vaults.find((v) => v.name === activeVault);
   const activeTree = trees[activeVault] ?? null;
+  // Dashboard 표준 보기: 실제 vault 폴더는 그대로 두고, 사이드바 렌더링만
+  // SCHEMA 9종 type 그룹으로 canonicalize. flat / singular / plural / default 폴더
+  // 차이를 UI에서 흡수하고, 자동 카탈로그(_index, content/index)는 숨긴다.
+  const sidebarTree = useMemo(() => normalizeSidebarTree(activeTree), [activeTree]);
   const activeRawItems = rawItems[activeVault] ?? [];
 
   // v0.7.97.4+: resize drag handlers. 데스크탑에서만 활성화.
@@ -372,7 +464,7 @@ export function Sidebar({
         {activeVaultMeta ? (
           <VaultTreeGroup
             vault={activeVaultMeta}
-            tree={filterTree(activeTree, filter)}
+            tree={filterTree(sidebarTree, filter)}
             isActive={true}
             showMeta={false}
             activeSlug={activeSlug}
@@ -440,6 +532,10 @@ export function Sidebar({
 // 3) 그래도 빈 문자열이면 path 그대로.
 function displayTitle(node: TNode): string {
   if (node.type !== "page") {
+    if (node.path.startsWith(`${CANONICAL_GROUP_PREFIX}/`)) {
+      const type = node.path.split("/").pop() || node.path;
+      return type === "misc" ? "기타" : type;
+    }
     const parts = node.path.split("/");
     return parts[parts.length - 1] || node.path;
   }
@@ -502,8 +598,10 @@ function VaultTreeGroup({
   useEffect(() => {
     if (!activeSlug) return;
     setOpenFolders((prev) => {
-      const parts = activeSlug.split("/").slice(0, -1); // leaf 제외
-      const ancestors = [VAULT_OPEN_KEY, ...parts];
+      const ancestors = [
+        VAULT_OPEN_KEY,
+        ...findTreeAncestors(tree, (node) => node.type === "page" && slugMatchesActive(node.path, activeSlug)),
+      ];
       let changed = false;
       const next = new Set(prev);
       for (const a of ancestors) {
@@ -512,7 +610,7 @@ function VaultTreeGroup({
       if (changed) writeOpenFolders(vault.name, next);
       return changed ? next : prev;
     });
-  }, [activeSlug, vault.name]);
+  }, [activeSlug, tree, vault.name]);
 
   return (
     <div style={{ marginBottom: 8 }}>
