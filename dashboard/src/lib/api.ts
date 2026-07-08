@@ -278,6 +278,27 @@ export async function fetchLintSummary(vault: string): Promise<LintSummary | nul
   return r.json();
 }
 
+export interface BuildResult {
+  ok: boolean;
+  build: {
+    ok: boolean;
+    vault: string;
+    db_path: string;
+    pages: number;
+    returncode: number;
+    lint?: LintResult | null;
+  };
+  lint: LintResult | null;
+}
+
+export async function fetchBuild(vault: string): Promise<BuildResult | null> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/build`, {
+    method: "POST",
+  });
+  if (!r.ok) return null;
+  return r.json() as Promise<BuildResult>;
+}
+
 // ────────────────────────── digest (v0.5.6, M5 F5) ──────────────────────────
 
 export interface DigestTodayEntry {
