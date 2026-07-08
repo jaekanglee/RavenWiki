@@ -38,6 +38,10 @@ from typing import Optional
 from .lock import atomic_write_text, lock_for_file
 from .vault import Vault
 
+# v0.7.109+: 자동 rotate 임계값 (사람 명시 rotate와 별개로 append 시 자동 트리거).
+# PWW §6.5 #12 (사람 명시 rotate)와 별도. audit log 누적 시 자동 rotate로 무한 누적 방지.
+_LOG_ROTATE_THRESHOLD = 500
+
 
 # ── 경로 ─────────────────────────────────────────
 
@@ -246,6 +250,13 @@ def append(
                 existing += "\n"  # entry 간 빈 줄 보장
             new_content = existing + entry.to_md() + "\n"
             atomic_write_text(path, new_content)
+            # v0.7.109+: 500 entries 초과 시 자동 rotate (PWW §12 사람 전용 rotate와 별개).
+            try:
+                from .log import _LOG_ROTATE_THRESHOLD  # type: ignore
+                if _LOG_ROTATE_THRESHOLD and count(vault) > _LOG_ROTATE_THRESHOLD:
+                    rotate(vault)
+            except (ImportError, NameError):
+                pass
     except TimeoutError as exc:
         raise RuntimeError(f"Failed to append to log.md due to lock timeout: {exc}")
     return entry

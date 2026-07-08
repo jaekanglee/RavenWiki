@@ -133,6 +133,7 @@ Raven MCP 서버는 권한 모드(`--mode read|write|admin`)에 따라 다음 13
 - **에러/제약 발생 시 대응**: 1.5배 초과 차단(`large_rewrite_blocked`)은 제품 north star
   "원문 보존 + 증분 누적" 가드입니다 (→ §0.5). 본문을 억지로 채우지 말고, 기존 문서를
   `wiki_archive` 처리한 뒤 세부 문서로 분할 생성하거나 사용자에게 구조 조정을 제안하십시오.
+  - **Soft limit override (v0.7.109+, Conflict C5 해소)**: 정당한 증분(예: 기존 100줄 → 140줄 검증 추가)이 1.5배 초과 시 `force: true` 파라미터 + `audit_reason` 필수. **사람 명시 + audit 레코드 + log.md append** 모두 충족 시에만. 자동 ❌.
   `permission_denied` 등 권한 에러 시 즉시 조작을 중단하고 사용자에게 보고하십시오.
 - **멱등성 키(`idempotency_key`) 활용**: 네트워크 불안정으로 동일 요청을 재시도할 때는
   반드시 이전 요청과 동일한 `idempotency_key`를 전달하여 볼트 내에 불필요한 중복 데이터가

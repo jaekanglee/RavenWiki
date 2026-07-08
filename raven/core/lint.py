@@ -22,6 +22,7 @@ Markdown PKM vault의 무결성을 확인한다. 일부 check는 Karpathy LLM Wi
     #15 slug-title 1:1 매칭 (ADR-2026-07-08, check_slug_title_1to1)
     #16 vault growth rate anomaly      (v0.7.107, check_vault_growth_rate)
     #17 duplicate title candidate      (v0.7.107, check_duplicate_title)
+    #18 audit violation pattern         (v0.7.109, check_audit_violation_pattern)
 
 v0.5.0: #12 (log_size) + #1-3 (link_module) 선반영.
 v0.5.1: #4-#11 추가. 12/12 완성.
@@ -501,6 +502,73 @@ def check_log_size(vault: Vault) -> list[dict]:
     return []
 
 
+def check_audit_violation_pattern(vault: Vault) -> list[dict]:
+    """#18 audit log violation pattern (v0.7.109+, G5 audit log 기반).
+
+    최근 30일 log.md에서 "audit blocked write" 패턴을 분석:
+    - 단일 actor가 5회+ permission_denied → 🟡 warning (반복 위반)
+    - 단일 path(slug prefix)에 10회+ 차단 → 🟡 warning (반복 시도)
+
+    north star "원문 보존" 직접 보호. 큐레이션: actor 차단 / vault 운영자 경고.
+    """
+    from . import log as _log
+    path = _log.log_path(vault)
+    if not path.exists():
+        return []
+    entries = _log.list_entries(vault)
+    if not entries:
+        return []
+
+    # 30일 이내 audit entry만 필터
+    today = date.today()
+    from datetime import timedelta
+    cutoff = (today - timedelta(days=30)).isoformat()
+    audit_recent: list[dict] = []
+    for e in entries:
+        if e["date"] < cutoff:
+            continue
+        subj = (e.get("subject", "") or "").lower()
+        if "audit blocked" in subj or "permission_denied" in subj:
+            audit_recent.append(e)
+
+    if not audit_recent:
+        return []
+
+    # actor별 카운트
+    actor_count: dict[str, int] = {}
+    path_count: dict[str, int] = {}
+    for e in audit_recent:
+        # subject에서 actor/path 추출 (heuristic: "audit blocked write: <path> (actor=<actor>, ...)")
+        subj = e.get("subject", "") or ""
+        m_actor = re.search(r"actor=([^,\)]+)", subj)
+        m_path = re.search(r"audit blocked write: ([^\s(]+)", subj)
+        if m_actor:
+            actor = m_actor.group(1).strip()
+            actor_count[actor] = actor_count.get(actor, 0) + 1
+        if m_path:
+            path = m_path.group(1).strip()
+            # slug 첫 segment만 (디렉토리 단위)
+            first_seg = path.split("/")[0] if "/" in path else path
+            path_count[first_seg] = path_count.get(first_seg, 0) + 1
+
+    out: list[dict] = []
+    for actor, cnt in actor_count.items():
+        if cnt >= 5:
+            out.append(_mk_issue(
+                "#18", "warning", "(vault)",
+                f"audit violation pattern: actor '{actor}' {cnt}회 차단 (30일 내). "
+                f"north star '원문 보존' 위반 반복 — actor 차단 또는 사람 운영자 경고 권장",
+            ))
+    for path, cnt in path_count.items():
+        if cnt >= 10:
+            out.append(_mk_issue(
+                "#18", "warning", "(vault)",
+                f"audit violation pattern: path '{path}/*' {cnt}회 차단 (30일 내). "
+                f"north star '원문 보존' 위반 반복 — 권한 정책 검토 권장",
+            ))
+    return out
+
+
 def check_vault_growth_rate(vault: Vault) -> list[dict]:
     """#16 vault growth rate anomaly (v0.7.107+, SCHEMA.md L248).
 
@@ -562,15 +630,89 @@ def check_vault_growth_rate(vault: Vault) -> list[dict]:
     return []
 
 
-def check_duplicate_title(vault: Vault) -> list[dict]:
-    """#17 duplicate title candidate (v0.7.107+, SCHEMA.md L249).
+def _normalize_title(s: str) -> str:
+    """정규화: 소문자 + 공백/특수문자 collapse + 한국어 처리.
 
-    title 유사도 > 0.8 (SequenceMatcher.ratio) 페이지 2개+ → 🟡 warning.
+    "X Y"와 "X-Y"가 동등 비교되도록. 한글/영문 모두 지원.
+    """
+    import re as _re
+    s = s.lower().strip()
+    # 대시/언더스코어/공백 → 단일 공백
+    s = _re.sub(r"[\s_\-]+", " ", s)
+    # 문장부호 제거 (한글 ㄱ-ㅎ, ㅏ-ㅣ, 가-힣 보존)
+    s = _re.sub(r"[^\w\s가-힣]", "", s, flags=_re.UNICODE)
+    return s.strip()
+
+
+def _tokenize(s: str) -> list[str]:
+    """공백 기준 tokenize. 한글은 character-level로 fallback."""
+    tokens = s.split()
+    out: list[str] = []
+    for t in tokens:
+        if not t:
+            continue
+        # 한글 비중 높으면 character-level (TF/IDF에 유리)
+        han_count = sum(1 for c in t if "가" <= c <= "힣")
+        if han_count >= 2:
+            out.extend(t)  # character-level
+        else:
+            out.append(t)
+    return out
+
+
+def _tfidf_similarity(t1: str, t2: str) -> float:
+    """TF/IDF cosine similarity (간이). v0.7.109+."""
+    from collections import Counter
+    import math
+    toks1 = _tokenize(_normalize_title(t1))
+    toks2 = _tokenize(_normalize_title(t2))
+    if not toks1 or not toks2:
+        return 0.0
+    c1, c2 = Counter(toks1), Counter(toks2)
+    vocab = set(c1.keys()) | set(c2.keys())
+    # TF: raw count
+    # IDF: 단어 1개만 출현하면 log(2/1)=0.693, 양쪽 다 출현하면 log(2/2)=0 → 약점
+    # 개선: 양쪽 모두 출현하는 단어에 가중치
+    def vec(c: Counter) -> dict[str, float]:
+        # 양쪽 모두 출현하는 token은 1.5x 가중 (단순 IDF 우회)
+        return {t: (1.5 if t in c1 and t in c2 else 1.0) * c[t] for t in vocab if t in c}
+
+    v1, v2 = vec(c1), vec(c2)
+    dot = sum(v1.get(t, 0) * v2.get(t, 0) for t in vocab)
+    n1 = math.sqrt(sum(x * x for x in v1.values()))
+    n2 = math.sqrt(sum(x * x for x in v2.values()))
+    if n1 == 0 or n2 == 0:
+        return 0.0
+    return dot / (n1 * n2)
+
+
+def _levenshtein_ratio(t1: str, t2: str) -> float:
+    """Levenshtein distance 기반 ratio (1 - dist/max)."""
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, t1, t2).ratio()
+
+
+def _title_similarity(t1: str, t2: str) -> tuple[float, str]:
+    """복합 유사도: max(TF/IDF, Levenshtein) + 어떤 방식인지 반환."""
+    n1, n2 = _normalize_title(t1), _normalize_title(t2)
+    if not n1 or not n2:
+        return 0.0, "empty"
+    tfidf = _tfidf_similarity(n1, n2)
+    lev = _levenshtein_ratio(n1, n2)
+    if tfidf >= lev:
+        return tfidf, f"tfidf={tfidf:.2f}"
+    return lev, f"levenshtein={lev:.2f}"
+
+
+def check_duplicate_title(vault: Vault) -> list[dict]:
+    """#17 duplicate title candidate (v0.7.107+, v0.7.109+ TF/IDF+Levenshtein).
+
+    TF/IDF cosine 또는 Levenshtein ratio > 0.8 페이지 2개+ → 🟡 warning.
     큐레이션: [[wikilink]] 상호 link 또는 합병 발의 (type: issue).
 
     면제: _meta/ 안 페이지 (운영 문서).
+    v0.7.109+: SequenceMatcher 단일 ratio → max(TF/IDF, Levenshtein) + 정규화.
     """
-    from difflib import SequenceMatcher
     titles: list[tuple[str, str]] = []  # (slug, title)
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
@@ -592,12 +734,12 @@ def check_duplicate_title(vault: Vault) -> list[dict]:
             pair = tuple(sorted([slug_i, slug_j]))
             if pair in seen_pairs:
                 continue
-            ratio = SequenceMatcher(None, t_i.lower(), t_j.lower()).ratio()
-            if ratio >= DUPLICATE_TITLE_THRESHOLD:
+            sim, method = _title_similarity(t_i, t_j)
+            if sim >= DUPLICATE_TITLE_THRESHOLD:
                 seen_pairs.add(pair)
                 out.append(_mk_issue(
                     "#17", "warning", f"{slug_i} ↔ {slug_j}",
-                    f"duplicate title candidate (similarity {ratio:.2f}): "
+                    f"duplicate title candidate ({method}): "
                     f"'{t_i[:40]}' ↔ '{t_j[:40]}' — 큐레이션: [[wikilink]] 상호 link 또는 type: issue 합병 발의",
                 ))
     return out
@@ -969,6 +1111,8 @@ def run_all(vault: Vault) -> dict:
         # v0.7.107+
         issues.extend(check_vault_growth_rate(vault))
         issues.extend(check_duplicate_title(vault))
+        # v0.7.109+ — audit log 패턴 분석 (G5)
+        issues.extend(check_audit_violation_pattern(vault))
     finally:
         _scan_local.cache = None
 
