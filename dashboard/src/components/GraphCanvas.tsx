@@ -330,14 +330,14 @@ function edgesRefChanged(
 function vaultScreenFromCentroids(
   vaultCentroids: ReadonlyArray<VaultCentroid>,
   zoom: number,
-  flowToScreenPosition: (p: { x: number; y: number }) => { x: number; y: number }
+  flowToScreenPosition: (p: { x: number; y: number }) => { x: number; y: number } | null
 ): Array<{ vault: string; x: number; y: number; radius: number }> {
   return vaultCentroids.map((vc) => {
     const center = flowToScreenPosition({ x: vc.x, y: vc.y });
     return {
       vault: vc.vault,
-      x: center.x,
-      y: center.y,
+      x: center ? center.x : vc.x,
+      y: center ? center.y : vc.y,
       radius: vc.radius * zoom,
     };
   });
@@ -411,6 +411,7 @@ function GraphCanvasInner({
     id: null,
     timer: null,
   });
+  const visibleNodeIdsRafRef = useRef<number | null>(null);
 
   // Patch 5: useReactFlow hook — programmatic fitView 호출용.
   // ReactFlowProvider 안에서만 동작 → GraphCanvas를 Provider로 wrap (export 시).
@@ -424,6 +425,10 @@ function GraphCanvasInner({
       if (tap.timer != null) {
         window.clearTimeout(tap.timer);
         tap.timer = null;
+      }
+      if (visibleNodeIdsRafRef.current != null) {
+        window.cancelAnimationFrame(visibleNodeIdsRafRef.current);
+        visibleNodeIdsRafRef.current = null;
       }
     };
   }, []);
@@ -493,7 +498,19 @@ function GraphCanvasInner({
   // 시각 정보보다 성능 이득이 더 크다.)
   const shouldCullEdges = isDense && flowEdges.length >= 400;
   const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set());
-  const recomputeVisibleNodeIds = useCallback(() => {
+
+  const safeFlowToScreenPosition = useCallback(
+    (pos: { x: number; y: number }) => {
+      try {
+        return flowToScreenPosition(pos);
+      } catch (e) {
+        return null;
+      }
+    },
+    [flowToScreenPosition]
+  );
+
+  const recomputeVisibleNodeIdsNow = useCallback(() => {
     if (!shouldCullEdges) {
       setVisibleNodeIds(new Set(flowNodes.map((n) => n.id)));
       return;
@@ -505,10 +522,14 @@ function GraphCanvasInner({
     const next = new Set<string>();
     for (const node of flowNodes) {
       const size = typeof (node.data as any)?.size === "number" ? Number((node.data as any).size) : 8;
-      const screen = flowToScreenPosition({
+      const screen = safeFlowToScreenPosition({
         x: node.position.x + size / 2,
         y: node.position.y + size / 2,
       });
+      if (!screen) {
+        next.add(node.id);
+        continue;
+      }
       if (
         screen.x >= -overscan &&
         screen.y >= -overscan &&
@@ -519,15 +540,27 @@ function GraphCanvasInner({
       }
     }
     setVisibleNodeIds(next);
-  }, [shouldCullEdges, flowNodes, flowToScreenPosition]);
+  }, [shouldCullEdges, flowNodes, safeFlowToScreenPosition]);
+
+  const recomputeVisibleNodeIds = useCallback(() => {
+    if (typeof window === "undefined") {
+      recomputeVisibleNodeIdsNow();
+      return;
+    }
+    if (visibleNodeIdsRafRef.current != null) return;
+    visibleNodeIdsRafRef.current = window.requestAnimationFrame(() => {
+      visibleNodeIdsRafRef.current = null;
+      recomputeVisibleNodeIdsNow();
+    });
+  }, [recomputeVisibleNodeIdsNow]);
 
   useEffect(() => {
-    recomputeVisibleNodeIds();
+    recomputeVisibleNodeIdsNow();
     if (typeof window === "undefined") return;
     const onResize = () => recomputeVisibleNodeIds();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [recomputeVisibleNodeIds]);
+  }, [recomputeVisibleNodeIds, recomputeVisibleNodeIdsNow]);
 
   // v0.7.126+: drag-end 감지 wrapper. xyflow의 NodeChange 중 position change의
   // dragging=false가 drag 끝점. 그 시점에 (id → position) dict를 모아 부모에
@@ -759,7 +792,7 @@ function GraphCanvasInner({
       const size = nodeSize(meta.weight);
       // 화면 좌표로 변환 — overlay는 position: fixed로 그려진다.
       // xyflow의 flowToScreenPosition이 viewport 변환/zoom/pan을 모두 반영한다.
-      const screen = flowToScreenPosition({
+      const screen = safeFlowToScreenPosition({
         x: node.position.x + size / 2,
         y: node.position.y + size / 2,
       });
@@ -769,11 +802,11 @@ function GraphCanvasInner({
         title: meta.title,
         type: meta.type,
         weight: meta.weight ?? 0,
-        x: screen.x,
-        y: screen.y,
+        x: screen ? screen.x : 0,
+        y: screen ? screen.y : 0,
       });
     },
-    [nodeMap, onNodeInspect, flowToScreenPosition]
+    [nodeMap, onNodeInspect, safeFlowToScreenPosition]
   );
 
   const handleNodeLeave = useCallback(() => {
@@ -820,7 +853,7 @@ function GraphCanvasInner({
           const baseY = typeof meta.y === "number" ? meta.y : 0;
           // 화면 좌표로 변환 — 모바일 1회 탭에서도 노드 위치에 정확히 라벨 표시.
           // v0.6.12 1차에서 server coords 그대로 썼더니 zoom/pan 후 라벨이 어긋남.
-          const screen = flowToScreenPosition({
+          const screen = safeFlowToScreenPosition({
             x: baseX + size / 2,
             y: baseY + size / 2,
           });
@@ -829,8 +862,8 @@ function GraphCanvasInner({
             title: meta.title,
             type: meta.type,
             weight: meta.weight ?? 0,
-            x: screen.x,
-            y: screen.y,
+            x: screen ? screen.x : 0,
+            y: screen ? screen.y : 0,
           };
         });
         tap.id = n.id;
@@ -842,7 +875,7 @@ function GraphCanvasInner({
       }
       onNodeClick?.(n.id);
     },
-    [isCoarse, nodeMap, onNodeInspect, onNodeClick, onNodeDoubleClick, flowToScreenPosition]
+    [isCoarse, nodeMap, onNodeInspect, onNodeClick, onNodeDoubleClick, safeFlowToScreenPosition]
   );
 
   // v0.7.123+ vault halo 색상: dense 모드 + vaultCentroids 있을 때만
@@ -870,12 +903,12 @@ function GraphCanvasInner({
       setVaultScreenPositions([]);
       return;
     }
-    const next = vaultScreenFromCentroids(vaultCentroids, zoom, flowToScreenPosition);
+    const next = vaultScreenFromCentroids(vaultCentroids, zoom, safeFlowToScreenPosition);
     setVaultScreenPositions(next);
     // v0.7.124+: zoom/pan 시의 재계산은 handleMove가 담당 (mount 1회 + vaultCentroids
     // 변경 시점에만 동기화). zoom을 deps에 넣으면 미세 pan마다 setState 폭증.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vaultCentroids, isDense, flowToScreenPosition]);
+  }, [vaultCentroids, isDense, safeFlowToScreenPosition]);
 
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, n: { id: string }) => {
@@ -903,21 +936,21 @@ function GraphCanvasInner({
       if (!prev) return prev;
       const pos = rfNodesById.get(prev.id);
       if (!pos) return prev;
-      const screen = flowToScreenPosition({
+      const screen = safeFlowToScreenPosition({
         x: pos.x + nodeSize(prev.weight) / 2,
         y: pos.y + nodeSize(prev.weight) / 2,
       });
-      return { ...prev, x: screen.x, y: screen.y };
+      return { ...prev, x: screen ? screen.x : 0, y: screen ? screen.y : 0 };
     });
     // v0.7.123+: pan/zoom 이동 시 vault halo/label도 server → screen 좌표 재계산.
     // useViewport는 useEffect dep로 zoom만 받지만 pan은 onMove가 직접 trigger.
     if (isDense && vaultCentroids && vaultCentroids.length > 0) {
       setVaultScreenPositions(
-        vaultScreenFromCentroids(vaultCentroids, zoom, flowToScreenPosition)
+        vaultScreenFromCentroids(vaultCentroids, zoom, safeFlowToScreenPosition)
       );
     }
     recomputeVisibleNodeIds();
-  }, [rfNodesById, flowToScreenPosition, isDense, vaultCentroids, zoom, recomputeVisibleNodeIds]);
+  }, [rfNodesById, safeFlowToScreenPosition, isDense, vaultCentroids, zoom, recomputeVisibleNodeIds]);
 
   return (
     <div
