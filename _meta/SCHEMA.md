@@ -172,7 +172,7 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
   - `[[link]]?` — missing placeholder (INFO)
 - **교차참조**: outbound ≥ 2 = concept/person/tool 만
 - **업데이트**: `updated` 갱신
-- **새 페이지**: `log.md`에 append
+- **log.md 자동 append**: `raven.core.log.append` (vault-relative lock + atomic write) — 모든 진입점(CLI/API/Dashboard/MCP)이 자동 호출. 트리거 액션 10종: `ingest / update / create / archive / delete / lint / build / migrate / rename / chore`. **CLI만 자동 ❌** (구 문구) — 5개 진입점 전부 자동. 사람 수동 도구는 `raven log list|show|append|rotate|status` (README §191). 자세한 운영 규칙: `adr-2026-07-09-log-md-operations.md`.
 - **근거 마커**: 3+ 소스 종합 시 `^[raw/articles/source.md]`
 
 ## raw/ 폴더 정책 (v0.7.50+, ADR-2026-07-02)
