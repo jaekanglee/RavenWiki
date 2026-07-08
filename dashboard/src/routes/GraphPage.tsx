@@ -189,11 +189,24 @@ export function GraphPage() {
     [filteredGraph, graphScope]
   );
 
-  const openGraphNode = (nodeId: string) => {
-    const node = graphNodeMap.get(nodeId);
-    if (!node) return;
-    navigate(`/page/${nodeVault(node, vault)}/${nodeSlug(node)}`);
-  };
+  // v0.7.139+: useCallback으로 안정화 — GraphCanvas의 effect deps가 매번 흔들려서
+  // onNodeClick/onNodeDoubleClick 리스너가 재바인딩되는 걸 방지. 안정적이어야
+  // force-graph의 클릭 디바운스(lastClick)와 mousemove 히트 판정이 깨지지 않음.
+  const openGraphNode = useCallback(
+    (nodeId: string) => {
+      const node = graphNodeMap.get(nodeId);
+      if (!node) return;
+      navigate(`/page/${nodeVault(node, vault)}/${nodeSlug(node)}`);
+    },
+    [navigate, vault, graphNodeMap]
+  );
+
+  const handleCanvasNodeClick = useCallback(
+    (nodeId: string) => {
+      dispatchFilters({ type: "setSelectedNodeId", value: nodeId });
+    },
+    [dispatchFilters]
+  );
 
   // v0.7.127+: current scope뿐 아니라 all-scope도 vault별로 분배 저장.
   // node.id는 current=slug, all-scope="{vault}:{slug}" 이므로 graphNodeMap의
@@ -372,9 +385,17 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
-            onNodeClick={(slug) => dispatchFilters({ type: "setSelectedNodeId", value: slug })}
+            // v0.7.139+: force-graph의 onNodeClick은 node.id를 그대로 전달한다.
+            // all-scope에선 id="{vault}:{slug}", current-scope에선 id=slug이므로
+            // selectedNodeId는 항상 id로 통일해야 highlightNodes/edge에서 매칭됨.
+            // useCallback으로 안정화해서 effect 재실행 폭발 방지 — 콜백이 매번 새 ref면
+            // GraphCanvas의 effect deps가 흔들려 onNodeClick 리스너가 끊임없이 재바인딩됨.
+            onNodeClick={handleCanvasNodeClick}
             onNodeDoubleClick={openGraphNode}
-            externalHighlightNodeId={hoveredInsightNodeId}
+            // v0.7.139+: 사용자가 노드를 클릭하면 선택된 노드 + 그 인접 노드(1-hop)가
+            // 캔버스에서 하이라이트되고, 나머지는 톤다운되어 포커스된다.
+            // 우선순위: selectedNodeId(클릭) > hoveredInsightNodeId(인사이트 카드 hover).
+            externalHighlightNodeId={selectedNodeId ?? hoveredInsightNodeId}
             externalHighlightType={hoveredInsightType}
             density={graphScope === "all" ? "dense" : "normal"}
             vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}

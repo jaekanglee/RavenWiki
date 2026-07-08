@@ -370,7 +370,7 @@ body {
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: var(--fg-ink);
   --graph-label-shadow: 0 1px 3px rgba(10, 14, 26, 0.92);
-  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge: rgba(148, 163, 184, 0.18);
   --graph-edge-highlight: var(--fg-ink);
   --graph-tooltip-bg: var(--slate-900);
   --graph-tooltip-border: var(--slate-700);
@@ -428,7 +428,7 @@ body {
   --code-inline-fg: var(--sky-300);
 
   --graph-bg: var(--slate-800);
-  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge: rgba(148, 163, 184, 0.18);
 
   /* v0.7.59+ phase 2 alpha 토큰 — 다크 override (alpha 진하게, 다크모드 명도).
      라이트와 의미 일치 (Xdanger-bg-soft" = "약한 위험 배경") — 색/명도/alpha 모두 다크에 적합. */
@@ -509,7 +509,7 @@ body {
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: rgba(226, 232, 240, 0.92);
   --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
-  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge: rgba(148, 163, 184, 0.18);
   --graph-edge-highlight: #e2e8f0;
   --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
   --graph-tooltip-border: #374151;
@@ -588,7 +588,7 @@ html.dark {
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: rgba(226, 232, 240, 0.92);
   --graph-label-shadow: 0 0 4px rgba(10, 14, 26, 0.95), 0 0 2px rgba(10, 14, 26, 0.95);
-  --graph-edge: rgba(148, 163, 184, 0.45);
+  --graph-edge: rgba(148, 163, 184, 0.18);
   --graph-edge-highlight: #e2e8f0;
   --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
   --graph-tooltip-border: #374151;
