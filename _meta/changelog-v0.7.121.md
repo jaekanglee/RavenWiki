@@ -7,11 +7,12 @@ audience: agent
 confidence: high
 ---
 
-# v0.7.121 — 대시보드 내 물리 파일 경로 및 볼트 경로 하드코딩 표시 버그 수정
+# v0.7.121 — 대시보드 내 물리 파일 경로 및 볼트 경로 하드코딩 표시 버그 수정 & 자가치유(Self-healing) 도입
 
 ## 무엇을 했는가
 
 - 다른 PC에서 볼트를 가져왔을 때, 이전 PC의 하드코딩된 절대 경로가 웹 대시보드의 볼트 목록 및 파일 상세의 '물리 파일 경로'에 계속해서 노출되던 버그를 수정했다.
+- **볼트 설정 자가치유 (Self-healing) 메커니즘 도입**: 다른 PC로 볼트 이사 또는 디렉토리 경로 변경 시, 감지된 실제 경로를 `.registry.json` 및 `[vault]/.vault.json`에 자동으로 덮어써서 물리적 설정 파일들을 올바른 로컬 경로로 자동 갱신(치유)하도록 개선했습니다.
 
 ### Root cause
 
@@ -28,17 +29,22 @@ confidence: high
 |---|---|
 | `raven/api/server.py` | `list_vaults`에서 로컬 실행 시 `.registry.json`에 정의된 `display_path`가 로컬에 존재하지 않고 `v.path`가 존재한다면 `v.path`를 `display_path`로 쓰도록 복구 보완 |
 | `raven/api/server.py` | `get_page`에서 `RAVEN_VAULTS_DIR` 치환 시, Docker 환경이거나 또는 로컬 환경이면서 `host_path`가 실제로 로컬에 존재할 때만 치환을 적용하도록 안전망 추가 |
+| `raven/core/registry.py` | `VaultRegistry.list` 및 `get` 시 잘못된 경로가 복구될 경우 `.registry.json`에 자가치유(Auto-save) 반영 |
+| `raven/core/vault.py` | `Vault.load` 시 `.vault.json` 내 하드코딩된 예전 경로를 현재 로드된 로컬 절대 경로로 자가치유 반영 |
 | `tests/test_api.py` | 테스트 상황에서도 호스트 매핑이 올바르게 동작하도록 테스트용 가상 호스트 디렉토리를 실제 `mkdir` 하도록 개선 |
+| `tests/test_self_heal.py` | `.registry.json` 및 `.vault.json` 자가치유가 정상적으로 수행 및 저장되는지 회귀 테스트 추가 |
 
 ## 왜 그렇게 했는가 (§5 4 신호)
 
 - **실패/리스크 기록**: 다른 PC로 볼트 이사 시 `display_path` 및 `file_path`가 이전 머신의 홈디렉토리명으로 하드코딩되어 고착되는 문제를 해결함.
 - **재사용 가능성**: 로컬 실행 vs Docker 컨테이너 실행에 따라 환경 변수 `RAVEN_VAULTS_DIR`을 사용하는 치환 로직의 유효성을 정밀하게 분기(Docker에서는 무조건 치환, 로컬에서는 존재할 때만 치환).
+- **인수인계 필요성**: 다음 개발자나 사용자가 볼트를 이전할 때 별도의 repair 명령 없이 볼트 첫 로드 시점에 물리적인 파일(`.registry.json` 및 `.vault.json`)이 현재 실행 머신의 절대경로로 자동 치유되어 갱신되도록 하였습니다.
 
 ## 검증
 
 - `pytest tests/test_api.py` → 53 passed
-- `scripts/.venv/bin/python -m pytest tests/test_api.py` 실행 완료.
+- `pytest tests/test_self_heal.py` → 1 passed
+- `scripts/.venv/bin/python -m pytest tests/test_api.py tests/test_self_heal.py` 실행 완료.
 
 ## 후속
 

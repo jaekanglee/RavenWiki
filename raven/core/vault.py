@@ -63,6 +63,21 @@ class Vault:
         if not root.exists():
             raise FileNotFoundError(f"vault path missing: {root}")
         
+        # v0.7.121+: 자가치유 (Self-heal)
+        # 만약 .vault.json 파일이 존재하고, 그 안의 path 필드가 현재의 root 경로와 다르다면
+        # 실제 현재 로컬 경로로 .vault.json 파일을 자동 갱신해준다.
+        vjson = root / ".vault.json"
+        if vjson.exists():
+            try:
+                import json
+                data = json.loads(vjson.read_text(encoding="utf-8"))
+                saved_path = data.get("path")
+                if saved_path and str(root.resolve()) != str(Path(saved_path).expanduser().resolve()):
+                    data["path"] = str(root.resolve())
+                    vjson.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+
         # v0.7.34+: 자동 마이그레이션 실드 (AGENTS.md -> README.md)
         old_path = root / "_meta" / "system" / "AGENTS.md"
         new_path = root / "_meta" / "system" / "README.md"
