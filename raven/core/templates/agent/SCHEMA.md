@@ -91,21 +91,24 @@ aliases: [old-slug-1]     # 선택
 - **journal/ADR 컨벤션 예외**:
   - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택), slug에는 날짜를 박지 않음 (`created/updated`와 구분)
   - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합 (ADR 식별자)
+- **aliases 보존 시 north star 충족 (ADR-2026-07-08 §2)**: `slug` 변경 시 `aliases: [옛slug]` 설정 = wikilink 추적성 유지 = "증분 누적" 충족. **단, 일괄 rename은 vault 운영자 명시 결정 필수** (에이전트 자율 ❌, north star "원문 보존" 위배 회피).
 - 타이틀과 무관한 임의/기계적 파일명(예: `note-1234.md`) 금지.
 
 ## Type Taxonomy (9종)
 
-| type | 용도 |
-|---|---|
-| `concept` | 추상 개념 |
-| `person` | 인물 |
-| `comparison` | 비교 |
-| `project` | 프로젝트 |
-| `tool` | 도구/시스템 |
-| `rule` | 규칙 |
-| `query` | 검색 결과 / 질문 페이지 |
-| `journal` | 일지/메모 |
-| `issue` | 문제 분석 / 장애 / 추적 |
+| type | 용도 | 에이전트 write (PWW §7.1) |
+|---|---|---|
+| `concept` | 추상 개념 | ⚠️ draft → 사람 review → final |
+| `person` | 인물 | ⚠️ draft → 사람 review → final |
+| `comparison` | 비교 | ✅ 자유 |
+| `project` | 프로젝트 | ✅ 자유 |
+| `tool` | 도구/시스템 | ✅ 자유 |
+| `rule` | 규칙 | ⚠️ draft → 사람 review → final |
+| `query` | 검색 결과 / 질문 페이지 | ✅ 자유 |
+| `journal` | 일지/메모 | ✅ 자율 (event_date + §3 4신호) |
+| `issue` | 문제 분석 / 장애 / 추적 | ❌ 발의만 (PWW §6.5 #4/#7/#8) |
+
+> **decision (ADR)** — `type: rule` + `decision/adr-YYYY-MM-DD-{slug}.md` 컨벤션 (SCHEMA L99). 사람 1차 작성, 에이전트 보조.
 
 ## Status Taxonomy (4종) — ADR-2026-07-06 §1.1
 
