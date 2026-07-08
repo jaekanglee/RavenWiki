@@ -310,8 +310,9 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 8. **#15 slug-title 불일치 (ADR-2026-07-08)** — `wiki_rename(new_slug)`으로 자동 수리.
    단 기존 wikilink 추적성 보존이 필요하면 `aliases`에 옛 slug 보존 (SCHEMA.md L74-75).
    vault 운영자가 일괄 호출 결정 — 에이전트 자율 일괄 rename ❌ (north star "원문 보존" 위배)
-9. **#7 stale → `wiki_archive` (ADR-2026-07-06 §1.2)** — 에이전트도 가능 (lint 결과 기반). 단 `archived → current` 복귀는 **사람 승인 필수** (status 머신 4종 §1.1).
-10. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
+9. **#10 + #4 누적 위험 (C4)** — §3 4신호 미달로 작성된 페이지가 7일 유예 후 #4 통과로 누적될 수 있음. **90일+ 미갱신**이면 §1.1의 status 4종 머신으로 **`stale`** 자동 전이 (사람 review → `current` 복귀 가능). lint #10 (info) + lint #4 (warning) + lint #7 (stale) 3단계 누적 가드.
+10. **#7 stale → `wiki_archive` (ADR-2026-07-06 §1.2)** — 에이전트도 가능 (lint 결과 기반). 단 `archived → current` 복귀는 **사람 승인 필수** (status 머신 4종 §1.1).
+11. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
 
 `raven garden` / `raven curator`는 **사람 운영자 전용 CLI**다 — 에이전트는
 실행할 수 없으므로, 정리가 필요한 항목은 위 절차대로 감지·발의까지만 한다.
@@ -362,6 +363,19 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 | 무신호 저장 | §3 저장 신호 4가지 모두 미통과 시 저장 금지 | §3 |
 | vault 외부 | vault 외부 시스템/폴더 수정 금지 | §0.5 §3 |
 | 파일명 번역 | 한글 title → 영문/로마자 파일명 변환 금지 | §4 |
+
+## §8.4 Audit log 정책 (G5 — content/ 외 영역 변조 차단)
+
+에이전트가 다음 경로에 write 시도 시, **MCP/API는 `permission_denied`로 차단**하되, **시도 자체를 `log.md`에 audit 레코드로 기록** (north star "원문 보존" 직접 보호):
+
+| 시도 경로 | audit 레코드 필드 |
+|---|---|
+| `raw/`, `_meta/system/`, `_meta/agents/` | `actor`, `attempted_path`, `result` (blocked/allowed), `reason`, `timestamp` |
+| `log.md` 기존 줄 삭제/수정 | `actor`, `line_no`, `result` |
+
+**Why**: API/MCP 차단만으로는 "어떤 에이전트가 어떤 경로에 시도했는지" 파악 불가. audit log는 **시도 패턴 분석** + **반복 위반 감지** 기반.
+
+**Lint #14 (tier integrity, critical)** + audit log = 1차 차단 + 2차 audit. **§6.5 큐레이션 L295** ("Tier leak은 즉시 보고") + 본 audit log가 이중 안전망.
 
 ## §8.5 부록: 에이전트 스스로 판단/기억할 영역
 
