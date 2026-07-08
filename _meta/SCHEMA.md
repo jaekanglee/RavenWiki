@@ -208,7 +208,7 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
   - **면제**: `type: rule` (변경 빈도 낮음)
 - 365일 미갱신 → `_archive/` 후보
 
-### Lint 자동 탐지 (v0.7.66+ 14개)
+### Lint 자동 탐지 (v0.7.66+ 14개 → v0.7.107 17개)
 
 1. 🔴 frontmatter 누락/오류
 2. 🔴 broken_link (`[[target!]]` 명시 OR target 존재하면 안 됨)
@@ -226,6 +226,8 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 13. 🔵 cognitive governance 강화 — v0.7.66+
 14. 🔴/🟡 tier integrity (v0.7.66+) — Tier 1 leak / _meta/agents/ 보존 검증
 15. 🟡 slug-title 1:1 매칭 (ADR-2026-07-08) — frontmatter `title` 슬러그화 결과 ≠ 파일명. `wiki_rename`으로 수리 가능 (PWW §6.5 #15)
+16. 🔵 **vault growth rate anomaly** (v0.7.107) — 7일 rolling page count 증가율 > 3σ (과거 30일 기준). north star "증분 누적" 위반 패턴. 사람 운영자 큐레이션 트리거
+17. 🟡 **duplicate title candidate** (v0.7.107) — title 유사도 > 0.8 페이지 2개+ — 같은 개념 중복 작성 감지. 큐레이션: `[[wikilink]]` 상호 link 또는 합병 발의 (`type: issue`)
 
 ## 빌드 원칙
 

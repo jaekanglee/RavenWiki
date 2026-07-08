@@ -245,6 +245,8 @@ north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 �
 | 13 | cognitive governance | 🔵 info |
 | 14 | tier integrity | 🔴 critical / 🟡 warning |
 | 15 | **slug-title 1:1 매칭** (ADR-2026-07-08) — frontmatter `title` 슬러그화 결과 ≠ 파일명 | 🟡 warning |
+| 16 | **vault growth rate anomaly** (v0.7.107) — 7일 rolling page count 증가율 > 3σ (과거 30일 기준). north star "증분 누적" 위반 패턴 감지. 사람 운영자 큐레이션 트리거 | 🔵 info |
+| 17 | **duplicate title candidate** (v0.7.107) — title 유사도 > 0.8 (TF/IDF 또는 Levenshtein) 페이지 2개+ — 같은 개념 중복 작성 감지. 큐레이션: `[[wikilink]]` 상호 link 또는 합병 발의 (`type: issue`) | 🟡 warning |
 
 ### System Areas (type 면제)
 
