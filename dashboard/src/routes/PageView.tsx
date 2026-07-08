@@ -9,7 +9,7 @@ import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { deletePage, fetchPage, getActiveVault } from "../lib/api";
+import { deletePage, fetchPage, getActiveVault, sendPageFeedback } from "../lib/api";
 import type { Graph, Page } from "../types";
 
 interface Ctx {
@@ -157,6 +157,28 @@ export function PageView() {
   // the user navigates away and back.
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  
+  const [feedbackText, setFeedbackText] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackErr, setFeedbackErr] = useState<string | null>(null);
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackText.trim() || !slug) return;
+    setIsSubmittingFeedback(true);
+    setFeedbackErr(null);
+    try {
+      await sendPageFeedback(vault, slug, { feedback: feedbackText.trim(), actor: "user" });
+      setFeedbackText("");
+      setReloadKey((k) => k + 1);
+      ctx?.refresh?.();
+    } catch (err: any) {
+      setFeedbackErr(err.message || String(err));
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   const handleCopy = () => {
     if (page?.filePath) {
       navigator.clipboard.writeText(page.filePath);
@@ -395,6 +417,83 @@ export function PageView() {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* 에이전트 수정 지시 / 피드백 입력 패널 (v0.7.127+, P1#27) */}
+        {page.type.toLowerCase() === "issue" && (
+          <div
+            style={{
+              marginTop: "32px",
+              padding: "20px",
+              border: "1px solid var(--color-border, rgba(0,0,0,0.1))",
+              borderRadius: "8px",
+              backgroundColor: "var(--color-surface, #fff)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "var(--color-ink, #000)",
+                fontFamily: "var(--font-display)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: "var(--color-ink-muted)" }}
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              에이전트 수정 지시 및 피드백
+            </h3>
+            <form onSubmit={handleSubmitFeedback} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="에이전트에게 내릴 수정 지시사항이나 해결 방안 피드백을 입력하세요..."
+                disabled={isSubmittingFeedback}
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  padding: "12px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--color-border, rgba(0,0,0,0.15))",
+                  fontSize: "13px",
+                  fontFamily: "inherit",
+                  backgroundColor: "var(--color-surface, #fff)",
+                  color: "var(--color-ink, #000)",
+                  resize: "vertical",
+                }}
+              />
+              {feedbackErr && (
+                <div style={{ color: "var(--color-error, #ef4444)", fontSize: "12px" }}>
+                  오류: {feedbackErr}
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmittingFeedback || !feedbackText.trim()}
+                >
+                  {isSubmittingFeedback ? "전송 중..." : "수정 요청 전송"}
+                </Button>
+              </div>
+            </form>
           </div>
         )}
       </article>

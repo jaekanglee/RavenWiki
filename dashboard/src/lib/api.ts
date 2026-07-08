@@ -666,3 +666,20 @@ export async function fetchGuideDiff(
   if (!r.ok) return null;
   return r.json();
 }
+
+export async function sendPageFeedback(
+  vault: string,
+  slug: string,
+  payload: { feedback: string; actor?: string }
+) {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/feedback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  if (!r.ok) throw new Error(`send feedback failed: ${r.status}`);
+  return r.json();
+}
