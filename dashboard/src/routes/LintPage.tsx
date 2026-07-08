@@ -4,9 +4,6 @@ import {
   fetchLint,
   fetchLintSummary,
   fetchBuild,
-  createPage,
-  fetchPage,
-  updatePage,
   type LintIssue,
   type LintSeverity,
   type LintSummary,
@@ -21,7 +18,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Toast } from "../components/ui/Toast";
 
 /**
- * LintPage — vault lint 12개 viewer.
+ * LintPage — vault lint 14개 viewer.
  *
  * 위키 dashboard 톤: 데이터 테이블, Rausch는 status badge accent만.
  * yellow/red는 ink 기반 다층 표현으로 대체 (체크/이니셜 라벨).
@@ -106,14 +103,16 @@ export function LintPage() {
       setBuildResult(res);
       if (res.lint) {
         setResult(res.lint);
-        setSummary(
-          res.lint.ok
-            ? { ok: true, vault, counts: res.lint.counts, by_check: {} }
-            : null
-        );
+        setSummary({
+          ok: res.lint.ok,
+          vault,
+          counts: res.lint.counts,
+          by_check: res.lint.by_check,
+        });
       }
+      const pageCount = res.build.pages ?? "?";
       showToast(
-        `리빌드 완료 — ${res.build.pages} pages, status=${res.build.ok ? "ok" : "error"}`,
+        `리빌드 완료 — ${pageCount} pages, lint ${res.lint?.counts.total ?? "?"}건`,
         res.build.ok ? "success" : "error"
       );
       setTimeout(() => setBuildResult(null), 3000);
@@ -360,7 +359,7 @@ export function LintPage() {
                 : "var(--color-error-text)",
             }}
           >
-            {buildResult.build.pages} pages · {buildResult.build.ok ? "✓ ok" : "✗ error"}
+            {buildResult.build.pages ?? "?"} pages · {buildResult.build.ok ? "✓ ok" : "✗ error"}
           </span>
         )}
         <label
@@ -406,8 +405,6 @@ export function LintPage() {
               issue={iss}
               isLast={i === Math.min(199, result.issues.length - 1)}
               vault={vault}
-              onFixSuccess={load}
-              showToast={showToast}
             />
           ))}
           {result.issues.length > 200 && (
@@ -476,68 +473,11 @@ function IssueRow({
   issue,
   isLast,
   vault,
-  onFixSuccess,
-  showToast,
 }: {
   issue: LintIssue;
   isLast: boolean;
   vault: string;
-  onFixSuccess: () => void;
-  showToast: (msg: string, type?: "success" | "error") => void;
 }) {
-  const [busy, setBusy] = useState(false);
-
-  async function handleFixBrokenLink() {
-    if (!issue.target) return;
-    setBusy(true);
-    try {
-      const basename = issue.target.split("/").pop() || issue.target;
-      await createPage(vault, {
-        slug: issue.target,
-        title: basename,
-        type: "concept",
-        tags: ["stub"],
-        content: `# ${basename}\n\n> *이 문서는 깨진 링크 복구용 stub 문서입니다. 내용을 채워 넣어 완성해 주세요.*\n`,
-      });
-      showToast(`⚡ 빈 문서 '${issue.target}' 생성 및 복구 완료`);
-      onFixSuccess();
-    } catch (e) {
-      console.error(e);
-      showToast("복구 문서 생성 중 오류가 발생했습니다.", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleFixFrontmatter() {
-    setBusy(true);
-    try {
-      const page = await fetchPage(vault, issue.slug);
-      if (!page || !page.ok) {
-        throw new Error("페이지 로드 실패");
-      }
-      let newContent = page.content;
-      const basename = issue.slug.split("/").pop() || issue.slug;
-      const today = new Date().toISOString().split("T")[0];
-      const fmHeader = `---\ntitle: ${basename}\ntype: concept\ncreated: ${today}\ntags: []\n---\n\n`;
-
-      if (!newContent.startsWith("---")) {
-        newContent = fmHeader + newContent;
-      } else {
-        newContent = fmHeader + newContent;
-      }
-
-      await updatePage(vault, issue.slug, { content: newContent });
-      showToast(`⚡ '${issue.slug}' 기본 Frontmatter 삽입 완료`);
-      onFixSuccess();
-    } catch (e) {
-      console.error(e);
-      showToast("Frontmatter 수정 중 오류가 발생했습니다.", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div
       style={{
@@ -586,30 +526,6 @@ function IssueRow({
         {issue.slug}
       </a>
       <span style={{ flex: 1, fontSize: 13, color: "var(--color-body)" }}>{issue.message}</span>
-      
-      {/* Quick Fix Button (only show for #1 with target or #10) */}
-      {issue.id === "#1" && issue.target && (
-        <button
-          onClick={handleFixBrokenLink}
-          disabled={busy}
-          className="btn-secondary"
-          style={{ padding: "2px 8px", fontSize: 11, height: 24, alignSelf: "center", whiteSpace: "nowrap" }}
-          title="깨진 링크 대상 빈 페이지 자동 생성"
-        >
-          {busy ? "복구 중..." : "⚡ 퀵픽스 (stub 생성)"}
-        </button>
-      )}
-      {issue.id === "#10" && (
-        <button
-          onClick={handleFixFrontmatter}
-          disabled={busy}
-          className="btn-secondary"
-          style={{ padding: "2px 8px", fontSize: 11, height: 24, alignSelf: "center", whiteSpace: "nowrap" }}
-          title="누락된 frontmatter 기본값 자동 생성 삽입"
-        >
-          {busy ? "수정 중..." : "⚡ 퀵픽스 (헤더 생성)"}
-        </button>
-      )}
     </div>
   );
 }

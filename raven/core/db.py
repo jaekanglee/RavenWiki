@@ -228,14 +228,29 @@ def _run_legacy_build(script: Path, vault: Vault, db_path: Path) -> dict:
     env = os.environ.copy()
     env.setdefault("PYTHONPATH", "")
     result = subprocess.run(argv, capture_output=True, text=True, env=env)
+    pages = _count_pages(db_path) if result.returncode == 0 else 0
     return {
         "ok": result.returncode == 0,
         "vault": vault.meta.name,
         "db_path": str(db_path),
+        "pages": pages,
         "stdout_tail": result.stdout[-500:] if result.stdout else "",
         "stderr_tail": result.stderr[-500:] if result.stderr else "",
         "returncode": result.returncode,
     }
+
+
+def _count_pages(db_path: Path) -> int:
+    """Return indexed page count for a freshly built wiki.db."""
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            row = con.execute("SELECT COUNT(*) FROM pages").fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            con.close()
+    except Exception:
+        return 0
 
 
 _INLINE_SCHEMA_SQL = """
@@ -338,4 +353,4 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
         n_pages += 1
     con.commit()
     con.close()
-    return {"ok": True, "vault": vault.meta.name, "db_path": str(db_path), "pages": n_pages, "mode": "inline"}
+    return {"ok": True, "vault": vault.meta.name, "db_path": str(db_path), "pages": n_pages, "returncode": 0, "mode": "inline"}
