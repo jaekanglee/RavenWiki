@@ -487,6 +487,48 @@ function GraphCanvasInner({
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(rfNodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(rfEdges);
 
+  // v0.7.129+: dense + large edge set에서는 viewport 바깥 edge를 생략해 렌더 비용을 줄인다.
+  // 우선 surgical하게 "보이는 node의 incident edge만 남기기" 전략을 쓴다.
+  // (화면을 가로지르지만 양 끝점이 모두 밖인 긴 edge는 생략될 수 있지만, all-vault dense map에선
+  // 시각 정보보다 성능 이득이 더 크다.)
+  const shouldCullEdges = isDense && flowEdges.length >= 400;
+  const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set());
+  const recomputeVisibleNodeIds = useCallback(() => {
+    if (!shouldCullEdges) {
+      setVisibleNodeIds(new Set(flowNodes.map((n) => n.id)));
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const overscan = 120;
+    const next = new Set<string>();
+    for (const node of flowNodes) {
+      const size = typeof (node.data as any)?.size === "number" ? Number((node.data as any).size) : 8;
+      const screen = flowToScreenPosition({
+        x: node.position.x + size / 2,
+        y: node.position.y + size / 2,
+      });
+      if (
+        screen.x >= -overscan &&
+        screen.y >= -overscan &&
+        screen.x <= rect.width + overscan &&
+        screen.y <= rect.height + overscan
+      ) {
+        next.add(node.id);
+      }
+    }
+    setVisibleNodeIds(next);
+  }, [shouldCullEdges, flowNodes, flowToScreenPosition]);
+
+  useEffect(() => {
+    recomputeVisibleNodeIds();
+    if (typeof window === "undefined") return;
+    const onResize = () => recomputeVisibleNodeIds();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [recomputeVisibleNodeIds]);
+
   // v0.7.126+: drag-end 감지 wrapper. xyflow의 NodeChange 중 position change의
   // dragging=false가 drag 끝점. 그 시점에 (id → position) dict를 모아 부모에
   // 1회 callback. 그래야 매 mousemove마다 POST가 안 날아간다.
@@ -635,38 +677,51 @@ function GraphCanvasInner({
   // dense 모드에서 특히 cross-vault edge opacity 계산이 고정이므로 focus가 없을 때는
   // 이 memoized 배열을 그대로 사용. highlight 시에만 overlay 스타일 객체를 새로 만든다.
   const baseDisplayEdges = useMemo(() => {
-    return flowEdges.map((edge) => {
-      const isCrossVault = crossVaultEdgeIds.has(edge.id);
-      const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
-      return {
-        ...edge,
-        animated: false,
-        style: {
-          ...(edge.style ?? {}),
-          stroke: "var(--graph-edge)",
-          strokeWidth: 1,
-          strokeOpacity: opacity,
-        },
-      };
-    });
-  }, [flowEdges, isDense, crossVaultEdgeIds]);
+    return flowEdges
+      .filter((edge) => {
+        if (!shouldCullEdges) return true;
+        return visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target));
+      })
+      .map((edge) => {
+        const isCrossVault = crossVaultEdgeIds.has(edge.id);
+        const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
+        return {
+          ...edge,
+          animated: false,
+          style: {
+            ...(edge.style ?? {}),
+            stroke: "var(--graph-edge)",
+            strokeWidth: 1,
+            strokeOpacity: opacity,
+          },
+        };
+      });
+  }, [flowEdges, isDense, crossVaultEdgeIds, shouldCullEdges, visibleNodeIds]);
 
   const displayEdges = useMemo(() => {
     if (!focus.active) return baseDisplayEdges;
-    return baseDisplayEdges.map((edge) => {
-      const highlighted = focus.edgeIds.has(edge.id);
-      return {
-        ...edge,
-        animated: highlighted && !isDense,
-        style: {
-          ...(edge.style ?? {}),
-          stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
-          strokeWidth: highlighted ? 1.5 : 1,
-          strokeOpacity: highlighted ? 0.85 : 0.18,
-        },
-      };
-    });
-  }, [baseDisplayEdges, focus, isDense]);
+    return flowEdges
+      .filter((edge) => {
+        if (focus.edgeIds.has(edge.id)) return true;
+        if (!shouldCullEdges) return true;
+        return visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target));
+      })
+      .map((edge) => {
+        const highlighted = focus.edgeIds.has(edge.id);
+        const isCrossVault = crossVaultEdgeIds.has(edge.id);
+        const baseOpacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
+        return {
+          ...edge,
+          animated: highlighted && !isDense,
+          style: {
+            ...(edge.style ?? {}),
+            stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
+            strokeWidth: highlighted ? 1.5 : 1,
+            strokeOpacity: highlighted ? 0.85 : baseOpacity,
+          },
+        };
+      });
+  }, [baseDisplayEdges, flowEdges, focus, isDense, crossVaultEdgeIds, shouldCullEdges, visibleNodeIds]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
@@ -861,7 +916,8 @@ function GraphCanvasInner({
         vaultScreenFromCentroids(vaultCentroids, zoom, flowToScreenPosition)
       );
     }
-  }, [rfNodesById, flowToScreenPosition, isDense, vaultCentroids, zoom]);
+    recomputeVisibleNodeIds();
+  }, [rfNodesById, flowToScreenPosition, isDense, vaultCentroids, zoom, recomputeVisibleNodeIds]);
 
   return (
     <div
