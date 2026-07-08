@@ -249,6 +249,7 @@ def append(
     )
 
     # lock log.md path during read-modify-write cycle
+    should_rotate = False
     try:
         with lock_for_file(vault.root, path):
             existing = path.read_text(encoding="utf-8")
@@ -260,13 +261,16 @@ def append(
             atomic_write_text(path, new_content)
             # v0.7.109+: 500 entries 초과 시 자동 rotate (PWW §12 사람 전용 rotate와 별개).
             try:
-                from .log import _LOG_ROTATE_THRESHOLD  # type: ignore
                 if _LOG_ROTATE_THRESHOLD and count(vault) > _LOG_ROTATE_THRESHOLD:
-                    rotate(vault)
-            except (ImportError, NameError):
+                    should_rotate = True
+            except Exception:
                 pass
     except TimeoutError as exc:
         raise RuntimeError(f"Failed to append to log.md due to lock timeout: {exc}")
+
+    if should_rotate:
+        rotate(vault)
+
     return entry
 
 
