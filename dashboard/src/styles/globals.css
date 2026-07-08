@@ -2491,6 +2491,45 @@ a:focus-visible {
   color: #7dd3fc !important;
 }
 
+/* ─ v0.7.114 — 라이트 모드: 인라인 코드를 라이트 톤으로 강제.
+   라이트 표(흰배경+회색선)와 어울리도록 연회색 bg + 진한 잉크 fg.
+   파란(#7dd3fc)은 다크 전용 색. 라이트는 ink 계열로. */
+[data-color-mode="light"] .wmde-markdown :not(pre) > code {
+  background: #f1f5f9 !important;            /* slate-100 계열, 연한 회색 */
+  border: 1px solid #e2e8f0 !important;       /* slate-200, hairline */
+  color: var(--color-ink) !important;         /* 진한 잉크 (파란색 ❌) */
+}
+
+/* ─ v0.7.114 — 라이트 모드: 표를 흰배경 + 회색선 + 잉크 텍스트로 강제.
+   wmde-markdown은 자체 GitHub 스타일(파란 헤더, 줄무늬)을 inject해서
+   라이트 표 톤이 깨짐. 우리 디자인 토큰(--color-surface / hairline / ink)으로 통일. */
+[data-color-mode="light"] .wmde-markdown table {
+  background: var(--color-surface) !important;
+  border-collapse: collapse !important;
+  border: 1px solid var(--color-hairline) !important;
+}
+[data-color-mode="light"] .wmde-markdown table thead {
+  background: var(--color-surface) !important;
+  border-bottom: 2px solid var(--color-hairline) !important;
+}
+[data-color-mode="light"] .wmde-markdown table th,
+[data-color-mode="light"] .wmde-markdown table td {
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+  border: 1px solid var(--color-hairline) !important;
+  padding: 10px 12px !important;
+}
+[data-color-mode="light"] .wmde-markdown table th {
+  font-weight: 600 !important;
+  background: var(--color-surface-soft) !important;   /* 헤더 한 톤 */
+}
+[data-color-mode="light"] .wmde-markdown table tr:nth-child(even) td {
+  background: var(--color-surface) !important;        /* 줄무늬 ❌, 깔끔하게 */
+}
+[data-color-mode="light"] .wmde-markdown table a {
+  color: var(--color-primary) !important;             /* 표 안 링크는 primary 유지 */
+}
+
 /* v0.7.112 — RawPanel viewer surface. header hairline이 영역 구분선 역할,
    textarea는 border 제거해 단일 surface로 정리. */
 .raw-panel-viewer {
