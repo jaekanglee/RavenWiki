@@ -304,15 +304,13 @@ describe("GraphCanvas — node labels and no minimap (CSS/JSX contract)", () => 
     expect(key).toMatch(/type:\s*"straight"\s*as\s*const/);
   });
 
-  it("GraphCanvas exposes a community palette (COMMUNITY_PALETTE) for structural coloring", () => {
-    const key = "COMMUNITY_PALETTE";
-    expect(key).toBe("COMMUNITY_PALETTE");
+  it("GraphCanvas primary UX keeps type colors, not community palette colors", () => {
+    const key = "Primary UX: color means document type";
+    expect(key).toContain("document type");
   });
 
-  it("nodeColor prefers community over type when community is set", () => {
-    // nodeColor(type, community) signature must exist with community override.
-    const signature = "nodeColor(type: string | undefined, community?: number): string";
-    expect(signature).toMatch(/community\?:\s*number/);
+  it("nodeColor uses document type only for primary graph colors", () => {
+    expect("nodeColor(type)").toMatch(/nodeColor\(type\)/);
   });
 
   it("GraphCanvas supports a persistent current-page highlight prop", () => {

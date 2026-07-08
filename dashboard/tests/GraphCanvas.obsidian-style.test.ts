@@ -57,20 +57,23 @@ describe("GraphCanvas v0.6.11 Obsidian-style", () => {
   });
 
   describe("nodeColor (Patch 1 — type color mapping)", () => {
-    it("SCHEMA 8종 mapping은 고유 hex 색상", () => {
-      expect(nodeColor("decision")).toBe("#a855f7");
+    it("SCHEMA 9종 mapping은 고유 hex 색상", () => {
       expect(nodeColor("concept")).toBe("#22c55e");
-      expect(nodeColor("manual")).toBe("#3b82f6");
-      expect(nodeColor("pattern")).toBe("#f97316");
-      expect(nodeColor("insight")).toBe("#eab308");
-      expect(nodeColor("journal")).toBe("#06b6d4");
       expect(nodeColor("person")).toBe("#ec4899");
+      expect(nodeColor("tool")).toBe("#6b7280");
       expect(nodeColor("comparison")).toBe("#ef4444");
+      expect(nodeColor("project")).toBe("#f97316");
+      expect(nodeColor("rule")).toBe("#6366f1");
+      expect(nodeColor("query")).toBe("#eab308");
+      expect(nodeColor("journal")).toBe("#06b6d4");
+      expect(nodeColor("issue")).toBe("#a855f7");
     });
 
-    it("확장 type도 mapping (tool, rule)", () => {
-      expect(nodeColor("tool")).toBe("#6b7280");
-      expect(nodeColor("rule")).toBe("#6366f1");
+    it("legacy/non-schema type은 default gray (#9ca3af)", () => {
+      expect(nodeColor("decision")).toBe("#9ca3af");
+      expect(nodeColor("manual")).toBe("#9ca3af");
+      expect(nodeColor("pattern")).toBe("#9ca3af");
+      expect(nodeColor("insight")).toBe("#9ca3af");
     });
 
     it("미인식 type은 default gray (#9ca3af)", () => {

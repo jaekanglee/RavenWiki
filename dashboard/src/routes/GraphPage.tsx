@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { COMMUNITY_PALETTE, GraphCanvas } from "../components/GraphCanvas";
+import { GraphCanvas, typeLabel, type VaultCentroid } from "../components/GraphCanvas";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import type { Graph, GraphNode } from "../types";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -30,6 +30,16 @@ interface GraphNodeDetail {
   neighbors: GraphNode[];
 }
 
+type GraphScope = "all" | "current";
+
+function nodeVault(node: GraphNode, fallbackVault: string): string {
+  return node.vault || fallbackVault;
+}
+
+function nodeSlug(node: GraphNode): string {
+  return node.slug ?? node.id;
+}
+
 function normalizeGraphText(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
@@ -40,6 +50,37 @@ function matchesGraphQuery(node: GraphNode, query: string): boolean {
   return [node.title, node.slug ?? node.id, node.type]
     .map(normalizeGraphText)
     .some((token) => token.includes(normalized));
+}
+
+/**
+ * v0.7.123+ all-vault 모드에서 vault별 centroid + halo 반경을 클라이언트에서 계산.
+ *   - 백엔드가 모든 vault의 노드 좌표를 같은 ±500 좌표계에 두고 vault centroid
+ *     ring (반경 380) 에 배치해두었으므로, 그 centroid를 그대로 사용.
+ *   - 반경은 vault 안 노드 수 + 분포로 산정 (작은 vault 100, 큰 vault 220).
+ * surgical A'의 일관: API contract 변경 없이 client-only 추가.
+ */
+export function deriveVaultCentroids(graph: Graph): VaultCentroid[] {
+  const groups = new Map<string, GraphNode[]>();
+  for (const n of graph.nodes) {
+    if (!n.vault) continue;
+    const list = groups.get(n.vault);
+    if (list) list.push(n);
+    else groups.set(n.vault, [n]);
+  }
+  if (groups.size === 0) return [];
+  const out: VaultCentroid[] = [];
+  for (const [vault, nodes] of groups) {
+    if (nodes.length === 0) continue;
+    const avgX = nodes.reduce((s, n) => s + (n.x ?? 0), 0) / nodes.length;
+    const avgY = nodes.reduce((s, n) => s + (n.y ?? 0), 0) / nodes.length;
+    // 분산 기반 반경 + 노드 수 보정
+    const avgDist =
+      nodes.reduce((s, n) => s + Math.hypot((n.x ?? 0) - avgX, (n.y ?? 0) - avgY), 0) /
+      nodes.length;
+    const baseRadius = Math.min(220, Math.max(110, avgDist * 1.6 + Math.sqrt(nodes.length) * 8));
+    out.push({ vault, x: avgX, y: avgY, radius: baseRadius });
+  }
+  return out;
 }
 
 export function deriveGraphInsights(graph: Graph): GraphInsight {
@@ -105,10 +146,9 @@ interface CommunityOption {
 }
 
 /**
- * 클러스터 필터 드롭다운 옵션. hideOrphans와 같은 기준(weight===0 제외)으로
- * 걸러야 한다 — 안 그러면 orphan 1개짜리 나 홀로 커뮤니티(예: 링크 없는
- * _meta/* 운영 문서, Louvain이 단독 커뮤니티로 분류)가 "(1개)"로 뜨는데,
- * 실제로 골라보면 hideOrphans가 그 1개를 가려서 결과가 0개가 된다.
+ * Internal helper for optional relation-group filtering. The primary GraphPage UX
+ * no longer exposes community/cluster controls, but tests keep this helper as a
+ * regression guard for future advanced filters.
  */
 export function deriveCommunityOptions(graph: Graph, hideOrphans: boolean): CommunityOption[] {
   const commHubs: Record<number, { title: string; maxWeight: number; count: number }> = {};
@@ -129,7 +169,7 @@ export function deriveCommunityOptions(graph: Graph, hideOrphans: boolean): Comm
   }
 
   return [
-    { value: "all", label: "전체 클러스터" },
+    { value: "all", label: "전체 관계 묶음" },
     ...Object.entries(commHubs).map(([commIdStr, data]) => ({
       value: commIdStr,
       label: `${data.title} (#${commIdStr}, ${data.count}개)`,
@@ -192,20 +232,19 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
 }
 
 /**
- * GraphPage — dark xyflow canvas + orphan hide toggle + community color toggle.
+ * GraphPage — dark xyflow canvas + connected-document exploration.
  * v0.6.10+: 백엔드가 nodes[i].x/y force-directed 좌표 제공.
- * v0.6.15+: ?community=modularity 옵션. 켜면 노드 색상이 type 대신 Louvain
- *   community id별로 결정 (구조 기반 색). hover 시 같은 community 노드도 highlight.
  * v0.7.35+: search/type controls + insight cards for graph exploration.
  * v0.7.6x+: layout은 atlas(ForceAtlas2/LinLog hybrid) 고정 — 선택 UI 제거.
+ * v0.7.122+: community/cluster controls are hidden from the primary UX;
+ *   graph colors are user-facing document type colors.
  */
 export function GraphPage() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
+  const [graphScope, setGraphScope] = useState<GraphScope>("current");
   const [hideOrphans, setHideOrphans] = useState(true);
-  const [useCommunity, setUseCommunity] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedCommunity, setSelectedCommunity] = useState<number | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -218,9 +257,7 @@ export function GraphPage() {
   const resetGraphFilters = () => {
     setQuery("");
     setSelectedType("all");
-    setSelectedCommunity(null);
     setHideOrphans(true);
-    setUseCommunity(false);
     setSelectedNodeId(null);
     setHoveredInsightNodeId(null);
     setHoveredInsightType(null);
@@ -230,10 +267,8 @@ export function GraphPage() {
     if (!vault) return;
     setLoading(true);
     setLoadError(false);
-    const url = `/api/vaults/${encodeURIComponent(vault)}/graph?community=${
-      useCommunity ? "modularity" : "none"
-    }`;
-    fetch(url)
+    const graphScopeQuery = graphScope === "all" ? "scope=all" : "scope=current";
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph?${graphScopeQuery}`)
       .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
       .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .catch(() => {
@@ -245,7 +280,7 @@ export function GraphPage() {
 
   useEffect(() => {
     loadGraph();
-  }, [vault, useCommunity]);
+  }, [vault, graphScope]);
 
   const filteredGraph = useMemo(
     () =>
@@ -253,9 +288,9 @@ export function GraphPage() {
         hideOrphans,
         query,
         selectedType,
-        selectedCommunity,
+        selectedCommunity: null,
       }),
-    [graph, hideOrphans, query, selectedType, selectedCommunity]
+    [graph, hideOrphans, query, selectedType]
   );
 
   const visibleNodes = filteredGraph.nodes;
@@ -264,16 +299,6 @@ export function GraphPage() {
   const orphanCount = useMemo(
     () => graph.nodes.filter((n) => (n.weight ?? 0) === 0).length,
     [graph.nodes]
-  );
-
-  const communityCount = useMemo(
-    () =>
-      new Set(
-        visibleNodes
-          .map((n) => n.community)
-          .filter((c): c is number => typeof c === "number" && c >= 0)
-      ).size,
-    [visibleNodes]
   );
 
   const graphInsights = useMemo(() => deriveGraphInsights(graph), [graph]);
@@ -287,15 +312,10 @@ export function GraphPage() {
       { value: "all", label: "전체 타입" },
       ...graphInsights.typeBreakdown.map(({ type, count }) => ({
         value: type,
-        label: `${type} (${count})`,
+        label: `${typeLabel(type) || type} (${count})`,
       })),
     ],
     [graphInsights.typeBreakdown]
-  );
-
-  const communityOptions = useMemo(
-    () => deriveCommunityOptions(graph, hideOrphans),
-    [graph, hideOrphans]
   );
 
   const hasAnyNodes = graph.nodes.length > 0;
@@ -303,12 +323,42 @@ export function GraphPage() {
   const hasActiveFilter =
     query.trim().length > 0 ||
     selectedType !== "all" ||
-    selectedCommunity !== null ||
-    !hideOrphans ||
-    useCommunity;
+    !hideOrphans;
+
+  const graphNodeMap = useMemo(
+    () => new Map(graph.nodes.map((node) => [node.id, node])),
+    [graph.nodes]
+  );
+
+  // v0.7.123+ all-vault 모드에서만 vault halo/labal 데이터를 만든다.
+  // current scope에서는 GraphCanvas에 prop 자체를 안 넘겨서 halo/labal 비활성.
+  const vaultCentroids = useMemo(
+    () => (graphScope === "all" ? deriveVaultCentroids(graph) : []),
+    [graph, graphScope]
+  );
+
+  const openGraphNode = (nodeId: string) => {
+    const node = graphNodeMap.get(nodeId);
+    if (!node) return;
+    navigate(`/page/${nodeVault(node, vault)}/${nodeSlug(node)}`);
+  };
 
   const controlsSection = (
     <div className="graph-page-control-grid">
+      <SelectField
+        label="범위"
+        value={graphScope}
+        onChange={(e) => {
+          const next = e.target.value as GraphScope;
+          setGraphScope(next);
+          setSelectedNodeId(null);
+        }}
+        options={[
+          { value: "all", label: "전체 vault" },
+          { value: "current", label: "현재 vault" },
+        ]}
+        helper="전체 vault 우주 지도 또는 현재 보관소만 봅니다."
+      />
       <TextField
         label="문서 검색"
         value={query}
@@ -323,16 +373,6 @@ export function GraphPage() {
         options={typeOptions}
         helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
       />
-      <SelectField
-        label="클러스터 필터"
-        value={selectedCommunity === null ? "all" : String(selectedCommunity)}
-        onChange={(e) => {
-          const val = e.target.value;
-          setSelectedCommunity(val === "all" ? null : Number(val));
-        }}
-        options={communityOptions}
-        helper="관계(Modularity)로 묶인 은하군 단위로 필터링합니다."
-      />
       <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
           type="button"
@@ -344,7 +384,7 @@ export function GraphPage() {
           필터 초기화
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={loadGraph}>
-          그래프 다시 계산
+          새로고침
         </Button>
       </div>
     </div>
@@ -361,15 +401,14 @@ export function GraphPage() {
       <div className="graph-page-toolbar">
         <PageHeader
           title="그래프"
-          contextLabel={`${vault} 보관소`}
+          contextLabel={graphScope === "all" ? "전체 vault 우주 지도" : `${vault} 보관소`}
           titleSize={22}
           bottomSpacing={0}
         />
         <div className="graph-page-meta" aria-label="그래프 상태">
           <span>{loading ? "그래프 계산 중…" : `문서 ${visibleNodes.length}/${graph.nodes.length}`}</span>
           <span>{loading ? "잠시만 기다려 주세요" : `연결 ${visibleEdges.length}`}</span>
-          {useCommunity && communityCount > 0 && <span>커뮤니티 {communityCount}</span>}
-          {orphanCount > 0 && hideOrphans && <span>고아 {orphanCount}개 숨김</span>}
+          {orphanCount > 0 && hideOrphans && <span>연결 없는 문서 {orphanCount}개 숨김</span>}
         </div>
         <label className="graph-page-toggle">
           <input
@@ -377,29 +416,7 @@ export function GraphPage() {
             checked={hideOrphans}
             onChange={(e) => setHideOrphans(e.target.checked)}
           />
-          고아 숨김
-        </label>
-        <label
-          className={`graph-page-toggle graph-page-toggle-community${
-            useCommunity ? "" : " graph-page-toggle-community-off"
-          }`}
-          title="켜면 노드 색상이 Louvain 커뮤니티별로 결정됩니다 (구조 기반 색상)."
-        >
-          <input
-            type="checkbox"
-            checked={useCommunity}
-            onChange={(e) => setUseCommunity(e.target.checked)}
-          />
-          커뮤니티별 색상
-          <span className="graph-page-toggle-palette" aria-hidden>
-            {COMMUNITY_PALETTE.map((c, i) => (
-              <span
-                key={i}
-                className="graph-page-toggle-dot"
-                style={{ background: c }}
-              />
-            ))}
-          </span>
+          연결 없는 문서 숨김
         </label>
       </div>
 
@@ -413,7 +430,7 @@ export function GraphPage() {
           <EmptyState
             icon={<EmptyIcon.Spinner />}
             title="그래프를 불러오는 중입니다"
-            description="문서 연결과 커뮤니티 구조를 계산하고 있습니다."
+            description="문서 연결 구조를 계산하고 있습니다."
           />
         ) : loadError ? (
           <EmptyState
@@ -440,8 +457,8 @@ export function GraphPage() {
         ) : !hasVisibleNodes && hideOrphans && orphanCount === graph.nodes.length ? (
           <EmptyState
             icon={<EmptyIcon.Fog />}
-            title="지금은 모두 고아 문서입니다"
-            description="`고아 숨김`을 끄면 문서는 보이지만 아직 서로 연결되지 않았다는 뜻입니다."
+            title="지금은 모두 연결 없는 문서입니다"
+            description="연결 없는 문서 숨김을 끄면 문서는 보이지만 아직 서로 연결되지 않았다는 뜻입니다."
             action={(
               <button
                 type="button"
@@ -449,7 +466,7 @@ export function GraphPage() {
                 style={{ height: 36, padding: "8px 14px", fontSize: 13 }}
                 onClick={() => setHideOrphans(false)}
               >
-                고아 문서 보기
+                연결 없는 문서 보기
               </button>
             )}
           />
@@ -473,11 +490,12 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
-            onNodeInspect={(node) => setSelectedNodeId(node.id)}
-            onNodeClick={(slug) => navigate(`/page/${vault}/${slug}`)}
-            onNodeDoubleClick={(slug) => navigate(`/page/${vault}/${slug}`)}
+            onNodeClick={(slug) => setSelectedNodeId(slug)}
+            onNodeDoubleClick={openGraphNode}
             externalHighlightNodeId={hoveredInsightNodeId}
             externalHighlightType={hoveredInsightType}
+            density={graphScope === "all" ? "dense" : "normal"}
+            vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}
             onFullscreen={() => setShowFullGraph(true)}
           />
         )}
@@ -488,7 +506,10 @@ export function GraphPage() {
             <div className="graph-detail-header">
               <div>
                 <strong>{selectedNodeDetail.node.title}</strong>
-                <p>{selectedNodeDetail.node.slug ?? selectedNodeDetail.node.id}</p>
+                <p>{nodeSlug(selectedNodeDetail.node)}</p>
+                {selectedNodeDetail.node.vault && (
+                  <span className="graph-vault-chip">{selectedNodeDetail.node.vault}</span>
+                )}
               </div>
               <span className="graph-detail-chip">
                 {selectedNodeDetail.node.type ?? "미분류"}
@@ -496,33 +517,18 @@ export function GraphPage() {
             </div>
             <div className="graph-detail-stats">
               <div>
-                <span>인바운드</span>
+                <span>참조됨</span>
                 <strong>{selectedNodeDetail.inbound.length}</strong>
               </div>
               <div>
-                <span>아웃바운드</span>
+                <span>참조함</span>
                 <strong>{selectedNodeDetail.outbound.length}</strong>
               </div>
               <div>
-                <span>이웃</span>
+                <span>관련</span>
                 <strong>{selectedNodeDetail.neighbors.length}</strong>
               </div>
             </div>
-            {typeof selectedNodeDetail.node.community === "number" && selectedNodeDetail.node.community >= 0 && (
-              <button
-                type="button"
-                className={`graph-detail-community-chip${
-                  selectedCommunity === selectedNodeDetail.node.community ? " graph-detail-community-chip-active" : ""
-                }`}
-                onClick={() =>
-                  setSelectedCommunity((prev) =>
-                    prev === selectedNodeDetail.node.community ? null : selectedNodeDetail.node.community ?? null
-                  )
-                }
-              >
-                커뮤니티 #{selectedNodeDetail.node.community}
-              </button>
-            )}
             <div className="graph-detail-actions">
               <Button
                 type="button"
@@ -531,7 +537,6 @@ export function GraphPage() {
                 onClick={() => {
                   setQuery(selectedNodeDetail.node.title);
                   setSelectedType("all");
-                  setSelectedCommunity(null);
                 }}
               >
                 이 문서로 포커스
@@ -540,13 +545,13 @@ export function GraphPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(`/page/${vault}/${selectedNodeDetail.node.slug ?? selectedNodeDetail.node.id}`)}
+                onClick={() => openGraphNode(selectedNodeDetail.node.id)}
               >
                 문서 열기
               </Button>
             </div>
             <div className="graph-detail-section">
-              <h3>들어오는 연결</h3>
+              <h3>나를 참조한 문서</h3>
               {selectedNodeDetail.inbound.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.inbound.slice(0, 8).map((node) => (
@@ -559,7 +564,10 @@ export function GraphPage() {
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
-                        <span>{node.type ?? "미분류"}</span>
+                        <span>
+                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
+                          {node.type ?? "미분류"}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -569,7 +577,7 @@ export function GraphPage() {
               )}
             </div>
             <div className="graph-detail-section">
-              <h3>나가는 연결</h3>
+              <h3>내가 참조한 문서</h3>
               {selectedNodeDetail.outbound.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.outbound.slice(0, 8).map((node) => (
@@ -582,7 +590,10 @@ export function GraphPage() {
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
-                        <span>{node.type ?? "미분류"}</span>
+                        <span>
+                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
+                          {node.type ?? "미분류"}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -592,7 +603,7 @@ export function GraphPage() {
               )}
             </div>
             <div className="graph-detail-section">
-              <h3>전체 이웃</h3>
+              <h3>관련 문서</h3>
               {selectedNodeDetail.neighbors.length > 0 ? (
                 <ul className="graph-detail-list">
                   {selectedNodeDetail.neighbors.slice(0, 8).map((node) => (
@@ -605,7 +616,10 @@ export function GraphPage() {
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
                         <span>{node.title}</span>
-                        <span>{node.type ?? "미분류"}</span>
+                        <span>
+                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
+                          {node.type ?? "미분류"}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -618,7 +632,7 @@ export function GraphPage() {
         ) : (
           <div className="graph-detail-empty">
             <strong>노드를 선택해 주세요</strong>
-            <p>그래프 위 문서를 hover하거나 탭하면 연결 구조와 이동 액션을 여기서 바로 확인할 수 있습니다.</p>
+            <p>그래프 위 문서를 클릭하면 관련 문서와 이동 액션을 여기서 바로 확인할 수 있습니다.</p>
           </div>
         )}
       </aside>
@@ -636,7 +650,7 @@ export function GraphPage() {
           vault={vault}
           nodes={graph.nodes}
           edges={graph.edges}
-          centerTitle={`${vault} 전체 그래프`}
+          centerTitle={graphScope === "all" ? "전체 vault 우주 지도" : `${vault} 전체 그래프`}
           onClose={() => setShowFullGraph(false)}
         />
       )}

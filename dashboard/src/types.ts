@@ -43,6 +43,8 @@ export interface VaultMeta {
 export interface GraphNode {
   id: string;
   slug?: string;
+  /** Present in all-vault graph scope; omitted for legacy/current-vault payloads. */
+  vault?: string;
   title: string;
   type?: string;
   weight?: number;

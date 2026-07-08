@@ -31,6 +31,18 @@ interface Props {
   externalHighlightType?: string | null;
   /** 전체화면 모달 요청 — 상위 컴포넌트가 모달을 열어 처리 */
   onFullscreen?: () => void;
+  /** all-vault 등 고밀도 그래프에서는 기본 라벨/엣지를 낮춰 지도 시인성을 우선한다. */
+  density?: "normal" | "dense";
+  /** all-vault 모드에서 vault 소속을 보여주는 centroid + halo 표식. */
+  vaultCentroids?: VaultCentroid[];
+}
+
+export interface VaultCentroid {
+  vault: string;
+  x: number;
+  y: number;
+  /** vault 별 halo 반경 — vault 내 노드 분포 + count 기반. */
+  radius: number;
 }
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -146,6 +158,7 @@ function ObsidianNode({
     dim?: boolean;
     persistent?: boolean;
     isClusterNode?: boolean;
+    showLabel?: boolean;
   };
 }) {
   const { zoom } = useViewport();
@@ -160,7 +173,7 @@ function ObsidianNode({
     : data.dim 
       ? 0.35 * zoomAlpha 
       : 0.85 * zoomAlpha;
-  const labelText = data.title ?? "";
+  const labelText = data.showLabel === false ? "" : data.title ?? "";
   return (
     <div
       className="obsidian-node-wrap"
@@ -258,60 +271,11 @@ function ObsidianNode({
   );
 }
 
-function NebulaNode({ data }: { data: { color: string; radius: number; opacity: number; label?: string } }) {
-  return (
-    <div
-      style={{
-        position: "relative",
-        width: data.radius * 2,
-        height: data.radius * 2,
-        transform: "translate(-50%, -50%)",
-        pointerEvents: "none",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* 1) 흐릿한 성운 가스 레이어 */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${data.color} 0%, transparent 75%)`,
-          opacity: data.opacity,
-          filter: "blur(24px)",
-          mixBlendMode: "screen",
-        }}
-      />
-      
-      {/* 2) 선명한 은하 대표 라벨 레이어 */}
-      {data.label && data.opacity > 0.05 && (
-        <div
-          style={{
-            zIndex: 1,
-            color: "var(--graph-text)",
-            fontSize: Math.max(12, Math.min(18, data.radius * 0.09)),
-            fontWeight: 800,
-            textShadow: `0 0 8px ${data.color}, 0 0 15px ${data.color}, 0 0 2px #000`,
-            opacity: Math.min(0.85, data.opacity * 4.0),
-            textAlign: "center",
-            whiteSpace: "nowrap",
-            letterSpacing: "0.05em",
-            pointerEvents: "none",
-            transform: "translateY(-4px)",
-          }}
-        >
-          {data.label}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// v0.7.123+ NebulaNode 제거. scaleMode = "PLANET" 단일이고, 노드는 항상
+// obsidian type으로만 그려진다. v0.6.15 multiscale cluster mode의 잔재
+// (성운 + 은하 라벨 노드) 라 dead code. 렌더 비용 + 핸들러 등록 줄임.
 const nodeTypes = {
   obsidian: ObsidianNode,
-  nebula: NebulaNode,
 };
 
 const graphButtonStyle = {
@@ -336,7 +300,10 @@ function GraphCanvasInner({
   persistentHighlightNodeId,
   externalHighlightType,
   onFullscreen,
+  density = "normal",
+  vaultCentroids,
 }: Props) {
+  const isDense = density === "dense";
   const containerRef = useRef<HTMLDivElement>(null);
   // hover된 노드 ID — label overlay 표시용
   const [hoveredNode, setHoveredNode] = useState<{
@@ -414,13 +381,12 @@ function GraphCanvasInner({
         const x = typeof n.x === "number" ? n.x : 0;
         const y = typeof n.y === "number" ? n.y : 0;
         const title = n.title ?? n.slug ?? id;
-        const community = n.community;
         return {
           id,
           type: "obsidian" as const,
           position: { x, y },
-          // v0.6.15+: pass community to nodeColor — community palette overrides type color.
-          data: { color: nodeColor(type, community), size, title, community },
+          // Primary UX: color means document type. Community ids stay backend/internal.
+          data: { color: nodeColor(type), size, title },
         };
       }) as any,
     [nodes]
@@ -504,24 +470,11 @@ function GraphCanvasInner({
     // 4) 마우스 오버된 노드 하이라이트
     if (hoveredNode) {
       nodeIds.add(hoveredNode.id);
-      const hoveredCommunity = (hoveredNode as any).community as number | undefined;
       for (const edge of flowEdges) {
         if (edge.source === hoveredNode.id || edge.target === hoveredNode.id) {
           edgeIds.add(edge.id);
           nodeIds.add(String(edge.source));
           nodeIds.add(String(edge.target));
-        }
-      }
-      // v0.6.15+: 같은 community에 속한 노드도 함께 highlight. structural grouping
-      // 가 가장 큰 차별점 — hover가 "이 문서랑 같은 community"를 보여준다.
-      if (hoveredCommunity !== undefined && hoveredCommunity >= 0) {
-        for (const fn of flowNodes) {
-          if (
-            (fn as any).data?.community === hoveredCommunity &&
-            !nodeIds.has(fn.id)
-          ) {
-            nodeIds.add(fn.id);
-          }
         }
       }
     }
@@ -547,7 +500,7 @@ function GraphCanvasInner({
       const orgSize = (node.data as any).size ?? 6;
       let opacity = !focus.active || highlighted || persistent ? 1 : 0.22;
       const title = (node.data as any).title ?? id;
-      const showLabel = true;
+      const showLabel = !isDense || highlighted || persistent;
 
       // scaleMode === "PLANET"
       const isMoon = orgSize <= 6 && !highlighted && !persistent;
@@ -562,22 +515,47 @@ function GraphCanvasInner({
           opacity,
           title,
           showLabel,
+          highlighted,
+          persistent,
         },
       };
     });
-  }, [flowNodes, focus, persistentHighlightNodeId]);
+  }, [flowNodes, focus, persistentHighlightNodeId, isDense]);
 
   // 2) 엣지 강도 및 가시성 동적 조율
+  // v0.7.123+ all-vault mode에서 edge의 source/target vault를 미리 추출.
+  // dense 모드일 때 cross-vault edge는 0.08로 강하게 dim → 시각적 노이즈 제거.
+  // intra-vault edge는 dense base(0.18) 유지 → vault 내부 연결은 약하게나마 보임.
+  const crossVaultEdgeIds = useMemo(() => {
+    if (!isDense) return new Set<string>();
+    const out = new Set<string>();
+    flowEdges.forEach((edge) => {
+      const srcVault = String(edge.source).split(":", 1)[0];
+      const tgtVault = String(edge.target).split(":", 1)[0];
+      if (srcVault !== tgtVault) out.add(edge.id);
+    });
+    return out;
+  }, [isDense, flowEdges]);
+
   const displayEdges = useMemo(() => {
     return flowEdges.map((edge) => {
       const highlighted = focus.edgeIds.has(edge.id);
+      const isCrossVault = crossVaultEdgeIds.has(edge.id);
 
       // v0.7.48+: dark mode 시인성 개선 — base가 0.6/1px로 올라간 만큼 focus 분기도 비례 조정.
       //   - 평상시(dim): 0.6 (사실상 hover 없는 상태 — 과거엔 0.16으로 흐려서 path가 안 보였음)
       //   - highlight: 0.85 (지금까지 0.82 → 살짝 강화해 명확하게)
       //   - 비활성(focus 활성인데 이 edge만 dim): 0.18 (focus 켰을 때 비활성 edge를 진짜로 가려주는 역할)
       // strokeWidth: highlight 1.5, dim 1 — base와 일관. 사용자 노출 방지 위해 1 미만으로 떨어지지 않음.
-      const opacity = !focus.active ? 0.6 : highlighted ? 0.85 : 0.18;
+      // v0.7.123+: dense + cross-vault → 0.08로 강하게 dim (다른 vault edge는 시각적 잡음)
+      let opacity: number;
+      if (focus.active) {
+        opacity = highlighted ? 0.85 : 0.18;
+      } else if (isDense && isCrossVault) {
+        opacity = 0.08;
+      } else {
+        opacity = isDense ? 0.18 : 0.6;
+      }
       const strokeWidth = highlighted ? 1.5 : 1;
 
       return {
@@ -591,7 +569,7 @@ function GraphCanvasInner({
         },
       };
     });
-  }, [flowEdges, focus]);
+  }, [flowEdges, focus, isDense, crossVaultEdgeIds]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
@@ -715,6 +693,45 @@ function GraphCanvasInner({
     [isCoarse, nodeMap, onNodeInspect, onNodeClick, onNodeDoubleClick, flowToScreenPosition]
   );
 
+  // v0.7.123+ vault halo 색상: dense 모드 + vaultCentroids 있을 때만
+  // vault별 색을 결정적으로 부여. 정렬된 vault 이름 → index → 팔레트 매핑.
+  const vaultColors = useMemo(() => {
+    if (!isDense || !vaultCentroids) return new Map<string, string>();
+    const sortedVaults = [...new Set(vaultCentroids.map((vc) => vc.vault))].sort();
+    const map = new Map<string, string>();
+    sortedVaults.forEach((vname, idx) => {
+      map.set(vname, `var(--graph-vault-halo-${(idx % 6) + 1})`);
+    });
+    return map;
+  }, [isDense, vaultCentroids]);
+
+  // v0.7.123+ vault halo/label을 screen 좌표로 변환. xyflow v12에서
+  // <ReactFlow> children은 viewport transform을 자동으로 받지 않으므로,
+  // layer를 ReactFlow 바깥 형제로 두고 useViewport/flowToScreenPosition으로
+  // 매 render + onMove 시 server → screen 좌표 변환. zoom/pan 따라 halo와
+  // 라벨이 함께 움직인다.
+  const [vaultScreenPositions, setVaultScreenPositions] = useState<
+    Array<{ vault: string; x: number; y: number; radius: number }>
+  >([]);
+  useEffect(() => {
+    if (!isDense || !vaultCentroids || vaultCentroids.length === 0) {
+      setVaultScreenPositions([]);
+      return;
+    }
+    const next = vaultCentroids.map((vc) => {
+      const center = flowToScreenPosition({ x: vc.x, y: vc.y });
+      // 반경도 screen space에 맞춰 scale (zoom 비례). layer가 viewport 바깥
+      // 형제라 zoom이 안 적용되므로 직접 곱해준다.
+      return {
+        vault: vc.vault,
+        x: center.x,
+        y: center.y,
+        radius: vc.radius * zoom,
+      };
+    });
+    setVaultScreenPositions(next);
+  }, [vaultCentroids, isDense, zoom, flowToScreenPosition]);
+
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, n: { id: string }) => {
       // Patch 2: 더블 click/tap → 페이지 이동 (모바일+데스크탑 공통).
@@ -747,7 +764,17 @@ function GraphCanvasInner({
       });
       return { ...prev, x: screen.x, y: screen.y };
     });
-  }, [rfNodesById, flowToScreenPosition]);
+    // v0.7.123+: pan/zoom 이동 시 vault halo/label도 server → screen 좌표 재계산.
+    // useViewport는 useEffect dep로 zoom만 받지만 pan은 onMove가 직접 trigger.
+    if (isDense && vaultCentroids && vaultCentroids.length > 0) {
+      setVaultScreenPositions(
+        vaultCentroids.map((vc) => {
+          const center = flowToScreenPosition({ x: vc.x, y: vc.y });
+          return { vault: vc.vault, x: center.x, y: center.y, radius: vc.radius * zoom };
+        })
+      );
+    }
+  }, [rfNodesById, flowToScreenPosition, isDense, vaultCentroids, zoom]);
 
   return (
     <div
@@ -814,6 +841,68 @@ function GraphCanvasInner({
           showInteractive={false}
         />
       </ReactFlow>
+
+      {/* v0.7.123+ all-vault dense 모드에서 vault halo + centroid 라벨.
+          layer가 viewport transform 외부에 있으므로 server 좌표를 screen 좌표로
+          변환해서 fixed로 그린다. zoom/pan 시 vaultScreenPositions가 갱신되며
+          halo/label이 노드와 함께 따라간다. */}
+      {isDense && vaultScreenPositions.length > 0 && (
+        <div
+          className="graph-vault-halo-layer"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+          aria-hidden
+        >
+          {vaultScreenPositions.map((vc) => {
+            const color = vaultColors.get(vc.vault) ?? "var(--graph-vault-halo-1)";
+            return (
+              <div
+                key={vc.vault}
+                className="graph-vault-halo"
+                data-vault={vc.vault}
+                style={{
+                  position: "absolute",
+                  left: vc.x,
+                  top: vc.y,
+                  width: vc.radius * 2,
+                  height: vc.radius * 2,
+                  transform: "translate(-50%, -50%)",
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                  opacity: 0.18,
+                  pointerEvents: "none",
+                }}
+              />
+            );
+          })}
+          {vaultScreenPositions.map((vc) => (
+            <div
+              key={`${vc.vault}-label`}
+              className="graph-vault-label"
+              data-vault={vc.vault}
+              style={{
+                position: "absolute",
+                left: vc.x,
+                top: vc.y - vc.radius - 8,
+                transform: "translate(-50%, -100%)",
+                color: vaultColors.get(vc.vault) ?? "var(--graph-vault-halo-1)",
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+                textShadow: "0 0 6px var(--graph-canvas-bg), 0 0 12px var(--graph-canvas-bg)",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+              }}
+            >
+              {vc.vault}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 전체보기 / 맞춤보기 / 배치 초기화 버튼 */}
       <div
