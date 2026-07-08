@@ -34,6 +34,24 @@ confidence: high
 - `npx vite build` exit 0 (background session)
 - Safari 대시보드에서 `/page/<vault>/<slug>` 페이지 라이트 모드 + 표 + `inline code` 영역 직접 확인
 
+## v0.7.115-hotfix (사용자 피드백 직후)
+
+### 무엇을 했는가
+
+- **문제**: v0.7.115 첫 패치 적용 후에도 표 셀 일부가 검은 배경으로 표시되고 텍스트가 묻힘
+- **근본 원인**:
+  1. `--color-surface` 토큰이 `:root`에 **미정의**였음 → 표 셀 `background: var(--color-surface)`가 빈 값 fallback → 셀 투명 → 뒤에 있는 wmde-markdown 스타일 또는 캔버스가 비쳐 보임
+  2. v0.7.56+ 글로벌 pre 강제(`#1e293b` slate-800)가 **셀 안 pre에도** 적용 → "셀 안에 검은 박스 + 어두운 텍스트" 회귀
+- **수정**:
+  - `:root`에 `--color-surface: #ffffff` alias 추가 (canvas와 동일, 표/패널 공통 표면)
+  - `[data-color-mode="light"] .wmde-markdown table pre/code` override 추가 — slate-100(`#f1f5f9`) bg + slate-200 border + ink fg
+  - 표 안 `pre code`는 transparent로 (셀 위에 자연스럽게)
+
+### 검증
+
+- tsc -b exit 0
+- vite build exit 0
+
 ## 다음에 무엇이 가능한가
 
 - [ ] wmde-markdown의 다른 GitHub 잔재 (kbd, sub/sup, mark 등) 동일 패턴으로 라이트/다크 톤 정합성 점검

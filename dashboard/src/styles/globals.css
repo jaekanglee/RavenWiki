@@ -147,6 +147,11 @@
   --color-mark-bg: rgba(28, 105, 212, 0.18);       /* BMW Blue @ 18% alpha */
   --color-mark-fg: var(--color-ink);
   --color-mark-rounded: 2px;
+
+  /* v0.7.115 — 표/패널 surface alias. 이전엔 미정의라 var(--color-surface) 사용처가
+     빈 값으로 fallback → 표 셀이 투명해지는 버그 있었음. canvas와 동일한 흰색.
+     표 안 pre/code 셀에서도 일관된 surface 보장. */
+  --color-surface: #ffffff;
 }
 
 html,
@@ -2528,6 +2533,22 @@ a:focus-visible {
 }
 [data-color-mode="light"] .wmde-markdown table a {
   color: var(--color-primary) !important;             /* 표 안 링크는 primary 유지 */
+}
+
+/* ─ v0.7.115 — 라이트 모드: 표 안에 pre/code 블록이 있을 때 강제 라이트 톤.
+   v0.7.56+ 글로벌 pre 강제(#1e293b slate-800)가 셀 안 pre에도 적용돼서
+   "표 셀 안에 검은 배경 + 어두운 텍스트" 가 되는 회귀가 발생했음.
+   표 안에서는 셀 배경(surface)과 어울리게 slate-100 계열 라이트 톤으로. */
+[data-color-mode="light"] .wmde-markdown table pre,
+[data-color-mode="light"] .wmde-markdown table code {
+  background: #f1f5f9 !important;                     /* slate-100, 셀 안 pre는 살짝만 */
+  border: 1px solid #e2e8f0 !important;
+  color: var(--color-ink) !important;
+}
+[data-color-mode="light"] .wmde-markdown table pre code {
+  background: transparent !important;
+  color: var(--color-ink) !important;
+  border: none !important;
 }
 
 /* v0.7.112 — RawPanel viewer surface. header hairline이 영역 구분선 역할,
