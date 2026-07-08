@@ -86,11 +86,14 @@ describe("GraphPage all-vault scope contract", () => {
   it("culls offscreen edges only for dense large graphs", () => {
     expect(GraphCanvasSrc).toContain('const shouldCullEdges = isDense && flowEdges.length >= 400;');
     expect(GraphCanvasSrc).toContain('const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set())');
+    expect(GraphCanvasSrc).toContain('const [screenNodeCenters, setScreenNodeCenters] = useState<Map<string, { x: number; y: number }>>');
     expect(GraphCanvasSrc).toContain('recomputeVisibleNodeIds');
     expect(GraphCanvasSrc).toContain('recomputeVisibleNodeIdsNow');
     expect(GraphCanvasSrc).toContain('window.requestAnimationFrame(() => {');
     expect(GraphCanvasSrc).toContain('if (visibleNodeIdsRafRef.current != null) return;');
-    expect(GraphCanvasSrc).toContain('visibleNodeIds.has(String(edge.source)) || visibleNodeIds.has(String(edge.target))');
+    expect(GraphCanvasSrc).toContain('segmentIntersectsExpandedRect');
+    expect(GraphCanvasSrc).toContain('edgeTouchesViewport');
+    expect(GraphCanvasSrc).toContain('pointInsideExpandedRect');
     expect(GraphCanvasSrc).toContain('const overscan = 120;');
   });
 
