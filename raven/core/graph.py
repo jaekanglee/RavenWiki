@@ -216,6 +216,116 @@ def constellation_layout(
     """
     import math
 
+    # v0.7.127+: large graph에서 O(n²) repulsion이 병목이므로 Barnes-Hut quadtree
+    # 근사를 자동 사용한다. 작은 그래프(<180 nodes)는 exact pairwise가 더 단순하고
+    # 안정적이므로 유지. self-force approximation 방지를 위해 현재 노드를 포함하는
+    # cell은 항상 더 내려가고, 충분히 멀어진 타 cell만 size/d < theta 조건으로 근사.
+    def barnes_hut_repulsion(
+        xs: list[float],
+        ys: list[float],
+        masses: list[float],
+        strength: float,
+        theta: float = 0.9,
+    ) -> tuple[list[float], list[float]]:
+        n_local = len(xs)
+        out_dx = [0.0] * n_local
+        out_dy = [0.0] * n_local
+        if n_local <= 1:
+            return out_dx, out_dy
+
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        size = max(max_x - min_x, max_y - min_y, 1.0) + 1e-6
+
+        def build(indices: list[int], x0: float, y0: float, cell_size: float) -> dict[str, Any]:
+            total_mass = sum(masses[i] for i in indices)
+            com_x = sum(xs[i] * masses[i] for i in indices) / max(total_mass, 1e-9)
+            com_y = sum(ys[i] * masses[i] for i in indices) / max(total_mass, 1e-9)
+            node: dict[str, Any] = {
+                "x0": x0,
+                "y0": y0,
+                "size": cell_size,
+                "mass": total_mass,
+                "com_x": com_x,
+                "com_y": com_y,
+                "indices": indices,
+            }
+            if len(indices) <= 4 or cell_size <= 1.0:
+                node["leaf"] = True
+                return node
+
+            half = cell_size / 2.0
+            mid_x = x0 + half
+            mid_y = y0 + half
+            buckets: list[list[int]] = [[], [], [], []]
+            for i in indices:
+                east = 1 if xs[i] >= mid_x else 0
+                south = 2 if ys[i] >= mid_y else 0
+                buckets[east + south].append(i)
+            if any(len(bucket) == len(indices) for bucket in buckets):
+                node["leaf"] = True
+                return node
+
+            children: list[dict[str, Any]] = []
+            for q, bucket in enumerate(buckets):
+                if not bucket:
+                    continue
+                child_x0 = x0 + (half if (q & 1) else 0.0)
+                child_y0 = y0 + (half if (q & 2) else 0.0)
+                children.append(build(bucket, child_x0, child_y0, half))
+            node["children"] = children
+            return node
+
+        root = build(list(range(n_local)), min_x - 1e-6, min_y - 1e-6, size)
+
+        def apply(i: int, node: dict[str, Any]) -> None:
+            node_mass = float(node.get("mass", 0.0) or 0.0)
+            if node_mass <= 0.0:
+                return
+
+            x0 = float(node["x0"])
+            y0 = float(node["y0"])
+            cell_size = float(node["size"])
+            contains_i = x0 <= xs[i] <= x0 + cell_size and y0 <= ys[i] <= y0 + cell_size
+
+            if node.get("leaf"):
+                for j in node.get("indices", []):
+                    if j == i:
+                        continue
+                    vx = xs[i] - xs[j]
+                    vy = ys[i] - ys[j]
+                    d2 = vx * vx + vy * vy + 0.01
+                    d = math.sqrt(d2)
+                    f = strength * masses[i] * masses[j] / d2
+                    fx = (vx / d) * f
+                    fy = (vy / d) * f
+                    min_dist = 20.0
+                    if d < min_dist:
+                        overlap = min_dist - d
+                        col_f = (overlap * overlap) * 12.0
+                        fx += (vx / d) * col_f
+                        fy += (vy / d) * col_f
+                    out_dx[i] += fx
+                    out_dy[i] += fy
+                return
+
+            vx = xs[i] - float(node["com_x"])
+            vy = ys[i] - float(node["com_y"])
+            d2 = vx * vx + vy * vy + 0.01
+            d = math.sqrt(d2)
+            if (not contains_i) and (cell_size / d) < theta:
+                f = strength * masses[i] * node_mass / d2
+                out_dx[i] += (vx / d) * f
+                out_dy[i] += (vy / d) * f
+                return
+
+            for child in node.get("children", []):
+                apply(i, child)
+
+        for i in range(n_local):
+            apply(i, root)
+        return out_dx, out_dy
+
     n = len(ids)
     if n == 0:
         return {}
@@ -358,6 +468,103 @@ def forceatlas_layout(
     """
     import math
 
+    # v0.7.127+: large graph에서 O(n²) repulsion이 병목이므로 Barnes-Hut quadtree
+    # 근사를 자동 사용한다. 작은 그래프(<180 nodes)는 exact pairwise가 더 단순하고
+    # 안정적이므로 유지. self-force approximation 방지를 위해 현재 노드를 포함하는
+    # cell은 항상 더 내려가고, 충분히 멀어진 타 cell만 size/d < theta 조건으로 근사.
+    def barnes_hut_repulsion(
+        xs: list[float],
+        ys: list[float],
+        masses: list[float],
+        strength: float,
+        theta: float = 0.9,
+    ) -> tuple[list[float], list[float]]:
+        n_local = len(xs)
+        out_dx = [0.0] * n_local
+        out_dy = [0.0] * n_local
+        if n_local <= 1:
+            return out_dx, out_dy
+
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        size = max(max_x - min_x, max_y - min_y, 1.0) + 1e-6
+
+        def build(indices: list[int], x0: float, y0: float, cell_size: float) -> dict[str, Any]:
+            total_mass = sum(masses[i] for i in indices)
+            com_x = sum(xs[i] * masses[i] for i in indices) / max(total_mass, 1e-9)
+            com_y = sum(ys[i] * masses[i] for i in indices) / max(total_mass, 1e-9)
+            node: dict[str, Any] = {
+                "x0": x0, "y0": y0, "size": cell_size, "mass": total_mass,
+                "com_x": com_x, "com_y": com_y, "indices": indices,
+            }
+            if len(indices) <= 4 or cell_size <= 1.0:
+                node["leaf"] = True
+                return node
+
+            half = cell_size / 2.0
+            mid_x = x0 + half
+            mid_y = y0 + half
+            buckets: list[list[int]] = [[], [], [], []]
+            for i in indices:
+                east = 1 if xs[i] >= mid_x else 0
+                south = 2 if ys[i] >= mid_y else 0
+                buckets[east + south].append(i)
+            if any(len(bucket) == len(indices) for bucket in buckets):
+                node["leaf"] = True
+                return node
+
+            children: list[dict[str, Any]] = []
+            for q, bucket in enumerate(buckets):
+                if not bucket:
+                    continue
+                child_x0 = x0 + (half if (q & 1) else 0.0)
+                child_y0 = y0 + (half if (q & 2) else 0.0)
+                children.append(build(bucket, child_x0, child_y0, half))
+            node["children"] = children
+            return node
+
+        root = build(list(range(n_local)), min_x - 1e-6, min_y - 1e-6, size)
+
+        def apply(i: int, node: dict[str, Any]) -> None:
+            node_mass = float(node.get("mass", 0.0) or 0.0)
+            if node_mass <= 0.0:
+                return
+            x0 = float(node["x0"]); y0 = float(node["y0"]); cell_size = float(node["size"])
+            contains_i = x0 <= xs[i] <= x0 + cell_size and y0 <= ys[i] <= y0 + cell_size
+
+            if node.get("leaf"):
+                for j in node.get("indices", []):
+                    if j == i:
+                        continue
+                    vx = xs[i] - xs[j]; vy = ys[i] - ys[j]
+                    d2 = vx * vx + vy * vy + 0.01
+                    d = math.sqrt(d2)
+                    f = strength * masses[i] * masses[j] / d2
+                    fx = (vx / d) * f; fy = (vy / d) * f
+                    min_dist = 20.0
+                    if d < min_dist:
+                        overlap = min_dist - d
+                        col_f = (overlap * overlap) * 12.0
+                        fx += (vx / d) * col_f; fy += (vy / d) * col_f
+                    out_dx[i] += fx; out_dy[i] += fy
+                return
+
+            vx = xs[i] - float(node["com_x"]); vy = ys[i] - float(node["com_y"])
+            d2 = vx * vx + vy * vy + 0.01
+            d = math.sqrt(d2)
+            if (not contains_i) and (cell_size / d) < theta:
+                f = strength * masses[i] * node_mass / d2
+                out_dx[i] += (vx / d) * f
+                out_dy[i] += (vy / d) * f
+                return
+
+            for child in node.get("children", []):
+                apply(i, child)
+
+        for i in range(n_local):
+            apply(i, root)
+        return out_dx, out_dy
+
     n = len(ids)
     if n == 0:
         return {}
@@ -461,31 +668,38 @@ def forceatlas_layout(
                     data[0] /= data[2]
                     data[1] /= data[2]
 
-        # Repulsion (mass-scaled) & Collision (겹침 방지). 모든 노드쌍
-        for i in range(n):
-            for j in range(i + 1, n):
-                vx = pos_x[i] - pos_x[j]
-                vy = pos_y[i] - pos_y[j]
-                d2 = vx * vx + vy * vy + 0.01
-                d = math.sqrt(d2)
+        # Repulsion (mass-scaled) & Collision (겹침 방지).
+        # small graph = exact O(n²), large graph = Barnes-Hut O(n log n) 근사.
+        if n >= 180:
+            rep_dx, rep_dy = barnes_hut_repulsion(pos_x, pos_y, mass, repulsion)
+            for i in range(n):
+                dx[i] += rep_dx[i]
+                dy[i] += rep_dy[i]
+        else:
+            for i in range(n):
+                for j in range(i + 1, n):
+                    vx = pos_x[i] - pos_x[j]
+                    vy = pos_y[i] - pos_y[j]
+                    d2 = vx * vx + vy * vy + 0.01
+                    d = math.sqrt(d2)
 
-                # 기본 ForceAtlas 척력
-                f = repulsion * mass[i] * mass[j] / d2
-                fx = (vx / d) * f
-                fy = (vy / d) * f
+                    # 기본 ForceAtlas 척력
+                    f = repulsion * mass[i] * mass[j] / d2
+                    fx = (vx / d) * f
+                    fy = (vy / d) * f
 
-                # Collision Guard: 옵시디언 감성을 위한 겹침 방지 탄성 (노드 최소 반경 약 20px 보장)
-                min_dist = 20.0
-                if d < min_dist:
-                    overlap = min_dist - d
-                    col_f = (overlap * overlap) * 12.0  # 탄성 강도
-                    fx += (vx / d) * col_f
-                    fy += (vy / d) * col_f
+                    # Collision Guard: 옵시디언 감성을 위한 겹침 방지 탄성 (노드 최소 반경 약 20px 보장)
+                    min_dist = 20.0
+                    if d < min_dist:
+                        overlap = min_dist - d
+                        col_f = (overlap * overlap) * 12.0  # 탄성 강도
+                        fx += (vx / d) * col_f
+                        fy += (vy / d) * col_f
 
-                dx[i] += fx
-                dy[i] += fy
-                dx[j] -= fx
-                dy[j] -= fy
+                    dx[i] += fx
+                    dy[i] += fy
+                    dx[j] -= fx
+                    dy[j] -= fy
 
         # Linear attraction: 거리 비례 — 짧은 edge는 강하게, 긴 edge는 약하게.
         # LinLog와 다른 선택이지만 PKM 위키처럼 군집이 응집되어 있을 때 더 예쁘게 모임.

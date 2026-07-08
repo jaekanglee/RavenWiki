@@ -194,27 +194,34 @@ export function GraphPage() {
     navigate(`/page/${nodeVault(node, vault)}/${nodeSlug(node)}`);
   };
 
-  // v0.7.126+: GraphCanvas가 drag-end마다 (id → {x,y})를 보낸다. current
-  // scope에서만 persist (all-scope는 "{vault}:{slug}" 형태라 분해 필요,
-  // 별도 사이클에서 처리). fetch 실패는 silent — 다음 atlas 계산 시
-  // 사용자 좌표가 사라지지만 retry 가능.
+  // v0.7.127+: current scope뿐 아니라 all-scope도 vault별로 분배 저장.
+  // node.id는 current=slug, all-scope="{vault}:{slug}" 이므로 graphNodeMap의
+  // node.vault/node.slug를 우선 신뢰한다. fetch 실패는 silent.
   const persistPositions = useCallback(
     (positions: Record<string, { x: number; y: number }>) => {
-      if (graphScope !== "current" || !vault) return;
-      const slugPositions: Record<string, { x: number; y: number }> = {};
+      if (!vault) return;
+      const byVault: Record<string, Record<string, { x: number; y: number }>> = {};
       for (const [id, xy] of Object.entries(positions)) {
         const node = graphNodeMap.get(id);
-        const slug = node?.slug ?? (id.includes(":") ? null : id);
-        if (slug) slugPositions[slug] = xy;
+        const targetVault = nodeVault(node ?? ({ id } as GraphNode), vault);
+        const slug = nodeSlug(node ?? ({ id } as GraphNode));
+        if (!targetVault || !slug) continue;
+        byVault[targetVault] ??= {};
+        byVault[targetVault][slug] = xy;
       }
-      if (Object.keys(slugPositions).length === 0) return;
-      fetch(`/api/vaults/${encodeURIComponent(vault)}/graph/positions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ positions: slugPositions }),
-      }).catch(() => {});
+      const entries = Object.entries(byVault).filter(([, pos]) => Object.keys(pos).length > 0);
+      if (entries.length === 0) return;
+      void Promise.allSettled(
+        entries.map(([targetVault, pos]) =>
+          fetch(`/api/vaults/${encodeURIComponent(targetVault)}/graph/positions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ positions: pos }),
+          })
+        )
+      );
     },
-    [graphScope, vault, graphNodeMap]
+    [vault, graphNodeMap]
   );
 
   const controlsSection = (

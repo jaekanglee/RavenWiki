@@ -631,39 +631,42 @@ function GraphCanvasInner({
     return out;
   }, [isDense, flowEdges]);
 
-  const displayEdges = useMemo(() => {
+  // v0.7.127+: idle 상태에서는 edge object churn을 줄이기 위해 base edge set을 먼저 만든다.
+  // dense 모드에서 특히 cross-vault edge opacity 계산이 고정이므로 focus가 없을 때는
+  // 이 memoized 배열을 그대로 사용. highlight 시에만 overlay 스타일 객체를 새로 만든다.
+  const baseDisplayEdges = useMemo(() => {
     return flowEdges.map((edge) => {
-      const highlighted = focus.edgeIds.has(edge.id);
       const isCrossVault = crossVaultEdgeIds.has(edge.id);
-
-      // v0.7.48+: dark mode 시인성 개선 — base가 0.6/1px로 올라간 만큼 focus 분기도 비례 조정.
-      //   - 평상시(dim): 0.6 (사실상 hover 없는 상태 — 과거엔 0.16으로 흐려서 path가 안 보였음)
-      //   - highlight: 0.85 (지금까지 0.82 → 살짝 강화해 명확하게)
-      //   - 비활성(focus 활성인데 이 edge만 dim): 0.18 (focus 켰을 때 비활성 edge를 진짜로 가려주는 역할)
-      // strokeWidth: highlight 1.5, dim 1 — base와 일관. 사용자 노출 방지 위해 1 미만으로 떨어지지 않음.
-      // v0.7.123+: dense + cross-vault → 0.08로 강하게 dim (다른 vault edge는 시각적 잡음)
-      let opacity: number;
-      if (focus.active) {
-        opacity = highlighted ? 0.85 : 0.18;
-      } else if (isDense && isCrossVault) {
-        opacity = 0.08;
-      } else {
-        opacity = isDense ? 0.18 : 0.6;
-      }
-      const strokeWidth = highlighted ? 1.5 : 1;
-
+      const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;
       return {
         ...edge,
-        animated: highlighted,
+        animated: false,
         style: {
           ...(edge.style ?? {}),
-          stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
-          strokeWidth,
+          stroke: "var(--graph-edge)",
+          strokeWidth: 1,
           strokeOpacity: opacity,
         },
       };
     });
-  }, [flowEdges, focus, isDense, crossVaultEdgeIds]);
+  }, [flowEdges, isDense, crossVaultEdgeIds]);
+
+  const displayEdges = useMemo(() => {
+    if (!focus.active) return baseDisplayEdges;
+    return baseDisplayEdges.map((edge) => {
+      const highlighted = focus.edgeIds.has(edge.id);
+      return {
+        ...edge,
+        animated: highlighted && !isDense,
+        style: {
+          ...(edge.style ?? {}),
+          stroke: highlighted ? "var(--graph-edge-highlight)" : "var(--graph-edge)",
+          strokeWidth: highlighted ? 1.5 : 1,
+          strokeOpacity: highlighted ? 0.85 : 0.18,
+        },
+      };
+    });
+  }, [baseDisplayEdges, focus, isDense]);
 
   const fitGraph = useCallback(() => {
     window.setTimeout(() => {
