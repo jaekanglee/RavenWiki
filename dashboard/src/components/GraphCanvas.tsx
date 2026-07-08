@@ -278,6 +278,59 @@ const nodeTypes = {
   obsidian: ObsidianNode,
 };
 
+/**
+ * Server-side layout의 (id, x, y)가 prev와 의미상 달라졌는지 비교.
+ * id 리스트가 바뀌거나, 같은 id의 (x,y)가 다르면 true. 그 외 (drag에 의한
+ * z-index, selected 등 클라이언트 전용 필드) 변경은 무시 — xyflow 내부
+ * drag store가 보존되도록 한다.
+ */
+function nodesLayoutChanged(
+  prev: ReadonlyArray<{ id: string; position: { x: number; y: number } }>,
+  next: ReadonlyArray<{ id: string; position: { x: number; y: number } }>
+): boolean {
+  if (prev.length !== next.length) return true;
+  const map = new Map<string, { x: number; y: number }>();
+  for (const n of prev) map.set(n.id, n.position);
+  for (const n of next) {
+    const p = map.get(n.id);
+    if (!p) return true;
+    if (p.x !== n.position.x || p.y !== n.position.y) return true;
+  }
+  return false;
+}
+
+function edgesRefChanged(
+  prev: ReadonlyArray<{ id: string }>,
+  next: ReadonlyArray<{ id: string }>
+): boolean {
+  if (prev.length !== next.length) return true;
+  const seen = new Set<string>();
+  for (const e of prev) seen.add(e.id);
+  for (const e of next) if (!seen.has(e.id)) return true;
+  return false;
+}
+
+/**
+ * v0.7.124+: vault centroid (server coords) → screen coords 일괄 변환.
+ * useEffect(첫 mount)와 handleMove(pan/zoom) 양쪽에서 동일 로직을 공유.
+ * zoom 비례 radius 스케일을 동일하게 적용해 layer가 viewport와 함께 움직이게 한다.
+ */
+function vaultScreenFromCentroids(
+  vaultCentroids: ReadonlyArray<VaultCentroid>,
+  zoom: number,
+  flowToScreenPosition: (p: { x: number; y: number }) => { x: number; y: number }
+): Array<{ vault: string; x: number; y: number; radius: number }> {
+  return vaultCentroids.map((vc) => {
+    const center = flowToScreenPosition({ x: vc.x, y: vc.y });
+    return {
+      vault: vc.vault,
+      x: center.x,
+      y: center.y,
+      radius: vc.radius * zoom,
+    };
+  });
+}
+
 const graphButtonStyle = {
   border: "1px solid var(--graph-border)",
   background: "var(--graph-surface)",
@@ -421,12 +474,17 @@ function GraphCanvasInner({
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(rfNodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(rfEdges);
 
+  // Sync server-computed layout into xyflow's controlled state. We compare
+  // id/position explicitly so dragging the user around does NOT get clobbered
+  // (xyflow holds drag positions in its own store; we only re-sync when the
+  // server layout reference actually shifts — e.g. orphan toggle, vault switch,
+  // force-directed recompute).
   useEffect(() => {
-    setFlowNodes(rfNodes);
+    setFlowNodes((prev) => (nodesLayoutChanged(prev, rfNodes) ? rfNodes : prev));
   }, [rfNodes, setFlowNodes]);
 
   useEffect(() => {
-    setFlowEdges(rfEdges);
+    setFlowEdges((prev) => (edgesRefChanged(prev, rfEdges) ? rfEdges : prev));
   }, [rfEdges, setFlowEdges]);
 
   const focus = useMemo(() => {
@@ -718,19 +776,12 @@ function GraphCanvasInner({
       setVaultScreenPositions([]);
       return;
     }
-    const next = vaultCentroids.map((vc) => {
-      const center = flowToScreenPosition({ x: vc.x, y: vc.y });
-      // 반경도 screen space에 맞춰 scale (zoom 비례). layer가 viewport 바깥
-      // 형제라 zoom이 안 적용되므로 직접 곱해준다.
-      return {
-        vault: vc.vault,
-        x: center.x,
-        y: center.y,
-        radius: vc.radius * zoom,
-      };
-    });
+    const next = vaultScreenFromCentroids(vaultCentroids, zoom, flowToScreenPosition);
     setVaultScreenPositions(next);
-  }, [vaultCentroids, isDense, zoom, flowToScreenPosition]);
+    // v0.7.124+: zoom/pan 시의 재계산은 handleMove가 담당 (mount 1회 + vaultCentroids
+    // 변경 시점에만 동기화). zoom을 deps에 넣으면 미세 pan마다 setState 폭증.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultCentroids, isDense, flowToScreenPosition]);
 
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, n: { id: string }) => {
@@ -768,10 +819,7 @@ function GraphCanvasInner({
     // useViewport는 useEffect dep로 zoom만 받지만 pan은 onMove가 직접 trigger.
     if (isDense && vaultCentroids && vaultCentroids.length > 0) {
       setVaultScreenPositions(
-        vaultCentroids.map((vc) => {
-          const center = flowToScreenPosition({ x: vc.x, y: vc.y });
-          return { vault: vc.vault, x: center.x, y: center.y, radius: vc.radius * zoom };
-        })
+        vaultScreenFromCentroids(vaultCentroids, zoom, flowToScreenPosition)
       );
     }
   }, [rfNodesById, flowToScreenPosition, isDense, vaultCentroids, zoom]);
