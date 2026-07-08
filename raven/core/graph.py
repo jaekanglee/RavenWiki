@@ -13,6 +13,35 @@ from typing import Any
 GRAPH_POSITIONS_FILENAME = ".graph_positions.json"
 
 
+def barnes_hut_theta(avg_degree: float) -> float:
+    """그래프 밀도에 따라 Barnes-Hut 근사 theta를 결정한다.
+
+    밀도가 높을수록 (edge가 많아 attraction이 강할수록) 지나치게 거친 근사는
+    군집 경계를 뭉개기 쉬우므로 theta를 낮춘다. sparse graph는 0.9 유지.
+    """
+    if avg_degree >= 10.0:
+        return 0.82
+    if avg_degree >= 6.0:
+        return 0.86
+    return 0.90
+
+
+def should_use_barnes_hut(node_count: int, avg_degree: float) -> bool:
+    """노드 수와 밀도를 함께 보고 Barnes-Hut 전환 여부를 결정한다.
+
+    v0.7.127은 `n >= 180` 고정이었지만, 실제 PKM 그래프는 all-vault dense map에서
+    더 작은 n에도 edge 수가 많아 O(n²) cost가 먼저 체감된다. 반대로 sparse graph는
+    180 근처에서도 exact pairwise가 충분히 빠르다.
+    """
+    if node_count >= 180:
+        return True
+    if node_count >= 140 and avg_degree >= 6.0:
+        return True
+    if node_count >= 110 and avg_degree >= 10.0:
+        return True
+    return False
+
+
 def load_user_positions(vault_root: Path | str) -> dict[str, tuple[float, float]]:
     """vault 루트의 `.graph_positions.json`에서 사용자 지정 좌표를 읽는다.
 
@@ -636,6 +665,8 @@ def forceatlas_layout(
     # (attraction이 그만큼 많은 edge로 강하게 당기므로) 더 벌어지게 보정한다.
     avg_degree = (sum(degree) / n) if n else 0.0
     repulsion = 1100.0 * (1.0 + avg_degree / 20.0)
+    use_barnes_hut = should_use_barnes_hut(n, avg_degree)
+    bh_theta = barnes_hut_theta(avg_degree)
     attraction = 0.15
     gravity = 0.045
     # v0.7.6x+: 28→50. repulsion을 올린 것만으론 부족했다 — 실측(hub-control-room,
@@ -669,9 +700,9 @@ def forceatlas_layout(
                     data[1] /= data[2]
 
         # Repulsion (mass-scaled) & Collision (겹침 방지).
-        # small graph = exact O(n²), large graph = Barnes-Hut O(n log n) 근사.
-        if n >= 180:
-            rep_dx, rep_dy = barnes_hut_repulsion(pos_x, pos_y, mass, repulsion)
+        # small/sparse graph = exact O(n²), large or dense graph = Barnes-Hut O(n log n) 근사.
+        if use_barnes_hut:
+            rep_dx, rep_dy = barnes_hut_repulsion(pos_x, pos_y, mass, repulsion, theta=bh_theta)
             for i in range(n):
                 dx[i] += rep_dx[i]
                 dy[i] += rep_dy[i]

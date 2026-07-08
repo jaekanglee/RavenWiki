@@ -840,6 +840,20 @@ def test_atlas_layout_large_graph_barnes_hut_is_deterministic_and_normalized():
         assert -501.0 <= y <= 501.0, f"y out of ±500 range: {y} (id={slug})"
 
 
+def test_barnes_hut_gate_and_theta_adapt_to_density():
+    from raven.core.graph import barnes_hut_theta, should_use_barnes_hut
+
+    assert should_use_barnes_hut(180, 2.5) is True
+    assert should_use_barnes_hut(160, 2.5) is False
+    assert should_use_barnes_hut(160, 6.2) is True
+    assert should_use_barnes_hut(120, 10.5) is True
+    assert should_use_barnes_hut(100, 12.0) is False
+
+    assert barnes_hut_theta(2.5) == 0.90
+    assert barnes_hut_theta(6.2) == 0.86
+    assert barnes_hut_theta(10.5) == 0.82
+
+
 # ─── Louvain community detection (v0.6.15+) ───
 
 
