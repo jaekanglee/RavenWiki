@@ -2490,3 +2490,16 @@ a:focus-visible {
   border-color: var(--slate-700) !important;
   color: #7dd3fc !important;
 }
+
+/* v0.7.112 — RawPanel viewer surface. header hairline이 영역 구분선 역할,
+   textarea는 border 제거해 단일 surface로 정리. */
+.raw-panel-viewer {
+  background: var(--color-surface);
+}
+.raw-panel-viewer-textarea {
+  background: var(--color-surface);
+  transition: background-color 0.12s ease;
+}
+.raw-panel-viewer-textarea:focus {
+  background: var(--color-canvas);
+}

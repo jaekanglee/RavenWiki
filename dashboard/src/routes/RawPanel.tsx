@@ -2,10 +2,11 @@
  * RawPanel — raw/ 폴더 viewer/editor (v0.7.50+, ADR-2026-07-02)
  *
  * URL 패턴:
- *   /raw/{vault}            — 트리만 (선택 강조 없음, 안내 메시지)
- *   /raw/{vault}/{relPath}  — 트리 + 선택 파일 viewer/editor
+ *   /raw/{vault}            — raw 트리 선택 화면
+ *   /raw/{vault}/{relPath}  — 선택 파일 viewer/editor 전체폭
  *
- * Layout: 좌측 트리 (RawTree) + 우측 viewer (read-only textarea + edit toggle + save/delete)
+ * Layout: 파일 선택 전에는 raw 트리, 파일 선택 후에는 viewer만 표시.
+ * 사이드바에도 raw 탐색기가 있으므로 파일 viewer 안에 중복 탐색기를 넣지 않는다.
  * 빈 raw/이거나 404면 EmptyState.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -275,54 +276,57 @@ export function RawPanel() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(240px, 1fr) minmax(0, 2.5fr)",
+          gridTemplateColumns: relPath ? "minmax(0, 1fr)" : "minmax(240px, 1fr) minmax(0, 2.5fr)",
           gap: 16,
           alignItems: "stretch",
         }}
       >
-        {/* 좌: 트리 */}
-        <div
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-hairline)",
-            borderRadius: 8,
-            padding: 8,
-            maxHeight: "calc(100vh - 220px)",
-            overflowY: "auto",
-          }}
-        >
+        {/* 좌: 트리 — 파일 선택 전 전용. 파일을 열면 사이드바 탐색기와 중복되므로 숨김. */}
+        {!relPath && (
           <div
-            className="sidebar-label"
             style={{
-              padding: "0 0 6px",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.32px",
-              color: "var(--color-muted)",
-              fontFamily: "var(--font-display)",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-hairline)",
+              borderRadius: 8,
+              padding: 8,
+              height: "calc(100vh - 220px)",
+              overflowY: "auto",
             }}
           >
-            📂 raw ({items.length})
+            <div
+              className="sidebar-label"
+              style={{
+                padding: "0 0 6px",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.32px",
+                color: "var(--color-muted)",
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              📂 raw ({items.length})
+            </div>
+            <RawTree
+              items={items}
+              selectedPath={selectedPath}
+              onSelect={handleSelect}
+              compact
+            />
           </div>
-          <RawTree
-            items={items}
-            selectedPath={selectedPath}
-            onSelect={handleSelect}
-            compact
-          />
-        </div>
+        )}
 
-        {/* 우: viewer/editor */}
+        {/* 우: viewer/editor — 외부 box는 hairline만, 안쪽 border 제거로 1겹 정리 */}
         <div
+          className="raw-panel-viewer"
           style={{
             background: "var(--color-surface)",
             border: "1px solid var(--color-hairline)",
             borderRadius: 8,
             padding: 16,
             minHeight: 240,
+            height: "calc(100vh - 220px)",
             display: "flex",
             flexDirection: "column",
-            maxHeight: "calc(100vh - 220px)",
             overflow: "hidden",
           }}
         >
@@ -341,13 +345,15 @@ export function RawPanel() {
               description={`raw/${relPath} (404)`}
             />
           ) : (
-            <div>
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
+                  paddingBottom: 10,
                   marginBottom: 12,
+                  borderBottom: "1px solid var(--color-hairline)",
                   fontSize: 13,
                 }}
               >
@@ -422,6 +428,7 @@ export function RawPanel() {
                   onChange={(e) => setDraft(e.target.value)}
                   readOnly={!editMode}
                   spellCheck={false}
+                  className="raw-panel-viewer-textarea"
                   style={{
                     flex: 1,
                     width: "100%",
@@ -432,7 +439,7 @@ export function RawPanel() {
                     lineHeight: 1.5,
                     color: "var(--color-ink)",
                     background: "var(--color-canvas)",
-                    border: "1px solid var(--color-hairline)",
+                    border: "none",
                     borderRadius: 6,
                     outline: "none",
                     resize: "none",
