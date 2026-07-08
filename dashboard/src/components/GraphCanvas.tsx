@@ -207,7 +207,13 @@ function ObsidianNode({
           transform: data.persistent ? "scale(1.45)" : "scale(1)",
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.transform = "scale(1.75)";
+          // v0.7.124+: persistent(현재 문서 등 항상 강조) 노드는 hover 시에도
+          // 그 강조가 묻히지 않도록 더 크게 부풀린다 (1.45 → 1.95). 일반 노드는
+          // 1 → 1.75. 결과: persistent 노드가 hover 시 더 강조되어 보이고,
+          // 일반 노드보다 시각적 위계가 유지된다.
+          (e.currentTarget as HTMLDivElement).style.transform = data.persistent
+            ? "scale(1.95)"
+            : "scale(1.75)";
           (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--graph-node-glow)";
         }}
         onMouseLeave={(e) => {
