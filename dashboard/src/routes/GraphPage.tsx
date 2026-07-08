@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { GraphCanvas, typeLabel, type VaultCentroid } from "../components/GraphCanvas";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
@@ -15,6 +15,52 @@ interface GraphFilterState {
   query: string;
   selectedType: string;
   selectedCommunity: number | null;
+}
+
+/**
+ * v0.7.123+: GraphPage의 사용자 입력 필터 상태 (GraphFilterState와 1:1 매핑이지만
+ * selectedCommunity는 현재 UX에서 노출하지 않으므로 항상 null). useReducer
+ * 상태로 묶어 resetGraphFilters 등 다중 setState를 한 번의 dispatch로 통합.
+ */
+type GraphPageFilters = {
+  query: string;
+  selectedType: string;
+  hideOrphans: boolean;
+  selectedNodeId: string | null;
+};
+
+type GraphPageFilterAction =
+  | { type: "setQuery"; value: string }
+  | { type: "setSelectedType"; value: string }
+  | { type: "setHideOrphans"; value: boolean }
+  | { type: "setSelectedNodeId"; value: string | null }
+  | { type: "reset" };
+
+const initialFilters: GraphPageFilters = {
+  query: "",
+  selectedType: "all",
+  hideOrphans: true,
+  selectedNodeId: null,
+};
+
+function filterReducer(
+  state: GraphPageFilters,
+  action: GraphPageFilterAction
+): GraphPageFilters {
+  switch (action.type) {
+    case "setQuery":
+      return { ...state, query: action.value };
+    case "setSelectedType":
+      return { ...state, selectedType: action.value };
+    case "setHideOrphans":
+      return { ...state, hideOrphans: action.value };
+    case "setSelectedNodeId":
+      return { ...state, selectedNodeId: action.value };
+    case "reset":
+      return initialFilters;
+    default:
+      return state;
+  }
 }
 
 interface GraphInsight {
@@ -242,10 +288,11 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
 export function GraphPage() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [graphScope, setGraphScope] = useState<GraphScope>("current");
-  const [hideOrphans, setHideOrphans] = useState(true);
-  const [query, setQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("all");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // v0.7.123+: 그래프 페이지 필터 상태(query/selectedType/hideOrphans/selectedNodeId)를
+  // useReducer로 묶어 resetGraphFilters 등 다중 setState 시 동기화 + 의도 명시.
+  // 인사이트 hover 2종 + 로딩/에러/showFullGraph는 데이터 라이프사이클/UI 토글로
+  // 빈도가 낮아 그대로 useState 유지.
+  const [filters, dispatchFilters] = useReducer(filterReducer, initialFilters);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [hoveredInsightNodeId, setHoveredInsightNodeId] = useState<string | null>(null);
@@ -254,14 +301,9 @@ export function GraphPage() {
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
-  const resetGraphFilters = () => {
-    setQuery("");
-    setSelectedType("all");
-    setHideOrphans(true);
-    setSelectedNodeId(null);
-    setHoveredInsightNodeId(null);
-    setHoveredInsightType(null);
-  };
+  const { query, selectedType, hideOrphans, selectedNodeId } = filters;
+
+  const resetGraphFilters = () => dispatchFilters({ type: "reset" });
 
   const loadGraph = () => {
     if (!vault) return;
@@ -351,7 +393,7 @@ export function GraphPage() {
         onChange={(e) => {
           const next = e.target.value as GraphScope;
           setGraphScope(next);
-          setSelectedNodeId(null);
+          dispatchFilters({ type: "setSelectedNodeId", value: null });
         }}
         options={[
           { value: "all", label: "전체 vault" },
@@ -362,14 +404,14 @@ export function GraphPage() {
       <TextField
         label="문서 검색"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => dispatchFilters({ type: "setQuery", value: e.target.value })}
         placeholder="제목, slug, type으로 필터"
         helper="검색 시 일치 문서와 1-hop 이웃만 남겨 맥락을 유지합니다."
       />
       <SelectField
         label="타입 필터"
         value={selectedType}
-        onChange={(e) => setSelectedType(e.target.value)}
+        onChange={(e) => dispatchFilters({ type: "setSelectedType", value: e.target.value })}
         options={typeOptions}
         helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
       />
@@ -393,7 +435,7 @@ export function GraphPage() {
   useEffect(() => {
     if (!selectedNodeId) return;
     const stillVisible = visibleNodes.some((node) => (node.id) === selectedNodeId);
-    if (!stillVisible) setSelectedNodeId(null);
+    if (!stillVisible) dispatchFilters({ type: "setSelectedNodeId", value: null });
   }, [selectedNodeId, visibleNodes]);
 
   return (
@@ -414,7 +456,7 @@ export function GraphPage() {
           <input
             type="checkbox"
             checked={hideOrphans}
-            onChange={(e) => setHideOrphans(e.target.checked)}
+            onChange={(e) => dispatchFilters({ type: "setHideOrphans", value: e.target.checked })}
           />
           연결 없는 문서 숨김
         </label>
@@ -464,7 +506,7 @@ export function GraphPage() {
                 type="button"
                 className="btn-secondary"
                 style={{ height: 36, padding: "8px 14px", fontSize: 13 }}
-                onClick={() => setHideOrphans(false)}
+                onClick={() => dispatchFilters({ type: "setHideOrphans", value: false })}
               >
                 연결 없는 문서 보기
               </button>
@@ -490,7 +532,7 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
-            onNodeClick={(slug) => setSelectedNodeId(slug)}
+            onNodeClick={(slug) => dispatchFilters({ type: "setSelectedNodeId", value: slug })}
             onNodeDoubleClick={openGraphNode}
             externalHighlightNodeId={hoveredInsightNodeId}
             externalHighlightType={hoveredInsightType}
@@ -535,8 +577,8 @@ export function GraphPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  setQuery(selectedNodeDetail.node.title);
-                  setSelectedType("all");
+                  dispatchFilters({ type: "setQuery", value: selectedNodeDetail.node.title });
+                  dispatchFilters({ type: "setSelectedType", value: "all" });
                 }}
               >
                 이 문서로 포커스
@@ -559,7 +601,7 @@ export function GraphPage() {
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id)}
+                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
                         onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
@@ -585,7 +627,7 @@ export function GraphPage() {
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id)}
+                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
                         onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
@@ -611,7 +653,7 @@ export function GraphPage() {
                       <button
                         type="button"
                         className="graph-detail-link"
-                        onClick={() => setSelectedNodeId(node.id)}
+                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
                         onMouseEnter={() => setHoveredInsightNodeId(node.id)}
                         onMouseLeave={() => setHoveredInsightNodeId(null)}
                       >
