@@ -213,9 +213,21 @@ def list_vaults():
     host_root = Path(host_root_raw).expanduser().resolve() if host_root_raw else runtime_root
     reg_data = registry()._data.get("vaults", {})
     out = []
+    is_docker = (str(runtime_root.resolve()) == "/vaults" or os.path.exists("/.dockerenv"))
     for v in registry().list():
         raw_meta = reg_data.get(v.name, {})
         display_path = raw_meta.get("path") if isinstance(raw_meta, dict) else None
+        
+        # v0.7.121+: 로컬 실행 시, .registry.json의 display_path가 존재하지 않는 엉뚱한 경로(타인 홈디렉토리 등)이고
+        # fallback으로 실제 존재하는 경로 v.path가 구해진 경우, 안전하게 v.path를 display_path로 사용한다.
+        if not is_docker and display_path:
+            try:
+                dp_path = Path(display_path).expanduser().resolve()
+                if not dp_path.exists() and v.path.exists():
+                    display_path = str(v.path)
+            except Exception:
+                pass
+
         if not isinstance(display_path, str) or not display_path.strip():
             try:
                 rel = v.path.resolve().relative_to(runtime_root.resolve())
@@ -920,6 +932,10 @@ def vault_graph(
         "Louvain-style community id per node so the dashboard can color by "
         "structure instead of metadata. 'none' skips the computation.",
     ),
+    scope: Literal["current", "all"] = Query(
+        "current",
+        description="Graph scope. 'current' returns one vault; 'all' merges every registered vault.",
+    ),
 ):
     """vault 페이지 + wikilink edges + graph layout 좌표를 반환.
 
@@ -929,13 +945,48 @@ def vault_graph(
         문제가 있어 제거함 (docs/architecture.md D10/D11 참고).
     v0.6.15+: ?community=modularity attaches nodes[i].community = Louvain-style
         community id (0..K-1). 'none' (default) skips the call.
+    v0.7.122+: ?scope=all merges all registered vault graphs. In all scope,
+        node ids and edge endpoints use `{vault}:{slug}` to prevent collisions.
 
-    nodes: [{id: slug, title, type, weight, x, y, community?}]
-    edges: [{source: src_slug, target: tgt_slug}]
+    current nodes: [{id: slug, title, type, weight, x, y, community?}]
+    all nodes: [{id: "{vault}:{slug}", vault, slug, title, type, weight, x, y, community?}]
+    edges: [{source, target}]
 
     wiki.db의 links 테이블에서 source/target 직접 매칭 (정확성 우선).
     wiki.db가 없으면 (구 vault) rglob fallback.
     """
+    _vault_or_404(name)
+    if scope == "all":
+        merged_nodes = []
+        merged_edges = []
+        included_vaults = 0
+        for meta in registry().list():
+            if not meta.path.exists():
+                continue
+            graph = vault_graph(meta.name, iterations=iterations, community=community, scope="current")
+            included_vaults += 1
+            for node in graph.get("nodes", []):
+                slug = node.get("slug") or node.get("id")
+                prefixed = dict(node)
+                prefixed["id"] = f"{meta.name}:{slug}"
+                prefixed["slug"] = slug
+                prefixed["vault"] = meta.name
+                merged_nodes.append(prefixed)
+            for edge in graph.get("edges", []):
+                merged_edges.append({
+                    **edge,
+                    "source": f"{meta.name}:{edge.get('source')}",
+                    "target": f"{meta.name}:{edge.get('target')}",
+                })
+        return {
+            "ok": True,
+            "vault": name,
+            "scope": "all",
+            "nodes": merged_nodes,
+            "edges": merged_edges,
+            "stats": {"nodes": len(merged_nodes), "edges": len(merged_edges), "vaults": included_vaults},
+        }
+
     v = _vault_or_404(name)
 
     # 1) wiki.db가 있으면 DB 사용 (정확)
@@ -1201,8 +1252,15 @@ def get_page(name: str, slug: str):
     host_dir = os.environ.get("RAVEN_VAULTS_DIR", "").strip()
     if host_dir:
         try:
-            rel_from_vaults_root = fp.resolve().relative_to(registry().root.resolve())
-            path_str = str(Path(host_dir).expanduser().resolve() / rel_from_vaults_root)
+            reg_root = registry().root.resolve()
+            host_path = Path(host_dir).expanduser().resolve()
+            
+            # v0.7.121+: Docker 환경이거나, 또는 로컬(호스트) 환경인데 host_path가 실제로 로컬에 존재할 때만 치환 적용.
+            # 로컬 직접 실행 시 RAVEN_VAULTS_DIR이 타인 경로 등으로 잘못 하드코딩되어 있고 실제 존재하지도 않는다면 치환하지 않음.
+            is_docker = (str(reg_root) == "/vaults" or os.path.exists("/.dockerenv"))
+            if is_docker or host_path.exists():
+                rel_from_vaults_root = fp.resolve().relative_to(reg_root)
+                path_str = str(host_path / rel_from_vaults_root)
         except Exception:
             pass
 
