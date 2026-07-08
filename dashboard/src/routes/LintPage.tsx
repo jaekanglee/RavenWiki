@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import {
   fetchLint,
   fetchLintSummary,
+  fetchBuild,
   createPage,
   fetchPage,
   updatePage,
@@ -10,6 +11,7 @@ import {
   type LintSeverity,
   type LintSummary,
   type LintResult,
+  type BuildResult,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
 import { EmptyIcon } from "../lib/emptyIcons";
@@ -57,6 +59,8 @@ export function LintPage() {
   const [writeLog, setWriteLog] = useState(false);
   const [lastWriteResult, setLastWriteResult] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [buildResult, setBuildResult] = useState<BuildResult | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -84,6 +88,37 @@ export function LintPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRebuild = async () => {
+    setBuilding(true);
+    setBuildResult(null);
+    try {
+      const res = await fetchBuild(vault);
+      if (!res) {
+        showToast("리빌드 실패: 서버 응답 없음", "error");
+        return;
+      }
+      setBuildResult(res);
+      if (res.lint) {
+        setResult(res.lint);
+        setSummary(
+          res.lint.ok
+            ? { ok: true, vault, counts: res.lint.counts, by_check: {} }
+            : null
+        );
+      }
+      showToast(
+        `리빌드 완료 — ${res.build.pages} pages, status=${res.build.ok ? "ok" : "error"}`,
+        res.build.ok ? "success" : "error"
+      );
+      setTimeout(() => setBuildResult(null), 3000);
+    } catch (e) {
+      console.error(e);
+      showToast("리빌드 중 오류가 발생했습니다.", "error");
+    } finally {
+      setBuilding(false);
     }
   };
 
@@ -289,11 +324,42 @@ export function LintPage() {
             <option value="info">{SEVERITY_LABELS.info}</option>
           </select>
         </label>
-        <Button onClick={load} variant="secondary" size="sm">
+        <Button onClick={load} variant="secondary" size="sm" disabled={building}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <ButtonIcon.Refresh />새로고침
           </span>
         </Button>
+        <Button
+          onClick={handleRebuild}
+          variant="secondary"
+          size="sm"
+          disabled={building}
+          id="rebuild-btn"
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              opacity: building ? 0.5 : 1,
+              cursor: building ? "not-allowed" : "pointer",
+            }}
+          >
+            {building ? "⌛" : "🔨"} wiki.db 리빌드
+          </span>
+        </Button>
+        {buildResult && (
+          <span
+            style={{
+              fontSize: 12,
+              color: buildResult.build.ok
+                ? "var(--color-primary)"
+                : "var(--color-error-text)",
+            }}
+          >
+            {buildResult.build.pages} pages · {buildResult.build.ok ? "✓ ok" : "✗ error"}
+          </span>
+        )}
         <label
           style={{
             fontSize: 13,

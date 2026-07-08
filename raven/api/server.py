@@ -2004,8 +2004,12 @@ def get_lint(
                 subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
                 extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
             )
-        except Exception:
-            pass
+        except Exception as exc:  # AGENTS.md §9: silent 버그 정책 — silent swallow ❌
+            import sys
+            sys.stderr.write(
+                f"⚠️  lint write_log failed for vault {name!r}: "
+                f"{type(exc).__name__}: {exc}\n"
+            )
     return {
         "ok": result["ok"],
         "vault": name,

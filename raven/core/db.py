@@ -61,9 +61,12 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
             subject=f"wiki.db rebuild ({status}, {pages} pages)",
             extra={"db": str(db_path), "returncode": str(result.get("returncode", "?"))},
         )
-    except Exception:
-        # log append 실패는 무시 — build 자체엔 영향 ❌
-        pass
+    except Exception as exc:  # AGENTS.md §9: silent 버그 정책 — silent swallow ❌
+        import sys
+        sys.stderr.write(
+            f"⚠️  build log.md append failed for vault {vault.meta.name!r}: "
+            f"{type(exc).__name__}: {exc}\n"
+        )
 
     # ─── index.md 마크다운 카탈로그 자동 컴파일 (v0.7.27) ───
     if result.get("ok"):
