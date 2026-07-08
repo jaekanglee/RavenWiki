@@ -24,13 +24,20 @@ const TREE: TreeNode = {
     {
       type: "dir",
       path: "content/concept",
-      children: [],
+      children: [
+        {
+          type: "page",
+          path: "content/concept/dummy.md",
+          title: "Dummy Page",
+          pageType: "concept",
+        },
+      ],
     },
   ],
 };
 
 describe("Sidebar folder hover menu (v0.6.22)", () => {
-  it("folder dir row contains an inline 'create page' button (initialSlug = parentPath)", () => {
+  it("folder dir row contains an inline 'create page' button (initialSlug = parentPath)", async () => {
     render(
       <MemoryRouter>
         <Sidebar
@@ -48,12 +55,12 @@ describe("Sidebar folder hover menu (v0.6.22)", () => {
     );
 
     // vault row 펼치기 (chevron 클릭)
-    const vaultRows = screen.getAllByRole("button", { name: /test/ });
-    fireEvent.click(vaultRows[0]);
+    const vaultChevron = document.querySelector(".sidebar-chevron");
+    if (!vaultChevron) throw new Error("vaultChevron not found");
+    fireEvent.click(vaultChevron);
 
-    // concept 폴더 안에 페이지 만들기 버튼이 있어야 함
-    const pageBtns = screen.getAllByRole("button", { name: /페이지 만들기/ });
-    // vault row의 페이지 버튼 + concept 폴더의 페이지 버튼 = 2개 이상
+    // concept 폴더 안에 페이지 만들기 버튼이 나타날 때까지 비동기 대기
+    const pageBtns = await screen.findAllByRole("button", { name: /페이지 만들기/ });
     expect(pageBtns.length).toBeGreaterThanOrEqual(2);
   });
 });

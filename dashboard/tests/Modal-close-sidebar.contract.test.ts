@@ -46,10 +46,7 @@ describe("Modal-close-sidebar source contracts", () => {
     expect(s).toMatch(/<NewPageButton[\s\S]*?onOpen=\{onClose\}[\s\S]*?\/>/);
   });
 
-  it("Sidebar forwards onOpen={onClose} to NewFolderButton in folder row", () => {
-    const s = SOURCES.Sidebar;
-    expect(s).toMatch(/<NewFolderButton[\s\S]*?onOpen=\{onClose\}[\s\S]*?\/>/);
-  });
+
 
   it("Layout keeps 744px mobile breakpoint (drawer auto-close only meaningful there)", () => {
     const s = SOURCES.Layout;

@@ -697,21 +697,24 @@ function TreeLeaf({
   if (node.type === "dir") {
     return (
       <div>
-        <button
-          type="button"
-          className="sidebar-tree-dir-row"
-          onClick={() => onToggleFolder(node.path)}
-          aria-expanded={isOpen}
-          style={{ paddingLeft: 8 + depth * 10 }}
-        >
-          <span aria-hidden className={clsx("sidebar-chevron", isOpen && "sidebar-chevron-open")}>
-            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-              <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span aria-hidden style={{ fontSize: 13 }}>📁</span>
-          <span className="sidebar-tree-dir-label">{displayTitle(node)}</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <button
+            type="button"
+            className="sidebar-tree-dir-row"
+            onClick={() => onToggleFolder(node.path)}
+            aria-expanded={isOpen}
+            style={{ paddingLeft: 8 + depth * 10, flex: 1 }}
+          >
+            <span aria-hidden className={clsx("sidebar-chevron", isOpen && "sidebar-chevron-open")}>
+              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span aria-hidden style={{ fontSize: 13 }}>📁</span>
+            <span className="sidebar-tree-dir-label">{displayTitle(node)}</span>
+          </button>
+          <NewPageButton vault={vault} initialSlug={node.path} variant="icon" label="페이지" onOpen={onClose} />
+        </div>
         {isOpen && (node.children ?? []).length > 0 && (
           <div className="sidebar-tree">
             {(node.children ?? []).map((child) => (

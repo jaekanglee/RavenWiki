@@ -3,9 +3,9 @@ import GraphPageSrc from "../src/routes/GraphPage.tsx?raw";
 import GraphCanvasSrc from "../src/components/GraphCanvas.tsx?raw";
 
 /**
- * Contract tests for the all-vault GraphPage scope toggle.
+ * Contract tests for the all-vault GraphPage scope toggle & ForceGraph migration.
  * Use ?raw so the test stays focused on API/UI contract strings and does not
- * mount ReactFlow/jsdom-heavy graph components.
+ * mount heavy Canvas/force-graph components in JSDOM.
  */
 describe("GraphPage all-vault scope contract", () => {
   it("offers an explicit 전체 vault / 현재 vault scope toggle", () => {
@@ -30,73 +30,42 @@ describe("GraphPage all-vault scope contract", () => {
     expect(GraphPageSrc).toContain('density={graphScope === "all" ? "dense" : "normal"}');
     expect(GraphCanvasSrc).toContain('density?: "normal" | "dense"');
     expect(GraphCanvasSrc).toContain('const isDense = density === "dense"');
-    expect(GraphCanvasSrc).toContain('const showLabel = !isDense || highlighted || persistent || zoom > 0.55;');
-    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;');
   });
 
-  it("renders vault halos only in all-vault scope", () => {
+  it("utilizes high-performance HTML Canvas force-graph library", () => {
+    expect(GraphCanvasSrc).toContain("import ForceGraph from \"force-graph\";");
+    expect(GraphCanvasSrc).toContain("const graph = (ForceGraphConstructor as any)()(containerRef.current);");
+  });
+
+  it("implements Obsidian-style custom node canvas rendering and LOD", () => {
+    expect(GraphCanvasSrc).toContain("graph.nodeCanvasObject");
+    expect(GraphCanvasSrc).toContain("const canShowDenseLabel = scale > 1.15 && (node.weight ?? 0) >= 3;");
+    expect(GraphCanvasSrc).toContain("const canShowNormalLabel = scale > 0.85 || (node.weight ?? 0) >= 6;");
+    expect(GraphCanvasSrc).toContain("const showLabel = isFocused || isHighlighted || (isDense ? canShowDenseLabel : canShowNormalLabel);");
+    expect(GraphCanvasSrc).toContain("ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);");
+  });
+
+  it("renders vault halos & centroid labels on pre-render frame hook", () => {
     expect(GraphPageSrc).toContain('vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}');
     expect(GraphPageSrc).toContain('deriveVaultCentroids');
-    expect(GraphPageSrc).toContain('deriveVaultCentroids(filteredGraph)');
     expect(GraphCanvasSrc).toContain('vaultCentroids?: VaultCentroid[]');
-    expect(GraphCanvasSrc).toContain('isDense && vaultScreenPositions');
-    expect(GraphCanvasSrc).toContain('graph-vault-halo');
-    expect(GraphCanvasSrc).not.toContain('graph-vault-core');
-    expect(GraphCanvasSrc).toContain('graph-vault-centroid-label');
+    expect(GraphCanvasSrc).toContain('graph.onRenderFramePre');
+    expect(GraphCanvasSrc).toContain('const text = `📁 ${vc.vault}`;');
   });
 
-  it("reprojects vault centroids to screen space on every viewport change", () => {
-    // v0.7.123+: halo/label은 ReactFlow 바깥 형제라 viewport transform을 자동으로
-    // 안 받는다. flowToScreenPosition + onMove로 매 pan/zoom마다 갱신해야 한다.
-    // v0.7.124+: 좌표 변환 로직은 vaultScreenFromCentroids 헬퍼로 추출되어
-    // mount useEffect와 handleMove가 공유한다. 헬퍼 안에 zoom 비례 radius 로직
-    // (`vc.radius * zoom`)이 그대로 남아 있어야 contract가 유지된다.
-    expect(GraphCanvasSrc).toContain('vaultScreenPositions');
-    expect(GraphCanvasSrc).toContain('flowToScreenPosition({ x: vc.x, y: vc.y })');
-    expect(GraphCanvasSrc).toMatch(/vaultScreenFromCentroids[\s\S]*?vc\.radius \* zoom/);
-    // onMove 핸들러 안에서 재계산 트리거
-    const handleMoveMatch = GraphCanvasSrc.match(
-      /const handleMove = useCallback\(\(\) => \{[\s\S]*?setVaultScreenPositions/
-    );
-    expect(handleMoveMatch, "handleMove 안에서 setVaultScreenPositions 호출 안 됨").toBeTruthy();
+  it("contains keyboard shortcuts & hand-mode toggle for seamless panning/zooming", () => {
+    expect(GraphCanvasSrc).toContain("interactionMode");
+    expect(GraphCanvasSrc).toContain("setInteractionMode");
+    expect(GraphCanvasSrc).toContain("e.code === \"Space\"");
+    expect(GraphCanvasSrc).toContain("graph.enableNodeDrag(!isDense && interactionMode === \"pointer\")");
   });
 
-  it("lets vault halos pass through pan/zoom/click to the xyflow pane", () => {
-    // halo div는 명시적 pointerEvents:none을 가져야 pane 가로채기를 막는다.
-    // 부모 layer가 none이라도 자식 상속 ❌ → 명시 필수.
-    const haloMatch = GraphCanvasSrc.match(
-      /className="graph-vault-halo"[\s\S]*?pointerEvents: "none"/
-    );
-    expect(haloMatch, "graph-vault-halo div가 pointerEvents:none을 명시하지 않음").toBeTruthy();
-  });
-
-  it("does not register a dead nebula node type", () => {
-    // v0.7.123+: scaleMode=PLANET 단일. NebulaNode는 v0.6.15 multiscale 잔재.
-    expect(GraphCanvasSrc).not.toContain("function NebulaNode");
-    expect(GraphCanvasSrc).not.toMatch(/const nodeTypes = \{[\s\S]*?nebula:/);
-  });
-
-  it("dims cross-vault edges in dense mode", () => {
-    // v0.7.123+: all-vault dense 모드에서 cross-vault edge는 0.15로 dim.
-    // intra-vault edge는 dense base(0.24) 유지.
+  it("dims cross-vault edges in dense mode with customized properties", () => {
     expect(GraphCanvasSrc).toContain('crossVaultEdgeIds');
     expect(GraphCanvasSrc).toMatch(/srcVault\s*!==\s*tgtVault/);
-    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;');
-    expect(GraphCanvasSrc).toContain('if (!focus.active) return baseDisplayEdges;');
-  });
-
-  it("culls offscreen edges only for dense large graphs", () => {
-    expect(GraphCanvasSrc).toContain('const shouldCullEdges = isDense && flowEdges.length >= 400;');
-    expect(GraphCanvasSrc).toContain('const [visibleNodeIds, setVisibleNodeIds] = useState<Set<string>>(new Set())');
-    expect(GraphCanvasSrc).toContain('const [screenNodeCenters, setScreenNodeCenters] = useState<Map<string, { x: number; y: number }>>');
-    expect(GraphCanvasSrc).toContain('recomputeVisibleNodeIds');
-    expect(GraphCanvasSrc).toContain('recomputeVisibleNodeIdsNow');
-    expect(GraphCanvasSrc).toContain('window.requestAnimationFrame(() => {');
-    expect(GraphCanvasSrc).toContain('if (visibleNodeIdsRafRef.current != null) return;');
-    expect(GraphCanvasSrc).toContain('segmentIntersectsExpandedRect');
-    expect(GraphCanvasSrc).toContain('edgeTouchesViewport');
-    expect(GraphCanvasSrc).toContain('pointInsideExpandedRect');
-    expect(GraphCanvasSrc).toContain('const overscan = 120;');
+    expect(GraphCanvasSrc).toContain('linkColor');
+    expect(GraphCanvasSrc).toContain('linkWidth');
+    expect(GraphCanvasSrc).toContain('linkDirectionalParticles');
   });
 
   it("fans out drag persist per vault in all-scope mode", () => {
