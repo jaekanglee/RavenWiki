@@ -1012,21 +1012,21 @@ def vault_graph(
             )
 
         # 2) 각 vault 안의 노드를 centroid 주변 슬롯으로 분배.
-        #    현재 layout 좌표(±500 안에 정규화됨)의 무게중심을 0으로 두고,
-        #    그걸 그대로 vault_centroid 근처로 평행이동.
-        #    → 같은 vault 노드 간 상대 거리는 유지(= 기존 force-atlas 결과 보존),
-        #      다른 vault 노드와는 vault_centroid 간 거리만큼 분리.
+        #    현재 layout 좌표(±500 안에 정규화됨)의 무게중심을 target centroid로
+        #    평행이동하되, all-vault 시야에서 각 vault가 자기 중심에 더 묶여 보이도록
+        #    local spread를 살짝 압축한다.
+        #    → 같은 vault 노드 간 상대 패턴은 유지하되(= 기존 force-atlas 느낌 보존),
+        #      서로 다른 vault 노드끼리 과하게 가까워 보이는 문제를 줄인다.
+        cluster_compaction = 0.78
         for vname, vault_nodes in per_vault_nodes:
             if not vault_nodes:
                 continue
             local_cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
             local_cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
             target_cx, target_cy = vault_centroids[vname]
-            dx = target_cx - local_cx
-            dy = target_cy - local_cy
             for n in vault_nodes:
-                n["x"] = n["x"] + dx
-                n["y"] = n["y"] + dy
+                n["x"] = target_cx + (n["x"] - local_cx) * cluster_compaction
+                n["y"] = target_cy + (n["y"] - local_cy) * cluster_compaction
                 merged_nodes.append(n)
 
         return {

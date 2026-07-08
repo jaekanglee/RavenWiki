@@ -30,17 +30,19 @@ describe("GraphPage all-vault scope contract", () => {
     expect(GraphPageSrc).toContain('density={graphScope === "all" ? "dense" : "normal"}');
     expect(GraphCanvasSrc).toContain('density?: "normal" | "dense"');
     expect(GraphCanvasSrc).toContain('const isDense = density === "dense"');
-    expect(GraphCanvasSrc).toContain('const showLabel = !isDense || highlighted || persistent');
-    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;');
+    expect(GraphCanvasSrc).toContain('const showLabel = !isDense || highlighted || persistent || zoom > 0.55;');
+    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;');
   });
 
-  it("renders vault halos and centroid labels only in all-vault scope", () => {
+  it("renders vault halos only in all-vault scope", () => {
     expect(GraphPageSrc).toContain('vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}');
     expect(GraphPageSrc).toContain('deriveVaultCentroids');
+    expect(GraphPageSrc).toContain('deriveVaultCentroids(filteredGraph)');
     expect(GraphCanvasSrc).toContain('vaultCentroids?: VaultCentroid[]');
     expect(GraphCanvasSrc).toContain('isDense && vaultScreenPositions');
     expect(GraphCanvasSrc).toContain('graph-vault-halo');
-    expect(GraphCanvasSrc).toContain('graph-vault-label');
+    expect(GraphCanvasSrc).not.toContain('graph-vault-core');
+    expect(GraphCanvasSrc).toContain('graph-vault-centroid-label');
   });
 
   it("reprojects vault centroids to screen space on every viewport change", () => {
@@ -75,11 +77,11 @@ describe("GraphPage all-vault scope contract", () => {
   });
 
   it("dims cross-vault edges in dense mode", () => {
-    // v0.7.123+: all-vault dense 모드에서 cross-vault edge는 0.08로 강하게 dim.
-    // intra-vault edge는 dense base(0.18) 유지.
+    // v0.7.123+: all-vault dense 모드에서 cross-vault edge는 0.15로 dim.
+    // intra-vault edge는 dense base(0.24) 유지.
     expect(GraphCanvasSrc).toContain('crossVaultEdgeIds');
     expect(GraphCanvasSrc).toMatch(/srcVault\s*!==\s*tgtVault/);
-    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.08 : 0.18) : 0.6;');
+    expect(GraphCanvasSrc).toContain('const opacity = isDense ? (isCrossVault ? 0.15 : 0.24) : 0.6;');
     expect(GraphCanvasSrc).toContain('if (!focus.active) return baseDisplayEdges;');
   });
 
