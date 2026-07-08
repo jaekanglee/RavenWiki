@@ -188,7 +188,7 @@ raven meta sync [--vault N]                     # Lite bootstrap 문서 최신�
 
 raven archive list|clean|restore [--vault N]    # 삭제된 페이지 조회/정리/복원
 
-raven log list|show|append|rotate|status [--vault N]   # log.md 조회/회전 (append-only)
+raven log list|show|append|rotate|status [--vault N]   # log.md 조회/회전 (사람 수동; 자동 append는 5개 진입점 모두 raven.core.log.append)
 
 raven lint run|summary|check [--vault N]        # lint 14개 실행/요약/체크
 

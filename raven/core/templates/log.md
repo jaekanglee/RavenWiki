@@ -2,7 +2,7 @@
 
 > Chronological record of all vault actions. Append-only.
 > Format: `## [YYYY-MM-DD] action | subject`
-> Actions: ingest, update, create, archive, delete, lint, build, migrate, chore
+| Actions: ingest, update, create, archive, delete, lint, build, migrate, rename, chore
 > When this file exceeds 500 entries, rotate: rename to log-YYYY.md, start fresh.
 >
 > Grep tip: `grep "^## \[" log.md | tail -5` → last 5 entries.
