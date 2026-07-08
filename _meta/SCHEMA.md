@@ -84,17 +84,19 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 
 ### v0.7.x Type 9종 (v2.4 8종 → +1 `issue`)
 
-| type | 용도 | outbound ≥ 2 강제 | 예시 |
-|---|---|---|---|
-| `concept` | 개념/아이디어 | ✅ 강제 | llm-wiki, mcp-server |
-| `person` | 인물 | ✅ 강제 | andrej-karpathy |
-| `tool` | 도구/소프트웨어 | ✅ 강제 | hermes-agent |
-| `comparison` | 비교 분석 | ❌ 면제 | rag-vs-llm-wiki |
-| `project` | 프로젝트 | ❌ 면제 | harumoa-overview |
-| `rule` | 규칙/정책 | ❌ 면제 | (SCHEMA 자체) |
-| `query` | Q&A 결과 | ❌ 면제 | search-result |
-| `journal` | 일기/메모 | ❌ 면제 | daily-2026-06-24 |
-| `issue` | v0.7.44+ 문제 분석 / 장애 / 추적 | ❌ 면제 | docs/issues/*.md |
+| type | 용도 | outbound ≥ 2 강제 | 예시 | 에이전트 write (PWW §7.1) |
+|---|---|---|---|---|
+| `concept` | 개념/아이디어 | ✅ 강제 | llm-wiki, mcp-server | ⚠️ draft → 사람 review |
+| `person` | 인물 | ✅ 강제 | andrej-karpathy | ⚠️ draft → 사람 review |
+| `tool` | 도구/소프트웨어 | ✅ 강제 | hermes-agent | ✅ 자유 |
+| `comparison` | 비교 분석 | ❌ 면제 | rag-vs-llm-wiki | ✅ 자유 |
+| `project` | 프로젝트 | ❌ 면제 | harumoa-overview | ✅ 자유 |
+| `rule` | 규칙/정책 | ❌ 면제 | (SCHEMA 자체) | ⚠️ draft → 사람 review |
+| `query` | Q&A 결과 | ❌ 면제 | search-result | ✅ 자유 |
+| `journal` | 일기/메모 | ❌ 면제 | daily-2026-06-24 | ✅ 자율 (event_date + §3 4신호) |
+| `issue` | v0.7.44+ 문제 분석 / 장애 / 추적 | ❌ 면제 | docs/issues/*.md | ❌ 발의만 (PWW §6.5 #4/#7/#8) |
+
+> **decision (ADR)** — `type: rule` + `decision/adr-YYYY-MM-DD-{slug}.md` 컨벤션. 사람 1차 작성, 에이전트 보조.
 
 9종 외 새 타입 정의 ❌ (AGENTS.md §10). `decision` type 사용 시 → `type: rule` + 폴더 경로/파일명 컨벤션으로 결정 기록임을 표시.
 
@@ -160,6 +162,7 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
   - **예외 (journal/ADR 컨벤션)**:
     - `journal/{title-slug}.md` — 사건일은 frontmatter `event_date: YYYY-MM-DD`로 (선택)
     - `decision/adr-YYYY-MM-DD-{title-slug}.md` — 결정일은 slug에 박되 `created`와 정합
+  - **aliases 보존 시 north star 충족 (ADR-2026-07-08 §2)**: `slug` 변경 시 `aliases: [옛slug]` 설정 = wikilink 추적성 유지 = "증분 누적" 충족. **단, 일괄 rename은 vault 운영자 명시 결정 필수** (에이전트 자율 ❌, north star "원문 보존" 위배 회피).
 - **인코딩**: UTF-8
 - **줄바꿈**: LF
 - **위키링크**: `[[wikilinks]]` (slug = vault-relative path, 예: `[[content/llm-wiki]]`, `[[_meta/system-design]]`, `[[SCHEMA]]`)

@@ -65,6 +65,13 @@ confidence: high
 
 Lite bootstrap 정책(v0.7.65+): vault 진입 시 받는 것은 `_meta/agents/` (SCHEMA.md + PROJECT-WORKFLOW.md), `log.md`, `content/` 입니다. **`_meta/system/`는 Raven 내부 Tier 1** — 외부 에이전트에게 노출되지 않으며, vault에 보이지 않는 폴더가 있다고 가정하지 마세요. 보인다면 오염 가능성이 있으므로 사용자에게 보고하세요. `_meta/agents/`는 직접 수정 금지 (변경 필요 시 `type: issue` 발의 또는 사람 승인). 자세한 권한: §2.
 
+### 6) Layer 2 = 사람 1차 운영 인덱스 (normative 부속)
+
+vault는 Layer 1 (Raven 제품) 위에 사람이 1차로 curate하는 운영 영역. **north star "원문 보존 + 증분 누적"의 실행 주체 = 사람**, 에이전트는 그 영역에서 "증분"을 보조하는 자율 역할.
+- 사람 1차 영역: `raw/` (full CRUD), `_meta/` 직접 수정, vault 운영 결정 (issue, decision, rule)
+- 에이전트 영역: `content/` 자유 write (§3 4신호 또는 lint 자동 수리), 다른 영역 read-only
+- 모든 write는 §3 4신호 또는 lint 수리 동기 필요 — **무신호 저장 ❌**
+
 ---
 
 > **본 문서 자체는 Layer 1(=Raven)에 의해 자동 제공됩니다.** 내용(§1+)은 Layer 2(에이전트 활용) 가이드이지만, **문서 제공은 Layer 1이 담당합니다**.
@@ -242,6 +249,8 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 
 모두 "아니오"면 저장하지 마세요. vault는 신호 대 잡음비가 높은 공간입니다.
 
+> **면제**: lint (#1, #2, #5, #7, #10, #15) 자동 수리를 위한 `wiki_update` / `wiki_rename`은 §3 4신호 판단 **면제**. "기존 문서 무결성 수정"은 north star "원문 보존"에 부합 (§6.5 큐레이션 절차). **단, lint #15 일괄 rename은 vault 운영자 명시 결정 필수 (ADR-2026-07-08 §2.1).**
+
 ## §4. 문서 작성 규칙
 
 - **BLUF**: 페이지 첫 줄에 결론/결정 1문장
@@ -301,7 +310,8 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
 8. **#15 slug-title 불일치 (ADR-2026-07-08)** — `wiki_rename(new_slug)`으로 자동 수리.
    단 기존 wikilink 추적성 보존이 필요하면 `aliases`에 옛 slug 보존 (SCHEMA.md L74-75).
    vault 운영자가 일괄 호출 결정 — 에이전트 자율 일괄 rename ❌ (north star "원문 보존" 위배)
-9. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
+9. **#7 stale → `wiki_archive` (ADR-2026-07-06 §1.2)** — 에이전트도 가능 (lint 결과 기반). 단 `archived → current` 복귀는 **사람 승인 필수** (status 머신 4종 §1.1).
+10. 점검 결과가 §3 저장 신호를 통과하면 journal로 기록
 
 `raven garden` / `raven curator`는 **사람 운영자 전용 CLI**다 — 에이전트는
 실행할 수 없으므로, 정리가 필요한 항목은 위 절차대로 감지·발의까지만 한다.
@@ -313,6 +323,20 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
     확인 후 `review` → `final`로 승격한다 (draft 태그는 lint #13 면제)
 - 에이전트: 저널(journal), 빌드/링크체크 — 자동 가능
 - 트리거: 사용자 "X 정리해줘" → journal/concept 작성(사람 confirm) / 새 raw/ 파일 → 사람 명시 명령 시 compile / 새 결정 → 관련 페이지에 wikilink 추가
+
+### §7.1 type별 에이전트 write 권한 (v0.7.106+)
+
+| type | 자율 write | 명시 (사람 turn) | 비고 |
+|---|---|---|---|
+| `concept` / `rule` / `person` | ⚠️ draft → 사람 review → final | ✅ | PWW §7 L312 (사람 1차 review) |
+| `comparison` / `project` / `tool` / `query` | ✅ 자유 | ✅ | §3 4신호 통과 |
+| **`journal`** | ✅ **자율 가능** | ✅ | PWW §7 L316 — `event_date` frontmatter, §3 4신호 |
+| **`issue`** | ❌ **발의만** (직접 write ❌) | ✅ | PWW §6.5 #4/#7/#8 (orphan/stale/200줄 초과 시 발의) |
+| **`decision`** (ADR) | ❌ (사람 1차) | ✅ (에이전트 보조) | SCHEMA L99 — `type: rule` + decision/ 폴더 컨벤션 |
+
+**`type: issue` = 사람 운영자가 작성**. 에이전트는 **"이건 issue로 만들 가치가 있다"는 발의**만 (예: `type: rule` 페이지에 "후속 issue 필요: ..." wikilink + log.md 노트).
+
+**`type: decision` = ADR**. SCHEMA L99 권고: `type: rule` + `decision/` 폴더. 사람 1차 작성, 에이전트는 draft 작성 후 사람 review만.
 
 ## §7.5 멀티 에이전트 협업 규칙
 
