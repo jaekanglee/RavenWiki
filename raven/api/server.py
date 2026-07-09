@@ -205,6 +205,17 @@ class LogAppend(BaseModel):
     note: Optional[str] = None
 
 
+class RelationAddPayload(BaseModel):
+    source_slug: str
+    target_slug: str
+    relation_type: str
+    evidence: Optional[Any] = None
+    reason: Optional[str] = None
+    confidence: Optional[Any] = None
+    verified_by: Optional[Any] = None
+    actor: Optional[str] = "user"
+
+
 # ────────────────────────── vault endpoints ──────────────────────────
 
 
@@ -1827,6 +1838,41 @@ def create_page(name: str, payload: PageCreate):
         # Slug validation error → 400
         raise HTTPException(status_code=400, detail=result.error)
     return {"ok": True, "vault": name, "slug": result.slug}
+
+
+@app.post("/api/vaults/{name}/relations")
+def add_relation(name: str, payload: RelationAddPayload):
+    """Add a semantic relation between two pages."""
+    v = _vault_or_404(name)
+    try:
+        from raven.mcp.tools import VaultContext, WRITE
+        from raven.mcp.tools.write import wiki_relation_add
+        
+        ctx = VaultContext(vault=Path(v.root), mode=WRITE)
+        result = wiki_relation_add(
+            source_slug=payload.source_slug,
+            target_slug=payload.target_slug,
+            relation_type=payload.relation_type,
+            evidence=payload.evidence,
+            reason=payload.reason,
+            confidence=payload.confidence,
+            verified_by=payload.verified_by,
+            ctx=ctx,
+            actor=payload.actor,
+        )
+        if not result.get("ok"):
+            err_code = result.get("error")
+            if err_code == "lock_conflict":
+                raise HTTPException(status_code=409, detail=result.get("message", "Lock conflict"))
+            elif err_code == "page_not_found":
+                raise HTTPException(status_code=404, detail=result.get("message", "Page not found"))
+            else:
+                raise HTTPException(status_code=400, detail=result.get("message", "Failed to add relation"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.put("/api/vaults/{name}/pages/{slug:path}")

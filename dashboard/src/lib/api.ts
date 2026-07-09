@@ -716,6 +716,7 @@ export interface Advice {
   type: string; // "bridge" | "bloated" | "orphan" | "underlinked"
   title: string;
   message: string;
+  ai_message?: string; // v0.7.163+
   severity: "info" | "warning" | "success";
   slug?: string;
 }
@@ -737,3 +738,32 @@ export async function fetchAdvice(vault: string): Promise<Advice[]> {
   if (!r.ok) return [];
   return r.json();
 }
+
+export async function fetchAIAdvice(vault: string): Promise<Advice[]> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/ai-advice`);
+  if (!r.ok) return [];
+  return r.json();
+}
+
+export interface RelationAddPayload {
+  source_slug: string;
+  target_slug: string;
+  relation_type: string;
+  evidence?: string | string[];
+  reason?: string;
+  actor?: string;
+}
+
+export async function addRelation(vault: string, payload: RelationAddPayload): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/relations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `add relation failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}
+

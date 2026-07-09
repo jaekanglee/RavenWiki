@@ -114,3 +114,37 @@ def test_ai_advice_api_call(client, isolated_vault: Vault) -> None:
     # ai_message 필드가 포함되어 있는지 확인
     assert "ai_message" in data[0]
     assert "고립" in data[0]["ai_message"] or "Orphan Page" in data[0]["ai_message"]
+
+
+def test_relation_add_api(client, isolated_vault: Vault) -> None:
+    content_dir = isolated_vault.root / "content"
+    # 두 페이지 생성
+    (content_dir / "page-a.md").write_text(
+        "---\ntitle: Page A\ntype: concept\ntags: []\n---\nPage A content\n", encoding="utf-8"
+    )
+    (content_dir / "page-b.md").write_text(
+        "---\ntitle: Page B\ntype: concept\ntags: []\n---\nPage B content\n", encoding="utf-8"
+    )
+    db_module.build_db(isolated_vault, run_lint=False)
+
+    # API 호출로 두 페이지 간의 관계 맺기
+    payload = {
+        "source_slug": "content/page-a",
+        "target_slug": "content/page-b",
+        "relation_type": "uses",
+        "evidence": "API test evidence",
+        "reason": "API test reason",
+        "actor": "user"
+    }
+    resp = client.post(f"/api/vaults/{isolated_vault.meta.name}/relations", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+
+    # 실제로 파일에 써졌는지 확인하기 위해 DB 리빌드 후 조회
+    db_module.build_db(isolated_vault, run_lint=False)
+    
+    # page-a.md 읽어서 frontmatter에 들어갔는지 검사
+    content = (content_dir / "page-a.md").read_text(encoding="utf-8")
+    assert "target: content/page-b" in content
+    assert "type: uses" in content
