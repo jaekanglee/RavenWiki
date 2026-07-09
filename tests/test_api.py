@@ -564,68 +564,86 @@ def test_api_vault_graph_all_scope_prefixes_node_ids_by_vault(client, isolated_e
     assert data["stats"]["vaults"] == 2
 
 
-def test_api_vault_graph_all_scope_groups_nodes_per_vault(client, isolated_env):
-    """v0.7.123+: all-vault 좌표는 vault별 cluster로 묶여야 한다.
+def test_api_vault_graph_all_scope_keeps_current_layout_grid_separated(client, isolated_env):
+    """v0.7.133+: all-scope은 각 vault의 current-scope layout을 보존하되
+    vault들이 같은 ±500 박스 안에서 겹치지 않게 격자로 분산 배치.
 
-    같은 vault 안 노드들은 서로 가까이, 다른 vault 노드와는 훨씬 멀어야 한다.
-    lightweight A' 방식: vault centroid를 큰 원형으로 배치하고 그 안에서
-    노드를 슬롯 분배. force-directed는 다시 돌리지 않음 (surgical).
+    v0.7.123~v0.7.132는 vault centroid를 큰 원형에 균등 배치해서 vault들이
+    시각적으로 링처럼 묶여 보였지만, edge 없는 관계없는 요식행위였음.
     """
-    import math
-
     a = isolated_env["target_root"] / "gv_cluster_a"
     b = isolated_env["target_root"] / "gv_cluster_b"
     client.post("/api/vaults", json={"name": "gv_cluster_a", "path": str(a), "bootstrap": False})
     client.post("/api/vaults", json={"name": "gv_cluster_b", "path": str(b), "bootstrap": False})
 
-    # vault A에 노드 3개 + 링크 1개
+    # vault A에 노드 3개 (링크 없음)
     for slug in ["content/a1", "content/a2", "content/a3"]:
         client.post(f"/api/vaults/gv_cluster_a/pages", json={"slug": slug, "title": slug.split("/")[-1]})
-    client.post(
-        "/api/vaults/gv_cluster_a/pages",
-        json={"slug": "content/a1", "title": "A1", "content": "see [[content/a2]]"},
-    )
-    # vault B에 노드 2개
+    # vault B에 노드 2개 (링크 없음)
     for slug in ["content/b1", "content/b2"]:
         client.post(f"/api/vaults/gv_cluster_b/pages", json={"slug": slug, "title": slug.split("/")[-1]})
 
+    # 1) 각 vault의 current scope 좌표를 따로 구함 — SOT (relative 패턴 검증용)
+    cur_a = client.get("/api/vaults/gv_cluster_a/graph").json()["nodes"]
+    cur_b = client.get("/api/vaults/gv_cluster_b/graph").json()["nodes"]
+    cur_a_map = {n["id"]: (n["x"], n["y"]) for n in cur_a}
+    cur_b_map = {n["id"]: (n["x"], n["y"]) for n in cur_b}
+
+    # 2) all scope 결과 — vault들이 분리되어 있어야 함
     resp = client.get("/api/vaults/gv_cluster_a/graph?scope=all")
     assert resp.status_code == 200
     nodes = resp.json()["nodes"]
-    by_vault: dict[str, list[tuple[float, float]]] = {}
+    by_vault: dict[str, list[dict]] = {}
     for n in nodes:
-        if not n.get("vault"):
-            continue
-        by_vault.setdefault(n["vault"], []).append((n["x"], n["y"]))
-
+        by_vault.setdefault(n["vault"], []).append(n)
     assert set(by_vault) == {"gv_cluster_a", "gv_cluster_b"}
 
-    def spread(coords: list[tuple[float, float]]) -> float:
-        if len(coords) < 2:
+    # 3) intra-vault: 같은 vault 안 노드들의 상대 패턴이 보존됨
+    #    (= current scope의 force-atlas 결과를 centroid 평행이동만 함)
+    def relative_pattern(vault_nodes, cur_map):
+        # current scope 좌표의 평균을 origin으로 두고 패턴 추출
+        cur_xy = [cur_map[n["id"].split(":",1)[1]] for n in vault_nodes]
+        cur_cx = sum(x for x,_ in cur_xy) / len(cur_xy)
+        cur_cy = sum(y for _,y in cur_xy) / len(cur_xy)
+        cur_rel = sorted([(round(x-cur_cx,4), round(y-cur_cy,4)) for x,y in cur_xy])
+        all_xy = [(n["x"], n["y"]) for n in vault_nodes]
+        all_cx = sum(x for x,_ in all_xy) / len(all_xy)
+        all_cy = sum(y for _,y in all_xy) / len(all_xy)
+        all_rel = sorted([(round(x-all_cx,4), round(y-all_cy,4)) for x,y in all_xy])
+        return cur_rel, all_rel
+
+    cur_rel_a, all_rel_a = relative_pattern(by_vault["gv_cluster_a"], cur_a_map)
+    cur_rel_b, all_rel_b = relative_pattern(by_vault["gv_cluster_b"], cur_b_map)
+    assert cur_rel_a == all_rel_a, (
+        f"vault A relative 패턴 불일치 (centroid 평행이동만 해야 함)"
+    )
+    assert cur_rel_b == all_rel_b, (
+        f"vault B relative 패턴 불일치 (centroid 평행이동만 해야 함)"
+    )
+
+    # 4) cross-vault wikilink 없으니 edges는 0개여야 함 (정직한 표시)
+    assert resp.json()["edges"] == [], (
+        "cross-vault wikilink 0건인데 edges 0이 아님 — leak 의심"
+    )
+
+    # 5) vault 간 거리 > vault 내 spread — 격자 분리로 시각적 분리 보장
+    import math
+    def spread(vault_nodes):
+        if len(vault_nodes) < 2:
             return 0.0
-        avg_x = sum(c[0] for c in coords) / len(coords)
-        avg_y = sum(c[1] for c in coords) / len(coords)
-        return sum(math.hypot(c[0] - avg_x, c[1] - avg_y) for c in coords) / len(coords)
+        cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
+        cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
+        return sum(math.hypot(n["x"]-cx, n["y"]-cy) for n in vault_nodes) / len(vault_nodes)
 
     intra_a = spread(by_vault["gv_cluster_a"])
     intra_b = spread(by_vault["gv_cluster_b"])
-
-    centroid_a = (
-        sum(c[0] for c in by_vault["gv_cluster_a"]) / len(by_vault["gv_cluster_a"]),
-        sum(c[1] for c in by_vault["gv_cluster_a"]) / len(by_vault["gv_cluster_a"]),
-    )
-    centroid_b = (
-        sum(c[0] for c in by_vault["gv_cluster_b"]) / len(by_vault["gv_cluster_b"]),
-        sum(c[1] for c in by_vault["gv_cluster_b"]) / len(by_vault["gv_cluster_b"]),
-    )
-    inter = math.hypot(centroid_a[0] - centroid_b[0], centroid_a[1] - centroid_b[1])
-
-    # 다른 vault centroid 거리는 같은 vault 내부 spread보다 충분히 커야 한다.
-    # 5-노드 그래프는 현재 layout 결과 자체가 ±500 안에 펼쳐져 intra spread가
-    # 500~600 정도 나올 수 있어, 단순히 centroid 거리 > intra*2 보다는
-    # "centroid 거리가 max(intra) + 마진" 으로 충분한 분리를 검증한다.
+    centroid_a = (sum(n["x"] for n in by_vault["gv_cluster_a"])/len(by_vault["gv_cluster_a"]),
+                  sum(n["y"] for n in by_vault["gv_cluster_a"])/len(by_vault["gv_cluster_a"]))
+    centroid_b = (sum(n["x"] for n in by_vault["gv_cluster_b"])/len(by_vault["gv_cluster_b"]),
+                  sum(n["y"] for n in by_vault["gv_cluster_b"])/len(by_vault["gv_cluster_b"]))
+    inter = math.hypot(centroid_a[0]-centroid_b[0], centroid_a[1]-centroid_b[1])
     assert inter > max(intra_a, intra_b) + 100.0, (
-        f"vault centroid 분리 부족: inter={inter:.1f}, intra_a={intra_a:.1f}, intra_b={intra_b:.1f}"
+        f"격자 분리 부족: inter={inter:.1f}, intra_a={intra_a:.1f}, intra_b={intra_b:.1f}"
     )
 
 

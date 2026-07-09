@@ -91,4 +91,14 @@ describe("GraphPage all-vault scope contract", () => {
     expect(GraphPageSrc).toContain('nodeVault(node ?? ({ id } as GraphNode), vault)');
     expect(GraphPageSrc).toContain('nodeSlug(node ?? ({ id } as GraphNode))');
   });
+
+  it("요식행위 centroid clustering 없음 (v0.7.133+) — vault가 edge 없이 묶여 보이면 안 됨", () => {
+    // v0.7.123~v0.7.132: vault centroid를 원형에 균등 배치 + cluster_compaction
+    // → edge 0개여도 vault들이 "링처럼" 시각적으로 묶여 보임 (오해 유발).
+    // v0.7.133+: current scope layout 좌표 그대로 사용. vault 묶음은 vault 색 ring에만 의존.
+    // 서버 측 변경 — 회귀 가드는 API 테스트(test_api_vault_graph_all_scope_keeps_current_layout_no_clustering)에서 담당.
+    // 프론트 측 contract: GraphPage가 centroid 좌표 변환을 자체적으로 하면 안 됨.
+    expect(GraphPageSrc).not.toMatch(/cluster_compaction|vault_centroid|vault_ring/);
+    expect(GraphPageSrc).not.toMatch(/cos\(.*angle.*\)|sin\(.*angle.*\)/);
+  });
 });
