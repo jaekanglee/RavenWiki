@@ -352,7 +352,19 @@ export function GraphCanvas({
     graph.enableZoomInteraction(true);
     graph.enablePanInteraction(true);
 
+    // v0.7.150+: ResizeObserver로 캔버스 크기 변화를 실시간 반영하여 우하단 쏠림 및 잘림 현상 방지
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          graph.width(width).height(height);
+        }
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
       if (graphInstanceRef.current) {
         graphInstanceRef.current._destructor?.();
       }
@@ -759,15 +771,25 @@ export function GraphCanvas({
 
     // v0.7.139+: fitView는 scope 전환(all ↔ current) 또는 첫 데이터 로드 시에만.
     // 검색/필터로 nodes가 바뀌어도 사용자의 pan/zoom 위치를 보존한다.
+    // v0.7.150+: container 크기가 아직 계산되지 않았다면(width/height가 0일 때) 줌핏이 어긋나므로
+    // 크기가 정상 확보될 때까지 대기 후 zoomToFit을 정확한 시점에 단 1회 실행합니다.
     const scopeChanged = prevIsDenseRef.current !== isDense;
     const firstLoad = prevNodeCountRef.current === 0 && nodes.length > 0;
     if (scopeChanged || firstLoad) {
       if (nodes.length > 0) {
-        setTimeout(() => {
-          if (graphInstanceRef.current) {
-            graphInstanceRef.current.zoomToFit(300, 96);
+        const tryFit = (retryCount = 0) => {
+          const g = graphInstanceRef.current;
+          if (!g) return;
+          const w = g.width();
+          const h = g.height();
+          if (w > 0 && h > 0) {
+            g.zoomToFit(300, 96);
+          } else if (retryCount < 10) {
+            // 크기 대기 재시도 (최대 10회, 1초)
+            setTimeout(() => tryFit(retryCount + 1), 100);
           }
-        }, 50);
+        };
+        setTimeout(() => tryFit(), 50);
       }
     }
     prevIsDenseRef.current = isDense;
