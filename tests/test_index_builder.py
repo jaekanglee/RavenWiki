@@ -84,6 +84,23 @@ def test_build_index_category_pages_excluded_from_their_own_catalog(vault: Vault
     assert "_index/issue" not in concept_text
 
 
+def test_build_index_excludes_archived_issue_pages(vault: Vault) -> None:
+    """content/**/_archive/**는 보존용이며 active catalog/index에 다시 올라오면 안 된다."""
+    _seed_pages(vault)
+    archived = vault.root / "content" / "issues" / "_archive" / "2026-07-09" / "issue-lint-1-demo.md"
+    archived.parent.mkdir(parents=True)
+    archived.write_text(
+        "---\ntitle: Archived Auto Issue\ntype: issue\ncreated: 2026-07-09\nupdated: 2026-07-09\n---\n\n# Archived\n",
+        encoding="utf-8",
+    )
+    build_db(vault, run_lint=False)
+    build_index(vault)
+
+    issue_text = (vault.root / "content" / "_index" / "issue.md").read_text(encoding="utf-8")
+    assert "[[content/issues/c]]" in issue_text
+    assert "issue-lint-1-demo" not in issue_text
+
+
 def test_build_index_handles_empty_vault(vault: Vault) -> None:
     build_db(vault, run_lint=False)
     # v0.7.66: build_db 내부에서 index가 이미 생성됨 → 재호출은 변경 없음.

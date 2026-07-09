@@ -21,8 +21,8 @@ fi
 echo "[$(date)] 1. 볼트 빌드 및 린트 결과 수집..."
 "${PYTHON_BIN}" -m raven.cli build --vault "${VAULT_NAME}" --lint || true
 
-# 2. 린트 이슈 스캔 및 에이전트 해결용 이슈 발행
-echo "[$(date)] 2. 린트 이슈 스캔 및 에이전트 해결용 이슈 발행..."
+# 2. 린트 이슈 수집 (자동 issue 페이지 발행은 기본 비활성화)
+echo "[$(date)] 2. 린트 이슈 수집 (issue 페이지 자동 생성 없음)..."
 PYTHONPATH=. "${PYTHON_BIN}" scripts/cron-cleanser.py "${VAULT_NAME}"
 
 # 3. 정적 파일 갱신

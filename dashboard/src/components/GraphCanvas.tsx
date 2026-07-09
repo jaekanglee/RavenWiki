@@ -253,8 +253,9 @@ export function GraphCanvas({
 
   const resolvedLabelColorRef = useRef<string>("rgba(148, 163, 184, 0.7)");
   const resolvedBgColorRef = useRef<string>("#0f172a");
-  const resolvedEdgeColorRef = useRef<string>("rgba(71, 85, 105, 0.52)");
-  const resolvedEdgeHighlightRef = useRef<string>("#f8fafc");
+  const resolvedNodeOutlineRef = useRef<string>("rgba(226, 232, 240, 0.28)");
+  const resolvedEdgeColorRef = useRef<string>("rgba(148, 163, 184, 0.38)");
+  const resolvedEdgeHighlightRef = useRef<string>("rgba(196, 181, 253, 0.94)");
 
   // DOM Container 변경 및 테마 변경 시 Computed Style 캐싱
   useEffect(() => {
@@ -263,8 +264,9 @@ export function GraphCanvas({
       const style = window.getComputedStyle(containerRef.current);
       resolvedLabelColorRef.current = style.getPropertyValue("--graph-label-color").trim() || "rgba(148, 163, 184, 0.7)";
       resolvedBgColorRef.current = style.getPropertyValue("--graph-canvas-bg").trim() || "#0f172a";
-      resolvedEdgeColorRef.current = style.getPropertyValue("--graph-edge").trim() || "rgba(71, 85, 105, 0.52)";
-      resolvedEdgeHighlightRef.current = style.getPropertyValue("--graph-edge-highlight").trim() || "#f8fafc";
+      resolvedNodeOutlineRef.current = style.getPropertyValue("--graph-node-outline").trim() || "rgba(226, 232, 240, 0.28)";
+      resolvedEdgeColorRef.current = style.getPropertyValue("--graph-edge").trim() || "rgba(148, 163, 184, 0.38)";
+      resolvedEdgeHighlightRef.current = style.getPropertyValue("--graph-edge-highlight").trim() || "rgba(196, 181, 253, 0.94)";
     } catch (e) {
       // fallback
     }
@@ -561,8 +563,8 @@ export function GraphCanvas({
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        // Softer than the previous thick black strokes; highlight stays visible via color, not bulk.
-        return isHighlighted ? 1.85 : 0.95;
+        // Keep paths thin, but dark mode needs enough contrast against the navy canvas.
+        return isHighlighted ? 2.15 : 1.05;
       })
       .linkCurvature(0.035)
       // Remove animated particles: they made selected paths feel busy/tacky rather than clean.
@@ -601,17 +603,17 @@ export function GraphCanvas({
       // 테두리 선
       ctx.lineWidth = isFocused ? 2 / scale : 0.8 / scale;
       ctx.strokeStyle = isFocused
-        ? "var(--graph-edge-highlight)"
+        ? resolvedEdgeHighlightRef.current
         : isHighlighted
-        ? "rgba(255, 255, 255, 0.7)"
-        : "var(--graph-node-outline)";
+        ? "rgba(255, 255, 255, 0.72)"
+        : resolvedNodeOutlineRef.current;
       ctx.stroke();
 
       // 이중 링 효과 (focused)
       if (isFocused) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, size + 2.5 / scale, 0, 2 * Math.PI, false);
-        ctx.strokeStyle = "var(--graph-edge-highlight)";
+        ctx.strokeStyle = resolvedEdgeHighlightRef.current;
         ctx.lineWidth = 0.8 / scale;
         ctx.stroke();
       }
