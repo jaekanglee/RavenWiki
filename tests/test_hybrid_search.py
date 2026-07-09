@@ -70,3 +70,34 @@ def test_hybrid_search_fallback_flow(isolated_vault: Vault) -> None:
     # 2. 매칭되지 않는 검색어 테스트 시 빈 목록이 오는지 확인
     no_results = hybrid_search(isolated_vault, "NonExistingSearchTermRandom", limit=5)
     assert len(no_results) == 0
+
+
+def test_hybrid_search_api(isolated_vault: Vault) -> None:
+    """FastAPI hybrid-search API가 정상적으로 호출되고 결과를 반환하는지 테스트합니다."""
+    from fastapi.testclient import TestClient
+    from raven.api.server import app
+    
+    content_dir = isolated_vault.root / "content"
+    (content_dir / "doc-a.md").write_text(
+        "---\ntitle: Authentication Guide\ntype: concept\ntags: [auth]\n---\nExplain JWT tokens and cookies\n", encoding="utf-8"
+    )
+    db_module.build_db(isolated_vault, run_lint=False)
+    
+    client = TestClient(app)
+    resp = client.get(f"/api/vaults/{isolated_vault.meta.name}/hybrid-search?query=JWT&limit=5")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert len(data["results"]) >= 1
+    assert data["results"][0]["slug"] == "content/doc-a"
+    assert "score" in data["results"][0]
+
+
+def test_mcp_hybrid_search_registered() -> None:
+    """MCP 진입점에서 wiki_hybrid_search 도구가 등록되어 있는지 검증합니다."""
+    from raven.mcp import cli as cli_module
+    import inspect
+    assert hasattr(cli_module, "register_tools")
+    source = inspect.getsource(cli_module.register_tools)
+    assert "wiki_hybrid_search" in source
+

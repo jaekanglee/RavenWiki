@@ -220,6 +220,37 @@ def register_tools(mcp: Any, mode: str) -> None:
         v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
         return generate_ai_advice(v)
 
+    # ─── 7.5.7. wiki_hybrid_search (v0.7.164+) ───
+    @mcp.tool(
+        name="wiki_hybrid_search",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Hybrid search combining FTS5 BM25 and vector embeddings (ko-sroberta/bge-m3-ko). "
+            + "Falls back to BM25-only if sqlite-vec is not available."
+        ),
+    )
+    def wiki_hybrid_search(vault: str, query: str, limit: int = 10) -> list[dict]:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.hybrid_search import hybrid_search as core_hybrid_search
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return core_hybrid_search(v, query, limit=limit)
+
+    # ─── 7.5.8. wiki_rag_query (v0.7.164+) ───
+    @mcp.tool(
+        name="wiki_rag_query",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Answer user questions using RAG (Retrieval-Augmented Generation) based on hybrid search match results."
+        ),
+    )
+    def wiki_rag_query(vault: str, query: str) -> dict:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.rag import query_rag
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return query_rag(v, query)
+
     # ─── 7.6. wiki_relations_list ───
     @mcp.tool(
         name="wiki_relations_list",

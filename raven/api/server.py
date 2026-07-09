@@ -2272,6 +2272,21 @@ def restore_archive(name: str, archive_path: str = Query(..., description="vault
 # ────────────────────────── query endpoints ──────────────────────────
 
 
+@app.get("/api/vaults/{name}/hybrid-search")
+def hybrid_search_api(name: str, query: str = Query(..., min_length=1), limit: int = 10):
+    v = _vault_or_404(name)
+    from raven.core.hybrid_search import hybrid_search as core_hybrid_search
+    results = core_hybrid_search(v, query, limit=limit)
+    return {"ok": True, "vault": name, "query": query, "results": results}
+
+
+@app.get("/api/vaults/{name}/rag/query")
+def rag_query_api(name: str, query: str = Query(..., min_length=1)):
+    v = _vault_or_404(name)
+    from raven.core.rag import query_rag
+    return query_rag(v, query)
+
+
 @app.get("/api/vaults/{name}/search")
 def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):
     v = _vault_or_404(name)
