@@ -167,7 +167,7 @@ const graphButtonStyle = {
 } as const;
 
 const HUD_LABEL_FONT = "sans-serif";
-const HUD_LABEL_BASE_SIZE = 14;
+const HUD_LABEL_BASE_SIZE = 17; // 더 크게 (14 -> 17)
 
 export function GraphCanvas({
   nodes,
@@ -562,7 +562,8 @@ export function GraphCanvas({
       //   - 그 외 (zoom 작고 weight 작음) → 가림
       const canShowNormalLabel =
         (scale > 1.0 && (node.weight ?? 0) >= 3) || (node.weight ?? 0) >= 8;
-      const showLabel = isFocused || isHighlighted || (isDense ? canShowDenseLabel : canShowNormalLabel);
+      // scale < 0.7 이면 문서 라벨은 hover/highlight만 표시
+      const showLabel = isFocused || isHighlighted || (scale >= 0.7 && (isDense ? canShowDenseLabel : canShowNormalLabel));
       if (showLabel) {
         const label = node.title || node.slug || node.id;
         const fontSize = 10.5 / scale;
@@ -623,34 +624,50 @@ export function GraphCanvas({
 
       // 2. HUD 라벨 그리기 (단순 텍스트 + 테마 변수)
       ctx.save();
-      const fontSize = Math.max(13, HUD_LABEL_BASE_SIZE / scale);
-      ctx.font = `600 ${fontSize}px ${HUD_LABEL_FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+
+      const totalNodes = currentNodes.length || 1;
 
       for (const gid in groupCoords) {
         const data = groupCoords[gid];
         if (data.count === 0) continue;
         const cx = data.xSum / data.count;
         const cy = data.ySum / data.count;
+        
+        // centroid보다 위쪽으로 약간 이동 (y 오프셋)
+        const drawY = cy - 24 / scale;
 
         const labelText = data.label;
+        const ratio = data.count / totalNodes;
+        
+        // content 그룹 하나가 압도적 비중(85% 초과)을 차지하면 덜 강조
+        const isDominant = ratio > 0.85 && gid === "content";
+        
+        // 더 옅고 (기본 0.45배, 지배적 그룹은 추가로 0.3배 곱해서 아주 은은하게 처리)
+        const textOpacity = labelOpacity * (isDominant ? 0.14 : 0.45);
+        const fontSize = Math.max(
+          isDominant ? 12 : 14, 
+          (isDominant ? 13 : HUD_LABEL_BASE_SIZE) / scale
+        );
+
+        ctx.font = `600 ${fontSize}px ${HUD_LABEL_FONT}`;
 
         // 텍스트 시인성 확보를 위한 뒷배경 outline 효과 (테마 변수)
         ctx.fillStyle = resolvedBgColorRef.current;
-        ctx.globalAlpha = labelOpacity * 0.8;
+        ctx.globalAlpha = textOpacity * 0.75;
         for (let dx = -1.5; dx <= 1.5; dx += 1.5) {
           for (let dy = -1.5; dy <= 1.5; dy += 1.5) {
             if (dx !== 0 || dy !== 0) {
-              ctx.fillText(labelText, cx + dx * (0.8 / scale), cy + dy * (0.8 / scale));
+              ctx.fillText(labelText, cx + dx * (0.8 / scale), drawY + dy * (0.8 / scale));
             }
           }
         }
 
         // 본문 텍스트 (테마 변수)
         ctx.fillStyle = resolvedLabelColorRef.current;
-        ctx.globalAlpha = labelOpacity * 0.7; // 은은함 유지
-        ctx.fillText(labelText, cx, cy);
+        ctx.globalAlpha = textOpacity;
+        ctx.fillText(labelText, cx, drawY);
       }
       ctx.restore();
     });
