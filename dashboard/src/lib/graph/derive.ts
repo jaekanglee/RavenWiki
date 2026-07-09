@@ -9,7 +9,8 @@
  * 다른 라우트/컴포넌트에서 안전하게 import 가능.
  */
 import type { Graph, GraphNode } from "../../types";
-import type { VaultCentroid } from "../../components/GraphCanvas";
+// v0.7.144+: VaultCentroid import + deriveVaultCentroids 함수 제거
+// (all-scope 모드 종료로 client-side centroid 도출 불필요).
 
 export interface GraphInsight {
   topConnected: GraphNode[];
@@ -48,36 +49,8 @@ function matchesGraphQuery(node: GraphNode, query: string): boolean {
     .some((token) => token.includes(normalized));
 }
 
-/**
- * v0.7.123+ all-vault 모드에서 vault별 centroid + halo 반경을 클라이언트에서 계산.
- *   - 백엔드가 모든 vault의 노드 좌표를 같은 ±500 좌표계에 두고 vault centroid
- *     ring (반경 380) 에 배치해두었으므로, 그 centroid를 그대로 사용.
- *   - 반경은 vault 안 노드 수 + 분포로 산정 (작은 vault 100, 큰 vault 220).
- * surgical A'의 일관: API contract 변경 없이 client-only 추가.
- */
-export function deriveVaultCentroids(graph: Graph): VaultCentroid[] {
-  const groups = new Map<string, GraphNode[]>();
-  for (const n of graph.nodes) {
-    if (!n.vault) continue;
-    const list = groups.get(n.vault);
-    if (list) list.push(n);
-    else groups.set(n.vault, [n]);
-  }
-  if (groups.size === 0) return [];
-  const out: VaultCentroid[] = [];
-  for (const [vault, nodes] of groups) {
-    if (nodes.length === 0) continue;
-    const avgX = nodes.reduce((s, n) => s + (n.x ?? 0), 0) / nodes.length;
-    const avgY = nodes.reduce((s, n) => s + (n.y ?? 0), 0) / nodes.length;
-    // 분산 기반 반경 + 노드 수 보정
-    const avgDist =
-      nodes.reduce((s, n) => s + Math.hypot((n.x ?? 0) - avgX, (n.y ?? 0) - avgY), 0) /
-      nodes.length;
-    const baseRadius = Math.min(220, Math.max(110, avgDist * 1.6 + Math.sqrt(nodes.length) * 8));
-    out.push({ vault, x: avgX, y: avgY, radius: baseRadius });
-  }
-  return out;
-}
+// v0.7.144+: deriveVaultCentroids 제거 (all-scope 모드 종료로 client-side
+// centroid 도출 불필요). v0.7.123~v0.7.143 동안 사용.
 
 export function deriveGraphInsights(graph: Graph): GraphInsight {
   const sortedNodes = [...graph.nodes].sort((a, b) => {

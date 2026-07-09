@@ -533,124 +533,14 @@ def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
 
 # ─── v0.6.12 Patch 1: graph 좌표 정규화 (±500) ─────
 
-
-def test_api_vault_graph_all_scope_prefixes_node_ids_by_vault(client, isolated_env):
-    """All-vault graph uses {vault}:{slug} ids so registered vaults can share slugs safely."""
-    left = isolated_env["target_root"] / "gv_all_left"
-    right = isolated_env["target_root"] / "gv_all_right"
-    client.post("/api/vaults", json={"name": "gv_all_left", "path": str(left), "bootstrap": False})
-    client.post("/api/vaults", json={"name": "gv_all_right", "path": str(right), "bootstrap": False})
-    client.post(
-        "/api/vaults/gv_all_left/pages",
-        json={"slug": "content/shared", "title": "Left Shared", "content": "see [[content/only-left]]"},
-    )
-    client.post("/api/vaults/gv_all_left/pages", json={"slug": "content/only-left", "title": "Only Left"})
-    client.post("/api/vaults/gv_all_right/pages", json={"slug": "content/shared", "title": "Right Shared"})
-
-    current_resp = client.get("/api/vaults/gv_all_left/graph")
-    assert current_resp.status_code == 200
-    assert {n["id"] for n in current_resp.json()["nodes"]} >= {"content/shared", "content/only-left"}
-
-    all_resp = client.get("/api/vaults/gv_all_left/graph?scope=all")
-    assert all_resp.status_code == 200, all_resp.text
-    data = all_resp.json()
-    ids = {n["id"] for n in data["nodes"]}
-    assert "gv_all_left:content/shared" in ids
-    assert "gv_all_right:content/shared" in ids
-    assert "content/shared" not in ids
-    assert {n["vault"] for n in data["nodes"]} >= {"gv_all_left", "gv_all_right"}
-    assert {"source": "gv_all_left:content/shared", "target": "gv_all_left:content/only-left"} in data["edges"]
-    assert data["scope"] == "all"
-    assert data["stats"]["vaults"] == 2
-
-
-def test_api_vault_graph_all_scope_keeps_current_layout_grid_separated(client, isolated_env):
-    """v0.7.133+: all-scope은 각 vault의 current-scope layout을 보존하되
-    vault들이 같은 ±500 박스 안에서 겹치지 않게 격자로 분산 배치.
-
-    v0.7.123~v0.7.132는 vault centroid를 큰 원형에 균등 배치해서 vault들이
-    시각적으로 링처럼 묶여 보였지만, edge 없는 관계없는 요식행위였음.
-    """
-    a = isolated_env["target_root"] / "gv_cluster_a"
-    b = isolated_env["target_root"] / "gv_cluster_b"
-    client.post("/api/vaults", json={"name": "gv_cluster_a", "path": str(a), "bootstrap": False})
-    client.post("/api/vaults", json={"name": "gv_cluster_b", "path": str(b), "bootstrap": False})
-
-    # vault A에 노드 3개 (링크 없음)
-    for slug in ["content/a1", "content/a2", "content/a3"]:
-        client.post(f"/api/vaults/gv_cluster_a/pages", json={"slug": slug, "title": slug.split("/")[-1]})
-    # vault B에 노드 2개 (링크 없음)
-    for slug in ["content/b1", "content/b2"]:
-        client.post(f"/api/vaults/gv_cluster_b/pages", json={"slug": slug, "title": slug.split("/")[-1]})
-
-    # 1) 각 vault의 current scope 좌표를 따로 구함 — SOT (relative 패턴 검증용)
-    cur_a = client.get("/api/vaults/gv_cluster_a/graph").json()["nodes"]
-    cur_b = client.get("/api/vaults/gv_cluster_b/graph").json()["nodes"]
-    cur_a_map = {n["id"]: (n["x"], n["y"]) for n in cur_a}
-    cur_b_map = {n["id"]: (n["x"], n["y"]) for n in cur_b}
-
-    # 2) all scope 결과 — vault들이 분리되어 있어야 함
-    resp = client.get("/api/vaults/gv_cluster_a/graph?scope=all")
-    assert resp.status_code == 200
-    nodes = resp.json()["nodes"]
-    by_vault: dict[str, list[dict]] = {}
-    for n in nodes:
-        by_vault.setdefault(n["vault"], []).append(n)
-    assert set(by_vault) == {"gv_cluster_a", "gv_cluster_b"}
-
-    # 3) intra-vault: 같은 vault 안 노드들의 상대 패턴이 보존됨
-    #    (= current scope의 force-atlas 결과를 centroid 평행이동만 함)
-    def relative_pattern(vault_nodes, cur_map):
-        # current scope 좌표의 평균을 origin으로 두고 패턴 추출
-        cur_xy = [cur_map[n["id"].split(":",1)[1]] for n in vault_nodes]
-        cur_cx = sum(x for x,_ in cur_xy) / len(cur_xy)
-        cur_cy = sum(y for _,y in cur_xy) / len(cur_xy)
-        cur_rel = sorted([(round(x-cur_cx,4), round(y-cur_cy,4)) for x,y in cur_xy])
-        all_xy = [(n["x"], n["y"]) for n in vault_nodes]
-        all_cx = sum(x for x,_ in all_xy) / len(all_xy)
-        all_cy = sum(y for _,y in all_xy) / len(all_xy)
-        all_rel = sorted([(round(x-all_cx,4), round(y-all_cy,4)) for x,y in all_xy])
-        return cur_rel, all_rel
-
-    cur_rel_a, all_rel_a = relative_pattern(by_vault["gv_cluster_a"], cur_a_map)
-    cur_rel_b, all_rel_b = relative_pattern(by_vault["gv_cluster_b"], cur_b_map)
-    assert cur_rel_a == all_rel_a, (
-        f"vault A relative 패턴 불일치 (centroid 평행이동만 해야 함)"
-    )
-    assert cur_rel_b == all_rel_b, (
-        f"vault B relative 패턴 불일치 (centroid 평행이동만 해야 함)"
-    )
-
-    # 4) cross-vault wikilink 없으니 edges는 0개여야 함 (정직한 표시)
-    assert resp.json()["edges"] == [], (
-        "cross-vault wikilink 0건인데 edges 0이 아님 — leak 의심"
-    )
-
-    # 5) vault 간 거리 > vault 내 spread — 격자 분리로 시각적 분리 보장
-    import math
-    def spread(vault_nodes):
-        if len(vault_nodes) < 2:
-            return 0.0
-        cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
-        cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
-        return sum(math.hypot(n["x"]-cx, n["y"]-cy) for n in vault_nodes) / len(vault_nodes)
-
-    intra_a = spread(by_vault["gv_cluster_a"])
-    intra_b = spread(by_vault["gv_cluster_b"])
-    centroid_a = (sum(n["x"] for n in by_vault["gv_cluster_a"])/len(by_vault["gv_cluster_a"]),
-                  sum(n["y"] for n in by_vault["gv_cluster_a"])/len(by_vault["gv_cluster_a"]))
-    centroid_b = (sum(n["x"] for n in by_vault["gv_cluster_b"])/len(by_vault["gv_cluster_b"]),
-                  sum(n["y"] for n in by_vault["gv_cluster_b"])/len(by_vault["gv_cluster_b"]))
-    inter = math.hypot(centroid_a[0]-centroid_b[0], centroid_a[1]-centroid_b[1])
-    assert inter > max(intra_a, intra_b) + 100.0, (
-        f"격자 분리 부족: inter={inter:.1f}, intra_a={intra_a:.1f}, intra_b={intra_b:.1f}"
-    )
+# v0.7.144+: scope=all 분기 제거됨에 따라 test_api_vault_graph_all_scope_* 2개 테스트도 제거.
+# current-scope only contract로 통일 — vault_centroid 격자 배치 / cross-vault id prefix 모두 dead.
 
 
 def test_api_vault_graph_current_scope_keeps_atlas_layout(client, isolated_env):
     """v0.7.123+: current scope 좌표는 기존 force-atlas layout 결과를 그대로 둔다.
 
-    lightweight A'는 scope=all에만 적용되고 current scope의 노드 좌표는 변하지 않는다.
+    v0.7.144+: lightweight A' 분기 제거됨 — current scope만 동작.
     """
     import math
 

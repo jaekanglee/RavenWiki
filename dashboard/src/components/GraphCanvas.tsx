@@ -19,20 +19,11 @@ interface Props {
   externalHighlightType?: string | null;
   /** 전체화면 모달 요청 — 상위 컴포넌트가 모달을 열어 처리 */
   onFullscreen?: () => void;
-  /** all-vault 등 고밀도 그래프에서는 기본 라벨/엣지를 낮춰 지도 시인성을 우선한다. */
+  /** all-vault 등 고밀도 그래프에서는 기본 라벨/엣지를 낮춰 지도 시인성을 우선한다.
+   * v0.7.144+: all-scope 모드 제거되어 더 이상 사용처 없음 — 보존 (재사용 가능). */
   density?: "normal" | "dense";
-  /** all-vault 모드에서 vault 소속을 보여주는 centroid + halo 표식. */
-  vaultCentroids?: VaultCentroid[];
   /** 노드 드래그 종료 시점에 호출 */
   onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void;
-}
-
-export interface VaultCentroid {
-  vault: string;
-  x: number;
-  y: number;
-  /** vault 별 halo 반경 — vault 내 노드 분포 + count 기반. */
-  radius: number;
 }
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -148,27 +139,9 @@ export function findClosestNodeHit<T extends HitTestNode>(
   return closest;
 }
 
-// Vault Halo 색상 스키마
-const VAULT_HALO_COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // green
-  "#8b5cf6", // purple
-  "#f59e0b", // amber
-  "#a78bfa", // lilac (v0.7.136: pink → lilac — 덜 비비드, 사용자 보고)
-  "#06b6d4", // cyan
-];
-
-function resolveVaultColor(vaultName: string): string {
-  let hash = 0;
-  for (let i = 0; i < vaultName.length; i++) {
-    hash = vaultName.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const idx = Math.abs(hash) % VAULT_HALO_COLORS.length;
-  return VAULT_HALO_COLORS[idx];
-}
-
-// v0.7.134+: hex 색에 alpha 적용한 rgba 문자열. vault ring이 노드 외곽에서
-// 부드럽게 묻나오도록 0.55 alpha 사용.
+// v0.7.134+ (v0.7.144에서 resolveVaultColor 헬퍼와 함께 VAULT_HALO_COLORS 제거 —
+// all-scope 모드 제거되면서 vault 색 식별 코드 사용처 사라짐).
+// hexToRgba는 보존 (다른 ring 효과 재사용 가능).
 function hexToRgba(hex: string, alpha: number): string {
   const m = hex.replace("#", "").match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
   if (!m) return hex;
@@ -204,7 +177,6 @@ export function GraphCanvas({
   externalHighlightType,
   onFullscreen,
   density = "normal",
-  vaultCentroids,
   onPositionsChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -253,15 +225,8 @@ export function GraphCanvas({
   const highlightNodesRef = useRef<Set<string>>(new Set());
   const highlightLinksRef = useRef<Set<string>>(new Set());
 
-  // v0.7.134+: vault centroids를 ref로 보관 — nodeCanvasObject 내부에서 매 paint
-  // call로 최신 값을 읽되, effect를 재실행하지 않음 (캔버스 pan/zoom 보존).
-  const vaultCentroidsRef = useRef<VaultCentroid[]>([]);
-  vaultCentroidsRef.current = vaultCentroids ?? [];
-
-  // v0.7.143+: vault별 최상단 노드 y — 라벨이 실제 vault 영역 위에 떠있도록.
-  // centroid는 평균이라 정확히 군집 가운데. 진짜 "위 가장자리"는
-  // 그 vault 노드들 중 가장 y 작은 (= 가장 위) 노드.
-  const vaultTopYRef = useRef<Map<string, number>>(new Map());
+  // v0.7.144+: all-scope 제거 — vault centroids + 최상단 y ref 모두 불필요.
+  // (참조하던 코드: vaultCentroidsRef, vaultTopYRef, drawVaultLabel)
 
   const recomputeHighlights = (hover: any, extId: string | null | undefined, edgeList: typeof edges) => {
     const nodeSet = new Set<string>();
@@ -348,14 +313,7 @@ export function GraphCanvas({
     graph.graphData({ nodes: formattedNodes, links: formattedLinks });
     graphNodesRef.current = formattedNodes;
 
-    // v0.7.143+: vault별 최상단 노드 y 계산 — vault 라벨이 진짜 군집 위에 떠있게.
-    const topMap = new Map<string, number>();
-    for (const n of formattedNodes) {
-      if (!n.vault || typeof n.y !== "number") continue;
-      const cur = topMap.get(n.vault);
-      if (cur === undefined || n.y < cur) topMap.set(n.vault, n.y);
-    }
-    vaultTopYRef.current = topMap;
+    // v0.7.144+: all-scope 제거 — vault별 최상단 y 계산 불필요.
 
     // v0.7.139+: 데이터 변경 시점에 highlight ref를 미리 계산. hover 중에는
     // setHoveredNode → ref 동기화만 하고 effect는 재실행되지 않아, 캔버스
@@ -528,6 +486,8 @@ export function GraphCanvas({
       .linkDirectionalParticleSpeed(0.016);
 
     // 노드 스타일 커스텀 렌더링 (Obsidian 퀄리티 재현)
+    // v0.7.144+: all-scope 모드 제거 — vault ring (resolveVaultColor 사용) 코드 삭제.
+    // vault 외곽선 ring은 single vault에서 모든 노드가 같은 vault이라 무의미.
     graph.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       if (!node || node.x === undefined || node.y === undefined) return;
       const scale = globalScale || 1;
@@ -571,17 +531,6 @@ export function GraphCanvas({
         ctx.stroke();
       }
 
-      // v0.7.136+: vault ring — alpha 0.55 → 0.30, 두께 2.4px → 1.6px.
-      // dense에서 ring이 노드 색을 가리는 문제 (사용자: "path 색 좀 조잘하자").
-      if (showVaultRing && node.vault && !isFocused) {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 1.6 / scale, 0, 2 * Math.PI, false);
-        const vaultColor = resolveVaultColor(node.vault);
-        ctx.strokeStyle = hexToRgba(vaultColor, 0.30);
-        ctx.lineWidth = 1.6 / scale;
-        ctx.stroke();
-      }
-
       // 2. 텍스트 라벨 그리기 (LOD - Level of Detail)
       // dense(all-vault)에서는 라벨을 훨씬 보수적으로 노출해 "떡처럼 붙는" 현상을 줄인다.
       // current scope도 무조건 상시 노출 대신 zoom/중요도(weight) 기준을 둬 시야를 정리한다.
@@ -614,44 +563,10 @@ export function GraphCanvas({
           : "var(--graph-label-color)";
         ctx.fillText(label, node.x, node.y + size + 3.8 / scale);
       }
-
-      // v0.7.138+: vault 라벨 — nodeCanvasObject 안에서 매 노드 draw 시 그리기.
-      // fillText idempotent이라 매 노드 × 매 vault 호출되어도 결과 동일.
-      // scale 가드는 제거: 4% zoom (사용자 화면)에서도 라벨이 보여야 함.
-      // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
-      const centroids = vaultCentroidsRef.current;
-      // v0.7.140~142 (한시 진단 마커)는 v0.7.143에서 제거 — 사용자 보고로 위치/색 문제 규명 완료.
-
-      if (centroids && centroids.length > 0) {
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "center";
-        for (const vc of centroids) {
-          // v0.7.143+: vault 색 정상 (이전 진단용 흰색에서 복귀).
-          const color = resolveVaultColor(vc.vault);
-          // v0.7.143+: fontSize floor 17 (사용자 "진짜 작다")
-          const fontSize = Math.max(17, 16 * scale);
-          ctx.font = `700 ${fontSize}px sans-serif`;
-          const labelX = vc.x;
-          // v0.7.143+: vault별 최상단 노드 y를 vaultTopYRef에서 읽음 (centroid가 아닌 실제 vault 영역)
-          const topY = vaultTopYRef.current.get(vc.vault) ?? vc.y;
-          const labelY = topY - Math.max(20, 25 * scale);
-          // 본문 (vault 색)
-          ctx.fillStyle = color;
-          ctx.fillText(vc.vault, labelX, labelY);
-          // outline (검은색 stroke)
-          ctx.lineWidth = Math.max(0.5, 2 * scale);
-          ctx.strokeStyle = "rgba(0, 0, 0, 1)";
-          ctx.lineJoin = "round";
-          ctx.strokeText(vc.vault, labelX, labelY);
-        }
-      }
+      // v0.7.144+: vault 라벨 코드 제거 (all-scope 모드 들어냄)
     });
 
-    // Vault 소속 ring — v0.7.139+: onRenderFramePre에서 그리던 📁 halo 박스를 제거하고,
-    // 대신 노드 외곽선에 vault 색 1.2px ring을 추가. 같은 vault의 노드들이
-    // 시각적으로 묶여 보이지만 5개 박스가 떠다니는 잡음은 사라진다.
-    // current scope(단일 vault)에서는 모든 노드가 같은 vault이므로 ring이 무의미 → 스킵.
-    const showVaultRing = isDense;
+    // v0.7.144+: vault ring도 제거 — single vault에서는 모든 노드가 같은 vault이라 무의미.
 
     // v0.7.139+: fitView는 scope 전환(all ↔ current) 또는 첫 데이터 로드 시에만.
     // 검색/필터로 nodes가 바뀌어도 사용자의 pan/zoom 위치를 보존한다.
@@ -680,9 +595,7 @@ export function GraphCanvas({
     nodes,
     edges,
     isDense,
-    // v0.7.139+: vaultCentroids는 더 이상 canvas에서 직접 사용하지 않음 (이전엔 📁 halo 박스를 그렸음).
-    // 대신 노드 외곽선에 vault 색 ring을 직접 그리므로 centroid 데이터 자체가 불필요.
-    // deriveVaultCentroids()는 GraphPage에서 여전히 호출 중 (line 188) — 향후 insight 용도로 보존.
+    // v0.7.144+: vaultCentroids 의존성 완전히 제거 (all-scope 모드 종료).
     // v0.7.139+: hoveredNode/highlightNodes/highlightLinks는 ref 기반이라 effect deps에서 제외.
     // hover 시 effect가 재실행되지 않아 — 캔버스 pan/zoom 위치가 유지되고 클릭이 무효화되지 않음.
     externalHighlightNodeId,
@@ -691,21 +604,6 @@ export function GraphCanvas({
     onNodeInspect,
     onPositionsChange,
   ]);
-
-  // v0.7.137+: vault 라벨 — nodeCanvasObject 안에서 매 노드 draw 시 그리기.
-  // 이전(v0.7.135~136)의 onRenderFramePost는 force-graph가 frame redraw 안
-  // trigger하면 라벨이 영영 안 그려짐 (fitView만 했을 때 발생). nodeCanvasObject는
-  // 매 paint에 안정적으로 호출되므로 라벨이 항상 보임.
-  // fillText는 idempotent이므로 매 노드 × 매 vault 호출되어도 결과는 같음.
-  // performance: 369 nodes × 5 vaults = 1845 fillText/frame — 무시 가능.
-  useEffect(() => {
-    if (isJSDOM) return;
-    const graph = graphInstanceRef.current;
-    if (!graph) return;
-
-    // vaultCentroidsRef를 그대로 사용 — 매 paint에서 최신 값 읽기.
-    void graph;
-  }, [isDense]);
 
   const fitGraph = () => {
     if (graphInstanceRef.current) {
