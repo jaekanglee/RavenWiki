@@ -650,6 +650,53 @@ export function GraphCanvas({
     onPositionsChange,
   ]);
 
+  // v0.7.135+: vault 라벨 — centroid 위에 단순 텍스트만 표시.
+  // 박스/dot/border 없이 vault 이름 텍스트 + 가독성용 outline + vault 색.
+  // 사용자: '옵시디안 고딥할 필요 없음, 시인성 즇으면 됨'.
+  useEffect(() => {
+    if (isJSDOM) return;
+    const graph = graphInstanceRef.current;
+    if (!graph) return;
+
+    const drawVaultLabel = (ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const centroids = vaultCentroidsRef.current;
+      if (!centroids || centroids.length === 0) return;
+      const scale = globalScale || 1;
+      if (scale < 0.3) return;
+
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+
+      for (const vc of centroids) {
+        const color = resolveVaultColor(vc.vault);
+        const fontSize = 14 * scale;
+        ctx.font = `600 ${fontSize}px sans-serif`;
+        const label = vc.vault;
+        const x = vc.x;
+        const y = vc.y - 50 * scale;
+
+        // outline (background-color로 한 번 그려서 글로우 효과 + 가독성)
+        ctx.lineWidth = 3 * scale;
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.lineJoin = "round";
+        ctx.strokeText(label, x, y);
+
+        // vault 색 본문
+        ctx.fillStyle = color;
+        ctx.fillText(label, x, y);
+      }
+    };
+
+    graph.onRenderFramePost(drawVaultLabel as any);
+    return () => {
+      try {
+        graph.onRenderFramePost(null as any);
+      } catch {
+        /* noop */
+      }
+    };
+  }, [isDense]);
+
   const fitGraph = () => {
     if (graphInstanceRef.current) {
       graphInstanceRef.current.zoomToFit(360, 40);
