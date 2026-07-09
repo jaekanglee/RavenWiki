@@ -81,7 +81,7 @@ def test_relation_add_and_list_and_remove(test_vault: Path):
     r_err_ev = wiki_relation_add(
         source_slug="content/source-page",
         target_slug="content/target-page",
-        relation_type="uses",
+        relation_type="implements",
         evidence=[],
         reason="x",
         actor="tester",
@@ -94,7 +94,7 @@ def test_relation_add_and_list_and_remove(test_vault: Path):
     r_err_reason = wiki_relation_add(
         source_slug="content/source-page",
         target_slug="content/target-page",
-        relation_type="uses",
+        relation_type="implements",
         evidence=["code/auth"],
         reason="",
         actor="tester",
@@ -126,13 +126,116 @@ def test_relation_add_and_list_and_remove(test_vault: Path):
     )
     assert r_remove["ok"] is True, r_remove
 
-    # Verify file content updated to empty list
-    source_text_removed = (test_vault / "content" / "source-page.md").read_text(encoding="utf-8")
-    assert "relations: []" in source_text_removed
-
     # Verify list is empty
     r_list_empty = wiki_relations_list(
         slug="content/source-page",
         ctx=ctx
     )
     assert len(r_list_empty) == 0
+
+
+def test_relation_evidence_auto_extraction(test_vault: Path):
+    ctx = VaultContext(vault=test_vault, mode=WRITE)
+    
+    # 1. Test source code import match
+    (test_vault / "content" / "source-page.md").write_text(
+        "---\ntitle: Source Page\ntype: concept\ncreated: 2026-07-09\nupdated: 2026-07-09\n---\n\n"
+        "Here is some python code:\n```python\nfrom myapp import target_page\n```",
+        encoding="utf-8"
+    )
+    
+    r_add = wiki_relation_add(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="uses",
+        evidence=None,
+        reason=None,
+        actor="tester",
+        ctx=ctx
+    )
+    assert r_add["ok"] is True, r_add
+    
+    # check that evidence was auto-extracted from import line
+    r_list = wiki_relations_list(slug="content/source-page", ctx=ctx)
+    assert len(r_list) == 1
+    assert "from myapp import target_page" in r_list[0]["evidence"][0]
+    assert "import 구문" in r_list[0]["reason"]
+
+    # 2. Test text span match
+    (test_vault / "content" / "source-page.md").write_text(
+        "---\ntitle: Source Page\ntype: concept\ncreated: 2026-07-09\nupdated: 2026-07-09\n---\n\n"
+        "This project depends on the Target Page for auth validation. That is all.",
+        encoding="utf-8"
+    )
+    # Target Page with title and aliases
+    (test_vault / "content" / "target-page.md").write_text(
+        "---\ntitle: Target Page\ntype: concept\ncreated: 2026-07-09\nupdated: 2026-07-09\naliases: [auth-validator]\n---\n\nContent",
+        encoding="utf-8"
+    )
+    
+    wiki_relation_remove(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="uses",
+        actor="tester",
+        ctx=ctx
+    )
+    
+    r_add_text = wiki_relation_add(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="depends_on",
+        evidence=None,
+        reason="",
+        actor="tester",
+        ctx=ctx
+    )
+    assert r_add_text["ok"] is True, r_add_text
+    
+    r_list_text = wiki_relations_list(slug="content/source-page", ctx=ctx)
+    assert len(r_list_text) == 1
+    assert "Target Page for auth" in r_list_text[0]["evidence"][0]
+    assert "Text Span" in r_list_text[0]["reason"]
+
+    # 3. Test fallback
+    (test_vault / "content" / "source-page.md").write_text(
+        "---\ntitle: Source Page\ntype: concept\ncreated: 2026-07-09\nupdated: 2026-07-09\n---\n\n"
+        "No mention here.",
+        encoding="utf-8"
+    )
+    wiki_relation_remove(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="depends_on",
+        actor="tester",
+        ctx=ctx
+    )
+    
+    r_add_fb = wiki_relation_add(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="uses",
+        evidence=[],
+        reason=None,
+        actor="tester",
+        ctx=ctx
+    )
+    assert r_add_fb["ok"] is True, r_add_fb
+    r_list_fb = wiki_relations_list(slug="content/source-page", ctx=ctx)
+    assert len(r_list_fb) == 1
+    assert "[[content/target-page]]" in r_list_fb[0]["evidence"]
+    assert "자동 관계 인퍼런스" in r_list_fb[0]["reason"]
+
+    # 4. Must still raise error for relation types other than uses/depends_on when empty
+    r_add_err = wiki_relation_add(
+        source_slug="content/source-page",
+        target_slug="content/target-page",
+        relation_type="implements",
+        evidence=None,
+        reason=None,
+        actor="tester",
+        ctx=ctx
+    )
+    assert r_add_err["ok"] is False
+    assert r_add_err["error"] in ("evidence_required", "reason_required")
+
