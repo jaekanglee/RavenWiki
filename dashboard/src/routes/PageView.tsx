@@ -9,8 +9,8 @@ import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback } from "../lib/api";
-import type { Graph, Page } from "../types";
+import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations } from "../lib/api";
+import type { Graph, Page, Recommendation } from "../types";
 
 interface Ctx {
   vault: string;
@@ -197,6 +197,7 @@ export function PageView() {
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [hoveredRelKey, setHoveredRelKey] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
@@ -261,6 +262,7 @@ export function PageView() {
     console.log("[Raven-Debug] useEffect fetchPage start");
     setPage(undefined);
     setErr(null);
+    setRecommendations([]);
     fetchPage(vault, slug)
       .then((d) => {
         console.log("[Raven-Debug] fetchPage OK, slug=", d.slug);
@@ -281,6 +283,16 @@ export function PageView() {
           relations: fm.relations || [],
         });
         console.log("[Raven-Debug] setPage done");
+
+        // Fetch related recommendations
+        fetchRecommendations(vault, d.slug)
+          .then((recData) => {
+            setRecommendations(recData.recommendations || []);
+          })
+          .catch((e) => {
+            console.log("[Raven-Debug] fetchRecommendations CATCH:", e);
+            setRecommendations([]);
+          });
       })
       .catch((e) => {
         console.log("[Raven-Debug] fetchPage CATCH:", e);
@@ -883,6 +895,136 @@ export function PageView() {
                   );
                 });
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* 함께 읽어볼 만한 문서 (Related Pages) 섹션 */}
+        {recommendations.length > 0 && (
+          <div
+            style={{
+              marginTop: "2.5rem",
+              paddingTop: "2rem",
+              borderTop: "1px solid var(--color-border, #e5e7eb)",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: 600,
+                color: "var(--color-ink, #1f2937)",
+                marginBottom: "1rem",
+              }}
+            >
+              함께 읽어볼 만한 문서
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              {recommendations.map((rec) => (
+                <div
+                  key={rec.slug}
+                  onClick={() => navigate(`/page/${encodeURIComponent(vault)}/${encodeURIComponent(rec.slug)}`)}
+                  style={{
+                    padding: "1rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--color-border, #e5e7eb)",
+                    backgroundColor: "var(--color-bg-alt, #f9fafb)",
+                    cursor: "pointer",
+                    transition: "transform 0.2s, box-shadow 0.2s, border-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.05)";
+                    e.currentTarget.style.borderColor = "var(--color-primary, #3b82f6)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.borderColor = "var(--color-border, #e5e7eb)";
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "4px",
+                        backgroundColor: "var(--color-type-bg, #f3f4f6)",
+                        color: "var(--color-type-text, #4b5563)",
+                      }}
+                    >
+                      {rec.type}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.875rem",
+                        fontWeight: 700,
+                        color: "var(--color-primary, #3b82f6)",
+                      }}
+                      title="연관성 점수"
+                    >
+                      ★ {rec.score.toFixed(1)}
+                    </span>
+                  </div>
+                  <h4
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: 600,
+                      color: "var(--color-ink, #1f2937)",
+                      marginBottom: "0.75rem",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {rec.title}
+                  </h4>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {rec.co_citation_score > 0 && (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "4px",
+                          backgroundColor: "rgba(59, 130, 246, 0.1)",
+                          color: "var(--color-primary, #3b82f6)",
+                          border: "1px solid rgba(59, 130, 246, 0.2)",
+                        }}
+                      >
+                        공동 인용 {rec.co_citation_score}회
+                      </span>
+                    )}
+                    {rec.tag_overlap_score > 0 && (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "4px",
+                          backgroundColor: "rgba(16, 185, 129, 0.1)",
+                          color: "var(--color-success, #10b981)",
+                          border: "1px solid rgba(16, 185, 129, 0.2)",
+                        }}
+                      >
+                        중복 태그 {rec.tag_overlap_score}개
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

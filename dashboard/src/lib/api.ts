@@ -710,3 +710,15 @@ export async function updatePageFeedback(
   if (!r.ok) throw new Error(`update feedback failed: ${r.status}`);
   return r.json();
 }
+
+export async function fetchRecommendations(
+  vault: string,
+  slug: string,
+  limit: number = 5
+) {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/recommendations?limit=${limit}`
+  );
+  if (!r.ok) throw new Error(`failed to fetch recommendations: ${r.status}`);
+  return r.json();
+}

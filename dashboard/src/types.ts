@@ -80,3 +80,14 @@ export interface Graph {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+
+export interface Recommendation {
+  slug: string;
+  title: string;
+  type: string;
+  score: number;
+  co_citation_score: number;
+  tag_overlap_score: number;
+  importance?: number | null;
+  centrality?: number | null;
+}
