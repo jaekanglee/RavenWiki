@@ -581,7 +581,7 @@ export function GraphCanvas({
         };
       });
     } else if (layoutMode === "timeline") {
-      // 3) Timeline View: 작성일/수정일 기준 가로 축 정렬 배치
+      // 3) Timeline View: 작성일/수정일 기준 가로 축 정렬 배치 (Adaptive Scale 보정 적용)
       const parseDate = (dateStr: string | undefined): number => {
         if (!dateStr) return 0;
         try {
@@ -606,6 +606,27 @@ export function GraphCanvas({
       const xStart = -450;
       const xEnd = 450;
 
+      // 일(Day) 단위 격자/밀집도 분석
+      const isShortRange = timeDiff <= 24 * 60 * 60 * 1000;
+      const getGroupKey = (t: number): string => {
+        const d = new Date(t);
+        if (isShortRange) {
+          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()} H${d.getHours()}`;
+        } else {
+          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        }
+      };
+
+      // 그룹별 노드 매핑
+      const groups: Record<string, string[]> = {};
+      nodes.forEach((n) => {
+        const nt = nodeTimes.find((x) => x.id === n.id);
+        const t = nt ? nt.time : nowTime;
+        const key = getGroupKey(t);
+        groups[key] = groups[key] || [];
+        groups[key].push(n.id);
+      });
+
       const nodeCoords: Record<string, { x: number; y: number }> = {};
       const typeYOffsets: Record<string, number> = {
         concept: 150,
@@ -620,7 +641,24 @@ export function GraphCanvas({
       nodes.forEach((n) => {
         const nt = nodeTimes.find((x) => x.id === n.id);
         const time = nt ? nt.time : nowTime;
-        const x = xStart + ((time - minTime) / timeDiff) * (xEnd - xStart);
+        
+        // 1차 선형 X 좌표
+        const baseX = xStart + ((time - minTime) / timeDiff) * (xEnd - xStart);
+
+        // 2차 그룹 내 오프셋 (동일 시간대/날짜 밀집 노드 펼치기)
+        const key = getGroupKey(time);
+        const group = groups[key] || [];
+        const groupIndex = group.indexOf(n.id);
+        const groupCount = group.length;
+
+        let adaptiveOffsetX = 0;
+        if (groupCount > 1) {
+          // 밀집 보정 필터: 그룹 내 노드 수에 따라 좌우로 유연하게 분산 (최대 120px 너비 내에서 분산)
+          const spacing = Math.max(12, Math.min(35, 120 / groupCount));
+          adaptiveOffsetX = (groupIndex - (groupCount - 1) / 2) * spacing;
+        }
+
+        const x = baseX + adaptiveOffsetX;
 
         const type = n.type || "other";
         typeIndices[type] ??= 0;
@@ -1178,21 +1216,68 @@ export function GraphCanvas({
         const maxTime = Math.max(...times);
         const timeDiff = maxTime - minTime || 1;
 
+        // Adaptive Grid Scale 결정
+        let gridPoints: { x: number; label: string }[] = [];
+        
+        if (timeDiff <= 2 * 60 * 60 * 1000) {
+          // 2시간 이내: 15분 단위
+          const step = 15 * 60 * 1000;
+          const start = Math.floor(minTime / step) * step;
+          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
+            const ratio = (tVal - minTime) / timeDiff;
+            const x = xStart + ratio * (xEnd - xStart);
+            if (x >= xStart - 10 && x <= xEnd + 10) {
+              const d = new Date(tVal);
+              const label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+              gridPoints.push({ x, label });
+            }
+          }
+        } else if (timeDiff <= 24 * 60 * 60 * 1000) {
+          // 24시간 이내: 2시간 단위
+          const step = 2 * 60 * 60 * 1000;
+          const start = Math.floor(minTime / step) * step;
+          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
+            const ratio = (tVal - minTime) / timeDiff;
+            const x = xStart + ratio * (xEnd - xStart);
+            if (x >= xStart - 10 && x <= xEnd + 10) {
+              const d = new Date(tVal);
+              const label = `${d.getHours()}:00`;
+              gridPoints.push({ x, label });
+            }
+          }
+        } else if (timeDiff <= 7 * 24 * 60 * 60 * 1000) {
+          // 7일 이내: 1일 단위
+          const step = 24 * 60 * 60 * 1000;
+          const start = Math.floor(minTime / step) * step;
+          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
+            const ratio = (tVal - minTime) / timeDiff;
+            const x = xStart + ratio * (xEnd - xStart);
+            if (x >= xStart - 10 && x <= xEnd + 10) {
+              const label = new Date(tVal).toISOString().split("T")[0].substring(5); // MM-DD
+              gridPoints.push({ x, label });
+            }
+          }
+        } else {
+          // 일반적인 경우: 5개 등분
+          for (let i = 0; i <= 4; i++) {
+            const ratio = i / 4;
+            const x = xStart + ratio * (xEnd - xStart);
+            const tVal = minTime + ratio * timeDiff;
+            const dateStr = new Date(tVal).toISOString().split("T")[0];
+            gridPoints.push({ x, label: dateStr });
+          }
+        }
+
         ctx.strokeStyle = "rgba(148, 163, 184, 0.06)";
-        for (let i = 0; i <= 4; i++) {
-          const ratio = i / 4;
-          const x = xStart + ratio * (xEnd - xStart);
-          const tVal = minTime + ratio * timeDiff;
-          const dateStr = new Date(tVal).toISOString().split("T")[0];
-          
+        gridPoints.forEach(({ x, label }) => {
           ctx.beginPath();
           ctx.moveTo(x, -250);
           ctx.lineTo(x, 200);
           ctx.stroke();
           
           ctx.textAlign = "center";
-          ctx.fillText(dateStr, x, 215 / scale);
-        }
+          ctx.fillText(label, x, 215 / scale);
+        });
         ctx.restore();
         return;
       }

@@ -949,8 +949,8 @@ def wiki_relation_add(
     source_slug: str,
     target_slug: str,
     relation_type: str,
-    evidence: list[str] | str,
-    reason: str,
+    evidence: list[str] | str | None = None,
+    reason: Optional[str] = None,
     confidence: Optional[dict | float] = None,
     verified_by: Optional[list[str] | str] = None,
     ctx: Optional[VaultContext] = None,
@@ -984,26 +984,6 @@ def wiki_relation_add(
             "idempotency_key": idempotency_key,
             "timestamp": now_iso(),
             "error": "invalid_relation_type",
-        }
-
-    # evidence / reason check
-    if not evidence or (isinstance(evidence, list) and len(evidence) == 0):
-        return {
-            "ok": False,
-            "message": "evidence is required and cannot be empty",
-            "actor": normalize_actor(actor),
-            "idempotency_key": idempotency_key,
-            "timestamp": now_iso(),
-            "error": "evidence_required",
-        }
-    if not reason or not reason.strip():
-        return {
-            "ok": False,
-            "message": "reason is required and cannot be empty",
-            "actor": normalize_actor(actor),
-            "idempotency_key": idempotency_key,
-            "timestamp": now_iso(),
-            "error": "reason_required",
         }
 
     actor_norm = normalize_actor(actor)
@@ -1044,25 +1024,6 @@ def wiki_relation_add(
             "error": "lock_conflict",
             "_lock_holder": holder,
         }
-
-    # idempotency precheck
-    params = {
-        "source_slug": source_slug,
-        "target_slug": target_slug,
-        "relation_type": relation_type,
-        "evidence": evidence,
-        "reason": reason,
-        "confidence": confidence,
-        "verified_by": verified_by,
-    }
-    if idempotency_key and abs_path.exists():
-        cached, _ = _resolve_idempotency(
-            tool="wiki_relation_add", vault=vault_path,
-            idempotency_key=idempotency_key, actor=actor_norm,
-            params=params,
-        )
-        if cached is not None:
-            return cached
 
     # read existing page content
     if not abs_path.exists():
@@ -1123,6 +1084,79 @@ def wiki_relation_add(
             "timestamp": now_iso(),
             "error": "parse_failed",
         }
+
+    # Auto inference of evidence and reason if missing/empty for uses or depends_on relations
+    is_ev_empty = not evidence or (isinstance(evidence, list) and len(evidence) == 0)
+    is_re_empty = not reason or not reason.strip()
+
+    if (is_ev_empty or is_re_empty) and relation_type in {"uses", "depends_on"}:
+        target_content = ""
+        target_title = target_normalized.split("/")[-1]
+        if target_found:
+            try:
+                target_abs_path = _resolve_md_path(vault_path, target_normalized)
+                if target_abs_path.exists():
+                    target_content = target_abs_path.read_text(encoding="utf-8")
+                    target_meta, _ = core_frontmatter.parse(target_content)
+                    target_title = target_meta.get("title") or target_title
+            except Exception:
+                pass
+        
+        source_title = meta.get("title") or source_slug.split("/")[-1]
+        
+        from raven.curator.evidence import extract_evidence_and_reason
+        auto_ev, auto_re = extract_evidence_and_reason(
+            source_content=raw_text,
+            target_content=target_content,
+            source_title=source_title,
+            target_title=target_title,
+            source_slug=source_slug,
+            target_slug=target_normalized,
+            relation_type=relation_type,
+        )
+        if is_ev_empty:
+            evidence = auto_ev
+        if is_re_empty:
+            reason = auto_re
+
+    # final validation checks
+    if not evidence or (isinstance(evidence, list) and len(evidence) == 0):
+        return {
+            "ok": False,
+            "message": "evidence is required and cannot be empty",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "evidence_required",
+        }
+    if not reason or not reason.strip():
+        return {
+            "ok": False,
+            "message": "reason is required and cannot be empty",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "reason_required",
+        }
+
+    # idempotency precheck (after filling missing fields)
+    params = {
+        "source_slug": source_slug,
+        "target_slug": target_slug,
+        "relation_type": relation_type,
+        "evidence": evidence,
+        "reason": reason,
+        "confidence": confidence,
+        "verified_by": verified_by,
+    }
+    if idempotency_key and abs_path.exists():
+        cached, _ = _resolve_idempotency(
+            tool="wiki_relation_add", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params=params,
+        )
+        if cached is not None:
+            return cached
 
     relations = meta.get("relations") or []
     if not isinstance(relations, list):
