@@ -333,8 +333,10 @@ vault를 점검/정리할 때는 `wiki_lint`를 돌린 뒤 아래 순서로 처�
    content/ 내 링크는 `wiki_update`로 직접 수리 (수리 가능), Tier leak은 즉시 보고
 2. #5 모순 — 충돌 페이지를 덮어쓰지 말고 양쪽에 `contested: true` +
    `contradictions` 상호 링크, 원인은 log.md 역추적 (수리 가능)
-3. #4 orphan(유예 경과) — 관련 페이지에서 인바운드 링크 연결 시도, 불가 시
-   `type: issue` 자율 발행 (status=draft, ADR-2026-07-08)
+3. #4 orphan(유예 경과) — 고립 노드(Orphan) 자율 치유 워크플로우:
+   - 에이전트가 고립 노드를 발견하면, `wiki_search` 또는 추천 결과를 통해 연관성이 높은 기존 문서를 탐색합니다.
+   - 연관 문서를 발견하면, `wiki_relation_add` 도구를 활용해 고립 노드와 기존 문서 간의 의미 관계(relations)를 자동으로 제안 및 갱신합니다.
+   - 연관 문서가 식별되지 않는 경우에만, `type: issue` 자율 발행 (status=draft, ADR-2026-07-08)하여 관계 조정을 발의합니다.
 4. #7 stale — 사실이 바뀐 페이지는 갱신, 판단 불가면 `type: issue` 자율 발행 (status=draft)
 5. #10 frontmatter 불완전 — `wiki_update`의 `frontmatter_data` 파라미터로 보수 (수리 가능)
 6. #8 200줄 초과 — `type: issue` 자율 발행 (status=draft, 자동 current 7일+)

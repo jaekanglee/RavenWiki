@@ -199,15 +199,123 @@ def louvain_communities(
     return {ids[i]: remap[community[i]] for i in range(n)}
 
 
+def calculate_layers(
+    nodes: list[str],
+    edges: list[tuple[str, str]],
+) -> dict[str, float]:
+    """각 노드의 루트 노드 집합으로부터의 최단 경로 상 평균 논리적 깊이(layer)를 계산합니다.
+
+    - 루트 노드 집합 R의 결정 기준:
+      1) 'content/index' 또는 'index'가 nodes에 존재하면 이를 루트로 삼음.
+      2) 그렇지 않으면, 들어오는 링크(in-degree)가 0인 노드들의 집합을 루트로 삼음.
+      3) 그것도 비어 있으면 모든 노드를 루트로 삼음.
+    - 각 루트 r에 대해 BFS를 통해 최단 거리를 계산한 후, 도달 가능한 루트들과의 최단 거리 평균을 구합니다.
+    - 도달 불가능한 경우 기본값 0.0을 부여합니다.
+    """
+    if not nodes:
+        return {}
+
+    # Adjacency list 구축 (방향성)
+    adj = {node: [] for node in nodes}
+    in_degree = {node: 0 for node in nodes}
+    for u, v in edges:
+        if u in adj and v in adj:
+            adj[u].append(v)
+            in_degree[v] += 1
+
+    # 루트 노드 집합 R 결정
+    R = []
+    if "content/index" in adj:
+        R = ["content/index"]
+    elif "index" in adj:
+        R = ["index"]
+    else:
+        R = [node for node in nodes if in_degree[node] == 0]
+
+    if not R:
+        R = list(nodes)
+
+    # 각 루트로부터 모든 노드까지의 최단 거리 계산
+    distances = {node: [] for node in nodes}
+
+    for r in R:
+        dist = {node: -1 for node in nodes}
+        dist[r] = 0
+        queue = deque([r])
+        while queue:
+            curr = queue.popleft()
+            for neighbor in adj[curr]:
+                if dist[neighbor] < 0:
+                    dist[neighbor] = dist[curr] + 1
+                    queue.append(neighbor)
+
+        for node in nodes:
+            if dist[node] >= 0:
+                distances[node].append(dist[node])
+
+    # 평균 계산
+    layer_map = {}
+    for node in nodes:
+        dists = distances[node]
+        if dists:
+            layer_map[node] = sum(dists) / len(dists)
+        else:
+            layer_map[node] = 0.0
+
+    return layer_map
+
+
+def calculate_freshness(
+    nodes: list[str],
+    updated_dates: dict[str, str],
+    reference_date_str: str | None = None,
+) -> dict[str, float]:
+    """각 노드의 updated 날짜를 기반으로 신선도(freshness)를 계산합니다.
+
+    - 반감기(Half-life) 180일을 기준으로 삼아 0.5 ** (days / 180.0) 공식을 적용합니다.
+    - reference_date_str이 없으면 오늘 날짜를 기준으로 계산합니다.
+    """
+    import datetime as dt
+    if not nodes:
+        return {}
+
+    if reference_date_str:
+        try:
+            ref_date = dt.date.fromisoformat(reference_date_str)
+        except ValueError:
+            ref_date = dt.date.today()
+    else:
+        ref_date = dt.date.today()
+
+    freshness_map = {}
+    for node in nodes:
+        date_str = updated_dates.get(node)
+        if not date_str:
+            freshness_map[node] = 0.0
+            continue
+        try:
+            clean_date_str = date_str[:10]
+            node_date = dt.date.fromisoformat(clean_date_str)
+            days = (ref_date - node_date).days
+            if days < 0:
+                days = 0
+            freshness_map[node] = 0.5 ** (days / 180.0)
+        except ValueError:
+            freshness_map[node] = 0.0
+
+    return freshness_map
+
+
 def update_analytics_properties(conn: sqlite3.Connection) -> None:
-    """wiki.db에 구축된 페이지와 관계 데이터를 토대로 PageRank, Centrality, Community를
+    """wiki.db에 구축된 페이지와 관계 데이터를 토대로 PageRank, Centrality, Community, Layer, Freshness를
 
     계산하고, 각 페이지 레코드에 업데이트합니다.
     relations 테이블이 비어있을 경우, links (일반 위키링크) 테이블을 fallback으로 삼아 그래프를 분석합니다.
     """
     # 1. 모든 노드 목록 가져오기
-    rows = conn.execute("SELECT slug FROM pages").fetchall()
+    rows = conn.execute("SELECT slug, updated FROM pages").fetchall()
     nodes = [r[0] for r in rows]
+    updated_dates = {r[0]: r[1] for r in rows}
     if not nodes:
         return
 
@@ -232,18 +340,26 @@ def update_analytics_properties(conn: sqlite3.Connection) -> None:
     # 5. 커뮤니티 계산 (Louvain)
     community_map = louvain_communities(nodes, edges)
 
-    # 6. DB에 분석 정보 일괄 업데이트
+    # 6. 레이어(지식 깊이) 계산
+    layer_map = calculate_layers(nodes, edges)
+
+    # 7. 신선도 계산
+    freshness_map = calculate_freshness(nodes, updated_dates)
+
+    # 8. DB에 분석 정보 일괄 업데이트
     update_data = [
         (
             importance_map.get(node, 0.0),
             centrality_map.get(node, 0.0),
             community_map.get(node, 0),
+            layer_map.get(node, 0.0),
+            freshness_map.get(node, 0.0),
             node,
         )
         for node in nodes
     ]
 
     conn.executemany(
-        "UPDATE pages SET importance = ?, centrality = ?, community = ? WHERE slug = ?",
+        "UPDATE pages SET importance = ?, centrality = ?, community = ?, layer = ?, freshness = ? WHERE slug = ?",
         update_data,
     )

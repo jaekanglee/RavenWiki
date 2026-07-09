@@ -48,7 +48,9 @@ CREATE TABLE pages (
   raw_content TEXT NOT NULL,
   importance REAL DEFAULT 0.0,
   centrality REAL DEFAULT 0.0,
-  community INTEGER DEFAULT 0
+  community INTEGER DEFAULT 0,
+  layer REAL DEFAULT 0.0,
+  freshness REAL DEFAULT 0.0
 );
 
 CREATE TABLE tags (
