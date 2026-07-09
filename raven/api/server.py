@@ -926,6 +926,7 @@ from raven.core.graph import (
     forceatlas_layout as _forceatlas_layout,
     load_user_positions as _load_user_positions,
     save_user_positions as _save_user_positions,
+    folder_group_for_slug as _folder_group_for_slug,
 )
 
 
@@ -981,6 +982,8 @@ def vault_graph(
                     "title": p["title"],
                     "type": p["type"],
                     "weight": in_degree.get(p["slug"], 0),
+                    "folder_group": _folder_group_for_slug(p["slug"])[0],
+                    "folder_label": _folder_group_for_slug(p["slug"])[1],
                 }
                 for p in pages
             ]
@@ -1081,6 +1084,8 @@ def vault_graph(
             "slug": slug,
             "title": meta.get("title", slug),
             "type": meta.get("type", "?"),
+            "folder_group": _folder_group_for_slug(slug)[0],
+            "folder_label": _folder_group_for_slug(slug)[1],
         })
 
     import re
