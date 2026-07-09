@@ -1121,16 +1121,19 @@ export function GraphCanvas({
       // 1. Domain View일 때 커뮤니티별 반투명 구획(Onion bound) 그리기
       if (layoutMode === "domain") {
         const groupStats: Record<number, { xSum: number; ySum: number; count: number; xMin: number; xMax: number; yMin: number; yMax: number }> = {};
+        const groupNodes: Record<number, any[]> = {};
         const currentNodes = graph.graphData().nodes;
         
         currentNodes.forEach((node: any) => {
           const c = node.community ?? 0;
           if (!groupStats[c]) {
             groupStats[c] = { xSum: 0, ySum: 0, count: 0, xMin: 99999, xMax: -99999, yMin: 99999, yMax: -99999 };
+            groupNodes[c] = [];
           }
           groupStats[c].xSum += node.x;
           groupStats[c].ySum += node.y;
           groupStats[c].count += 1;
+          groupNodes[c].push(node);
           if (node.x < groupStats[c].xMin) groupStats[c].xMin = node.x;
           if (node.x > groupStats[c].xMax) groupStats[c].xMax = node.x;
           if (node.y < groupStats[c].yMin) groupStats[c].yMin = node.y;
@@ -1159,11 +1162,54 @@ export function GraphCanvas({
           ctx.strokeStyle = hexToRgba(color, 0.18);
           ctx.stroke();
 
+          // 자동 의미론적 레이블 계산
+          const cNodes = groupNodes[cid] || [];
+          let labelSuffix = "";
+          if (cNodes.length > 0) {
+            // 최상위 중요 노드
+            let topNode = cNodes[0];
+            for (const n of cNodes) {
+              if ((n.importance ?? 0) > (topNode.importance ?? 0)) {
+                topNode = n;
+              }
+            }
+            
+            // 제목 기반 키워드 빈도 추출
+            const stopwords = new Set([
+              "and", "the", "with", "for", "from", "main", "core", "impl", "test", "helper", "util", "utils", "config",
+              "이", "그", "저", "및", "등", "을", "를", "의", "에", "과", "와", "한", "로", "으로", "에서"
+            ]);
+            const wordCounts: Record<string, number> = {};
+            cNodes.forEach(n => {
+              const wList = (n.title || "").toLowerCase().match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
+              wList.forEach((w: string) => {
+                if (!stopwords.has(w)) {
+                  wordCounts[w] = (wordCounts[w] || 0) + 1;
+                }
+              });
+            });
+            const sortedWords = Object.entries(wordCounts)
+              .sort((a, b) => b[1] - a[1])
+              .map(entry => entry[0]);
+            
+            if (topNode) {
+              const topWords = (topNode.title || "").match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
+              const mainTopWord = topWords.find((w: string) => !stopwords.has(w.toLowerCase())) || topNode.title;
+              const secondWord = sortedWords.find((w: string) => w.toLowerCase() !== mainTopWord.toLowerCase());
+              const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+              if (secondWord) {
+                labelSuffix = ` (${cap(mainTopWord)} & ${cap(secondWord)})`;
+              } else {
+                labelSuffix = ` (${cap(mainTopWord)})`;
+              }
+            }
+          }
+
           ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
           ctx.fillStyle = color;
           ctx.globalAlpha = 0.45;
           ctx.textAlign = "center";
-          ctx.fillText(`Community ${cid}`, cx, cy - radius - 6 / scale);
+          ctx.fillText(`Community ${cid}${labelSuffix}`, cx, cy - radius - 6 / scale);
         }
         ctx.restore();
         return;
