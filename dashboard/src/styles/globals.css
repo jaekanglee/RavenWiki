@@ -1360,8 +1360,8 @@ mark {
   gap: 8px;
 }
 .graph-detail-stat-card {
-  border-radius: 8px;
-  padding: 10px 8px;
+  border-radius: 6px;
+  padding: 5px 6px; /* 패딩 축소 (10px 8px -> 5px 6px) */
   background: var(--graph-surface);
   border: 1px solid var(--graph-border);
   text-align: center;
@@ -1369,7 +1369,7 @@ mark {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px; /* 갭 축소 (2px -> 1px) */
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
 }
 .graph-detail-stat-card:hover {
@@ -1394,11 +1394,11 @@ mark {
 }
 .graph-detail-stat-card span {
   display: block;
-  font-size: 11px;
+  font-size: 10.5px; /* 글씨 크기 축소 */
   color: var(--color-muted);
 }
 .graph-detail-stat-card strong {
-  font-size: 16px;
+  font-size: 14px; /* 글씨 크기 축소 */
   color: var(--color-ink);
 }
 
