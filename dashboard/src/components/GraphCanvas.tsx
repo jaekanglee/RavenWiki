@@ -803,10 +803,27 @@ export function GraphCanvas({
         n.fy = undefined;
       });
       graphInstanceRef.current.cooldownTime(800);
-      graphInstanceRef.current.reheatSimulation();
+      
+      // v0.7.148+: force-graph API 버전에 따른 방어적 시뮬레이션 reheat 처리
+      const graphInst = graphInstanceRef.current;
+      if (typeof graphInst.d3ReheatSimulation === "function") {
+        graphInst.d3ReheatSimulation();
+      } else if (typeof graphInst.reheatSimulation === "function") {
+        graphInst.reheatSimulation();
+      } else if (typeof graphInst.d3AlphaTarget === "function") {
+        graphInst.d3AlphaTarget(0.3);
+        setTimeout(() => {
+          if (graphInstanceRef.current) {
+            graphInstanceRef.current.d3AlphaTarget(0);
+          }
+        }, 120);
+      }
+
       setTimeout(() => {
-        graphInstanceRef.current.zoomToFit(400, 96);
-      }, 100);
+        if (graphInstanceRef.current) {
+          graphInstanceRef.current.zoomToFit(400, 96);
+        }
+      }, 150);
     }
   };
 
