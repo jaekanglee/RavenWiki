@@ -190,6 +190,21 @@ def register_tools(mcp: Any, mode: str) -> None:
             cache_hash=cache_hash,
         )
 
+    # ─── 7.5.5. wiki_get_advice ───
+    @mcp.tool(
+        name="wiki_get_advice",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "List AI network diagnosis advices (e.g. bridge nodes, bloated collections, orphan pages, underlinked nodes) for the vault."
+        ),
+    )
+    def wiki_get_advice(vault: str) -> list[dict]:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.advice import get_advice
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return get_advice(v)
+
     # ─── 7.6. wiki_relations_list ───
     @mcp.tool(
         name="wiki_relations_list",

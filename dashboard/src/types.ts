@@ -67,6 +67,10 @@ export interface GraphNode {
   folder_label?: string;
   importance?: number;
   centrality?: number;
+  layer?: number;
+  freshness?: number;
+  created?: string;
+  updated?: string;
 }
 
 export interface GraphEdge {

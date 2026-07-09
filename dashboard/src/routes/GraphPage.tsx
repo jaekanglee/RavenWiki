@@ -119,12 +119,16 @@ export function GraphPage() {
   const [hoveredInsightType, setHoveredInsightType] = useState<string | null>(null);
   const [showFullGraph, setShowFullGraph] = useState(false);
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound" | "neighbors">("inbound");
+  const [layoutMode, setLayoutMode] = useState<"force" | "concentric" | "domain" | "timeline">("force");
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
   const { query, selectedType, hideOrphans, selectedNodeId, visibleRelations } = filters;
 
-  const resetGraphFilters = () => dispatchFilters({ type: "reset" });
+  const resetGraphFilters = () => {
+    dispatchFilters({ type: "reset" });
+    setLayoutMode("force");
+  };
 
   useEffect(() => {
     setActiveTab("inbound");
@@ -271,6 +275,18 @@ export function GraphPage() {
   const controlsSection = (
     <div className="graph-page-control-grid">
       {/* v0.7.144+: 범위 SelectField 제거 — all-scope 모드 종료. */}
+      <SelectField
+        label="레이아웃 모드"
+        value={layoutMode}
+        onChange={(e) => setLayoutMode(e.target.value as any)}
+        options={[
+          { value: "force", label: "기본 (Force-Directed)" },
+          { value: "concentric", label: "동심원 (Concentric)" },
+          { value: "domain", label: "도메인 (Domain/Community)" },
+          { value: "timeline", label: "타입별 타임라인 (Timeline)" },
+        ]}
+        helper="지식의 관계 구조를 다각도로 분석하기 위한 대체 레이아웃 모드입니다."
+      />
       <TextField
         label="문서 검색"
         value={query}
@@ -650,6 +666,7 @@ export function GraphPage() {
           edges={graph.edges}
           centerTitle={`${vault} 전체 그래프`}
           onClose={() => setShowFullGraph(false)}
+          layoutMode={layoutMode}
         />
       )}
     </div>

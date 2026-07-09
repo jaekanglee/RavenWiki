@@ -28,6 +28,8 @@ interface Props {
   onBackgroundClick?: () => void;
   /** 그래프 캔버스의 용도 (기본형 vs 미니맵용) */
   variant?: "default" | "minimap";
+  /** 그래프 시각화 레이아웃 모드 (기본 force-directed) */
+  layoutMode?: "force" | "concentric" | "domain" | "timeline";
 }
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -255,6 +257,7 @@ export function GraphCanvas({
   onPositionsChange,
   onBackgroundClick,
   variant = "default",
+  layoutMode = "force",
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphInstanceRef = useRef<any>(null);
@@ -408,23 +411,240 @@ export function GraphCanvas({
     const graph = graphInstanceRef.current;
     if (!graph) return;
 
-    // 데이터 가공 (fx/fy 고정으로 FA2 레이아웃 반영 및 뭉침 방지를 위한 스케일 배율 적용)
-    const formattedNodes = nodes.map((n) => {
-      const hasPos = typeof n.x === "number" && typeof n.y === "number";
-      // 좌표가 없는 신규 노드는 (0,0) 주변에 미세한 난수(Jitter)를 주어 시작점으로 설정.
-      // D3 시뮬레이션의 원점이 (0,0)이 되므로 수동 배치 노드와 공간적 일관성 확보.
-      const scaledX = hasPos ? (n.x as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
-      const scaledY = hasPos ? (n.y as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
-      return {
-        ...n,
-        // Keep x/y aligned with the actually rendered force-graph coordinates.
-        // Hit testing also uses x/y, so leaving them unscaled makes taps land away from the visual node.
-        x: scaledX,
-        y: scaledY,
-        fx: hasPos ? scaledX : undefined,
-        fy: hasPos ? scaledY : undefined,
+    // layoutMode에 따라 노드 배치 좌표를 실시간 산출
+    let formattedNodes: any[] = [];
+
+    if (layoutMode === "force") {
+      formattedNodes = nodes.map((n) => {
+        const hasPos = typeof n.x === "number" && typeof n.y === "number";
+        const scaledX = hasPos ? (n.x as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
+        const scaledY = hasPos ? (n.y as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
+        return {
+          ...n,
+          x: scaledX,
+          y: scaledY,
+          fx: hasPos ? scaledX : undefined,
+          fy: hasPos ? scaledY : undefined,
+        };
+      });
+    } else if (layoutMode === "concentric") {
+      // 1) Concentric View: 특정 노드(또는 중요도가 가장 높은 노드)를 중심으로 N촌 동심원 배치
+      const centerId =
+        externalHighlightNodeId && nodes.some(n => n.id === externalHighlightNodeId)
+          ? externalHighlightNodeId
+          : (persistentHighlightNodeId && nodes.some(n => n.id === persistentHighlightNodeId)
+            ? persistentHighlightNodeId
+            : (nodes.length > 0
+              ? [...nodes].sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))[0].id
+              : ""));
+
+      // Adjacency 빌드 (무방향)
+      const adj: Record<string, string[]> = {};
+      nodes.forEach(n => { adj[n.id] = []; });
+      edges.forEach(e => {
+        const u = typeof e.source === "object" ? (e.source as any).id : e.source;
+        const v = typeof e.target === "object" ? (e.target as any).id : e.target;
+        if (adj[u] && adj[v]) {
+          if (!adj[u].includes(v)) adj[u].push(v);
+          if (!adj[v].includes(u)) adj[v].push(u);
+        }
+      });
+
+      // BFS 최단거리 계산
+      const dists: Record<string, number> = {};
+      nodes.forEach(n => { dists[n.id] = 999999; });
+
+      if (centerId && adj[centerId]) {
+        dists[centerId] = 0;
+        const queue = [centerId];
+        let head = 0;
+        while (head < queue.length) {
+          const u = queue[head++];
+          const currentDist = dists[u];
+          for (const v of adj[u]) {
+            if (dists[v] === 999999) {
+              dists[v] = currentDist + 1;
+              queue.push(v);
+            }
+          }
+        }
+      }
+
+      // 거리 그룹화
+      const distanceGroups: Record<number, string[]> = {};
+      nodes.forEach(n => {
+        const d = dists[n.id];
+        distanceGroups[d] ??= [];
+        distanceGroups[d].push(n.id);
+      });
+
+      const nodeCoords: Record<string, { x: number; y: number }> = {};
+      if (centerId) {
+        nodeCoords[centerId] = { x: 0, y: 0 };
+      }
+
+      const sortedDistances = Object.keys(distanceGroups)
+        .map(Number)
+        .filter(d => d > 0 && d !== 999999)
+        .sort((a, b) => a - b);
+
+      sortedDistances.forEach((d) => {
+        const group = distanceGroups[d];
+        const count = group.length;
+        const radius = d * 180;
+        group.forEach((nodeId, idx) => {
+          const theta = (2 * Math.PI * idx) / count;
+          nodeCoords[nodeId] = {
+            x: radius * Math.cos(theta),
+            y: radius * Math.sin(theta),
+          };
+        });
+      });
+
+      const disconnected = distanceGroups[999999] || [];
+      if (disconnected.length > 0) {
+        const maxD = sortedDistances.length > 0 ? sortedDistances[sortedDistances.length - 1] : 0;
+        const radius = (maxD + 1.2) * 190;
+        disconnected.forEach((nodeId, idx) => {
+          const theta = (2 * Math.PI * idx) / disconnected.length;
+          nodeCoords[nodeId] = {
+            x: radius * Math.cos(theta),
+            y: radius * Math.sin(theta),
+          };
+        });
+      }
+
+      formattedNodes = nodes.map((n) => {
+        const coord = nodeCoords[n.id] || { x: 0, y: 0 };
+        return {
+          ...n,
+          x: coord.x,
+          y: coord.y,
+          fx: coord.x,
+          fy: coord.y,
+        };
+      });
+    } else if (layoutMode === "domain") {
+      // 2) Domain View: Louvain community ID별 노드 분산 배치
+      const communities: Record<number, string[]> = {};
+      nodes.forEach((n) => {
+        const c = n.community ?? 0;
+        communities[c] ??= [];
+        communities[c].push(n.id);
+      });
+
+      const communityIds = Object.keys(communities).map(Number).sort((a, b) => a - b);
+      const K = communityIds.length;
+
+      const centerCoords: Record<number, { x: number; y: number }> = {};
+      if (K <= 1) {
+        centerCoords[communityIds[0] ?? 0] = { x: 0, y: 0 };
+      } else {
+        const ringRadius = Math.max(300, K * 75);
+        communityIds.forEach((cid, idx) => {
+          const theta = (2 * Math.PI * idx) / K;
+          centerCoords[cid] = {
+            x: ringRadius * Math.cos(theta),
+            y: ringRadius * Math.sin(theta),
+          };
+        });
+      }
+
+      const nodeCoords: Record<string, { x: number; y: number }> = {};
+      communityIds.forEach((cid) => {
+        const group = communities[cid];
+        const count = group.length;
+        const center = centerCoords[cid];
+        const clusterRadius = 45 + Math.sqrt(count) * 15;
+
+        group.forEach((nodeId, idx) => {
+          if (count === 1) {
+            nodeCoords[nodeId] = { x: center.x, y: center.y };
+          } else {
+            const theta = (2 * Math.PI * idx) / count;
+            nodeCoords[nodeId] = {
+              x: center.x + clusterRadius * Math.cos(theta),
+              y: center.y + clusterRadius * Math.sin(theta),
+            };
+          }
+        });
+      });
+
+      formattedNodes = nodes.map((n) => {
+        const coord = nodeCoords[n.id] || { x: 0, y: 0 };
+        return {
+          ...n,
+          x: coord.x,
+          y: coord.y,
+          fx: coord.x,
+          fy: coord.y,
+        };
+      });
+    } else if (layoutMode === "timeline") {
+      // 3) Timeline View: 작성일/수정일 기준 가로 축 정렬 배치
+      const parseDate = (dateStr: string | undefined): number => {
+        if (!dateStr) return 0;
+        try {
+          const clean = dateStr.trim().substring(0, 10);
+          return Date.parse(clean) || 0;
+        } catch {
+          return 0;
+        }
       };
-    });
+
+      const nowTime = Date.now();
+      const nodeTimes = nodes.map((n) => {
+        let t = parseDate(n.created) || parseDate(n.updated) || nowTime;
+        return { id: n.id, time: t };
+      });
+
+      const times = nodeTimes.map((nt) => nt.time);
+      const minTime = times.length > 0 ? Math.min(...times) : nowTime;
+      const maxTime = times.length > 0 ? Math.max(...times) : nowTime;
+      const timeDiff = maxTime - minTime || 1;
+
+      const xStart = -450;
+      const xEnd = 450;
+
+      const nodeCoords: Record<string, { x: number; y: number }> = {};
+      const typeYOffsets: Record<string, number> = {
+        concept: 150,
+        project: 75,
+        rule: 0,
+        journal: -75,
+        issue: -150,
+      };
+
+      const typeIndices: Record<string, number> = {};
+
+      nodes.forEach((n) => {
+        const nt = nodeTimes.find((x) => x.id === n.id);
+        const time = nt ? nt.time : nowTime;
+        const x = xStart + ((time - minTime) / timeDiff) * (xEnd - xStart);
+
+        const type = n.type || "other";
+        typeIndices[type] ??= 0;
+        const index = typeIndices[type]++;
+
+        const baseY = typeYOffsets[type] !== undefined ? typeYOffsets[type] : -220;
+        const offsetSign = index % 2 === 0 ? 1 : -1;
+        const yOffset = offsetSign * (15 + (index % 3) * 10);
+        const y = baseY + yOffset;
+
+        nodeCoords[n.id] = { x, y };
+      });
+
+      formattedNodes = nodes.map((n) => {
+        const coord = nodeCoords[n.id] || { x: 0, y: 0 };
+        return {
+          ...n,
+          x: coord.x,
+          y: coord.y,
+          fx: coord.x,
+          fy: coord.y,
+        };
+      });
+    }
 
     const formattedLinks = edges.map((e, idx) => ({
       id: `e${idx}`,
@@ -860,12 +1080,127 @@ export function GraphCanvas({
     graph.onRenderFramePre((ctx: CanvasRenderingContext2D, globalScale: number) => {
       const scale = globalScale || 1;
       
-      // [개선] HUD 노출 줌 레벨을 0.75 이하로 제한 (줌 100% 근처 및 이상에서는 HUD 완벽 제거)
-      // scale = 0.75 일 때 opacity = 0, scale = 0.5 일 때 opacity = 1
+      // 1. Domain View일 때 커뮤니티별 반투명 구획(Onion bound) 그리기
+      if (layoutMode === "domain") {
+        const groupStats: Record<number, { xSum: number; ySum: number; count: number; xMin: number; xMax: number; yMin: number; yMax: number }> = {};
+        const currentNodes = graph.graphData().nodes;
+        
+        currentNodes.forEach((node: any) => {
+          const c = node.community ?? 0;
+          if (!groupStats[c]) {
+            groupStats[c] = { xSum: 0, ySum: 0, count: 0, xMin: 99999, xMax: -99999, yMin: 99999, yMax: -99999 };
+          }
+          groupStats[c].xSum += node.x;
+          groupStats[c].ySum += node.y;
+          groupStats[c].count += 1;
+          if (node.x < groupStats[c].xMin) groupStats[c].xMin = node.x;
+          if (node.x > groupStats[c].xMax) groupStats[c].xMax = node.x;
+          if (node.y < groupStats[c].yMin) groupStats[c].yMin = node.y;
+          if (node.y > groupStats[c].yMax) groupStats[c].yMax = node.y;
+        });
+
+        ctx.save();
+        const COMMUNITY_COLORS = ["#3b82f6", "#ef4444", "#a855f7", "#10b981", "#f59e0b", "#ec4899", "#14b8a6", "#6366f1", "#8b5cf6", "#f97316"];
+        for (const cidStr in groupStats) {
+          const cid = Number(cidStr);
+          const stat = groupStats[cid];
+          if (stat.count === 0) continue;
+          const cx = stat.xSum / stat.count;
+          const cy = stat.ySum / stat.count;
+          
+          const dx = stat.xMax - stat.xMin;
+          const dy = stat.yMax - stat.yMin;
+          const radius = Math.max(38, Math.hypot(dx, dy) / 2 + 35);
+          
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+          const color = COMMUNITY_COLORS[cid % COMMUNITY_COLORS.length];
+          ctx.fillStyle = hexToRgba(color, 0.04);
+          ctx.fill();
+          ctx.lineWidth = 0.8 / scale;
+          ctx.strokeStyle = hexToRgba(color, 0.18);
+          ctx.stroke();
+
+          ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.45;
+          ctx.textAlign = "center";
+          ctx.fillText(`Community ${cid}`, cx, cy - radius - 6 / scale);
+        }
+        ctx.restore();
+        return;
+      }
+
+      // 2. Timeline View일 때 가이드 라인 그리기
+      if (layoutMode === "timeline" && nodes.length > 0) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+        ctx.lineWidth = 0.8 / scale;
+        ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
+        ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
+        
+        const typeYOffsets: Record<string, number> = {
+          concept: 150,
+          project: 75,
+          rule: 0,
+          journal: -75,
+          issue: -150,
+        };
+        
+        for (const [typeName, yVal] of Object.entries(typeYOffsets)) {
+          ctx.beginPath();
+          ctx.moveTo(-500, yVal);
+          ctx.lineTo(500, yVal);
+          ctx.stroke();
+          
+          ctx.textAlign = "left";
+          ctx.fillText(typeLabel(typeName) || typeName, -485, yVal - 8 / scale);
+        }
+
+        const xStart = -450;
+        const xEnd = 450;
+        
+        const parseDate = (dateStr: string | undefined): number => {
+          if (!dateStr) return 0;
+          try {
+            const clean = dateStr.trim().substring(0, 10);
+            return Date.parse(clean) || 0;
+          } catch {
+            return 0;
+          }
+        };
+
+        const nowTime = Date.now();
+        const times = nodes.map(n => {
+          return parseDate(n.created) || parseDate(n.updated) || nowTime;
+        });
+        const minTime = Math.min(...times);
+        const maxTime = Math.max(...times);
+        const timeDiff = maxTime - minTime || 1;
+
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.06)";
+        for (let i = 0; i <= 4; i++) {
+          const ratio = i / 4;
+          const x = xStart + ratio * (xEnd - xStart);
+          const tVal = minTime + ratio * timeDiff;
+          const dateStr = new Date(tVal).toISOString().split("T")[0];
+          
+          ctx.beginPath();
+          ctx.moveTo(x, -250);
+          ctx.lineTo(x, 200);
+          ctx.stroke();
+          
+          ctx.textAlign = "center";
+          ctx.fillText(dateStr, x, 215 / scale);
+        }
+        ctx.restore();
+        return;
+      }
+
+      // 3. Force-directed 모드일 때 Centroid LOD HUD 라벨 연산
       const labelOpacity = Math.max(0, Math.min(1, (0.75 - scale) / 0.25));
       if (labelOpacity <= 0.05) return;
 
-      // 1. 실시간 Centroid 연산
       const groupCoords: Record<string, { xSum: number; ySum: number; count: number; label: string }> = {};
       const currentNodes = graph.graphData().nodes;
       
@@ -880,30 +1215,20 @@ export function GraphCanvas({
         groupCoords[gid].count += 1;
       }
 
-      // 2. HUD 라벨 그리기 (단순 텍스트 + 테마 변수)
       ctx.save();
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      const totalNodes = currentNodes.length || 1;
-
       for (const gid in groupCoords) {
         const data = groupCoords[gid];
-        if (data.count === 0) continue;
-        
-        // [A안] 노드 개수가 5개 미만인 지극히 작은 소수 그룹(root, _meta 등)은 HUD 라벨 그리기 생략해 잡음 제거
         if (data.count < 5) continue;
 
         const cx = data.xSum / data.count;
         const cy = data.ySum / data.count;
-        
-        // centroid보다 위쪽으로 약간 이동 (y 오프셋)
         const drawY = cy - 24 / scale;
 
         const labelText = data.label;
         const isContent = gid === "content";
-        
-        // [B안 + alpha] 지배적 content의 opacity를 0.24로 살짝 올리고, meta/root/raw 등은 0.16 이하로 약화
         const targetGroupAlpha = isContent ? 0.24 : 0.16;
         const textOpacity = labelOpacity * targetGroupAlpha;
         
@@ -914,7 +1239,6 @@ export function GraphCanvas({
 
         ctx.font = `600 ${fontSize}px ${HUD_LABEL_FONT}`;
 
-        // 텍스트 시인성 확보를 위한 뒷배경 outline 효과 (테마 변수)
         ctx.fillStyle = resolvedBgColorRef.current;
         ctx.globalAlpha = textOpacity * 0.75;
         for (let dx = -1.5; dx <= 1.5; dx += 1.5) {
@@ -925,7 +1249,6 @@ export function GraphCanvas({
           }
         }
 
-        // 본문 텍스트 (테마 변수)
         ctx.fillStyle = resolvedLabelColorRef.current;
         ctx.globalAlpha = textOpacity;
         ctx.fillText(labelText, cx, drawY);
@@ -966,21 +1289,19 @@ export function GraphCanvas({
       container?.removeEventListener("touchend", handleTouchEnd);
       container?.removeEventListener("touchcancel", handleTouchCancel);
       if (graphInstanceRef.current) {
-        graphInstanceRef.current.onRenderFramePre(() => {}); // cleanup 콜백 (타입 안정 no-op)
+        graphInstanceRef.current.onRenderFramePre(() => {});
       }
     };
   }, [
     nodes,
     edges,
     isDense,
-    // v0.7.144+: vaultCentroids 의존성 완전히 제거 (all-scope 모드 종료).
-    // v0.7.139+: hoveredNode/highlightNodes/highlightLinks는 ref 기반이라 effect deps에서 제외.
-    // hover 시 effect가 재실행되지 않아 — 캔버스 pan/zoom 위치가 유지되고 클릭이 무효화되지 않음.
     externalHighlightNodeId,
     persistentHighlightNodeId,
     externalHighlightType,
     onNodeInspect,
     onPositionsChange,
+    layoutMode,
   ]);
 
   const fitGraph = () => {

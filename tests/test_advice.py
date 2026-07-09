@@ -84,3 +84,12 @@ Bridge
     assert len(orphan_advices) > 0
     assert "Orphan Page" in orphan_advices[0]["message"]
     assert orphan_advices[0]["slug"] == "content/orphan-page"
+
+
+def test_mcp_wiki_get_advice_registered() -> None:
+    """MCP 진입점에서 wiki_get_advice가 정상적으로 등록되었는지 검증합니다."""
+    from raven.mcp import cli as cli_module
+    assert hasattr(cli_module, "register_tools")
+    import inspect
+    source = inspect.getsource(cli_module.register_tools)
+    assert "wiki_get_advice" in source

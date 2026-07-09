@@ -10,6 +10,7 @@ interface FullscreenGraphModalProps {
   currentNodeId?: string | null;
   centerTitle: string;
   onClose: () => void;
+  layoutMode?: "force" | "concentric" | "domain" | "timeline";
 }
 
 /**
@@ -24,6 +25,7 @@ export function FullscreenGraphModal({
   currentNodeId,
   centerTitle,
   onClose,
+  layoutMode,
 }: FullscreenGraphModalProps) {
   // Escape closes the modal; lock body scroll while open.
   useEffect(() => {
@@ -75,6 +77,7 @@ export function FullscreenGraphModal({
             persistentHighlightNodeId={currentNodeId}
             onNodeClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
+            layoutMode={layoutMode}
           />
         </div>
         <footer className="fullscreen-graph-modal-footer">

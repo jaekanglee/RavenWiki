@@ -160,9 +160,9 @@ def db_schema_drift(vault: Vault) -> bool:
             ).fetchone()
             if fts_exists is None:
                 return True
-            # 4. pages table must have importance, centrality, community columns.
+            # 4. pages table must have importance, centrality, community, layer, freshness columns.
             pages_cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)").fetchall()}
-            if not {"importance", "centrality", "community"}.issubset(pages_cols):
+            if not {"importance", "centrality", "community", "layer", "freshness"}.issubset(pages_cols):
                 return True
             return False
         finally:
@@ -271,7 +271,9 @@ CREATE TABLE pages (
   raw_content TEXT NOT NULL,
   importance REAL DEFAULT 0.0,
   centrality REAL DEFAULT 0.0,
-  community INTEGER DEFAULT 0
+  community INTEGER DEFAULT 0,
+  layer REAL DEFAULT 0.0,
+  freshness REAL DEFAULT 0.0
 );
 CREATE TABLE tags (
   page_slug TEXT NOT NULL, tag TEXT NOT NULL,
