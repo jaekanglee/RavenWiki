@@ -2253,6 +2253,95 @@ mark {
   width: 100%;
   height: 100%;
 }
+
+/* GraphCanvas 공통 툴바 & 버튼 */
+.graph-canvas-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: var(--graph-canvas-bg);
+  overflow: hidden;
+}
+
+.graph-canvas-toolbar {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.graph-canvas-btn {
+  border: 1px solid var(--graph-border);
+  background: var(--graph-surface);
+  color: var(--graph-text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+
+.graph-canvas-btn:hover {
+  background: var(--graph-surface-strong);
+  border-color: var(--graph-border-hover, var(--graph-border));
+  transform: scale(1.05);
+}
+
+.graph-canvas-btn:active {
+  transform: scale(0.95);
+}
+
+.graph-canvas-zoom-label {
+  border: 1px solid var(--graph-border);
+  background: var(--graph-surface);
+  color: var(--graph-text);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  cursor: default;
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+}
+
+/* 미니맵(variant="minimap") 특화 스타일 */
+.graph-canvas-container.is-minimap .graph-canvas-toolbar {
+  flex-direction: column;
+  right: 8px;
+  top: 8px;
+  gap: 6px;
+  opacity: 0.15;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+
+.graph-canvas-container.is-minimap:hover .graph-canvas-toolbar {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.graph-canvas-container.is-minimap .graph-canvas-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 13px;
+}
 .floating-graph-panel-actions {
   display: flex;
   justify-content: flex-end;

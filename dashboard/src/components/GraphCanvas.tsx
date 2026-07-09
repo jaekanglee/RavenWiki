@@ -26,6 +26,8 @@ interface Props {
   onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void;
   /** 캔버스 빈 공간 클릭 시 호출 */
   onBackgroundClick?: () => void;
+  /** 그래프 캔버스의 용도 (기본형 vs 미니맵용) */
+  variant?: "default" | "minimap";
 }
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -194,17 +196,7 @@ function hexToRgba(hex: string, alpha: number): string {
 // rounded-rect 헬퍼 제거 — v0.7.139+: onRenderFramePre에서 그리던 vault halo 박스를
 // 삭제하면서 호출처가 사라졌다. 향후 다른 캔버스 도형이 필요하면 재도입.
 
-const graphButtonStyle = {
-  border: "1px solid var(--graph-border)",
-  background: "var(--graph-surface)",
-  color: "var(--graph-text)",
-  borderRadius: 999,
-  padding: "6px 10px",
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: "pointer",
-  backdropFilter: "blur(8px)",
-} as const;
+
 
 const GRAPH_LABEL_FONT = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const HUD_LABEL_FONT = GRAPH_LABEL_FONT;
@@ -224,6 +216,7 @@ export function GraphCanvas({
   density = "normal",
   onPositionsChange,
   onBackgroundClick,
+  variant = "default",
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphInstanceRef = useRef<any>(null);
@@ -846,15 +839,11 @@ export function GraphCanvas({
   const zoomPercent = Math.round(zoomLevel * 100);
   const zoomLabel = `${zoomPercent}%`;
 
+  const isMinimap = variant === "minimap";
+
   return (
     <div
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "relative",
-        background: "var(--graph-canvas-bg)",
-        overflow: "hidden",
-      }}
+      className={`graph-canvas-container${isMinimap ? " is-minimap" : ""}`}
     >
       {isJSDOM ? (
         <div data-testid="graph-canvas-mock" style={{ color: "var(--graph-text)", padding: 20 }}>
@@ -870,65 +859,51 @@ export function GraphCanvas({
       )}
 
       {/* 툴바 컨트롤 레이어 */}
-      <div
-        style={{
-          position: "absolute",
-          right: 12,
-          top: 12,
-          zIndex: 10,
-          display: "flex",
-          gap: 8,
-          pointerEvents: "auto",
-        }}
-      >
+      <div className="graph-canvas-toolbar">
         {onFullscreen && (
           <button
             type="button"
             onClick={onFullscreen}
-            style={graphButtonStyle}
+            className="graph-canvas-btn"
             aria-label="그래프 전체보기"
             title="팝업으로 크게 보기"
           >
-            전체보기
+            {isMinimap ? "⛶" : "전체보기"}
           </button>
         )}
         <button
           type="button"
           onClick={fitGraph}
-          style={graphButtonStyle}
+          className="graph-canvas-btn"
           aria-label="그래프 화면 맞춤"
           title="배치를 초기화하고 모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
         >
-          맞춤
+          {isMinimap ? "⌖" : "맞춤"}
         </button>
         {/* v0.7.139+: 줌 컨트롤 (− / 배율 / +). 모바일/데스크탑 공통 */}
         <button
           type="button"
           onClick={zoomOut}
-          style={{ ...graphButtonStyle, minWidth: 32, padding: "6px 8px" }}
+          className="graph-canvas-btn"
           aria-label="그래프 축소"
           title="축소 (단축키: −)"
         >
           −
         </button>
-        <span
-          aria-live="polite"
-          style={{
-            ...graphButtonStyle,
-            cursor: "default",
-            minWidth: 52,
-            textAlign: "center",
-            fontVariantNumeric: "tabular-nums",
-          }}
-          title={`현재 줌 배율 — 더블클릭으로 100%로 리셋`}
-          onDoubleClick={() => graphInstanceRef.current?.zoomTo(1, 200)}
-        >
-          {zoomLabel}
-        </span>
+        {!isMinimap && (
+          <span
+            aria-live="polite"
+            className="graph-canvas-zoom-label"
+            title={`현재 줌 배율 — 더블클릭으로 100%로 리셋`}
+            onDoubleClick={() => graphInstanceRef.current?.zoomTo(1, 200)}
+          >
+            {zoomLabel}
+          </span>
+        )}
         <button
           type="button"
           onClick={zoomIn}
-          style={{ ...graphButtonStyle, minWidth: 32, padding: "6px 8px" }}
+          className="graph-canvas-btn"
           aria-label="그래프 확대"
           title="확대 (단축키: +)"
         >

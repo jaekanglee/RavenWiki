@@ -28,7 +28,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "docker-compose.yml"
-ENV_EXAMPLE = ROOT / ".env.example"
+ENV_EXAMPLE_HOUSE = ROOT / ".env.example.house"
+ENV_EXAMPLE_COMPANY = ROOT / ".env.example.company"
 
 
 def test_api_service_uses_bind_mount() -> None:
@@ -49,11 +50,11 @@ def test_mcp_service_uses_bind_mount() -> None:
 
 
 def test_env_example_default_vault_path() -> None:
-    """.env.example = RAVEN_VAULTS_DIR = 호스트 외부 경로 (사용자 vault 위치)."""
-    content = ENV_EXAMPLE.read_text(encoding="utf-8")
-    # ~/Raven (외부 경로) 검증 — 절대경로 또는 ${HOME}/Raven
-    assert "/Users/jaekanglee/Raven" in content or "${HOME}/Raven" in content, \
-        ".env.example must default to ~/Raven (외부 vault 경로)"
+    """.env.example.* = RAVEN_VAULTS_DIR = 호스트 외부 경로 (사용자 vault 위치)."""
+    for path in (ENV_EXAMPLE_HOUSE, ENV_EXAMPLE_COMPANY):
+        content = path.read_text(encoding="utf-8")
+        assert "/Users/jaekanglee/Raven" in content or "${HOME}/Raven" in content, \
+            f"{path.name} must default to ~/Raven (외부 vault 경로)"
 
 
 def test_no_named_docker_volume() -> None:

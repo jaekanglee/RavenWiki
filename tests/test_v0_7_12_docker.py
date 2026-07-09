@@ -18,7 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = ROOT / "Dockerfile"
 COMPOSE = ROOT / "docker-compose.yml"
-ENV_EXAMPLE = ROOT / ".env.example"
+ENV_EXAMPLE_HOUSE = ROOT / ".env.example.house"
+ENV_EXAMPLE_COMPANY = ROOT / ".env.example.company"
 DOCKERIGNORE = ROOT / ".dockerignore"
 ENTRYPOINT = ROOT / "scripts" / "docker-entrypoint.sh"
 
@@ -85,11 +86,12 @@ def test_compose_mounts_user_vault_path() -> None:
 
 
 def test_env_example_default_vault_path() -> None:
-    """.env.example = RAVEN_VAULTS_DIR = 호스트 외부 경로 ~/Raven (외부 경로)."""
-    content = ENV_EXAMPLE.read_text(encoding="utf-8")
-    assert "RAVEN_VAULTS_DIR=/Users/jaekanglee/Raven" in content or \
-           "RAVEN_VAULTS_DIR=${HOME}/Raven" in content, \
-        ".env.example must default to ~/Raven (외부 vault 경로)"
+    """.env.example.* = RAVEN_VAULTS_DIR = 호스트 외부 경로 ~/Raven (외부 경로)."""
+    for path in (ENV_EXAMPLE_HOUSE, ENV_EXAMPLE_COMPANY):
+        content = path.read_text(encoding="utf-8")
+        assert "RAVEN_VAULTS_DIR=/Users/jaekanglee/Raven" in content or \
+               "RAVEN_VAULTS_DIR=${HOME}/Raven" in content, \
+            f"{path.name} must default to ~/Raven (외부 vault 경로)"
 
 
 def test_dockerignore_excludes_dev_artifacts() -> None:
