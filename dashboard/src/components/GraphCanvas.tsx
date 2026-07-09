@@ -342,13 +342,12 @@ export function GraphCanvas({
     const graph = (ForceGraphConstructor as any)()(containerRef.current);
     graphInstanceRef.current = graph;
 
-    // 초기 물리 설정 제거 (정적 레이아웃 사용)
-    graph.d3Force("charge", null);
-    graph.d3Force("link", null);
-    graph.d3Force("center", null);
+    // v0.7.149+: D3 center force를 유지하여 그래프 원점 (0,0) 정렬 및 2사분면 쏠림 방지.
+    // charge 및 link 힘도 살려두어, 좌표가 고정되지 않은 신규 노드들이 뭉치지 않고 예쁘게 흩어지도록 연동.
+    // 단, 정적 레이아웃 기본 유지를 위해 평소 물리 연산 쿨다운은 0으로 제한.
+    graph.cooldownTime(0); // 물리 애니메이션 냉각 단축
 
     // 인터랙션 기본 설정
-    graph.cooldownTime(0); // 물리 애니메이션 냉각 단축
     graph.enableZoomInteraction(true);
     graph.enablePanInteraction(true);
 
