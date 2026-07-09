@@ -1,0 +1,10 @@
+name: depends_on
+inverse: null
+allowed:
+  - source_type: concept
+    target_type: concept
+  - source_type: implementation
+    target_type: implementation
+description: >
+  한 요소가 작동하기 위해 다른 요소가 반드시 전제되어야 함을 나타냅니다.
+  예를 들어, 특정 비즈니스 로직(implementation)이 클린 아키텍처 규칙(concept)에 의존하는 경우 'Domain depends_on Clean Architecture'로 연결할 수 있습니다.

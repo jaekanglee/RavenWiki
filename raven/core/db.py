@@ -279,6 +279,20 @@ CREATE TABLE links (
   FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
 );
 CREATE INDEX idx_links_target ON links(target_slug);
+CREATE TABLE relations (
+  source_slug TEXT NOT NULL,
+  target_slug TEXT NOT NULL,
+  relation_type TEXT NOT NULL,
+  confidence_semantic REAL,
+  confidence_structural REAL,
+  confidence_provenance REAL,
+  verified_by TEXT,
+  evidence TEXT,
+  reason TEXT,
+  PRIMARY KEY (source_slug, target_slug, relation_type),
+  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
+);
+CREATE INDEX idx_relations_target ON relations(target_slug);
 CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, tags_concat, content);
 CREATE VIEW v_backlinks AS
   SELECT l.target_slug AS slug, l.source_slug, p.title AS source_title,
@@ -350,6 +364,44 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
             "VALUES (last_insert_rowid(), ?, ?, ?, ?)",
             (slug, title, " ".join(str(t) for t in tags) if isinstance(tags, (list, tuple)) else "", body),
         )
+        relations = meta.get("relations") or []
+        if isinstance(relations, list):
+            import json
+            for rel in relations:
+                if not isinstance(rel, dict):
+                    continue
+                rel_type = rel.get("type")
+                target = rel.get("target")
+                if not rel_type or not target:
+                    continue
+
+                conf = rel.get("confidence")
+                conf_sem = None
+                conf_str = None
+                conf_prov = None
+                if isinstance(conf, dict):
+                    conf_sem = conf.get("semantic")
+                    conf_str = conf.get("structural")
+                    conf_prov = conf.get("provenance")
+                elif conf is not None:
+                    conf_sem = conf
+
+                verified = rel.get("verified_by")
+                if isinstance(verified, list):
+                    verified_by_str = ", ".join(str(v) for v in verified)
+                else:
+                    verified_by_str = str(verified) if verified is not None else None
+
+                ev = rel.get("evidence")
+                evidence_str = json.dumps(ev) if ev is not None else None
+                reason = rel.get("reason")
+
+                con.execute(
+                    "INSERT OR REPLACE INTO relations (source_slug, target_slug, relation_type, "
+                    "confidence_semantic, confidence_structural, confidence_provenance, "
+                    "verified_by, evidence, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (slug, target, rel_type, conf_sem, conf_str, conf_prov, verified_by_str, evidence_str, reason),
+                )
         n_pages += 1
     con.commit()
     con.close()

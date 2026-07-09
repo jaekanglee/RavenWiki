@@ -1,0 +1,8 @@
+name: related
+inverse: related
+allowed:
+  - source_type: "*"
+    target_type: "*"
+description: >
+  두 요소 간의 단순한 의미적/키워드적 연관 관계를 나타냅니다.
+  어떤 타입의 문서든 상관없이 서로 연관성이 있을 때 사용할 수 있습니다.

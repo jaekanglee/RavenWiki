@@ -1,0 +1,10 @@
+name: implemented_by
+inverse: implements
+allowed:
+  - source_type: feature
+    target_type: implementation
+  - source_type: concept
+    target_type: tool
+description: >
+  implements의 역방향 관계로, 어떤 기능이나 개념이 구체적인 구현체나 도구에 의해 실체화됨을 나타냅니다.
+  예를 들어, Authentication(feature)이 AuthRepository(implementation)에 의해 구현되는 경우 'Authentication implemented_by AuthRepository'로 연결할 수 있습니다.
