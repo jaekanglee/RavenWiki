@@ -33,8 +33,8 @@ echo "✅ vault root 준비: $RAVEN_VAULTS_DIR"
 cd "$APP_DIR"
 
 if [[ ! -f .env ]]; then
-    cp .env.example .env
-    echo "✅ .env 생성"
+    cp .env.example.house .env
+    echo "✅ .env 생성 (집/개인 프로필 기준 — 팀과 함께 쓰는 사내망이면 .env.example.company 참고해 직접 조정할 것)"
 fi
 
 python3 - "$APP_DIR/.env" "$RAVEN_VAULTS_DIR" <<'PY'
