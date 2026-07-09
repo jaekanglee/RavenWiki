@@ -868,7 +868,7 @@ export function GraphCanvas({
             aria-label="그래프 전체보기"
             title="팝업으로 크게 보기"
           >
-            {isMinimap ? "⛶" : "전체보기"}
+            {isMinimap ? "전체" : "전체보기"}
           </button>
         )}
         <button
@@ -878,28 +878,9 @@ export function GraphCanvas({
           aria-label="그래프 화면 맞춤"
           title="배치를 초기화하고 모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
         >
-          {isMinimap ? "⌖" : "맞춤"}
+          맞춤
         </button>
-        {/* v0.7.139+: 줌 컨트롤 (− / 배율 / +). 모바일/데스크탑 공통 */}
-        <button
-          type="button"
-          onClick={zoomOut}
-          className="graph-canvas-btn"
-          aria-label="그래프 축소"
-          title="축소 (단축키: −)"
-        >
-          −
-        </button>
-        {!isMinimap && (
-          <span
-            aria-live="polite"
-            className="graph-canvas-zoom-label"
-            title={`현재 줌 배율 — 더블클릭으로 100%로 리셋`}
-            onDoubleClick={() => graphInstanceRef.current?.zoomTo(1, 200)}
-          >
-            {zoomLabel}
-          </span>
-        )}
+        {/* v0.7.139+: 줌 컨트롤 순서: + / 배율% / − (미니맵 포함 항상 표시) */}
         <button
           type="button"
           onClick={zoomIn}
@@ -909,6 +890,24 @@ export function GraphCanvas({
         >
           +
         </button>
+        <span
+          aria-live="polite"
+          className="graph-canvas-zoom-label"
+          title={`현재 줌 배율 — 더블클릭으로 100%로 리셋`}
+          onDoubleClick={() => graphInstanceRef.current?.zoomTo(1, 200)}
+        >
+          {zoomLabel}
+        </span>
+        <button
+          type="button"
+          onClick={zoomOut}
+          className="graph-canvas-btn"
+          aria-label="그래프 축소"
+          title="축소 (단축키: −)"
+        >
+          −
+        </button>
+
       </div>
     </div>
   );
