@@ -196,6 +196,7 @@ export function PageView() {
   // the user navigates away and back.
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [hoveredRelKey, setHoveredRelKey] = useState<string | null>(null);
   
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
@@ -277,6 +278,7 @@ export function PageView() {
           content: d.content,
           backlinks: d.backlinks || [],
           issueStatus: fm.issue_status || "",
+          relations: fm.relations || [],
         });
         console.log("[Raven-Debug] setPage done");
       })
@@ -704,6 +706,184 @@ export function PageView() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 의미 관계 (Relations) 섹션 */}
+        {page.relations && page.relations.length > 0 && (
+          <div
+            style={{
+              marginTop: "32px",
+              padding: "20px",
+              border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
+              borderRadius: "8px",
+              backgroundColor: "var(--bg-surface, #fff)",
+              boxShadow: "0 1.5px 4px rgba(0,0,0,0.05)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "var(--fg-ink, #000)",
+                fontFamily: "var(--font-display)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                borderBottom: "1px solid var(--color-hairline, rgba(0,0,0,0.08))",
+                paddingBottom: "8px",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: "var(--fg-muted)" }}
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              문서 의미 관계 (Relations)
+            </h3>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {(() => {
+                const categories = [
+                  { key: "uses", label: "Uses (사용함)" },
+                  { key: "depends_on", label: "Depends on (의존함)" },
+                  { key: "implements", label: "Implements (구현함)" },
+                  { key: "implemented_by", label: "Implemented by (구현체)" },
+                  { key: "related", label: "Related (연관)" }
+                ];
+                
+                return categories.map(({ key, label }) => {
+                  const filtered = page.relations!.filter(r => r.type === key);
+                  if (filtered.length === 0) return null;
+                  
+                  return (
+                    <div key={key} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "var(--color-primary, #3b82f6)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                        {filtered.map((rel, idx) => {
+                          const resolved = resolveGraphId(graph, rel.target) ?? rel.target;
+                          const node = graph.nodes.find((n) => n.id === resolved);
+                          const title = node?.title ?? rel.target;
+                          const evidenceStr = rel.evidence
+                            ? (Array.isArray(rel.evidence) ? rel.evidence.join(", ") : rel.evidence)
+                            : "";
+                          const relKey = `${key}-${idx}`;
+                          const isHovered = hoveredRelKey === relKey;
+                          
+                          return (
+                            <div
+                              key={idx}
+                              style={{ position: "relative", display: "inline-block" }}
+                              onMouseEnter={() => setHoveredRelKey(relKey)}
+                              onMouseLeave={() => setHoveredRelKey(null)}
+                            >
+                              <button
+                                type="button"
+                                className="page-related-chip"
+                                onClick={() => navigate(`/page/${vault}/${resolved}`)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "6px 12px",
+                                  borderRadius: "6px",
+                                  border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
+                                  backgroundColor: "var(--color-surface-soft, rgba(0,0,0,0.02))",
+                                  fontSize: "13px",
+                                  color: "var(--fg-ink, #222)",
+                                  cursor: "pointer",
+                                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))";
+                                  e.currentTarget.style.transform = "translateY(-1px)";
+                                  e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = "var(--color-surface-soft, rgba(0,0,0,0.02))";
+                                  e.currentTarget.style.transform = "none";
+                                  e.currentTarget.style.boxShadow = "none";
+                                }}
+                              >
+                                <span>{title}</span>
+                              </button>
+                              
+                              {/* Hover tooltip for evidence & reason */}
+                              {(evidenceStr || rel.reason) && (
+                                <div
+                                  style={{
+                                    visibility: isHovered ? "visible" : "hidden",
+                                    width: "280px",
+                                    backgroundColor: "var(--color-ink, #1f2937)",
+                                    color: "#fff",
+                                    textAlign: "left",
+                                    borderRadius: "8px",
+                                    padding: "12px",
+                                    position: "absolute",
+                                    zIndex: 100,
+                                    bottom: "125%",
+                                    left: "50%",
+                                    marginLeft: "-140px",
+                                    opacity: isHovered ? 1 : 0,
+                                    transition: "opacity 0.2s, visibility 0.2s",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                                    fontSize: "12px",
+                                    pointerEvents: "none",
+                                    lineHeight: "1.4",
+                                  }}
+                                >
+                                  {rel.reason && (
+                                    <div style={{ marginBottom: evidenceStr ? "6px" : "0" }}>
+                                      <strong style={{ color: "var(--color-primary-light, #93c5fd)" }}>이유:</strong> {rel.reason}
+                                    </div>
+                                  )}
+                                  {evidenceStr && (
+                                    <div>
+                                      <strong style={{ color: "var(--color-success, #34d399)" }}>근거:</strong> {evidenceStr}
+                                    </div>
+                                  )}
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "100%",
+                                      left: "50%",
+                                      marginLeft: "-6px",
+                                      borderWidth: "6px",
+                                      borderStyle: "solid",
+                                      borderColor: "var(--color-ink, #1f2937) transparent transparent transparent",
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </div>
         )}
 

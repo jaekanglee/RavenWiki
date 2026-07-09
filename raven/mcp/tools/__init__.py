@@ -37,7 +37,13 @@ WRITE = "write"
 ADMIN = "admin"
 
 # Tools that require --write (mutate content)
-WRITE_TOOLS: frozenset[str] = frozenset({"wiki_update", "wiki_ingest", "wiki_archive"})
+WRITE_TOOLS: frozenset[str] = frozenset({
+    "wiki_update",
+    "wiki_ingest",
+    "wiki_archive",
+    "wiki_relation_add",
+    "wiki_relation_remove",
+})
 
 # Tools that require --admin (destructive)
 ADMIN_TOOLS: frozenset[str] = frozenset({"wiki_delete", "wiki_rename"})

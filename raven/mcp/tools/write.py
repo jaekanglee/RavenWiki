@@ -940,3 +940,446 @@ def wiki_rename(
         extras=[f"wikilinks_rewritten: {result.rewritten_files}"],
         slugs=[old_slug, new_slug],
     )
+
+
+# ─────────────── 10. wiki_relation_add ───────────────
+
+
+def wiki_relation_add(
+    source_slug: str,
+    target_slug: str,
+    relation_type: str,
+    evidence: list[str] | str,
+    reason: str,
+    confidence: Optional[dict | float] = None,
+    verified_by: Optional[list[str] | str] = None,
+    ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
+) -> dict:
+    """Add or update a semantic relation in a page's frontmatter.
+
+    Args:
+        source_slug: source page slug
+        target_slug: target page slug
+        relation_type: uses | depends_on | implements | implemented_by | related
+        evidence: list of evidence strings or single string
+        reason: explanation for the relation
+        confidence: optional dictionary of semantic/structural/provenance or single float
+        verified_by: optional list of actors or single actor
+        ctx: VaultContext
+        actor: optional caller identity (M4/F1 provenance)
+        idempotency_key: optional retry key (M4/F1)
+    """
+    ctx = ctx or VaultContext(vault=db._default_vault())
+    ctx.require("wiki_relation_add")
+
+    # input validation
+    allowed_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
+    if relation_type not in allowed_types:
+        return {
+            "ok": False,
+            "message": f"Invalid relation type '{relation_type}'. Allowed: {', '.join(sorted(allowed_types))}",
+            "actor": normalize_actor(actor),
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "invalid_relation_type",
+        }
+
+    # evidence / reason check
+    if not evidence or (isinstance(evidence, list) and len(evidence) == 0):
+        return {
+            "ok": False,
+            "message": "evidence is required and cannot be empty",
+            "actor": normalize_actor(actor),
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "evidence_required",
+        }
+    if not reason or not reason.strip():
+        return {
+            "ok": False,
+            "message": "reason is required and cannot be empty",
+            "actor": normalize_actor(actor),
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "reason_required",
+        }
+
+    actor_norm = normalize_actor(actor)
+    vault_path = Path(ctx.vault).expanduser()
+
+    try:
+        abs_path = _resolve_md_path(vault_path, source_slug)
+    except slug_module.SlugError as e:
+        return {
+            "ok": False,
+            "message": f"invalid source slug: {e}",
+            "path": "",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "invalid_slug",
+        }
+
+    if _is_immutable_agent_path(source_slug):
+        return {
+            "ok": False,
+            "message": f"Cannot modify protected path: {source_slug}",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "permission_denied",
+        }
+
+    # lock checking
+    holder = check_lock(vault_path, source_slug)
+    if holder and holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{source_slug}' is currently locked by agent '{holder['actor']}'. Please wait or release the lock.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": holder,
+        }
+
+    # idempotency precheck
+    params = {
+        "source_slug": source_slug,
+        "target_slug": target_slug,
+        "relation_type": relation_type,
+        "evidence": evidence,
+        "reason": reason,
+        "confidence": confidence,
+        "verified_by": verified_by,
+    }
+    if idempotency_key and abs_path.exists():
+        cached, _ = _resolve_idempotency(
+            tool="wiki_relation_add", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params=params,
+        )
+        if cached is not None:
+            return cached
+
+    # read existing page content
+    if not abs_path.exists():
+        return {
+            "ok": False,
+            "message": f"Source page '{source_slug}' not found.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "page_not_found",
+        }
+
+    vault_obj = _load_vault(vault_path)
+
+    # normalize target_slug if it's a short slug
+    target_normalized = target_slug
+    try:
+        target_path = _resolve_md_path(vault_path, target_slug)
+        if not target_path.exists():
+            target_found = False
+            base = target_slug.rsplit("/", 1)[-1]
+            excluded_dirs = {"raw", "_archive", "scripts", "node_modules", ".venv", ".git"}
+            for fp_md in vault_path.rglob("*.md"):
+                rel_parts = fp_md.relative_to(vault_path).parts
+                if rel_parts and rel_parts[0] in excluded_dirs:
+                    continue
+                cand_slug = str(fp_md.relative_to(vault_path))[:-3]
+                if cand_slug == target_slug or cand_slug.endswith("/" + base):
+                    target_normalized = cand_slug
+                    target_found = True
+                    break
+        else:
+            target_found = True
+    except Exception:
+        target_found = False
+
+    # self-referencing check
+    if target_normalized == source_slug:
+        return {
+            "ok": False,
+            "message": f"Self-referencing relation is not allowed (source_slug == target_slug: '{source_slug}').",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "self_referencing",
+        }
+
+    # read existing content and merge relation
+    try:
+        raw_text = abs_path.read_text(encoding="utf-8")
+        meta, body = core_frontmatter.parse(raw_text)
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Failed to parse source page: {e}",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "parse_failed",
+        }
+
+    relations = meta.get("relations") or []
+    if not isinstance(relations, list):
+        relations = []
+
+    # construct the new relation object
+    new_rel = {
+        "type": relation_type,
+        "target": target_normalized,
+        "evidence": evidence if isinstance(evidence, list) else [evidence],
+        "reason": reason,
+    }
+    if confidence is not None:
+        new_rel["confidence"] = confidence
+    if verified_by is not None:
+        new_rel["verified_by"] = verified_by if isinstance(verified_by, list) else [verified_by]
+
+    # merge or update
+    updated_relations = []
+    found = False
+    for r in relations:
+        if isinstance(r, dict) and r.get("target") == target_normalized and r.get("type") == relation_type:
+            updated_relations.append(new_rel)
+            found = True
+        else:
+            updated_relations.append(r)
+
+    if not found:
+        updated_relations.append(new_rel)
+
+    meta["relations"] = updated_relations
+
+    # write back using write_page contract
+    result = write_page(
+        vault_obj,
+        _strip_md_suffix(source_slug),
+        body,
+        actor={"name": actor_norm, "timestamp": now_iso()},
+        overwrite=True,
+        normalize=False,
+        extra_meta=meta,
+        append_log=False,
+    )
+    if not result.ok:
+        return {
+            "ok": False,
+            "message": result.message or result.error or "relation update failed",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": result.error,
+        }
+
+    _rebuild_db(vault_path)
+
+    response = {
+        "ok": True,
+        "message": f"Added relation {relation_type} -> {target_normalized} to {source_slug}",
+        "source_slug": source_slug,
+        "target_slug": target_normalized,
+        "relation_type": relation_type,
+    }
+
+    return _finalize_write(
+        tool="wiki_relation_add", vault=vault_path, action="update",
+        subject=f"relation add: {source_slug} {relation_type} {target_normalized}", actor=actor_norm,
+        idempotency_key=idempotency_key,
+        params=params,
+        response=response,
+        extras=[f"target: {target_normalized}", f"relation_type: {relation_type}"],
+        slugs=[source_slug],
+    )
+
+
+# ─────────────── 11. wiki_relation_remove ───────────────
+
+
+def wiki_relation_remove(
+    source_slug: str,
+    target_slug: str,
+    relation_type: str,
+    ctx: Optional[VaultContext] = None,
+    actor: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
+) -> dict:
+    """Remove a semantic relation from a page's frontmatter.
+
+    Args:
+        source_slug: source page slug
+        target_slug: target page slug
+        relation_type: uses | depends_on | implements | implemented_by | related
+        ctx: VaultContext
+        actor: optional caller identity (M4/F1 provenance)
+        idempotency_key: optional retry key (M4/F1)
+    """
+    ctx = ctx or VaultContext(vault=db._default_vault())
+    ctx.require("wiki_relation_remove")
+
+    actor_norm = normalize_actor(actor)
+    vault_path = Path(ctx.vault).expanduser()
+
+    try:
+        abs_path = _resolve_md_path(vault_path, source_slug)
+    except slug_module.SlugError as e:
+        return {
+            "ok": False,
+            "message": f"invalid source slug: {e}",
+            "path": "",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "invalid_slug",
+        }
+
+    if _is_immutable_agent_path(source_slug):
+        return {
+            "ok": False,
+            "message": f"Cannot modify protected path: {source_slug}",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "permission_denied",
+        }
+
+    # lock checking
+    holder = check_lock(vault_path, source_slug)
+    if holder and holder.get("actor") != actor_norm:
+        return {
+            "ok": False,
+            "message": f"Lock conflict: page '{source_slug}' is currently locked by agent '{holder['actor']}'. Please wait or release the lock.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "lock_conflict",
+            "_lock_holder": holder,
+        }
+
+    # idempotency precheck
+    params = {
+        "source_slug": source_slug,
+        "target_slug": target_slug,
+        "relation_type": relation_type,
+    }
+    if idempotency_key and abs_path.exists():
+        cached, _ = _resolve_idempotency(
+            tool="wiki_relation_remove", vault=vault_path,
+            idempotency_key=idempotency_key, actor=actor_norm,
+            params=params,
+        )
+        if cached is not None:
+            return cached
+
+    # read existing page content
+    if not abs_path.exists():
+        return {
+            "ok": False,
+            "message": f"Source page '{source_slug}' not found.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "page_not_found",
+        }
+
+    try:
+        raw_text = abs_path.read_text(encoding="utf-8")
+        meta, body = core_frontmatter.parse(raw_text)
+    except Exception as e:
+        return {
+            "ok": False,
+            "message": f"Failed to parse source page: {e}",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "parse_failed",
+        }
+
+    relations = meta.get("relations") or []
+    if not isinstance(relations, list):
+        return {
+            "ok": False,
+            "message": f"No relations found on page '{source_slug}'.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "no_relations",
+        }
+
+    # target normalization matching
+    target_normalized = target_slug
+    matched_target = None
+    for r in relations:
+        if isinstance(r, dict) and r.get("type") == relation_type:
+            tgt = r.get("target")
+            if tgt == target_slug or (tgt and tgt.rsplit("/", 1)[-1] == target_slug.rsplit("/", 1)[-1]):
+                matched_target = tgt
+                break
+
+    if not matched_target:
+        matched_target = target_slug
+
+    updated_relations = []
+    found = False
+    for r in relations:
+        if isinstance(r, dict) and r.get("target") == matched_target and r.get("type") == relation_type:
+            found = True
+        else:
+            updated_relations.append(r)
+
+    if not found:
+        return {
+            "ok": False,
+            "message": f"Relation {relation_type} -> {target_slug} not found on page '{source_slug}'.",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": "relation_not_found",
+        }
+
+    meta["relations"] = updated_relations
+
+    vault_obj = _load_vault(vault_path)
+    result = write_page(
+        vault_obj,
+        _strip_md_suffix(source_slug),
+        body,
+        actor={"name": actor_norm, "timestamp": now_iso()},
+        overwrite=True,
+        normalize=False,
+        extra_meta=meta,
+        append_log=False,
+    )
+    if not result.ok:
+        return {
+            "ok": False,
+            "message": result.message or result.error or "relation deletion failed",
+            "actor": actor_norm,
+            "idempotency_key": idempotency_key,
+            "timestamp": now_iso(),
+            "error": result.error,
+        }
+
+    _rebuild_db(vault_path)
+
+    response = {
+        "ok": True,
+        "message": f"Removed relation {relation_type} -> {matched_target} from {source_slug}",
+        "source_slug": source_slug,
+        "target_slug": matched_target,
+        "relation_type": relation_type,
+    }
+
+    return _finalize_write(
+        tool="wiki_relation_remove", vault=vault_path, action="update",
+        subject=f"relation remove: {source_slug} {relation_type} {matched_target}", actor=actor_norm,
+        idempotency_key=idempotency_key,
+        params=params,
+        response=response,
+        extras=[f"target: {matched_target}", f"relation_type: {relation_type}"],
+        slugs=[source_slug],
+    )

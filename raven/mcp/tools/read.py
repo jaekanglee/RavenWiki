@@ -145,3 +145,80 @@ def wiki_get_guide_diff(
     """
     ctx = ctx or VaultContext(vault=db._default_vault())
     return read_guide_diff(vault=ctx.vault, kind=kind)
+
+
+# ─────────────── 8. wiki_relations_list ───────────────
+
+
+def wiki_relations_list(
+    slug: Optional[str] = None,
+    relation_type: Optional[str] = None,
+    ctx: Optional[VaultContext] = None,
+) -> list[dict]:
+    """List semantic relations, optionally filtered by source slug or type."""
+    ctx = ctx or VaultContext(vault=db._default_vault())
+    db_path = ctx.vault / "wiki.db"
+    if not db_path.exists():
+        from raven.core import db as core_db
+        from raven.mcp.tools.write import _load_vault
+        try:
+            core_db.build_db(_load_vault(ctx.vault), run_lint=False)
+        except Exception:
+            return []
+
+    import sqlite3
+    import json
+
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        query = (
+            "SELECT source_slug, target_slug, relation_type, "
+            "       confidence_semantic, confidence_structural, confidence_provenance, "
+            "       verified_by, evidence, reason "
+            "FROM relations WHERE 1=1"
+        )
+        params = []
+        if slug:
+            query += " AND source_slug = ?"
+            params.append(slug)
+        if relation_type:
+            query += " AND relation_type = ?"
+            params.append(relation_type)
+
+        rows = conn.execute(query, params).fetchall()
+
+        results = []
+        for r in rows:
+            evidence_val = r["evidence"]
+            evidence_parsed = None
+            if evidence_val:
+                try:
+                    evidence_parsed = json.loads(evidence_val)
+                except Exception:
+                    evidence_parsed = evidence_val
+
+            verified_by_val = r["verified_by"]
+            verified_by_parsed = None
+            if verified_by_val:
+                if ", " in verified_by_val:
+                    verified_by_parsed = [v.strip() for v in verified_by_val.split(",")]
+                else:
+                    verified_by_parsed = [verified_by_val]
+
+            results.append({
+                "source": r["source_slug"],
+                "target": r["target_slug"],
+                "type": r["relation_type"],
+                "confidence": {
+                    "semantic": r["confidence_semantic"],
+                    "structural": r["confidence_structural"],
+                    "provenance": r["confidence_provenance"]
+                },
+                "verified_by": verified_by_parsed,
+                "evidence": evidence_parsed,
+                "reason": r["reason"]
+            })
+        return results
+    finally:
+        conn.close()
