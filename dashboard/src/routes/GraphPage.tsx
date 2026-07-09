@@ -388,6 +388,7 @@ export function GraphPage() {
             // GraphCanvas의 effect deps가 흔들려 onNodeClick 리스너가 끊임없이 재바인딩됨.
             onNodeClick={handleCanvasNodeClick}
             onNodeDoubleClick={openGraphNode}
+            onBackgroundClick={() => dispatchFilters({ type: "setSelectedNodeId", value: null })}
             // v0.7.139+: 사용자가 노드를 클릭하면 선택된 노드 + 그 인접 노드(1-hop)가
             // 캔버스에서 하이라이트되고, 나머지는 톤다운되어 포커스된다.
             // 우선순위: hoveredInsightNodeId(호버 노드) > selectedNodeId(클릭 선택 노드).

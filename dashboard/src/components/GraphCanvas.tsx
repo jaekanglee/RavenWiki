@@ -24,6 +24,8 @@ interface Props {
   density?: "normal" | "dense";
   /** 노드 드래그 종료 시점에 호출 */
   onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void;
+  /** 캔버스 빈 공간 클릭 시 호출 */
+  onBackgroundClick?: () => void;
 }
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
@@ -221,6 +223,7 @@ export function GraphCanvas({
   onFullscreen,
   density = "normal",
   onPositionsChange,
+  onBackgroundClick,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphInstanceRef = useRef<any>(null);
@@ -236,6 +239,7 @@ export function GraphCanvas({
   const clickHandlersRef = useRef({
     onNodeClick,
     onNodeDoubleClick,
+    onBackgroundClick,
   });
 
   const [hoveredNode, setHoveredNodeState] = useState<any>(null);
@@ -273,8 +277,8 @@ export function GraphCanvas({
   }, [nodes]);
 
   useEffect(() => {
-    clickHandlersRef.current = { onNodeClick, onNodeDoubleClick };
-  }, [onNodeClick, onNodeDoubleClick]);
+    clickHandlersRef.current = { onNodeClick, onNodeDoubleClick, onBackgroundClick };
+  }, [onNodeClick, onNodeDoubleClick, onBackgroundClick]);
 
   useEffect(() => {
     return () => {
@@ -403,6 +407,9 @@ export function GraphCanvas({
       .onNodeClick((node: any) => {
         if (node?.id) queueResolvedNodeClick(node.id);
       })
+      .onBackgroundClick(() => {
+        clickHandlersRef.current.onBackgroundClick?.();
+      })
       .onNodeHover((node: any) => {
         if (node) {
           onNodeInspect?.(node as GraphNode);
@@ -495,7 +502,10 @@ export function GraphCanvas({
       );
 
       pressStartRef.current = null;
-      if (!hitNode) return;
+      if (!hitNode) {
+        clickHandlersRef.current.onBackgroundClick?.();
+        return;
+      }
       queueResolvedNodeClick(hitNode.id);
     };
 
