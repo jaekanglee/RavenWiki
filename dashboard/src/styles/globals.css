@@ -133,10 +133,10 @@
   --graph-node-outline: rgba(15, 23, 42, 0.18);
   --graph-node-outline-hover: rgba(59, 130, 246, 0.4);
   --graph-node-glow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 0 14px rgba(59, 130, 246, 0.16);
-  --graph-label-color: #111827;
+  --graph-label-color: #0f172a;
   --graph-label-shadow: none;
-  --graph-edge: rgba(71, 85, 105, 0.34);
-  --graph-edge-highlight: rgba(124, 58, 237, 0.78);
+  --graph-edge: rgba(71, 85, 105, 0.22);
+  --graph-edge-highlight: rgba(109, 40, 217, 0.68);
   --graph-tooltip-bg: rgba(255, 255, 255, 0.96);
   --graph-tooltip-border: rgba(148, 163, 184, 0.42);
   --graph-tooltip-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
@@ -368,10 +368,10 @@ body {
   --graph-node-outline: rgba(226, 232, 240, 0.18);
   --graph-node-outline-hover: rgba(125, 211, 252, 0.6);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
-  --graph-label-color: rgba(248, 250, 252, 0.98);
+  --graph-label-color: #ffffff;
   --graph-label-shadow: none;
-  --graph-edge: rgba(203, 213, 225, 0.42);
-  --graph-edge-highlight: rgba(196, 181, 253, 0.96);
+  --graph-edge: rgba(226, 232, 240, 0.34);
+  --graph-edge-highlight: rgba(221, 214, 254, 0.96);
   --graph-tooltip-bg: var(--slate-900);
   --graph-tooltip-border: var(--slate-700);
   /* Sidebar / Navigation */
@@ -507,10 +507,10 @@ body {
   --graph-node-outline: rgba(255, 255, 255, 0.34);
   --graph-node-outline-hover: rgba(226, 232, 240, 0.72);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
-  --graph-label-color: rgba(248, 250, 252, 0.98);
+  --graph-label-color: #ffffff;
   --graph-label-shadow: none;
-  --graph-edge: rgba(203, 213, 225, 0.42);
-  --graph-edge-highlight: rgba(196, 181, 253, 0.96);
+  --graph-edge: rgba(226, 232, 240, 0.34);
+  --graph-edge-highlight: rgba(221, 214, 254, 0.96);
   --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
   --graph-tooltip-border: #374151;
   --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -586,10 +586,10 @@ html.dark {
   --graph-node-outline: rgba(255, 255, 255, 0.34);
   --graph-node-outline-hover: rgba(226, 232, 240, 0.72);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
-  --graph-label-color: rgba(248, 250, 252, 0.98);
+  --graph-label-color: #ffffff;
   --graph-label-shadow: none;
-  --graph-edge: rgba(203, 213, 225, 0.42);
-  --graph-edge-highlight: rgba(196, 181, 253, 0.96);
+  --graph-edge: rgba(226, 232, 240, 0.34);
+  --graph-edge-highlight: rgba(221, 214, 254, 0.96);
   --graph-tooltip-bg: rgba(17, 24, 39, 0.95);
   --graph-tooltip-border: #374151;
   --graph-tooltip-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -1341,51 +1341,75 @@ mark {
   font-weight: 600;
   white-space: nowrap;
 }
+/* 미니 액션 툴바 */
+.graph-detail-mini-actions {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--color-hairline);
+  padding-bottom: 12px;
+}
+.graph-detail-mini-actions .graph-detail-action-btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* 통계 카드를 클릭형 탭 버튼으로 개편 */
 .graph-detail-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
-.graph-detail-stats div {
-  border-radius: 12px;
-  padding: 12px 10px;
+.graph-detail-stat-card {
+  border-radius: 8px;
+  padding: 10px 8px;
   background: var(--graph-surface);
   border: 1px solid var(--graph-border);
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
 }
-.graph-detail-stats span {
+.graph-detail-stat-card:hover {
+  border-color: var(--color-info-border);
+  background: var(--graph-surface-strong);
+  transform: translateY(-1px);
+}
+.graph-detail-stat-card:active {
+  transform: translateY(0);
+}
+.graph-detail-stat-card.active {
+  background: var(--cds-background-brand);
+  border-color: var(--color-info-border);
+  box-shadow: 0 0 0 1px var(--color-info-border);
+}
+.graph-detail-stat-card span {
   display: block;
   font-size: 11px;
   color: var(--color-muted);
-  margin-bottom: 4px;
 }
-.graph-detail-stats strong {
-  font-size: 18px;
+.graph-detail-stat-card strong {
+  font-size: 16px;
   color: var(--color-ink);
 }
-.graph-detail-community {
-  margin: -2px 0 0;
-  font-size: 12px;
-  color: var(--color-muted);
+
+/* 관계 리스트 컴팩트 스크롤뷰 */
+.graph-detail-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 4px;
 }
-.graph-detail-community-chip {
-  align-self: flex-start;
-  border: 1px solid var(--graph-border);
-  border-radius: 999px;
-  background: var(--graph-surface);
-  color: var(--graph-text);
-  font-size: 12px;
+.graph-node-meta-badge {
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 7px 11px;
-  cursor: pointer;
-}
-.graph-detail-community-chip-active {
-  background: var(--cds-background-brand);
-  border-color: var(--color-info-border);
-}
-.graph-detail-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-surface-soft);
+  color: var(--color-muted);
+  border: 1px solid var(--color-hairline);
 }
 .graph-detail-section h3 {
   margin: 0 0 8px;
@@ -2064,8 +2088,9 @@ mark {
   .graph-detail-header {
     flex-direction: column;
   }
+  /* 모바일에서도 3열 가로 탭 배치 유지하여 세로 면적 낭비 방지 */
   .graph-detail-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .graph-detail-link {
     align-items: flex-start;
