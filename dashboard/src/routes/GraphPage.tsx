@@ -394,7 +394,7 @@ export function GraphPage() {
             <div className="graph-detail-header">
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
-                  <span className="graph-detail-chip">
+                  <span className="sidebar-tree-page-pill" data-type={selectedNodeDetail.node.type || "unknown"}>
                     {typeLabel(selectedNodeDetail.node.type) || selectedNodeDetail.node.type || "미분류"}
                   </span>
                   {selectedNodeDetail.node.vault && (
@@ -481,7 +481,7 @@ export function GraphPage() {
                             onMouseLeave={() => setHoveredInsightNodeId(null)}
                           >
                             <span>{node.title}</span>
-                            <span className="graph-node-meta-badge">
+                            <span className="sidebar-tree-page-pill" data-type={node.type || "unknown"}>
                               {typeLabel(node.type) || node.type || "미분류"}
                             </span>
                           </button>
@@ -508,7 +508,7 @@ export function GraphPage() {
                             onMouseLeave={() => setHoveredInsightNodeId(null)}
                           >
                             <span>{node.title}</span>
-                            <span className="graph-node-meta-badge">
+                            <span className="sidebar-tree-page-pill" data-type={node.type || "unknown"}>
                               {typeLabel(node.type) || node.type || "미분류"}
                             </span>
                           </button>
@@ -535,7 +535,7 @@ export function GraphPage() {
                             onMouseLeave={() => setHoveredInsightNodeId(null)}
                           >
                             <span>{node.title}</span>
-                            <span className="graph-node-meta-badge">
+                            <span className="sidebar-tree-page-pill" data-type={node.type || "unknown"}>
                               {typeLabel(node.type) || node.type || "미분류"}
                             </span>
                           </button>
