@@ -2208,10 +2208,10 @@ mark {
 .floating-graph-panel-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--color-hairline);
-  font-size: 12px;
+  font-size: 11px;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -2321,12 +2321,12 @@ mark {
 /* 미니맵(variant="minimap") 특화 스타일 */
 .graph-canvas-container.is-minimap .graph-canvas-toolbar {
   flex-direction: column;
-  right: 8px;
-  top: 8px;
-  gap: 6px;
-  opacity: 0.15;
-  transform: scale(0.92);
-  pointer-events: none;
+  right: 6px;
+  top: 6px;
+  gap: 4px;
+  opacity: 0.7;           /* 평소에도 충분히 보임 */
+  transform: scale(1);    /* 축소 없음 */
+  pointer-events: auto;   /* 항상 클릭 가능 */
 }
 
 .graph-canvas-container.is-minimap:hover .graph-canvas-toolbar {
@@ -2336,11 +2336,13 @@ mark {
 }
 
 .graph-canvas-container.is-minimap .graph-canvas-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  padding: 0;
-  font-size: 13px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
 }
 .floating-graph-panel-actions {
   display: flex;
@@ -2373,7 +2375,8 @@ mark {
 }
 
 @media (max-width: 744px) {
-  .floating-graph-panel {
+  /* Only anchor to bottom-right when it hasn't been dragged (no inline left style) */
+  .floating-graph-panel:not([style*="left"]) {
     right: 12px;
     bottom: 12px;
   }

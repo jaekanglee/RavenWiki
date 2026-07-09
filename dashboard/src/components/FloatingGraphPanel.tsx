@@ -6,10 +6,13 @@ import type { Graph, GraphNode, GraphEdge } from "../types";
 const STORAGE_KEY = "raven:graph-panel:open";
 const POSITION_STORAGE_KEY = "raven:graph-panel:position";
 
+/** right/bottom 기준 좌표 — CSS 기본 앵커(right:24,bottom:24)와 동일 방향 */
 interface PanelPosition {
-  left: number;
-  top: number;
+  right: number;
+  bottom: number;
 }
+
+const DEFAULT_POSITION: PanelPosition = { right: 24, bottom: 24 };
 
 function readOpen(): boolean {
   if (typeof window === "undefined") return false;
@@ -32,8 +35,9 @@ function readPosition(): PanelPosition | null {
     const raw = window.localStorage.getItem(POSITION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (typeof parsed?.left === "number" && typeof parsed?.top === "number") {
-      return { left: parsed.left, top: parsed.top };
+    // Support only new right/bottom format — discard old left/top entries.
+    if (typeof parsed?.right === "number" && typeof parsed?.bottom === "number") {
+      return { right: parsed.right, bottom: parsed.bottom };
     }
   } catch {
     // Ignore corrupt localStorage and fall back to the default anchored position.
@@ -70,6 +74,10 @@ interface FloatingGraphPanelProps {
  *
  * Toggle persists in localStorage. Hidden on the dedicated /graph route so we
  * never have two competing graph surfaces in view.
+ *
+ * Position is stored as right/bottom (distance from viewport edges) so the
+ * default CSS anchor (right:24px, bottom:24px) is always honored when no drag
+ * has occurred, and the card grows upward without clipping.
  */
 export function FloatingGraphPanel({
   vault,
@@ -81,16 +89,17 @@ export function FloatingGraphPanel({
 }: FloatingGraphPanelProps) {
   const location = useLocation();
   const [open, setOpen] = useState<boolean>(() => readOpen());
+  // null = use CSS defaults (right:24px, bottom:24px). Non-null = user dragged.
   const [position, setPosition] = useState<PanelPosition | null>(() => readPosition());
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     pointerId: number | null;
-    offsetX: number;
-    offsetY: number;
+    offsetFromRight: number;
+    offsetFromBottom: number;
   }>({
     pointerId: null,
-    offsetX: 0,
-    offsetY: 0,
+    offsetFromRight: 0,
+    offsetFromBottom: 0,
   });
 
   // Sync state when the user reloads the page in another tab.
@@ -100,6 +109,45 @@ export function FloatingGraphPanel({
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Clamp position when panel size or window changes.
+  useEffect(() => {
+    if (!position || typeof window === "undefined") return;
+    const node = panelRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const maxRight = Math.max(12, window.innerWidth - rect.width - 12);
+    const maxBottom = Math.max(12, window.innerHeight - rect.height - 12);
+    const clamped = {
+      right: Math.min(Math.max(12, position.right), maxRight),
+      bottom: Math.min(Math.max(12, position.bottom), maxBottom),
+    };
+    if (clamped.right !== position.right || clamped.bottom !== position.bottom) {
+      setPosition(clamped);
+      writePosition(clamped);
+    }
+  }, [position, open]);
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      const node = panelRef.current;
+      if (!node || typeof window === "undefined") return;
+      const rect = node.getBoundingClientRect();
+      setPosition((prev) => {
+        if (!prev) return prev;
+        const maxRight = Math.max(12, window.innerWidth - rect.width - 12);
+        const maxBottom = Math.max(12, window.innerHeight - rect.height - 12);
+        const next = {
+          right: Math.min(Math.max(12, prev.right), maxRight),
+          bottom: Math.min(Math.max(12, prev.bottom), maxBottom),
+        };
+        writePosition(next);
+        return next;
+      });
+    };
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
   }, []);
 
   const toggle = () => {
@@ -113,71 +161,43 @@ export function FloatingGraphPanel({
     else window.location.assign(`/graph?vault=${encodeURIComponent(vault)}`);
   };
 
-  useEffect(() => {
-    if (!position || typeof window === "undefined") return;
-    const node = panelRef.current;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const maxLeft = Math.max(12, window.innerWidth - rect.width - 12);
-    const maxTop = Math.max(12, window.innerHeight - rect.height - 12);
-    const clamped = {
-      left: Math.min(Math.max(12, position.left), maxLeft),
-      top: Math.min(Math.max(12, position.top), maxTop),
-    };
-    if (clamped.left !== position.left || clamped.top !== position.top) {
-      setPosition(clamped);
-      writePosition(clamped);
-    }
-  }, [position, open]);
-
-  useEffect(() => {
-    const handleWindowResize = () => {
-      const node = panelRef.current;
-      if (!node || typeof window === "undefined") return;
-      const rect = node.getBoundingClientRect();
-      setPosition((prev) => {
-        if (!prev) return prev;
-        const maxLeft = Math.max(12, window.innerWidth - rect.width - 12);
-        const maxTop = Math.max(12, window.innerHeight - rect.height - 12);
-        const next = {
-          left: Math.min(Math.max(12, prev.left), maxLeft),
-          top: Math.min(Math.max(12, prev.top), maxTop),
-        };
-        writePosition(next);
-        return next;
-      });
-    };
-    window.addEventListener("resize", handleWindowResize);
-    return () => window.removeEventListener("resize", handleWindowResize);
-  }, []);
-
   const isGraphRoute = location.pathname.startsWith("/graph");
   if (hidden || isGraphRoute) return null;
   if (nodes.length === 0) return null;
 
   const handleHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault(); // Prevent touch/scroll default gestures from canceling drag
     const node = panelRef.current;
     if (!node) return;
     const rect = node.getBoundingClientRect();
+    // 패널의 우측/하단 엣지 ~ 뷰포트 엣지까지의 거리 + 포인터 오프셋 기록
     dragRef.current = {
       pointerId: e.pointerId,
-      offsetX: e.clientX - rect.left,
-      offsetY: e.clientY - rect.top,
+      offsetFromRight: e.clientX - rect.right,   // 포인터가 패널 우측으로부터 얼마나 안쪽
+      offsetFromBottom: e.clientY - rect.bottom,  // 포인터가 패널 하단으로부터 얼마나 안쪽
     };
+    // 드래그 시작 시 현재 right/bottom을 state에 기록 (CSS → inline 전환)
+    const initPos = {
+      right: window.innerWidth - rect.right,
+      bottom: window.innerHeight - rect.bottom,
+    };
+    setPosition(initPos);
     const target = e.currentTarget;
     target.setPointerCapture?.(e.pointerId);
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (dragRef.current.pointerId !== moveEvent.pointerId || !panelRef.current) return;
       const panelRect = panelRef.current.getBoundingClientRect();
-      const maxLeft = Math.max(12, window.innerWidth - panelRect.width - 12);
-      const maxTop = Math.max(12, window.innerHeight - panelRect.height - 12);
-      const next = {
-        left: Math.min(Math.max(12, moveEvent.clientX - dragRef.current.offsetX), maxLeft),
-        top: Math.min(Math.max(12, moveEvent.clientY - dragRef.current.offsetY), maxTop),
-      };
-      setPosition(next);
+      // 새 right = 뷰포트 우측 - (포인터X - 오프셋)
+      const newRight = window.innerWidth - (moveEvent.clientX - dragRef.current.offsetFromRight);
+      const newBottom = window.innerHeight - (moveEvent.clientY - dragRef.current.offsetFromBottom);
+      const maxRight = Math.max(12, window.innerWidth - panelRect.width - 12);
+      const maxBottom = Math.max(12, window.innerHeight - panelRect.height - 12);
+      setPosition({
+        right: Math.min(Math.max(12, newRight), maxRight),
+        bottom: Math.min(Math.max(12, newBottom), maxBottom),
+      });
     };
 
     const cleanup = () => {
@@ -201,28 +221,28 @@ export function FloatingGraphPanel({
     window.addEventListener("pointercancel", handlePointerUp);
   };
 
+  // position이 null이면 CSS의 right:24px/bottom:24px가 그대로 적용됨.
+  // position이 있으면 inline으로 right/bottom override.
+  const pos = position ?? DEFAULT_POSITION;
+
   return (
     <div
       ref={panelRef}
       className={`floating-graph-panel${open ? " floating-graph-panel-open" : " floating-graph-panel-closed"}`}
       aria-label="관련 그래프 패널"
-      style={
-        position
-          ? {
-              left: position.left,
-              top: position.top,
-              right: "auto",
-              bottom: "auto",
-            }
-          : undefined
-      }
+      style={{
+        right: pos.right,
+        bottom: pos.bottom,
+        left: "auto",
+        top: "auto",
+      }}
     >
       {open ? (
         <div className="floating-graph-panel-card">
           <div
             className="floating-graph-panel-header"
             onPointerDown={handleHeaderPointerDown}
-            title="헤더를 잡고 패널을 옮길 수 있습니다"
+            title="헤더를 잡고 패널을 드래그해 화면 어디든 이동할 수 있습니다"
           >
             <strong>관련 그래프</strong>
             <span>
