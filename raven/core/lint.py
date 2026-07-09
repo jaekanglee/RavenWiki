@@ -1139,6 +1139,8 @@ def run_all(vault: Vault) -> dict:
         issues.extend(check_placeholder_text(vault))
         issues.extend(check_contextless_wikilinks(vault))
         issues.extend(check_journal_summary_completeness(vault))
+        # v0.8.0+ (Semantic Relation Integrity)
+        issues.extend(check_semantic_relations(vault))
     finally:
         _scan_local.cache = None
 
@@ -1561,5 +1563,133 @@ def check_journal_summary_completeness(vault: Vault) -> list[dict]:
                 "#22", "warning", slug,
                 f"요약 섹션에 단순 기계 로그/에러 메시지 복사 정황 감지: {', '.join(detected_logs)}",
             ))
+
+    return out
+
+
+def check_semantic_relations(vault: Vault) -> list[dict]:
+    """#23 semantic relations integrity (v0.8.0+).
+
+    frontmatter의 relations 필드 형식 및 5대 핵심 관계, 대상 존재 여부,
+    그리고 evidence/reason 필수 기재 여부를 검증합니다.
+    """
+    out: list[dict] = []
+    
+    # vault 내 모든 페이지의 slug 목록을 구함
+    all_slugs = set()
+    for fp in _all_pages(vault):
+        try:
+            slug = _slug_of(vault, fp)
+            all_slugs.add(slug)
+        except Exception:
+            continue
+
+    # 단축 slug 매칭용 캐시
+    # rsplit('/', 1)[-1] -> full_slug 매핑
+    short_slug_map = {}
+    for slug in all_slugs:
+        base = slug.rsplit("/", 1)[-1]
+        short_slug_map.setdefault(base, []).append(slug)
+
+    allowed_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
+
+    for fp in _all_pages(vault):
+        slug = _slug_of(vault, fp)
+        if slug.startswith("_meta/") or slug.startswith("content/_index/") or slug == "content/index.md":
+            continue
+        try:
+            text = _read_text(fp)
+        except Exception:
+            continue
+        meta, _ = _split_fm_body(text)
+        if not meta or "relations" not in meta:
+            continue
+
+        relations = meta.get("relations")
+        if not isinstance(relations, list):
+            out.append(_mk_issue(
+                "#23", "critical", slug,
+                "frontmatter의 'relations' 필드가 리스트(list) 형식이 아닙니다.",
+            ))
+            continue
+
+        for idx, rel in enumerate(relations):
+            if not isinstance(rel, dict):
+                out.append(_mk_issue(
+                    "#23", "critical", slug,
+                    f"relations[{idx}] 항목이 사전(dict) 형식이 아닙니다.",
+                ))
+                continue
+
+            rel_type = rel.get("type")
+            target = rel.get("target")
+
+            # 1. 필수 필드 검증 (type, target)
+            if not rel_type:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"relations[{idx}] 항목에 'type' 필드가 누락되었거나 비어 있습니다.",
+                ))
+            elif rel_type not in allowed_types:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"relations[{idx}] 항목의 관계 타입 '{rel_type}'은 허용되지 않습니다. (허용 목록: {', '.join(sorted(allowed_types))})",
+                ))
+
+            if not target:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"relations[{idx}] 항목에 'target' 필드가 누락되었거나 비어 있습니다.",
+                ))
+                continue
+
+            target = str(target).strip()
+
+            # 2. 자기 참조 검사
+            if target == slug:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"자기 자신({slug})을 가리키는 관계는 허용되지 않습니다.",
+                ))
+
+            # 3. target 문서 존재 여부 검사 (단축 slug 포함)
+            target_exists = False
+            if target in all_slugs:
+                target_exists = True
+            else:
+                # 단축 slug 해소 시도
+                base = target.rsplit("/", 1)[-1]
+                candidates = short_slug_map.get(base, [])
+                if candidates:
+                    target_exists = True
+            
+            if not target_exists:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"관계 대상인 '{target}' 문서가 존재하지 않습니다.",
+                ))
+
+            # 4. evidence 및 reason 필수 검증
+            evidence = rel.get("evidence")
+            reason = rel.get("reason")
+
+            has_evidence = False
+            if evidence is not None:
+                if isinstance(evidence, list) and len(evidence) > 0:
+                    has_evidence = any(str(ev).strip() for ev in evidence)
+                elif isinstance(evidence, str) and evidence.strip():
+                    has_evidence = True
+                elif isinstance(evidence, (int, float)):
+                    has_evidence = True
+
+            has_reason = False
+            if reason is not None and str(reason).strip():
+                has_reason = True
+
+            if not has_evidence or not has_reason:
+                out.append(_mk_issue(
+                    "#23", "warning", slug,
+                    f"관계 '{rel_type or 'unknown'} ➔ {target}'에 대한 evidence(근거) 또는 reason(이유)이 누락되었습니다.",
+                ))
 
     return out
