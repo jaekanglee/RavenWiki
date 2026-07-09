@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useOutletContext, Link } from "react-router-dom";
-import { fetchDigest, type DigestPayload, type DigestDayBucket, fetchAdvice, type Advice } from "../lib/api";
+import { fetchDigest, type DigestPayload, type DigestDayBucket, fetchAIAdvice, addRelation, fetchRecommendations, type Advice } from "../lib/api";
 import { DigestCard } from "../components/DigestCard";
+import { Toast } from "../components/ui/Toast";
 
 /**
  * DashboardDigest — 사람 운영자 진입 시 '오늘 vault 상태' 한 화면 요약 (M5 F5).
@@ -21,6 +22,14 @@ export function DashboardDigest() {
   const [advices, setAdvices] = useState<Advice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [healingId, setHealingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +37,7 @@ export function DashboardDigest() {
     setError(null);
     Promise.all([
       fetchDigest(vault, days),
-      fetchAdvice(vault)
+      fetchAIAdvice(vault)
     ])
       .then(([d, advs]) => {
         if (cancelled) return;
@@ -49,6 +58,42 @@ export function DashboardDigest() {
       cancelled = true;
     };
   }, [vault, days]);
+
+  const handleQuickFix = async (adv: Advice) => {
+    if (!adv.slug) return;
+    setHealingId(adv.id);
+    try {
+      // 1. 추천 문서 1순위 가져오기
+      const recResult = await fetchRecommendations(vault, adv.slug, 1);
+      if (!recResult || !recResult.recommendations || recResult.recommendations.length === 0) {
+        setToast({ message: "❌ 추천 타깃 문서를 찾을 수 없습니다.", type: "error" });
+        return;
+      }
+      const targetSlug = recResult.recommendations[0].slug;
+      
+      // 2. 관계 맺기 API 호출
+      const res = await addRelation(vault, {
+        source_slug: adv.slug,
+        target_slug: targetSlug,
+        relation_type: "uses",
+        actor: "user",
+        reason: `Quick Fix: 고립/연결부족 해소를 위해 ${targetSlug} 문서와 자동 관계 맺기`
+      });
+      
+      if (res.ok) {
+        setToast({ message: `✅ ${adv.title} 자율 치유 성공! (${targetSlug}와 관계 형성)`, type: "success" });
+        // 어드바이스 목록 즉시 갱신
+        const updatedAdvs = await fetchAIAdvice(vault);
+        setAdvices(updatedAdvs);
+      } else {
+        setToast({ message: `❌ 자율 치유 실패: ${res.error || "알 수 없는 오류"}`, type: "error" });
+      }
+    } catch (e: any) {
+      setToast({ message: `❌ 오류 발생: ${e.message || e}`, type: "error" });
+    } finally {
+      setHealingId(null);
+    }
+  };
 
   return (
     <div style={{ maxWidth: 1120 }}>
@@ -151,51 +196,107 @@ export function DashboardDigest() {
                         fontSize: 13,
                         color: "rgba(226, 232, 240, 0.85)",
                         lineHeight: 1.5,
-                        margin: "0 0 16px 0",
+                        margin: "0 0 8px 0",
                         wordBreak: "keep-all"
                       }}>
                         {adv.message}
                       </p>
+                      {adv.ai_message && (
+                        <div style={{
+                          background: "rgba(99, 102, 241, 0.1)",
+                          borderLeft: "3px solid #818cf8",
+                          padding: "8px 12px",
+                          borderRadius: "0 8px 8px 0",
+                          fontSize: 12.5,
+                          color: "#c7d2fe",
+                          lineHeight: 1.45,
+                          marginBottom: 16,
+                          fontStyle: "italic"
+                        }}>
+                          💡 <strong>AI 큐레이션 가이드:</strong> {adv.ai_message}
+                        </div>
+                      )}
                     </div>
 
-                    {adv.slug && (
-                      <Link
-                        to={adv.type === "bloated" ? "/vault/manage" : `/page/${encodeURIComponent(vault)}/${adv.slug}`}
-                        className="btn-pill-primary"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                          padding: "6px 12px",
-                          fontSize: 12,
-                          fontWeight: 500,
-                          textDecoration: "none",
-                          background: "linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)",
-                          boxShadow: "0 4px 12px 0 rgba(79, 70, 229, 0.3)",
-                          border: "none",
-                          borderRadius: "20px",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                          alignSelf: "flex-start"
-                        }}
-                        onMouseEnter={(e) => {
-                          const el = e.currentTarget as HTMLElement;
-                          el.style.filter = "brightness(1.15)";
-                        }}
-                        onMouseLeave={(e) => {
-                          const el = e.currentTarget as HTMLElement;
-                          el.style.filter = "none";
-                        }}
-                      >
-                        {adv.type === "bloated" ? "📁 컬렉션 관리" : "📖 문서 탐색"} →
-                      </Link>
-                    )}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {adv.slug && (
+                        <Link
+                          to={adv.type === "bloated" ? "/vault/manage" : `/page/${encodeURIComponent(vault)}/${adv.slug}`}
+                          className="btn-pill-primary"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            textDecoration: "none",
+                            background: "linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)",
+                            boxShadow: "0 4px 12px 0 rgba(79, 70, 229, 0.3)",
+                            border: "none",
+                            borderRadius: "20px",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            alignSelf: "flex-start"
+                          }}
+                          onMouseEnter={(e) => {
+                            const el = e.currentTarget as HTMLElement;
+                            el.style.filter = "brightness(1.15)";
+                          }}
+                          onMouseLeave={(e) => {
+                            const el = e.currentTarget as HTMLElement;
+                            el.style.filter = "none";
+                          }}
+                        >
+                          {adv.type === "bloated" ? "📁 컬렉션 관리" : "📖 문서 탐색"} →
+                        </Link>
+                      )}
+
+                      {(adv.type === "orphan" || adv.type === "underlinked") && adv.slug && (
+                        <button
+                          onClick={() => handleQuickFix(adv)}
+                          disabled={healingId !== null}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#ffffff",
+                            background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+                            boxShadow: "0 4px 12px 0 rgba(6, 182, 212, 0.3)",
+                            border: "none",
+                            borderRadius: "20px",
+                            cursor: healingId ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease",
+                            opacity: healingId ? 0.6 : 1,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (healingId) return;
+                            const el = e.currentTarget as HTMLElement;
+                            el.style.filter = "brightness(1.15)";
+                            el.style.transform = "scale(1.03)";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (healingId) return;
+                            const el = e.currentTarget as HTMLElement;
+                            el.style.filter = "none";
+                            el.style.transform = "none";
+                          }}
+                        >
+                          {healingId === adv.id ? "⚡ 치유 중..." : "✨ Quick Fix"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </section>
           )}
+
           {/* Meta row + days selector */}
           <div
             style={{
@@ -247,6 +348,8 @@ export function DashboardDigest() {
             <LintCard lint={data.lint} vault={vault} />
             <RecentCard stats={data.stats} vault={vault} />
           </div>
+
+          <Toast open={Boolean(toast)} message={toast?.message ?? ""} type={toast?.type ?? "success"} />
         </>
       )}
     </div>

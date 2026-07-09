@@ -1156,60 +1156,79 @@ export function GraphCanvas({
           ctx.beginPath();
           ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
           const color = COMMUNITY_COLORS[cid % COMMUNITY_COLORS.length];
-          ctx.fillStyle = hexToRgba(color, 0.04);
+          
+          // LOD 줌 연동: 줌 레벨에 따라 채우기 및 테두리 투명도 보정
+          const bgOpacity = Math.max(0.01, Math.min(0.06, (0.85 - scale) * 0.08));
+          const borderOpacity = Math.max(0.05, Math.min(0.24, (0.85 - scale) * 0.3));
+          
+          ctx.fillStyle = hexToRgba(color, bgOpacity);
           ctx.fill();
           ctx.lineWidth = 0.8 / scale;
-          ctx.strokeStyle = hexToRgba(color, 0.18);
+          ctx.strokeStyle = hexToRgba(color, borderOpacity);
           ctx.stroke();
 
-          // 자동 의미론적 레이블 계산
-          const cNodes = groupNodes[cid] || [];
-          let labelSuffix = "";
-          if (cNodes.length > 0) {
-            // 최상위 중요 노드
-            let topNode = cNodes[0];
-            for (const n of cNodes) {
-              if ((n.importance ?? 0) > (topNode.importance ?? 0)) {
-                topNode = n;
-              }
-            }
-            
-            // 제목 기반 키워드 빈도 추출
-            const stopwords = new Set([
-              "and", "the", "with", "for", "from", "main", "core", "impl", "test", "helper", "util", "utils", "config",
-              "이", "그", "저", "및", "등", "을", "를", "의", "에", "과", "와", "한", "로", "으로", "에서"
-            ]);
-            const wordCounts: Record<string, number> = {};
-            cNodes.forEach(n => {
-              const wList = (n.title || "").toLowerCase().match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
-              wList.forEach((w: string) => {
-                if (!stopwords.has(w)) {
-                  wordCounts[w] = (wordCounts[w] || 0) + 1;
+          // LOD 줌 연동: 축소 수준이 높을 때(scale < 0.85)만 대표 도메인 레이블이 크고 선명하게 투사되도록 스타일 제어
+          if (scale < 0.85) {
+            // 자동 의미론적 레이블 계산
+            const cNodes = groupNodes[cid] || [];
+            let labelSuffix = "";
+            if (cNodes.length > 0) {
+              // 최상위 중요 노드
+              let topNode = cNodes[0];
+              for (const n of cNodes) {
+                if ((n.importance ?? 0) > (topNode.importance ?? 0)) {
+                  topNode = n;
                 }
+              }
+              
+              // 제목 기반 키워드 빈도 추출
+              const stopwords = new Set([
+                "and", "the", "with", "for", "from", "main", "core", "impl", "test", "helper", "util", "utils", "config",
+                "이", "그", "저", "및", "등", "을", "를", "의", "에", "과", "와", "한", "로", "으로", "에서"
+              ]);
+              const wordCounts: Record<string, number> = {};
+              cNodes.forEach(n => {
+                const wList = (n.title || "").toLowerCase().match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
+                wList.forEach((w: string) => {
+                  if (!stopwords.has(w)) {
+                    wordCounts[w] = (wordCounts[w] || 0) + 1;
+                  }
+                });
               });
-            });
-            const sortedWords = Object.entries(wordCounts)
-              .sort((a, b) => b[1] - a[1])
-              .map(entry => entry[0]);
-            
-            if (topNode) {
-              const topWords = (topNode.title || "").match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
-              const mainTopWord = topWords.find((w: string) => !stopwords.has(w.toLowerCase())) || topNode.title;
-              const secondWord = sortedWords.find((w: string) => w.toLowerCase() !== mainTopWord.toLowerCase());
-              const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-              if (secondWord) {
-                labelSuffix = ` (${cap(mainTopWord)} & ${cap(secondWord)})`;
-              } else {
-                labelSuffix = ` (${cap(mainTopWord)})`;
+              const sortedWords = Object.entries(wordCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(entry => entry[0]);
+              
+              if (topNode) {
+                const topWords = (topNode.title || "").match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
+                const mainTopWord = topWords.find((w: string) => !stopwords.has(w.toLowerCase())) || topNode.title;
+                const secondWord = sortedWords.find((w: string) => w.toLowerCase() !== mainTopWord.toLowerCase());
+                const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+                if (secondWord) {
+                  labelSuffix = ` (${cap(mainTopWord)} & ${cap(secondWord)})`;
+                } else {
+                  labelSuffix = ` (${cap(mainTopWord)})`;
+                }
               }
             }
-          }
 
-          ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 0.45;
-          ctx.textAlign = "center";
-          ctx.fillText(`Community ${cid}${labelSuffix}`, cx, cy - radius - 6 / scale);
+            // 줌 아웃이 많이 될수록 레이블을 더 선명하고 돋보이게 처리 (LOD HUD 디자인 시스템 최적화)
+            const textOpacity = Math.min(0.75, (0.85 - scale) * 1.15);
+            const fontSize = Math.max(10, Math.min(14, 14 - scale * 4)); // 줌아웃 수준에 맞춤형
+            
+            ctx.save();
+            ctx.font = `600 ${fontSize / scale}px ${HUD_LABEL_FONT}`;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = textOpacity;
+            ctx.textAlign = "center";
+            
+            // 가시성을 위한 텍스트의 미세한 그림자 효과 추가 (프리미엄 디테일)
+            ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+            ctx.shadowBlur = 4 / scale;
+            
+            ctx.fillText(`Community ${cid}${labelSuffix}`, cx, cy - radius - 8 / scale);
+            ctx.restore();
+          }
         }
         ctx.restore();
         return;
