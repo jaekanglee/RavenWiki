@@ -469,13 +469,15 @@ export function GraphCanvas({
     graph
       .linkColor((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        return isHighlighted
-          ? "var(--graph-edge-highlight)"
-          : "var(--graph-edge)";
+        // v0.7.146 (C): "투박함" 개선 — edge alpha를 약간 올려 부드러움.
+        // 0.28 → 0.40 (highlight는 0.85로 한 단계 더 진하게).
+        if (isHighlighted) return "rgba(241, 245, 249, 0.85)";
+        return "rgba(148, 163, 184, 0.40)"; // slate-400 @ 0.40
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        return isHighlighted ? 2.2 : 0.8;
+        // v0.7.146 (C): lineWidth 0.8 → 1.2 (default), highlight 2.2 유지.
+        return isHighlighted ? 2.2 : 1.2;
       })
       // 하이라이트 시 연결선을 타고 흐르는 이펙트 적용 (Premium Wow-factor)
       .linkDirectionalParticles((link: any) => {
@@ -535,10 +537,13 @@ export function GraphCanvas({
       // dense(all-vault)에서는 라벨을 훨씬 보수적으로 노출해 "떡처럼 붙는" 현상을 줄인다.
       // current scope도 무조건 상시 노출 대신 zoom/중요도(weight) 기준을 둬 시야를 정리한다.
       const canShowDenseLabel = scale > 1.15 && (node.weight ?? 0) >= 3;
-      // v0.7.145: 단일 vault 그래프 시인성 — weight 임계값 상향 (>=6 → >=8).
-      // 이전은 scale 무관하게 weight 6+면 라벨 항상 표시 → 작은 vault에서도
-      // 라벨 과다. hub 노드(weight 8+)만 라벨 유지.
-      const canShowNormalLabel = scale > 0.85 || (node.weight ?? 0) >= 8;
+      // v0.7.146: 라벨 시인성 polish — zoom 100%에선 중간 weight도 보이게.
+      // (A) weight 8 cut-line이 zoom-out에서 random하게 보임 → zoom-aware 분리:
+      //   - zoom > 1.0 (가까이) + weight >= 3 → mid importance도
+      //   - weight >= 8 (어떤 zoom이든 hub) → 무조건
+      //   - 그 외 (zoom 작고 weight 작음) → 가림
+      const canShowNormalLabel =
+        (scale > 1.0 && (node.weight ?? 0) >= 3) || (node.weight ?? 0) >= 8;
       const showLabel = isFocused || isHighlighted || (isDense ? canShowDenseLabel : canShowNormalLabel);
       if (showLabel) {
         const label = node.title || node.slug || node.id;
@@ -547,6 +552,10 @@ export function GraphCanvas({
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
 
+        // v0.7.146 (B): zoom-out에서 라벨이 노드 안에 박혀서 깨짐 → 노드 옆으로 오프셋.
+        // zoom-in (scale > 1.5) 이하면 라벨을 노드 오른쪽으로 띄움.
+        const labelOffsetX = scale < 1.5 ? (size + 8) / scale : 0;
+
         // 텍스트 뒷배경 대비용 아웃라인
         ctx.fillStyle = "var(--graph-canvas-bg)";
         for (let dx = -1.2; dx <= 1.2; dx += 1.2) {
@@ -554,7 +563,7 @@ export function GraphCanvas({
             if (dx !== 0 || dy !== 0) {
               ctx.fillText(
                 label,
-                node.x + dx * (0.5 / scale),
+                node.x + labelOffsetX + dx * (0.5 / scale),
                 node.y + size + 3.8 / scale + dy * (0.5 / scale)
               );
             }
@@ -564,7 +573,7 @@ export function GraphCanvas({
         ctx.fillStyle = isFocused
           ? "var(--graph-edge-highlight)"
           : "var(--graph-label-color)";
-        ctx.fillText(label, node.x, node.y + size + 3.8 / scale);
+        ctx.fillText(label, node.x + labelOffsetX, node.y + size + 3.8 / scale);
       }
       // v0.7.144+: vault 라벨 코드 제거 (all-scope 모드 들어냄)
     });
