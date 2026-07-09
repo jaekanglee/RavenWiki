@@ -618,6 +618,14 @@ export function GraphCanvas({
       ctx.restore();
 
       if (centroids && centroids.length > 0) {
+        // v0.7.142+: vault별 최상단 노드 y 계산 — 라벨을 centroid가 아닌
+        // vault 군집의 최상단 노드 위에 띄움. centroid는 노드들 빽빽한 곳이라
+        // 라벨이 묻힘.
+        // nodeCanvasObject 콜백에서는 ctx 외 node가 매개변수로 들어옴.
+        // 모든 노드 순회하면서 vault별 최상단 y 계산.
+        const topYByVault = new Map<string, number>();
+        // 현재 콜백의 node는 사용 불가 — centroids의 x,y 사용:
+        // vault 노드들의 y좌표는 deriveVaultCentroids에 없으므로, centroid.y 자체에서 위로 띄움.
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
         // 첫 vault centroid 위치에 초록 X 마커
@@ -626,18 +634,21 @@ export function GraphCanvas({
           ctx.fillText("X", centroids[0].x, centroids[0].y);
         }
         for (const vc of centroids) {
-          const color = resolveVaultColor(vc.vault);
-          // v0.7.138+: fontSize floor 11 — extreme zoom out에서도 식별 가능.
-          const fontSize = Math.max(11, 14 * scale);
+          // v0.7.142+: 임시 진단 — vault 색 무시하고 흰색으로 그려서
+          // 안 보이는지 위치 문제인지 분기.
+          const color = "#ffffff";
+          // v0.7.142+: fontSize floor 14 (다크 배경 식별성)
+          const fontSize = Math.max(14, 14 * scale);
           ctx.font = `700 ${fontSize}px sans-serif`;
           const labelX = vc.x;
-          const labelY = vc.y - Math.max(20, 50 * scale);
-          // 본문 (vault 색) 먼저 — outline을 얇게
+          // v0.7.142+: 위치 floor 60 — 항상 노드들 위로 더 띄움
+          const labelY = vc.y - Math.max(60, 60 * scale);
+          // 본문 (흰색) 먼저
           ctx.fillStyle = color;
           ctx.fillText(vc.vault, labelX, labelY);
-          // outline은 가는 dark stroke로 1회 (얇게)
-          ctx.lineWidth = Math.max(0.8, 2 * scale);
-          ctx.strokeStyle = "rgba(15, 23, 42, 0.9)";
+          // outline (검은색 stroke)
+          ctx.lineWidth = Math.max(0.5, 1.5 * scale);
+          ctx.strokeStyle = "rgba(0, 0, 0, 1)";
           ctx.lineJoin = "round";
           ctx.strokeText(vc.vault, labelX, labelY);
         }
