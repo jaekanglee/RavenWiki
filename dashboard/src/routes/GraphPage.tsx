@@ -105,12 +105,17 @@ export function GraphPage() {
   const [hoveredInsightNodeId, setHoveredInsightNodeId] = useState<string | null>(null);
   const [hoveredInsightType, setHoveredInsightType] = useState<string | null>(null);
   const [showFullGraph, setShowFullGraph] = useState(false);
+  const [activeTab, setActiveTab] = useState<"inbound" | "outbound" | "neighbors">("inbound");
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
   const { query, selectedType, hideOrphans, selectedNodeId } = filters;
 
   const resetGraphFilters = () => dispatchFilters({ type: "reset" });
+
+  useEffect(() => {
+    setActiveTab("inbound");
+  }, [selectedNodeId]);
 
   const loadGraph = () => {
     if (!vault) return;
@@ -385,136 +390,178 @@ export function GraphPage() {
       <aside className="graph-detail-panel" aria-label="선택 문서 상세">
         {selectedNodeDetail ? (
           <>
+            {/* 컴팩트 헤더 */}
             <div className="graph-detail-header">
-              <div>
-                <strong>{selectedNodeDetail.node.title}</strong>
-                <p>{nodeSlug(selectedNodeDetail.node)}</p>
-                {selectedNodeDetail.node.vault && (
-                  <span className="graph-vault-chip">{selectedNodeDetail.node.vault}</span>
-                )}
-              </div>
-              <span className="graph-detail-chip">
-                {selectedNodeDetail.node.type ?? "미분류"}
-              </span>
-            </div>
-            <div className="graph-detail-stats">
-              <div>
-                <span>참조됨</span>
-                <strong>{selectedNodeDetail.inbound.length}</strong>
-              </div>
-              <div>
-                <span>참조함</span>
-                <strong>{selectedNodeDetail.outbound.length}</strong>
-              </div>
-              <div>
-                <span>관련</span>
-                <strong>{selectedNodeDetail.neighbors.length}</strong>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
+                  <span className="graph-detail-chip">
+                    {typeLabel(selectedNodeDetail.node.type) || selectedNodeDetail.node.type || "미분류"}
+                  </span>
+                  {selectedNodeDetail.node.vault && (
+                    <span className="graph-vault-chip">{selectedNodeDetail.node.vault}</span>
+                  )}
+                </div>
+                <strong className="graph-detail-title" style={{ display: "block", fontSize: "16px", color: "var(--color-ink)", wordBreak: "break-all" }}>
+                  {selectedNodeDetail.node.title}
+                </strong>
+                <p className="graph-detail-slug" style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--color-muted)", wordBreak: "break-all" }}>
+                  {nodeSlug(selectedNodeDetail.node)}
+                </p>
               </div>
             </div>
-            <div className="graph-detail-actions">
+
+            {/* 미니 액션 툴바 */}
+            <div className="graph-detail-mini-actions">
               <Button
                 type="button"
+                className="graph-detail-action-btn"
                 variant="secondary"
                 size="sm"
                 onClick={() => {
                   dispatchFilters({ type: "setQuery", value: selectedNodeDetail.node.title });
                   dispatchFilters({ type: "setSelectedType", value: "all" });
                 }}
+                title="이 문서와 1-hop 연결망 중심으로 그래프를 포커스합니다"
               >
-                이 문서로 포커스
+                🎯 그래프 포커스
               </Button>
               <Button
                 type="button"
+                className="graph-detail-action-btn"
                 variant="ghost"
                 size="sm"
                 onClick={() => openGraphNode(selectedNodeDetail.node.id)}
+                title="문서 읽기/편집 페이지로 이동합니다"
               >
-                문서 열기
+                📖 문서 열기
               </Button>
             </div>
-            <div className="graph-detail-section">
-              <h3>나를 참조한 문서</h3>
-              {selectedNodeDetail.inbound.length > 0 ? (
-                <ul className="graph-detail-list">
-                  {selectedNodeDetail.inbound.slice(0, 8).map((node) => (
-                    <li key={node.id}>
-                      <button
-                        type="button"
-                        className="graph-detail-link"
-                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
-                        onMouseLeave={() => setHoveredInsightNodeId(null)}
-                      >
-                        <span>{node.title}</span>
-                        <span>
-                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
-                          {node.type ?? "미분류"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="graph-insight-empty">이 문서를 참조하는 문서가 아직 없습니다.</p>
-              )}
+
+            {/* 통계 기반 클릭 인터랙티브 탭 카드 */}
+            <div className="graph-detail-stats">
+              <button
+                type="button"
+                className={`graph-detail-stat-card ${activeTab === "inbound" ? "active" : ""}`}
+                onClick={() => setActiveTab("inbound")}
+              >
+                <span>참조됨</span>
+                <strong>{selectedNodeDetail.inbound.length}</strong>
+              </button>
+              <button
+                type="button"
+                className={`graph-detail-stat-card ${activeTab === "outbound" ? "active" : ""}`}
+                onClick={() => setActiveTab("outbound")}
+              >
+                <span>참조함</span>
+                <strong>{selectedNodeDetail.outbound.length}</strong>
+              </button>
+              <button
+                type="button"
+                className={`graph-detail-stat-card ${activeTab === "neighbors" ? "active" : ""}`}
+                onClick={() => setActiveTab("neighbors")}
+              >
+                <span>관련</span>
+                <strong>{selectedNodeDetail.neighbors.length}</strong>
+              </button>
             </div>
-            <div className="graph-detail-section">
-              <h3>내가 참조한 문서</h3>
-              {selectedNodeDetail.outbound.length > 0 ? (
-                <ul className="graph-detail-list">
-                  {selectedNodeDetail.outbound.slice(0, 8).map((node) => (
-                    <li key={node.id}>
-                      <button
-                        type="button"
-                        className="graph-detail-link"
-                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
-                        onMouseLeave={() => setHoveredInsightNodeId(null)}
-                      >
-                        <span>{node.title}</span>
-                        <span>
-                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
-                          {node.type ?? "미분류"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="graph-insight-empty">이 문서가 참조하는 문서가 아직 없습니다.</p>
+
+            {/* 단일 관계 목록 출력 영역 */}
+            <div className="graph-detail-tab-content">
+              {activeTab === "inbound" && (
+                <div className="graph-detail-section">
+                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
+                    나를 참조한 문서 ({selectedNodeDetail.inbound.length})
+                  </h3>
+                  {selectedNodeDetail.inbound.length > 0 ? (
+                    <ul className="graph-detail-list">
+                      {selectedNodeDetail.inbound.slice(0, 10).map((node) => (
+                        <li key={node.id}>
+                          <button
+                            type="button"
+                            className="graph-detail-link"
+                            onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
+                            onMouseEnter={() => setHoveredInsightNodeId(node.id)}
+                            onMouseLeave={() => setHoveredInsightNodeId(null)}
+                          >
+                            <span>{node.title}</span>
+                            <span className="graph-node-meta-badge">
+                              {typeLabel(node.type) || node.type || "미분류"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="graph-insight-empty">이 문서를 참조하는 문서가 없습니다.</p>
+                  )}
+                </div>
               )}
-            </div>
-            <div className="graph-detail-section">
-              <h3>관련 문서</h3>
-              {selectedNodeDetail.neighbors.length > 0 ? (
-                <ul className="graph-detail-list">
-                  {selectedNodeDetail.neighbors.slice(0, 8).map((node) => (
-                    <li key={node.id}>
-                      <button
-                        type="button"
-                        className="graph-detail-link"
-                        onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
-                        onMouseEnter={() => setHoveredInsightNodeId(node.id)}
-                        onMouseLeave={() => setHoveredInsightNodeId(null)}
-                      >
-                        <span>{node.title}</span>
-                        <span>
-                          {node.vault && <span className="graph-vault-chip">{node.vault}</span>}
-                          {node.type ?? "미분류"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="graph-insight-empty">아직 연결된 문서가 없습니다.</p>
+
+              {activeTab === "outbound" && (
+                <div className="graph-detail-section">
+                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
+                    내가 참조한 문서 ({selectedNodeDetail.outbound.length})
+                  </h3>
+                  {selectedNodeDetail.outbound.length > 0 ? (
+                    <ul className="graph-detail-list">
+                      {selectedNodeDetail.outbound.slice(0, 10).map((node) => (
+                        <li key={node.id}>
+                          <button
+                            type="button"
+                            className="graph-detail-link"
+                            onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
+                            onMouseEnter={() => setHoveredInsightNodeId(node.id)}
+                            onMouseLeave={() => setHoveredInsightNodeId(null)}
+                          >
+                            <span>{node.title}</span>
+                            <span className="graph-node-meta-badge">
+                              {typeLabel(node.type) || node.type || "미분류"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="graph-insight-empty">이 문서가 참조하는 문서가 없습니다.</p>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "neighbors" && (
+                <div className="graph-detail-section">
+                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
+                    관련 문서 ({selectedNodeDetail.neighbors.length})
+                  </h3>
+                  {selectedNodeDetail.neighbors.length > 0 ? (
+                    <ul className="graph-detail-list">
+                      {selectedNodeDetail.neighbors.slice(0, 10).map((node) => (
+                        <li key={node.id}>
+                          <button
+                            type="button"
+                            className="graph-detail-link"
+                            onClick={() => dispatchFilters({ type: "setSelectedNodeId", value: node.id })}
+                            onMouseEnter={() => setHoveredInsightNodeId(node.id)}
+                            onMouseLeave={() => setHoveredInsightNodeId(null)}
+                          >
+                            <span>{node.title}</span>
+                            <span className="graph-node-meta-badge">
+                              {typeLabel(node.type) || node.type || "미분류"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="graph-insight-empty">관련된 연결 문서가 없습니다.</p>
+                  )}
+                </div>
               )}
             </div>
           </>
         ) : (
           <div className="graph-detail-empty">
-            <strong>노드를 선택해 주세요</strong>
-            <p>그래프 위 문서를 클릭하면 관련 문서와 이동 액션을 여기서 바로 확인할 수 있습니다.</p>
+            <strong>문서를 선택해 주세요</strong>
+            <p>그래프의 노드를 클릭하면 해당 문서의 참조 위계와 이동 도구가 여기에 콤팩트하게 제공됩니다.</p>
           </div>
         )}
       </aside>
