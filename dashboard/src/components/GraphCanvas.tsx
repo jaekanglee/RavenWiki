@@ -535,7 +535,10 @@ export function GraphCanvas({
       // dense(all-vault)에서는 라벨을 훨씬 보수적으로 노출해 "떡처럼 붙는" 현상을 줄인다.
       // current scope도 무조건 상시 노출 대신 zoom/중요도(weight) 기준을 둬 시야를 정리한다.
       const canShowDenseLabel = scale > 1.15 && (node.weight ?? 0) >= 3;
-      const canShowNormalLabel = scale > 0.85 || (node.weight ?? 0) >= 6;
+      // v0.7.145: 단일 vault 그래프 시인성 — weight 임계값 상향 (>=6 → >=8).
+      // 이전은 scale 무관하게 weight 6+면 라벨 항상 표시 → 작은 vault에서도
+      // 라벨 과다. hub 노드(weight 8+)만 라벨 유지.
+      const canShowNormalLabel = scale > 0.85 || (node.weight ?? 0) >= 8;
       const showLabel = isFocused || isHighlighted || (isDense ? canShowDenseLabel : canShowNormalLabel);
       if (showLabel) {
         const label = node.title || node.slug || node.id;
