@@ -607,6 +607,13 @@ export function GraphCanvas({
       // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
       const centroids = vaultCentroidsRef.current;
       if (centroids && centroids.length > 0) {
+        // v0.7.139+: 디버그 — 첫 매치 vault에 빨간 박스 (사용자 보고 시점 한시적).
+        // 라벨이 안 보일 때 vaultCentroids가 실제로 들어왔는지 콘솔에서 확인 가능.
+        if (typeof window !== "undefined" && !(window as any).__vaultLabelDebug) {
+          (window as any).__vaultLabelDebug = true;
+          // eslint-disable-next-line no-console
+          console.log("[vault label] centroids:", centroids.length, centroids.map((c:any)=>({v:c.vault,x:c.x,y:c.y,r:c.radius})));
+        }
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
         for (const vc of centroids) {
