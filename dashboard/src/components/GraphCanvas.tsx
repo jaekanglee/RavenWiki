@@ -168,6 +168,17 @@ function resolveVaultColor(vaultName: string): string {
   return VAULT_HALO_COLORS[idx];
 }
 
+// v0.7.134+: hex 색에 alpha 적용한 rgba 문자열. vault ring이 노드 외곽에서
+// 부드럽게 묻나오도록 0.55 alpha 사용.
+function hexToRgba(hex: string, alpha: number): string {
+  const m = hex.replace("#", "").match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return hex;
+  const r = parseInt(m[1], 16);
+  const g = parseInt(m[2], 16);
+  const b = parseInt(m[3], 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // rounded-rect 헬퍼 제거 — v0.7.139+: onRenderFramePre에서 그리던 vault halo 박스를
 // 삭제하면서 호출처가 사라졌다. 향후 다른 캔버스 도형이 필요하면 재도입.
 
@@ -242,6 +253,11 @@ export function GraphCanvas({
   // 1. 하이라이트 및 인접 관계 집합 계산 (ref 기반 — effect deps 안 들어감)
   const highlightNodesRef = useRef<Set<string>>(new Set());
   const highlightLinksRef = useRef<Set<string>>(new Set());
+
+  // v0.7.134+: vault centroids를 ref로 보관 — nodeCanvasObject 내부에서 매 paint
+  // call로 최신 값을 읽되, effect를 재실행하지 않음 (캔버스 pan/zoom 보존).
+  const vaultCentroidsRef = useRef<VaultCentroid[]>([]);
+  vaultCentroidsRef.current = vaultCentroids ?? [];
 
   const recomputeHighlights = (hover: any, extId: string | null | undefined, edgeList: typeof edges) => {
     const nodeSet = new Set<string>();
@@ -544,12 +560,14 @@ export function GraphCanvas({
 
       // v0.7.139+: vault 소속 ring — 전체 vault 모드에서만, 노드 바깥쪽에 vault 색 1.2px ring.
       // 같은 vault 노드들이 시각적으로 묶여 보이고, FA2 자연 클러스터 위에 색 식별 레이어 추가.
+      // v0.7.134: 두께 1.2px → 2.4px (시야성), 색에 alpha 0.55 적용 (캐나다 halo처럼 부드러운 ring),
       // focused 상태에선 highlight ring이 더 중요해서 vault ring은 안 그림.
       if (showVaultRing && node.vault && !isFocused) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 1.2 / scale, 0, 2 * Math.PI, false);
-        ctx.strokeStyle = resolveVaultColor(node.vault);
-        ctx.lineWidth = 1.2 / scale;
+        ctx.arc(node.x, node.y, size + 2.4 / scale, 0, 2 * Math.PI, false);
+        const vaultColor = resolveVaultColor(node.vault);
+        ctx.strokeStyle = hexToRgba(vaultColor, 0.55);
+        ctx.lineWidth = 2.4 / scale;
         ctx.stroke();
       }
 
