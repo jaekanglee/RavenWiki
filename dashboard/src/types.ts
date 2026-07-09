@@ -1,3 +1,12 @@
+export interface Relation {
+  type: string;
+  target: string;
+  evidence?: string[] | string;
+  reason?: string;
+  confidence?: number | { semantic?: number; structural?: number; provenance?: number };
+  verified_by?: string[] | string;
+}
+
 export interface Page {
   slug: string;
   title: string;
@@ -10,6 +19,7 @@ export interface Page {
   content: string;
   backlinks?: { source_slug: string; source_title: string }[];
   issueStatus?: string;
+  relations?: Relation[];
 }
 
 // v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.

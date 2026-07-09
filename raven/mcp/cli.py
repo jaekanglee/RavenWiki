@@ -190,6 +190,22 @@ def register_tools(mcp: Any, mode: str) -> None:
             cache_hash=cache_hash,
         )
 
+    # ─── 7.6. wiki_relations_list ───
+    @mcp.tool(
+        name="wiki_relations_list",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "List semantic relations, optionally filtered by source slug or type."
+        ),
+    )
+    def wiki_relations_list(
+        vault: str,
+        slug: Optional[str] = None,
+        relation_type: Optional[str] = None,
+    ) -> list[dict]:
+        ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
+        return read_tools.wiki_relations_list(slug=slug, relation_type=relation_type, ctx=ctx)
+
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
         @mcp.tool(
@@ -285,6 +301,53 @@ def register_tools(mcp: Any, mode: str) -> None:
                 source=source, project=project, mode=mode,
                 actor=actor, idempotency_key=idempotency_key,
                 ctx=ctx,
+            )
+
+        @mcp.tool(
+            name="wiki_relation_add",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "Add or update a semantic relation in a page's frontmatter. Requires --write or --admin."
+            ),
+        )
+        def wiki_relation_add(
+            vault: str,
+            source_slug: str,
+            target_slug: str,
+            relation_type: str,
+            evidence: list[str] | str,
+            reason: str,
+            confidence: Optional[dict | float] = None,
+            verified_by: Optional[list[str] | str] = None,
+            actor: Optional[str] = None,
+            idempotency_key: Optional[str] = None,
+        ) -> dict:
+            ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
+            return write_tools.wiki_relation_add(
+                source_slug=source_slug, target_slug=target_slug, relation_type=relation_type,
+                evidence=evidence, reason=reason, confidence=confidence, verified_by=verified_by,
+                actor=actor, idempotency_key=idempotency_key, ctx=ctx
+            )
+
+        @mcp.tool(
+            name="wiki_relation_remove",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "Remove a semantic relation from a page's frontmatter. Requires --write or --admin."
+            ),
+        )
+        def wiki_relation_remove(
+            vault: str,
+            source_slug: str,
+            target_slug: str,
+            relation_type: str,
+            actor: Optional[str] = None,
+            idempotency_key: Optional[str] = None,
+        ) -> dict:
+            ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
+            return write_tools.wiki_relation_remove(
+                source_slug=source_slug, target_slug=target_slug, relation_type=relation_type,
+                actor=actor, idempotency_key=idempotency_key, ctx=ctx
             )
 
     # ─── 7. wiki_delete / wiki_rename (admin only) ───
