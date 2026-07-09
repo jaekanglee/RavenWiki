@@ -469,9 +469,6 @@ export function GraphPage() {
             <div className="graph-detail-tab-content">
               {activeTab === "inbound" && (
                 <div className="graph-detail-section">
-                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
-                    나를 참조한 문서 ({selectedNodeDetail.inbound.length})
-                  </h3>
                   {selectedNodeDetail.inbound.length > 0 ? (
                     <ul className="graph-detail-list">
                       {selectedNodeDetail.inbound.slice(0, 10).map((node) => (
@@ -499,9 +496,6 @@ export function GraphPage() {
 
               {activeTab === "outbound" && (
                 <div className="graph-detail-section">
-                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
-                    내가 참조한 문서 ({selectedNodeDetail.outbound.length})
-                  </h3>
                   {selectedNodeDetail.outbound.length > 0 ? (
                     <ul className="graph-detail-list">
                       {selectedNodeDetail.outbound.slice(0, 10).map((node) => (
@@ -529,9 +523,6 @@ export function GraphPage() {
 
               {activeTab === "neighbors" && (
                 <div className="graph-detail-section">
-                  <h3 style={{ margin: "0 0 8px", fontSize: "13px", color: "var(--color-ink)" }}>
-                    관련 문서 ({selectedNodeDetail.neighbors.length})
-                  </h3>
                   {selectedNodeDetail.neighbors.length > 0 ? (
                     <ul className="graph-detail-list">
                       {selectedNodeDetail.neighbors.slice(0, 10).map((node) => (
