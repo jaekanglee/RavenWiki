@@ -5,10 +5,16 @@
 # MCP lifecycle 통합 — silent stale 방지 (v0.7.82 hotfix). 운영자가 lifecycle
 # 수동 관리 안 해도 `make restart-all` / `./raven.sh restart`가 자동 처리.
 #
-# 포트 매트릭스 (v0.7.83+):
+# 포트 매트릭스 (v0.7.83+, v0.7.148+ team MCP 추가):
 #   API:       8765 (RAVEN_API_PORT) — Dashboard가 Vite proxy로 호출
-#   MCP:       8766 (RAVEN_MCP_PORT, v0.7.81+ HTTP only 정책)
+#   MCP:       8766 (RAVEN_MCP_PORT, v0.7.81+ HTTP only 정책) — 운영자용
+#   MCP(team): 8767 (RAVEN_MCP_TEAM_PORT, RAVEN_MCP_TEAM_ENABLE=true 시에만 기동)
+#              — 운영자(admin)와 권한 분리된 팀원용 인스턴스 (기본 mode=write)
 #   Dashboard: 5173 (RAVEN_DASHBOARD_PORT, Vite dev)
+#
+# Host 바인딩은 .env(git-ignored)에서 머신별로 설정 (.env.example 참고) —
+# 인증 체계가 없으므로 신뢰 수준에 맞게 RAVEN_MCP_HOST / RAVEN_MCP_TEAM_HOST /
+# RAVEN_DASHBOARD_HOST 를 머신마다 다르게 둘 것.
 #
 # Exit on error
 set -e
@@ -31,11 +37,20 @@ PID_DIR="tmp"
 API_PID="$PID_DIR/api.pid"
 DASHBOARD_PID="$PID_DIR/dashboard.pid"
 MCP_PID="$PID_DIR/mcp.pid"
+MCP_TEAM_PID="$PID_DIR/mcp_team.pid"
 
 API_PORT="${RAVEN_API_PORT:-8765}"
 MCP_PORT="${RAVEN_MCP_PORT:-8766}"
 MCP_MODE="${RAVEN_MCP_MODE:-read}"
+MCP_HOST="${RAVEN_MCP_HOST:-127.0.0.1}"
 DASHBOARD_PORT="${RAVEN_DASHBOARD_PORT:-5173}"
+
+# v0.7.148+: 팀원용 2번째 MCP 인스턴스 — 운영자(admin, 위 MCP_*)와 권한 분리.
+# RAVEN_MCP_TEAM_ENABLE=true 로 .env에서 켤 것 (기본 꺼짐 — solo 사용 시 불필요한 프로세스 방지).
+MCP_TEAM_ENABLE="${RAVEN_MCP_TEAM_ENABLE:-false}"
+MCP_TEAM_PORT="${RAVEN_MCP_TEAM_PORT:-8767}"
+MCP_TEAM_MODE="${RAVEN_MCP_TEAM_MODE:-write}"
+MCP_TEAM_HOST="${RAVEN_MCP_TEAM_HOST:-0.0.0.0}"
 
 mkdir -p "$PID_DIR"
 
@@ -78,14 +93,24 @@ status() {
     mcp_mode_display="$(mcp_mode_from_pid "$(cat "$MCP_PID")")"
   fi
 
+  local mcp_team_running=false
+  local mcp_team_mode_display=""
+  if [ -f "$MCP_TEAM_PID" ] && kill -0 $(cat "$MCP_TEAM_PID") 2>/dev/null; then
+    mcp_team_running=true
+    mcp_team_mode_display="$(mcp_mode_from_pid "$(cat "$MCP_TEAM_PID")")"
+  fi
+
   if $api_running && $db_running && $mcp_running; then
     echo "🟢 Raven is RUNNING"
     echo "   • API PID: $(cat "$API_PID")       Url: http://127.0.0.1:$API_PORT"
     echo "   • Dashboard PID: $(cat "$DASHBOARD_PID") Url: http://localhost:$DASHBOARD_PORT"
-    echo "   • MCP PID: $(cat "$MCP_PID")          Url: http://127.0.0.1:$MCP_PORT/mcp (mode=${mcp_mode_display:-?})"
+    echo "   • MCP PID: $(cat "$MCP_PID")          Url: http://$MCP_HOST:$MCP_PORT/mcp (mode=${mcp_mode_display:-?})"
+    if $mcp_team_running; then
+      echo "   • MCP(team) PID: $(cat "$MCP_TEAM_PID")     Url: http://$MCP_TEAM_HOST:$MCP_TEAM_PORT/mcp (mode=${mcp_team_mode_display:-?})"
+    fi
     return 0
-  elif $api_running || $db_running || $mcp_running; then
-    echo "🟡 Raven is PARTIALLY RUNNING (API: $api_running, Dashboard: $db_running, MCP: $mcp_running)"
+  elif $api_running || $db_running || $mcp_running || $mcp_team_running; then
+    echo "🟡 Raven is PARTIALLY RUNNING (API: $api_running, Dashboard: $db_running, MCP: $mcp_running, MCP-team: $mcp_team_running)"
     return 1
   else
     echo "🔴 Raven is STOPPED"
@@ -107,10 +132,22 @@ start() {
   if [ -f "$MCP_PID" ] && kill -0 $(cat "$MCP_PID") 2>/dev/null; then
     echo "⚠️  MCP server is already running (PID: $(cat "$MCP_PID"))"
   else
-    echo "🚀 Starting MCP server in background on port $MCP_PORT (mode=$MCP_MODE)..."
+    echo "🚀 Starting MCP server in background on port $MCP_PORT (mode=$MCP_MODE, host=$MCP_HOST)..."
     PYTHONPATH=. $PY -m raven.mcp.cli \
-      --transport http --host 127.0.0.1 --port "$MCP_PORT" --mode "$MCP_MODE" > tmp/mcp.log 2>&1 &
+      --transport http --host "$MCP_HOST" --port "$MCP_PORT" --mode "$MCP_MODE" > tmp/mcp.log 2>&1 &
     echo $! > "$MCP_PID"
+  fi
+
+  # MCP team instance (v0.7.148+, opt-in via RAVEN_MCP_TEAM_ENABLE=true)
+  if [ "$MCP_TEAM_ENABLE" = "true" ]; then
+    if [ -f "$MCP_TEAM_PID" ] && kill -0 $(cat "$MCP_TEAM_PID") 2>/dev/null; then
+      echo "⚠️  MCP(team) server is already running (PID: $(cat "$MCP_TEAM_PID"))"
+    else
+      echo "🚀 Starting MCP(team) server in background on port $MCP_TEAM_PORT (mode=$MCP_TEAM_MODE, host=$MCP_TEAM_HOST)..."
+      PYTHONPATH=. $PY -m raven.mcp.cli \
+        --transport http --host "$MCP_TEAM_HOST" --port "$MCP_TEAM_PORT" --mode "$MCP_TEAM_MODE" > tmp/mcp_team.log 2>&1 &
+      echo $! > "$MCP_TEAM_PID"
+    fi
   fi
 
   # Dashboard (5173)
@@ -141,6 +178,12 @@ stop() {
     echo "   Stopping MCP (PID: $pid)..."
     kill "$pid" 2>/dev/null || true
     rm -f "$MCP_PID"
+  fi
+  if [ -f "$MCP_TEAM_PID" ]; then
+    local pid=$(cat "$MCP_TEAM_PID")
+    echo "   Stopping MCP(team) (PID: $pid)..."
+    kill "$pid" 2>/dev/null || true
+    rm -f "$MCP_TEAM_PID"
   fi
   if [ -f "$DASHBOARD_PID" ]; then
     local pid=$(cat "$DASHBOARD_PID")

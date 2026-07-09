@@ -40,7 +40,8 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
-    host: true,
+    // RAVEN_DASHBOARD_HOST (repo-root .env, raven.sh가 source): 미설정 시 localhost만.
+    host: process.env.RAVEN_DASHBOARD_HOST || "127.0.0.1",
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8765",
