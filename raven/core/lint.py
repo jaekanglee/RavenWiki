@@ -1593,6 +1593,9 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
 
     allowed_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
 
+    relations_map = {}
+    pages_meta = {}
+
     for fp in _all_pages(vault):
         slug = _slug_of(vault, fp)
         if slug.startswith("_meta/") or slug.startswith("content/_index/") or slug == "content/index.md":
@@ -1602,7 +1605,11 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
         except Exception:
             continue
         meta, _ = _split_fm_body(text)
-        if not meta or "relations" not in meta:
+        if not meta:
+            continue
+        pages_meta[slug] = meta
+
+        if "relations" not in meta:
             continue
 
         relations = meta.get("relations")
@@ -1654,14 +1661,17 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
 
             # 3. target 문서 존재 여부 검사 (단축 slug 포함)
             target_exists = False
+            resolved_target = None
             if target in all_slugs:
                 target_exists = True
+                resolved_target = target
             else:
                 # 단축 slug 해소 시도
                 base = target.rsplit("/", 1)[-1]
                 candidates = short_slug_map.get(base, [])
                 if candidates:
                     target_exists = True
+                    resolved_target = candidates[0]
             
             if not target_exists:
                 out.append(_mk_issue(
@@ -1691,5 +1701,60 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
                     "#23", "warning", slug,
                     f"관계 '{rel_type or 'unknown'} ➔ {target}'에 대한 evidence(근거) 또는 reason(이유)이 누락되었습니다.",
                 ))
+
+            if target_exists and resolved_target and rel_type:
+                relations_map.setdefault(slug, []).append({
+                    "target": resolved_target,
+                    "type": rel_type
+                })
+
+    # 5. 상호/대칭 관계 린트 자동 검증 (Symmetric Relation Validation)
+    for src, rels in relations_map.items():
+        for rel in rels:
+            tgt = rel["target"]
+            rtype = rel["type"]
+            
+            if rtype == "implements":
+                tgt_rels = relations_map.get(tgt, [])
+                has_symmetric = any(r["target"] == src and r["type"] == "implemented_by" for r in tgt_rels)
+                if not has_symmetric:
+                    out.append(_mk_issue(
+                        "#23", "warning", src,
+                        f"대칭 관계 누락: 이 문서가 '{tgt}'을(를) implements 하지만, '{tgt}' 문서에는 이 문서에 대한 implemented_by 관계가 정의되어 있지 않습니다."
+                    ))
+            elif rtype == "implemented_by":
+                tgt_rels = relations_map.get(tgt, [])
+                has_symmetric = any(r["target"] == src and r["type"] == "implements" for r in tgt_rels)
+                if not has_symmetric:
+                    out.append(_mk_issue(
+                        "#23", "warning", src,
+                        f"대칭 관계 누락: 이 문서가 '{tgt}'에 의해 implemented_by 되지만, '{tgt}' 문서에는 이 문서에 대한 implements 관계가 정의되어 있지 않습니다."
+                    ))
+
+    # 6. 의존성 경고 및 상태 추적 (Broken Dependency Alert)
+    for src, rels in relations_map.items():
+        for rel in rels:
+            tgt = rel["target"]
+            rtype = rel["type"]
+            
+            if rtype == "depends_on":
+                tgt_meta = pages_meta.get(tgt)
+                if tgt_meta:
+                    tgt_type = tgt_meta.get("type")
+                    tgt_status = tgt_meta.get("status")
+                    tgt_issue_status = tgt_meta.get("issue_status")
+                    tgt_archived = bool(tgt_meta.get("archived", False))
+                    
+                    is_issue_rejected = (tgt_type == "issue" and 
+                                         (tgt_status == "rejected" or tgt_issue_status == "rejected"))
+                    is_archived = (tgt_status == "archived" or 
+                                   tgt_archived is True or 
+                                   tgt_type == "archived")
+                    
+                    if is_issue_rejected or is_archived:
+                        out.append(_mk_issue(
+                            "#23", "warning", src,
+                            f"의존성 경고: 이 문서가 의존하는 '{tgt}' 문서의 상태가 issue/rejected 이거나 archived 입니다."
+                        ))
 
     return out

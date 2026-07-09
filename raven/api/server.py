@@ -989,28 +989,29 @@ def vault_graph(
                 }
                 for p in pages
             ]
-            # 각 노드의 markdown frontmatter에서 importance 수치를 파싱하여 하이브리드 가중치로 보정
+            # 각 노드의 markdown frontmatter에서 importance 수치 및 status, issue_status, archived 등을 파싱
+            import frontmatter
             for node in nodes:
                 slug = node["slug"]
                 node_fp = v.root / f"{slug}.md"
                 importance = 1
+                status = None
+                issue_status = None
+                archived = False
                 if node_fp.exists():
                     try:
-                        text = node_fp.read_text(errors="replace")
-                        if text.startswith("---"):
-                            fm_part = text.split("---", 2)[1]
-                            for line in fm_part.splitlines():
-                                if ":" in line:
-                                    k, val = line.split(":", 1)
-                                    if k.strip() == "importance":
-                                        try:
-                                            importance = int(val.strip())
-                                        except Exception:
-                                            pass
-                                        break
+                        post = frontmatter.loads(node_fp.read_text(errors="replace"))
+                        fm = post.metadata
+                        importance = int(fm.get("importance", 1))
+                        status = fm.get("status")
+                        issue_status = fm.get("issue_status")
+                        archived = bool(fm.get("archived", False))
                     except Exception:
                         pass
                 node["importance"] = importance
+                node["status"] = status
+                node["issue_status"] = issue_status
+                node["archived"] = archived
                 # 하이브리드 가중치 = in-degree 링크 수 + (importance - 1) * 3.5
                 node["weight"] = int(in_degree.get(slug, 0) + (importance - 1) * 3.5)
             # intent='auto' or 'broken' 만 edge로 (missing은 의도적 placeholder)
@@ -1067,18 +1068,52 @@ def vault_graph(
                         "target": t
                     })
             db.close()
+
+            # broken dependency 검사
+            nodes_map = {n["id"]: n for n in nodes}
+            for e in edges:
+                e["broken_dependency"] = False
+            for node in nodes:
+                node["broken_dependency"] = False
+
+            for e in edges:
+                if e.get("relation_type") == "depends_on":
+                    tgt_id = e["target"]
+                    tgt_node = nodes_map.get(tgt_id)
+                    if tgt_node:
+                        is_issue_rejected = (tgt_node.get("type") == "issue" and 
+                                             (tgt_node.get("status") == "rejected" or tgt_node.get("issue_status") == "rejected"))
+                        is_archived = (tgt_node.get("status") == "archived" or 
+                                       tgt_node.get("archived") is True or 
+                                       tgt_node.get("type") == "archived")
+                        if is_issue_rejected or is_archived:
+                            e["broken_dependency"] = True
+                            src_node = nodes_map.get(e["source"])
+                            if src_node:
+                                src_node["broken_dependency"] = True
+
+            # 5대 핵심 의미 관계에 더 높은 가중치(5.0) 부여
+            allowed_semantic_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
+            edge_weights = []
+            for e in edges:
+                rel_type = e.get("relation_type")
+                if rel_type in allowed_semantic_types:
+                    edge_weights.append(5.0)
+                else:
+                    edge_weights.append(1.0)
+
             # Patch A1 (v0.6.10+): force-directed 좌표 부착 (서버 1회 계산, 결정론).
             ids = [n["id"] for n in nodes]
             edge_pairs = [(e["source"], e["target"]) for e in edges]
             weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
 
             # 은하 중심 중력 및 시각 군집화를 위해 커뮤니티를 레이아웃 전에 항상 계산
-            comm_map = _louvain_communities(ids, edge_pairs)
+            comm_map = _louvain_communities(ids, edge_pairs, weights=edge_weights)
             for node in nodes:
                 node["community"] = comm_map.get(node["id"], -1)
 
             layout_coords = _forceatlas_layout(
-                ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
+                ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map, edge_weights=edge_weights
             )
             # v0.7.126+: 사용자가 노드를 드래그해 저장한 좌표(.graph_positions.json)가
             # 있으면 forceatlas 결과를 덮어쓴다. 결정적 — 같은 파일/같은 노드면
@@ -1131,12 +1166,42 @@ def vault_graph(
     wikilink_re = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
     edges = []
     edge_set = set()
-    # in-degree 카운트 — rglob fallback에서도 weight 필드 보존 (대시보드 UI 일관성)
     in_degree: dict[str, int] = {}
+    
+    # fallback 에서도 relations 및 wikilink 병합
     for fp in v.content_root.rglob("*.md"):
         text = fp.read_text(errors="replace")
         meta, body = _split_fm(text)
         src = str(fp.relative_to(v.root))[:-3]
+        
+        # 1. relations 파싱
+        relations = meta.get("relations") or []
+        if isinstance(relations, list):
+            for rel in relations:
+                if not isinstance(rel, dict):
+                    continue
+                rel_type = rel.get("type")
+                target = rel.get("target")
+                if not rel_type or not target:
+                    continue
+                
+                resolved_tgt = target
+                candidates = [n["id"] for n in nodes if n["id"] == target or n["id"].endswith("/" + target)]
+                if candidates:
+                    resolved_tgt = min(candidates, key=len)
+                
+                key = (min(src, resolved_tgt), max(src, resolved_tgt))
+                edges.append({
+                    "source": src,
+                    "target": resolved_tgt,
+                    "relation_type": rel_type,
+                    "evidence": rel.get("evidence"),
+                    "reason": rel.get("reason")
+                })
+                edge_set.add(key)
+                in_degree[resolved_tgt] = in_degree.get(resolved_tgt, 0) + 1
+
+        # 2. 일반 wikilink 파싱
         for m in wikilink_re.finditer(body):
             tgt = m.group(1).strip()
             if not tgt:
@@ -1145,13 +1210,12 @@ def vault_graph(
                 tgt = tgt[:-3]
             if tgt == src:
                 continue
-            # rglob fallback 짧은 slug 보정 (예: "purpose" -> "content/concept/purpose")
+            
             resolved_tgt = tgt
-            if tgt:
-                candidates = [n["id"] for n in nodes if n["id"] == tgt or n["id"].endswith("/" + tgt)]
-                if candidates:
-                    resolved_tgt = min(candidates, key=len)  # 가장 짧은 경로 우선
-            # 양방향 상호 링킹 및 중복 엣지 제거 -> 단일 무방향 엣지로 정돈
+            candidates = [n["id"] for n in nodes if n["id"] == tgt or n["id"].endswith("/" + tgt)]
+            if candidates:
+                resolved_tgt = min(candidates, key=len)
+                
             key = (min(src, resolved_tgt), max(src, resolved_tgt))
             if key in edge_set:
                 continue
@@ -1159,29 +1223,63 @@ def vault_graph(
             edges.append({"source": src, "target": resolved_tgt})
             in_degree[resolved_tgt] = in_degree.get(resolved_tgt, 0) + 1
 
-    # nodes에 weight 부착 및 importance 파싱
+    # nodes에 weight 부착 및 status, issue_status, archived 파싱
+    import frontmatter
     for node in nodes:
         slug = node["slug"]
         node_fp = v.root / f"{slug}.md"
         importance = 1
+        status = None
+        issue_status = None
+        archived = False
         if node_fp.exists():
             try:
-                text = node_fp.read_text(errors="replace")
-                if text.startswith("---"):
-                    fm_part = text.split("---", 2)[1]
-                    for line in fm_part.splitlines():
-                        if ":" in line:
-                            k, val = line.split(":", 1)
-                            if k.strip() == "importance":
-                                try:
-                                    importance = int(val.strip())
-                                except Exception:
-                                    pass
-                                break
+                post = frontmatter.loads(node_fp.read_text(errors="replace"))
+                fm = post.metadata
+                importance = int(fm.get("importance", 1))
+                status = fm.get("status")
+                issue_status = fm.get("issue_status")
+                archived = bool(fm.get("archived", False))
             except Exception:
                 pass
         node["importance"] = importance
+        node["status"] = status
+        node["issue_status"] = issue_status
+        node["archived"] = archived
         node["weight"] = int(in_degree.get(node["id"], 0) + (importance - 1) * 3.5)
+
+    # broken dependency 검사
+    nodes_map = {n["id"]: n for n in nodes}
+    for e in edges:
+        e["broken_dependency"] = False
+    for node in nodes:
+        node["broken_dependency"] = False
+
+    for e in edges:
+        if e.get("relation_type") == "depends_on":
+            tgt_id = e["target"]
+            tgt_node = nodes_map.get(tgt_id)
+            if tgt_node:
+                is_issue_rejected = (tgt_node.get("type") == "issue" and 
+                                     (tgt_node.get("status") == "rejected" or tgt_node.get("issue_status") == "rejected"))
+                is_archived = (tgt_node.get("status") == "archived" or 
+                               tgt_node.get("archived") is True or 
+                               tgt_node.get("type") == "archived")
+                if is_issue_rejected or is_archived:
+                    e["broken_dependency"] = True
+                    src_node = nodes_map.get(e["source"])
+                    if src_node:
+                        src_node["broken_dependency"] = True
+
+    # 5대 핵심 의미 관계에 높은 가중치(5.0) 부여
+    allowed_semantic_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
+    edge_weights = []
+    for e in edges:
+        rel_type = e.get("relation_type")
+        if rel_type in allowed_semantic_types:
+            edge_weights.append(5.0)
+        else:
+            edge_weights.append(1.0)
 
     # Patch A1 (v0.6.10+): force-directed 좌표 부착 (fallback 분기).
     ids = [n["id"] for n in nodes]
@@ -1189,12 +1287,12 @@ def vault_graph(
     weights = {n["id"]: int(n.get("weight", 0) or 0) for n in nodes}
 
     # fallback 분기에서도 커뮤니티 항상 계산
-    comm_map = _louvain_communities(ids, edge_pairs)
+    comm_map = _louvain_communities(ids, edge_pairs, weights=edge_weights)
     for node in nodes:
         node["community"] = comm_map.get(node["id"], -1)
 
     layout_coords = _forceatlas_layout(
-        ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map
+        ids, edge_pairs, weights=weights, iterations=iterations, communities=comm_map, edge_weights=edge_weights
     )
     # v0.7.126+: 사용자 드래그 좌표(.graph_positions.json) override.
     user_pos = _load_user_positions(v.root)

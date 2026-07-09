@@ -597,6 +597,9 @@ export function GraphCanvas({
 
     graph
       .linkColor((link: any) => {
+        if (link.broken_dependency) {
+          return "#ef4444"; // red-500
+        }
         const isHighlighted = highlightLinksRef.current.has(link.id);
         const relType = link.relation_type;
         const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
@@ -613,7 +616,7 @@ export function GraphCanvas({
         return hasFocusActive ? `${resolvedEdgeColorRef.current}16` : resolvedEdgeColorRef.current;
       })
       .linkWidth((link: any) => {
-        const isHighlighted = highlightLinksRef.current.has(link.id);
+        const isHighlighted = highlightLinksRef.current.has(link.id) || link.broken_dependency;
         const isSemantic = !!link.relation_type;
         const baseWidth = isSemantic ? 1.5 : 1.05;
         return isHighlighted ? baseWidth + 1.15 : baseWidth;
@@ -631,6 +634,9 @@ export function GraphCanvas({
       })
       .linkDirectionalArrowRelPos(1.0)
       .linkDirectionalArrowColor((link: any) => {
+        if (link.broken_dependency) {
+          return "#ef4444";
+        }
         const isHighlighted = highlightLinksRef.current.has(link.id);
         const relType = link.relation_type;
         if (relType && RELATION_COLORS[relType]) {
@@ -763,6 +769,15 @@ export function GraphCanvas({
         ctx.arc(node.x, node.y, size + 2.5 / scale, 0, 2 * Math.PI, false);
         ctx.strokeStyle = resolvedEdgeHighlightRef.current;
         ctx.lineWidth = 0.8 / scale;
+        ctx.stroke();
+      }
+
+      // 붉은색 경고 Halo 효과 (Broken Dependency Alert)
+      if (node.broken_dependency) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 4.5 / scale, 0, 2 * Math.PI, false);
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.75)";
+        ctx.lineWidth = 2.5 / scale;
         ctx.stroke();
       }
 
