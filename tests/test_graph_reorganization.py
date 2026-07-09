@@ -87,3 +87,111 @@ def test_api_vault_graph_metadata_contract_rglob_fallback(client, isolated_env):
     
     assert nodes_map["content/rule/governance"]["folder_group"] == "content"
     assert nodes_map["content/rule/governance"]["folder_label"] == "본문 지식 (content)"
+
+
+def test_api_vault_graph_broken_dependency_and_weights(client, isolated_env):
+    """depends_on 관계가 rejected issue나 archived 문서로 향할 때 broken_dependency가 True로 지정되는지 검증."""
+    target = isolated_env["target_root"] / "gv_broken_dep"
+    client.post("/api/vaults", json={"name": "gv_broken_dep", "path": str(target), "bootstrap": False})
+    
+    content_dir = target / "content"
+    content_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. doc-a depends_on doc-b (doc-b is issue status rejected)
+    (content_dir / "doc-a.md").write_text(
+        """---
+title: Doc A
+type: concept
+relations:
+  - type: depends_on
+    target: doc-b
+    evidence: ["code"]
+    reason: Depends on doc-b.
+---
+""", encoding="utf-8"
+    )
+    (content_dir / "doc-b.md").write_text(
+        """---
+title: Doc B
+type: issue
+issue_status: rejected
+---
+""", encoding="utf-8"
+    )
+
+    # 2. doc-c depends_on doc-d (doc-d is archived)
+    (content_dir / "doc-c.md").write_text(
+        """---
+title: Doc C
+type: concept
+relations:
+  - type: depends_on
+    target: doc-d
+    evidence: ["code"]
+    reason: Depends on doc-d.
+---
+""", encoding="utf-8"
+    )
+    (content_dir / "doc-d.md").write_text(
+        """---
+title: Doc D
+type: concept
+status: archived
+---
+""", encoding="utf-8"
+    )
+
+    # 3. doc-e uses doc-f (normal dependency - not depends_on, so not broken)
+    (content_dir / "doc-e.md").write_text(
+        """---
+title: Doc E
+type: concept
+relations:
+  - type: uses
+    target: doc-f
+    evidence: ["code"]
+    reason: Uses doc-f.
+---
+""", encoding="utf-8"
+    )
+    (content_dir / "doc-f.md").write_text(
+        """---
+title: Doc F
+type: concept
+status: archived
+---
+""", encoding="utf-8"
+    )
+
+    # Build index to generate wiki.db
+    build_resp = client.post("/api/vaults/gv_broken_dep/build")
+    assert build_resp.status_code == 200
+
+    resp = client.get("/api/vaults/gv_broken_dep/graph")
+    assert resp.status_code == 200
+    
+    data = resp.json()
+    nodes = data["nodes"]
+    edges = data["edges"]
+    
+    nodes_map = {n["id"]: n for n in nodes}
+    
+    # doc-a와 doc-c는 broken_dependency가 True여야 함 (의존 주체)
+    assert nodes_map["content/doc-a"]["broken_dependency"] is True
+    assert nodes_map["content/doc-c"]["broken_dependency"] is True
+    
+    # doc-e는 depends_on이 아니므로 broken_dependency가 False여야 함
+    assert nodes_map["content/doc-e"]["broken_dependency"] is False
+    
+    # 엣지 검증
+    edges_map = {(e["source"], e["target"]): e for e in edges}
+    
+    # doc-a -> doc-b (depends_on to rejected issue) -> broken
+    assert edges_map[("content/doc-a", "content/doc-b")]["broken_dependency"] is True
+    
+    # doc-c -> doc-d (depends_on to archived) -> broken
+    assert edges_map[("content/doc-c", "content/doc-d")]["broken_dependency"] is True
+    
+    # doc-e -> doc-f (uses to archived) -> not broken (not depends_on)
+    assert edges_map[("content/doc-e", "content/doc-f")]["broken_dependency"] is False
+

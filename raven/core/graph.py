@@ -159,7 +159,7 @@ def louvain_communities(
 
     결정론: 입력과 seed가 같으면 같은 community id. 발견 순서로 renumber.
     """
-    from collections import Counter, defaultdict
+    from collections import defaultdict
 
     n = len(ids)
     if n == 0:
@@ -169,12 +169,13 @@ def louvain_communities(
     idx = {s: i for i, s in enumerate(ids)}
 
     # Build undirected adjacency.
-    adj: dict[int, list[int]] = defaultdict(list)
-    for e in edges:
+    adj: dict[int, list[tuple[int, float]]] = defaultdict(list)
+    for i, e in enumerate(edges):
         s, t = e[0], e[1]
+        w = weights[i] if weights is not None and i < len(weights) else 1.0
         if s in idx and t in idx and s != t:
-            adj[idx[s]].append(idx[t])
-            adj[idx[t]].append(idx[s])
+            adj[idx[s]].append((idx[t], w))
+            adj[idx[t]].append((idx[s], w))
 
     # Step 1: connected components as initial community.
     community = list(range(n))
@@ -186,15 +187,12 @@ def louvain_communities(
         stack = [start]
         while stack:
             u = stack.pop()
-            for nb in adj[u]:
+            for nb, _w in adj[u]:
                 if not seen[nb]:
                     seen[nb] = True
                     stack.append(nb)
-            # Mark all reachable as same community: but only the first node
-            # in a component dictates the label. We'll renumber later, so this
-            # is just an initial seed — label propagation below overrides.
 
-    # Step 2: label propagation. Each node adopts the most frequent label
+    # Step 2: label propagation. Each node adopts the most frequent label (by weight sum)
     # among its neighbors (ties: lowest label wins). Repeat up to 8 times or
     # until convergence.
     for _iteration in range(8):
@@ -202,20 +200,20 @@ def louvain_communities(
         for i in range(n):
             if not adj[i]:
                 continue
-            labels = [community[nb] for nb in adj[i]]
-            if not labels:
+            
+            label_weights = defaultdict(float)
+            for nb, w in adj[i]:
+                label_weights[community[nb]] += w
+                
+            if not label_weights:
                 continue
-            counts = Counter(labels)
-            best_label, _ = counts.most_common(1)[0]
+                
+            sorted_labels = sorted(label_weights.items(), key=lambda x: (-x[1], x[0]))
+            best_label = sorted_labels[0][0]
+            
             if best_label != community[i]:
-                # Tie-break: if two labels tie, prefer the lower one. Counter
-                # preserves insertion order; for stability we explicitly sort
-                # by (-count, label) and pick first.
-                sorted_labels = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
-                best_label = sorted_labels[0][0]
-                if best_label != community[i]:
-                    community[i] = best_label
-                    moved += 1
+                community[i] = best_label
+                moved += 1
         if moved == 0:
             break
 
@@ -499,6 +497,7 @@ def forceatlas_layout(
     # 수렴 시간이 더 필요해짐. deterministic & iterations 상한(500) 내.
     iterations: int = 400,
     communities: dict[str, int] | None = None,
+    edge_weights: list[float] | None = None,
 ) -> dict[str, tuple[float, float]]:
     """ForceAtlas2 / LinLog hybrid v2 — PKM 문서 그래프 가독성 우선.
 
@@ -758,11 +757,12 @@ def forceatlas_layout(
 
         # Linear attraction: 거리 비례 — 짧은 edge는 강하게, 긴 edge는 약하게.
         # LinLog와 다른 선택이지만 PKM 위키처럼 군집이 응집되어 있을 때 더 예쁘게 모임.
-        for i, j in edge_indices:
+        for idx_edge, (i, j) in enumerate(edge_indices):
             vx = pos_x[i] - pos_x[j]
             vy = pos_y[i] - pos_y[j]
             d = math.sqrt(vx * vx + vy * vy) + 0.001
-            f = attraction * d
+            edge_w = edge_weights[idx_edge] if edge_weights is not None and idx_edge < len(edge_weights) else 1.0
+            f = attraction * d * edge_w
             fx = (vx / d) * f
             fy = (vy / d) * f
             dx[i] -= fx

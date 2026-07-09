@@ -56,6 +56,7 @@ confidence: high
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
 
 ### 최신 changelog
+- [[changelog-v0.7.158]] — Phase 5: 의미 관계 기반 논리 정합성 검증 및 추론 고도화
 - [[changelog-v0.7.154]] — Phase 1: Semantic Relation Infrastructure (Vocabulary & DB Schema)
 - [[changelog-v0.7.44]] — 다른 PC로의 세팅 이식성 개선 및 설정 버그 수정
 - [[changelog-v0.7.38]] — multi-author vault lint 확장 (wikilink 형식 일관성 + log.md 추가 전용성 회귀 검출)
