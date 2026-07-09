@@ -470,6 +470,7 @@ body {
   --color-hairline: #1e293b;
   --color-hairline-strong: #475569;  /* Slate 600 */
   --color-on-primary: #ffffff;
+  --color-surface: #1e293b;
 
   --color-mark-bg: rgba(59, 130, 246, 0.25);
   --cds-background-brand: rgba(59, 130, 246, 0.14);
@@ -549,6 +550,7 @@ html.dark {
   --color-hairline: #1e293b;
   --color-hairline-strong: #475569;
   --color-on-primary: #ffffff;
+  --color-surface: #1e293b;
   
   --color-mark-bg: rgba(59, 130, 246, 0.25);
   --cds-background-brand: rgba(59, 130, 246, 0.14);

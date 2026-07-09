@@ -426,9 +426,9 @@ export function PageView() {
             style={{
               marginTop: "32px",
               padding: "20px",
-              border: "1px solid var(--color-border, rgba(0,0,0,0.1))",
+              border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
               borderRadius: "8px",
-              backgroundColor: "var(--color-surface, #fff)",
+              backgroundColor: "var(--bg-surface, #fff)",
               boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
             }}
           >
@@ -437,7 +437,7 @@ export function PageView() {
                 margin: "0 0 12px 0",
                 fontSize: "14px",
                 fontWeight: 600,
-                color: "var(--color-ink, #000)",
+                color: "var(--fg-ink, #000)",
                 fontFamily: "var(--font-display)",
                 display: "flex",
                 alignItems: "center",
@@ -453,7 +453,7 @@ export function PageView() {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{ color: "var(--color-ink-muted)" }}
+                style={{ color: "var(--fg-muted)" }}
               >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -470,11 +470,11 @@ export function PageView() {
                   minHeight: "80px",
                   padding: "12px",
                   borderRadius: "6px",
-                  border: "1px solid var(--color-border, rgba(0,0,0,0.15))",
+                  border: "1px solid var(--border-subtle, rgba(0,0,0,0.15))",
                   fontSize: "13px",
                   fontFamily: "inherit",
-                  backgroundColor: "var(--color-surface, #fff)",
-                  color: "var(--color-ink, #000)",
+                  backgroundColor: "var(--bg-surface, #fff)",
+                  color: "var(--fg-ink, #000)",
                   resize: "vertical",
                 }}
               />
