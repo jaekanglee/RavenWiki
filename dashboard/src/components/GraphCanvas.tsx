@@ -600,6 +600,29 @@ export function GraphCanvas({
           : "var(--graph-label-color)";
         ctx.fillText(label, node.x, node.y + size + 3.8 / scale);
       }
+
+      // v0.7.137+: vault 라벨 — centroid 위치에 vault 이름 텍스트. nodeCanvasObject
+      // 안에서 매 paint에 안정적으로 호출됨. fillText는 idempotent이라 매 노드 ×
+      // 매 vault 호출되어도 결과는 동일 (성능: 369×5 = 1845 fillText/frame).
+      const centroids = vaultCentroidsRef.current;
+      if (centroids && centroids.length > 0 && scale >= 0.3) {
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        for (const vc of centroids) {
+          const color = resolveVaultColor(vc.vault);
+          const fontSize = 14 * scale;
+          ctx.font = `600 ${fontSize}px sans-serif`;
+          const labelX = vc.x;
+          const labelY = vc.y - 50 * scale;
+          // outline (dark) → 본문 (vault 색)
+          ctx.lineWidth = 3 * scale;
+          ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.lineJoin = "round";
+          ctx.strokeText(vc.vault, labelX, labelY);
+          ctx.fillStyle = color;
+          ctx.fillText(vc.vault, labelX, labelY);
+        }
+      }
     });
 
     // Vault 소속 ring — v0.7.139+: onRenderFramePre에서 그리던 📁 halo 박스를 제거하고,
@@ -647,51 +670,19 @@ export function GraphCanvas({
     onPositionsChange,
   ]);
 
-  // v0.7.135+: vault 라벨 — centroid 위에 단순 텍스트만 표시.
-  // 박스/dot/border 없이 vault 이름 텍스트 + 가독성용 outline + vault 색.
-  // 사용자: '옵시디안 고딥할 필요 없음, 시인성 즇으면 됨'.
+  // v0.7.137+: vault 라벨 — nodeCanvasObject 안에서 매 노드 draw 시 그리기.
+  // 이전(v0.7.135~136)의 onRenderFramePost는 force-graph가 frame redraw 안
+  // trigger하면 라벨이 영영 안 그려짐 (fitView만 했을 때 발생). nodeCanvasObject는
+  // 매 paint에 안정적으로 호출되므로 라벨이 항상 보임.
+  // fillText는 idempotent이므로 매 노드 × 매 vault 호출되어도 결과는 같음.
+  // performance: 369 nodes × 5 vaults = 1845 fillText/frame — 무시 가능.
   useEffect(() => {
     if (isJSDOM) return;
     const graph = graphInstanceRef.current;
     if (!graph) return;
 
-    const drawVaultLabel = (ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const centroids = vaultCentroidsRef.current;
-      if (!centroids || centroids.length === 0) return;
-      const scale = globalScale || 1;
-      if (scale < 0.3) return;
-
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-
-      for (const vc of centroids) {
-        const color = resolveVaultColor(vc.vault);
-        const fontSize = 14 * scale;
-        ctx.font = `600 ${fontSize}px sans-serif`;
-        const label = vc.vault;
-        const x = vc.x;
-        const y = vc.y - 50 * scale;
-
-        // outline (background-color로 한 번 그려서 글로우 효과 + 가독성)
-        ctx.lineWidth = 3 * scale;
-        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.lineJoin = "round";
-        ctx.strokeText(label, x, y);
-
-        // vault 색 본문
-        ctx.fillStyle = color;
-        ctx.fillText(label, x, y);
-      }
-    };
-
-    graph.onRenderFramePost(drawVaultLabel as any);
-    return () => {
-      try {
-        graph.onRenderFramePost(null as any);
-      } catch {
-        /* noop */
-      }
-    };
+    // vaultCentroidsRef를 그대로 사용 — 매 paint에서 최신 값 읽기.
+    void graph;
   }, [isDense]);
 
   const fitGraph = () => {
