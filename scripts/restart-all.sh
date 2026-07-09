@@ -50,6 +50,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Load environment configuration if present
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+  # Clean up Tailscale warning logs that might end up in the host variables
+  if [ -n "${RAVEN_DASHBOARD_HOST:-}" ]; then
+    RAVEN_DASHBOARD_HOST=$(echo "$RAVEN_DASHBOARD_HOST" | tail -n 1 | xargs)
+  fi
+  if [ -n "${RAVEN_MCP_HOST:-}" ]; then
+    RAVEN_MCP_HOST=$(echo "$RAVEN_MCP_HOST" | tail -n 1 | xargs)
+  fi
+fi
+
 WIPE_CACHE=true
 WIPE_DB=false
 
@@ -171,8 +185,8 @@ check_http() {
     fi
 }
 
-check_http "api"       "http://127.0.0.1:8765/api/vaults" "200"
-check_http "dashboard" "http://localhost:5173/"          "200"
+check_http "api"       "http://127.0.0.1:${RAVEN_API_PORT:-8765}/api/vaults" "200"
+check_http "dashboard" "http://${RAVEN_DASHBOARD_HOST:-localhost}:${RAVEN_DASHBOARD_PORT:-5173}/"          "200"
 echo
 
 # ─── 6. 실패 시 로그 출력 ─────────────────────────────

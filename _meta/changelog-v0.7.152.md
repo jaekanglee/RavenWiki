@@ -21,6 +21,7 @@ confidence: high
 | 툴바 스타일 및 호버 트랜지션 추가 | `dashboard/src/styles/globals.css` | 툴바를 절대 좌표 기준 세로 블록으로 정렬하고, 평소에는 불투명도 `0.15`와 클릭 차단 상태를 유지하다가 사용자가 미니맵 영역에 마우스를 호버하면 서서히 `opacity: 1`로 나타나는 부드러운 효과 적용 |
 | 미니맵에 고밀도(dense) 레이아웃 적용 | `dashboard/src/components/FloatingGraphPanel.tsx` | 미니맵 내에 `GraphCanvas`를 렌더링할 때 `variant="minimap"`과 `density="dense"`를 기본 전달하여 노드들과 라벨 폰트 크기가 좁은 화면에서도 서로 뭉치지 않게 조절 |
 | 이전 커밋(49533a7) 깨진 테스트 복구 | `tests/test_v0_7_4_tailscale_host.py`<br>`tests/test_v0_7_12_docker.py`<br>`tests/test_v0_7_14_vault_persistence.py` | 기존 단일 `.env.example`을 참조하던 3개 백엔드 테스트 파일을 신규 분리된 `.env.example.house` / `.env.example.company` 파일들을 검증하도록 수정하여 빌드 복구 |
+| restart-all 대시보드 헬스체크 및 환경변수 정제 | `scripts/restart-all.sh` | `.env` 파일의 환경변수를 로드하고, `tailscale ip -4` 실행에 따른 경고 로그가 섞여 구문 오류(`unexpected token '('`)를 일으키는 현상을 방지하기 위해 IP 호스트 변수 정제 및 동적 헬스체크 URL을 적용하여 빌드 성공 복구 |
 
 ## 왜 했는가
 - 기존 줌 컨트롤 툴바(`전체보기`, `맞춤`, `-`, `100%`, `+`)는 240px 너비의 좁은 미니맵 그래프 패널에서 영역의 절반 이상을 가려 그래프 조작 및 시각적 감상을 방해했다.
