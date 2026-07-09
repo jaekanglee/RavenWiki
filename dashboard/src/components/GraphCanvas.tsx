@@ -607,30 +607,32 @@ export function GraphCanvas({
       // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
       const centroids = vaultCentroidsRef.current;
       if (centroids && centroids.length > 0) {
-        // v0.7.139+: 디버그 — 첫 매치 vault에 빨간 박스 (사용자 보고 시점 한시적).
-        // 라벨이 안 보일 때 vaultCentroids가 실제로 들어왔는지 콘솔에서 확인 가능.
-        if (typeof window !== "undefined" && !(window as any).__vaultLabelDebug) {
-          (window as any).__vaultLabelDebug = true;
-          // eslint-disable-next-line no-console
-          console.log("[vault label] centroids:", centroids.length, centroids.map((c:any)=>({v:c.vault,x:c.x,y:c.y,r:c.radius})));
-        }
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
+        // v0.7.140+: fillText 정상 동작 확인 — screen 좌표 (200,100)에 빨간 TEST 텍스트
+        ctx.fillStyle = "#ff0000";
+        ctx.font = "16px sans-serif";
+        ctx.fillText("TEST", 200, 100);
+        // v0.7.140+: centroids 중 첫 vault 위치에 초록 X 마커
+        if (centroids[0]) {
+          ctx.fillStyle = "#00ff00";
+          ctx.fillText("X", centroids[0].x, centroids[0].y);
+        }
         for (const vc of centroids) {
           const color = resolveVaultColor(vc.vault);
-          // v0.7.138+: fontSize floor 9 — extreme zoom out에서도 식별 가능.
-          const fontSize = Math.max(9, 14 * scale);
-          ctx.font = `600 ${fontSize}px sans-serif`;
+          // v0.7.138+: fontSize floor 11 — extreme zoom out에서도 식별 가능.
+          const fontSize = Math.max(11, 14 * scale);
+          ctx.font = `700 ${fontSize}px sans-serif`;
           const labelX = vc.x;
-          // 라벨 위치 — zoom 따라 적응 (min 24px 분리)
-          const labelY = vc.y - Math.max(24, 50 * scale);
-          // outline (dark) → 본문 (vault 색)
-          ctx.lineWidth = Math.max(1.5, 3 * scale);
-          ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
-          ctx.lineJoin = "round";
-          ctx.strokeText(vc.vault, labelX, labelY);
+          const labelY = vc.y - Math.max(20, 50 * scale);
+          // 본문 (vault 색) 먼저 — outline을 얇게
           ctx.fillStyle = color;
           ctx.fillText(vc.vault, labelX, labelY);
+          // outline은 가는 dark stroke로 1회 (얇게)
+          ctx.lineWidth = Math.max(0.8, 2 * scale);
+          ctx.strokeStyle = "rgba(15, 23, 42, 0.9)";
+          ctx.lineJoin = "round";
+          ctx.strokeText(vc.vault, labelX, labelY);
         }
       }
     });
