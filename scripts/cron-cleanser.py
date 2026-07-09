@@ -3,13 +3,29 @@
 #
 # Usage: python3 cron-cleanser.py [vault_name]
 
+import argparse
 import sys
 from raven.core.vault import resolve_active_vault
 from raven.core.lint import run_all
 from raven.core.contracts import write_page
 
-def main():
-    vault_name = sys.argv[1] if len(sys.argv) > 1 else "default"
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run Raven lint collection. Issue-page generation is opt-in."
+    )
+    parser.add_argument("vault_name", nargs="?", default="default")
+    parser.add_argument(
+        "--create-issues",
+        action="store_true",
+        help="opt-in legacy behavior: create content/issues/issue-lint-* pages",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None):
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    vault_name = args.vault_name
     try:
         vault = resolve_active_vault(vault_name)
     except Exception as e:
@@ -21,6 +37,13 @@ def main():
 
     if not issues_found:
         print("   - 발견된 린트 무결성 오류가 없습니다. 클렌징 생략.")
+        return 0
+
+    if not args.create_issues:
+        print(
+            f"   - 린트 이슈 {len(issues_found)}개 수집 완료. "
+            "자동 issue 페이지 생성은 비활성화됨 (--create-issues 필요)."
+        )
         return 0
 
     created_count = 0

@@ -146,15 +146,29 @@ class _ScanCache:
 _scan_local = threading.local()
 
 
+def _is_archived_page(vault: Vault, fp: Path) -> bool:
+    """Return True for markdown pages under any `_archive/` folder.
+
+    Archived pages are retained for provenance, but they are no longer active
+    vault content. Linting them re-surfaces resolved/generated issues and can
+    make `wiki_lint` counts grow instead of converge.
+    """
+    try:
+        rel = fp.relative_to(vault.root)
+    except ValueError:
+        rel = fp
+    return "_archive" in rel.parts
+
+
 def _all_pages(vault: Vault) -> list[Path]:
-    """vault 안 모든 .md 페이지 (content/ + _meta/)."""
+    """vault 안 active .md 페이지 (content/ + _meta/), excluding `_archive/`."""
     cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
     if cache is not None and cache.pages is not None:
         return cache.pages
-    out = list(vault.content_root.rglob("*.md"))
+    out = [fp for fp in vault.content_root.rglob("*.md") if not _is_archived_page(vault, fp)]
     meta_dir = vault.meta_root
     if meta_dir.exists():
-        out.extend(meta_dir.rglob("*.md"))
+        out.extend(fp for fp in meta_dir.rglob("*.md") if not _is_archived_page(vault, fp))
     result = sorted(out)
     if cache is not None:
         cache.pages = result
@@ -1137,20 +1151,16 @@ def run_all(vault: Vault) -> dict:
         cid = iss.get("id", "?")
         by_check[cid] = by_check.get(cid, 0) + 1
 
-    # v0.7.113+ (ADR-2026-07-08): type=issue + draft 7일+ → status=current 자동 승격.
-    # lint #18 audit 통과가 전제.
-    try:
-        promoted = _auto_promote_draft_issues(vault)
-    except Exception:
-        promoted = 0
-
     return {
         "ok": counts["critical"] == 0,
         "vault": vault.meta.name,
         "counts": counts,
         "issues": issues,
         "by_check": by_check,
-        "draft_promoted": promoted,
+        # `wiki_lint`/run_all is intentionally read-only. Historical versions
+        # auto-promoted stale draft issues here; keep the response key for
+        # compatibility but do not mutate vault files from the linter path.
+        "draft_promoted": 0,
     }
 
 

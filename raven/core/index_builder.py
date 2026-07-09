@@ -68,6 +68,7 @@ def build_index(vault: Vault) -> bool:
             slug_lower == "log" or
             re.match(r"^log-\d{4}$", slug_lower) or
             slug_lower.startswith("content/_index/") or
+            "/_archive/" in f"/{slug_lower}/" or
             slug_lower.startswith("wip/") or
             slug_lower.startswith("content/wip/") or
             slug_lower.startswith("scratch/") or
