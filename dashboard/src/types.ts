@@ -52,6 +52,8 @@ export interface GraphNode {
   y?: number;
   /** v0.6.15+ — Louvain-style community id (0..K-1) when ?community=modularity. */
   community?: number;
+  folder_group?: string;
+  folder_label?: string;
 }
 
 export interface GraphEdge {

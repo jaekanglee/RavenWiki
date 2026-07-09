@@ -467,6 +467,30 @@ def constellation_layout(
     return normalize_layout(ids, pos_x, pos_y)
 
 
+def folder_group_for_slug(slug: str) -> tuple[str, str]:
+    """slug 경로에서 4대 대분류 폴더 그룹명과 사용자 표시 라벨을 반환합니다.
+
+    결과: (group_id, group_label)
+    """
+    parts = slug.split('/')
+    if not parts or parts[0] == "":
+        return "root", "루트 폴더 (root)"
+
+    first = parts[0]
+    # 슬래시가 없는 루트 레벨 파일 처리 (예: log, readme 등)
+    if len(parts) == 1 and not first.endswith("/") and first not in ("_meta", "content", "raw"):
+        return "root", "루트 폴더 (root)"
+
+    if first == "_meta":
+        return "_meta", "시스템 및 설정 (_meta)"
+    if first == "content":
+        return "content", "본문 지식 (content)"
+    if first == "raw":
+        return "raw", "참조 자료 (raw)"
+
+    return first, first
+
+
 def forceatlas_layout(
     ids: list[str],
     edges: list[tuple[str, str]],

@@ -166,6 +166,9 @@ const graphButtonStyle = {
   backdropFilter: "blur(8px)",
 } as const;
 
+const HUD_LABEL_FONT = "sans-serif";
+const HUD_LABEL_BASE_SIZE = 14;
+
 export function GraphCanvas({
   nodes,
   edges,
@@ -207,6 +210,21 @@ export function GraphCanvas({
     hoveredNodeRef.current = node;
     setHoveredNodeState(node);
   };
+
+  const resolvedLabelColorRef = useRef<string>("rgba(148, 163, 184, 0.7)");
+  const resolvedBgColorRef = useRef<string>("#0f172a");
+
+  // DOM Container 변경 및 테마 변경 시 Computed Style 캐싱
+  useEffect(() => {
+    if (isJSDOM || !containerRef.current) return;
+    try {
+      const style = window.getComputedStyle(containerRef.current);
+      resolvedLabelColorRef.current = style.getPropertyValue("--graph-label-color").trim() || "rgba(148, 163, 184, 0.7)";
+      resolvedBgColorRef.current = style.getPropertyValue("--graph-canvas-bg").trim() || "#0f172a";
+    } catch (e) {
+      // fallback
+    }
+  }, [nodes]);
 
   useEffect(() => {
     clickHandlersRef.current = { onNodeClick, onNodeDoubleClick };
@@ -580,6 +598,63 @@ export function GraphCanvas({
 
     // v0.7.144+: vault ring도 제거 — single vault에서는 모든 노드가 같은 vault이라 무의미.
 
+    // 줌 아웃 시점에만 단순 텍스트로 폴더 라벨 투사 (LOD HUD)
+    graph.onRenderFramePre((ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const scale = globalScale || 1;
+      
+      // LOD 임계값: 줌 아웃(scale < 0.6)에서 max(1.0) ~ 줌 인(scale > 1.0)에서 min(0.0)
+      const labelOpacity = Math.max(0, Math.min(1, (1.0 - scale) / 0.4));
+      if (labelOpacity <= 0.05) return;
+
+      // 1. 실시간 Centroid 연산
+      const groupCoords: Record<string, { xSum: number; ySum: number; count: number; label: string }> = {};
+      const currentNodes = graph.graphData().nodes;
+      
+      for (const node of currentNodes) {
+        if (typeof node.x !== "number" || typeof node.y !== "number" || !node.folder_group) continue;
+        const gid = node.folder_group;
+        if (!groupCoords[gid]) {
+          groupCoords[gid] = { xSum: 0, ySum: 0, count: 0, label: node.folder_label || gid };
+        }
+        groupCoords[gid].xSum += node.x;
+        groupCoords[gid].ySum += node.y;
+        groupCoords[gid].count += 1;
+      }
+
+      // 2. HUD 라벨 그리기 (단순 텍스트 + 테마 변수)
+      ctx.save();
+      const fontSize = Math.max(13, HUD_LABEL_BASE_SIZE / scale);
+      ctx.font = `600 ${fontSize}px ${HUD_LABEL_FONT}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (const gid in groupCoords) {
+        const data = groupCoords[gid];
+        if (data.count === 0) continue;
+        const cx = data.xSum / data.count;
+        const cy = data.ySum / data.count;
+
+        const labelText = data.label;
+
+        // 텍스트 시인성 확보를 위한 뒷배경 outline 효과 (테마 변수)
+        ctx.fillStyle = resolvedBgColorRef.current;
+        ctx.globalAlpha = labelOpacity * 0.8;
+        for (let dx = -1.5; dx <= 1.5; dx += 1.5) {
+          for (let dy = -1.5; dy <= 1.5; dy += 1.5) {
+            if (dx !== 0 || dy !== 0) {
+              ctx.fillText(labelText, cx + dx * (0.8 / scale), cy + dy * (0.8 / scale));
+            }
+          }
+        }
+
+        // 본문 텍스트 (테마 변수)
+        ctx.fillStyle = resolvedLabelColorRef.current;
+        ctx.globalAlpha = labelOpacity * 0.7; // 은은함 유지
+        ctx.fillText(labelText, cx, cy);
+      }
+      ctx.restore();
+    });
+
     // v0.7.139+: fitView는 scope 전환(all ↔ current) 또는 첫 데이터 로드 시에만.
     // 검색/필터로 nodes가 바뀌어도 사용자의 pan/zoom 위치를 보존한다.
     const scopeChanged = prevIsDenseRef.current !== isDense;
@@ -602,6 +677,9 @@ export function GraphCanvas({
       container?.removeEventListener("mouseup", handleMouseUp);
       container?.removeEventListener("touchend", handleTouchEnd);
       container?.removeEventListener("touchcancel", handleTouchCancel);
+      if (graphInstanceRef.current) {
+        graphInstanceRef.current.onRenderFramePre(() => {}); // cleanup 콜백 (타입 안정 no-op)
+      }
     };
   }, [
     nodes,
