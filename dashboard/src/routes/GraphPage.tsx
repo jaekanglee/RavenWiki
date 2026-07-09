@@ -13,7 +13,6 @@ import {
   deriveCommunityOptions,
   deriveGraphInsights,
   deriveNodeDetail,
-  deriveVaultCentroids,
   filterGraphView,
   type GraphFilterState,
   type GraphInsight,
@@ -26,7 +25,6 @@ export {
   deriveCommunityOptions,
   deriveGraphInsights,
   deriveNodeDetail,
-  deriveVaultCentroids,
   filterGraphView,
 } from "../lib/graph/derive";
 
@@ -96,7 +94,7 @@ function nodeSlug(node: GraphNode): string {
  */
 export function GraphPage() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
-  const [graphScope, setGraphScope] = useState<GraphScope>("current");
+  // v0.7.144+: graphScope 토글 제거 — current 단일 vault만 표시.
   // v0.7.123+: 그래프 페이지 필터 상태(query/selectedType/hideOrphans/selectedNodeId)를
   // useReducer로 묶어 resetGraphFilters 등 다중 setState 시 동기화 + 의도 명시.
   // 인사이트 hover 2종 + 로딩/에러/showFullGraph는 데이터 라이프사이클/UI 토글로
@@ -118,8 +116,8 @@ export function GraphPage() {
     if (!vault) return;
     setLoading(true);
     setLoadError(false);
-    const graphScopeQuery = graphScope === "all" ? "scope=all" : "scope=current";
-    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph?${graphScopeQuery}`)
+    // v0.7.144+: ?scope= 쿼리 제거 — current만 사용.
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
       .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
       .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .catch(() => {
@@ -131,7 +129,7 @@ export function GraphPage() {
 
   useEffect(() => {
     loadGraph();
-  }, [vault, graphScope]);
+  }, [vault]);
 
   const filteredGraph = useMemo(
     () =>
@@ -181,13 +179,7 @@ export function GraphPage() {
     [graph.nodes]
   );
 
-  // v0.7.123+ all-vault 모드에서만 vault halo/core 데이터를 만든다.
-  // 현재 화면에 실제로 그려지는 filteredGraph 기준으로 centroid를 계산해야
-  // hide-orphans / 검색 / 타입 필터와 centroid 위치가 어긋나지 않는다.
-  const vaultCentroids = useMemo(
-    () => (graphScope === "all" ? deriveVaultCentroids(filteredGraph) : []),
-    [filteredGraph, graphScope]
-  );
+  // v0.7.144+: vaultCentroids useMemo 제거 (all-scope 모드 종료).
 
   // v0.7.139+: useCallback으로 안정화 — GraphCanvas의 effect deps가 매번 흔들려서
   // onNodeClick/onNodeDoubleClick 리스너가 재바인딩되는 걸 방지. 안정적이어야
@@ -240,20 +232,7 @@ export function GraphPage() {
 
   const controlsSection = (
     <div className="graph-page-control-grid">
-      <SelectField
-        label="범위"
-        value={graphScope}
-        onChange={(e) => {
-          const next = e.target.value as GraphScope;
-          setGraphScope(next);
-          dispatchFilters({ type: "setSelectedNodeId", value: null });
-        }}
-        options={[
-          { value: "all", label: "전체 vault" },
-          { value: "current", label: "현재 vault" },
-        ]}
-        helper="전체 vault 우주 지도 또는 현재 보관소만 봅니다."
-      />
+      {/* v0.7.144+: 범위 SelectField 제거 — all-scope 모드 종료. */}
       <TextField
         label="문서 검색"
         value={query}
@@ -296,7 +275,7 @@ export function GraphPage() {
       <div className="graph-page-toolbar">
         <PageHeader
           title="그래프"
-          contextLabel={graphScope === "all" ? "전체 vault 우주 지도" : `${vault} 보관소`}
+          contextLabel={`${vault} 보관소`}
           titleSize={22}
           bottomSpacing={0}
         />
@@ -397,8 +376,7 @@ export function GraphPage() {
             // 우선순위: selectedNodeId(클릭) > hoveredInsightNodeId(인사이트 카드 hover).
             externalHighlightNodeId={selectedNodeId ?? hoveredInsightNodeId}
             externalHighlightType={hoveredInsightType}
-            density={graphScope === "all" ? "dense" : "normal"}
-            vaultCentroids={graphScope === "all" ? vaultCentroids : undefined}
+            density="normal"
             onFullscreen={() => setShowFullGraph(true)}
             onPositionsChange={persistPositions}
           />
@@ -554,7 +532,7 @@ export function GraphPage() {
           vault={vault}
           nodes={graph.nodes}
           edges={graph.edges}
-          centerTitle={graphScope === "all" ? "전체 vault 우주 지도" : `${vault} 전체 그래프`}
+          centerTitle={`${vault} 전체 그래프`}
           onClose={() => setShowFullGraph(false)}
         />
       )}

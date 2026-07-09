@@ -939,10 +939,7 @@ def vault_graph(
         "Louvain-style community id per node so the dashboard can color by "
         "structure instead of metadata. 'none' skips the computation.",
     ),
-    scope: Literal["current", "all"] = Query(
-        "current",
-        description="Graph scope. 'current' returns one vault; 'all' merges every registered vault.",
-    ),
+    # v0.7.144+: ?scope=all 제거 — current 단일 vault만 지원.
 ):
     """vault 페이지 + wikilink edges + graph layout 좌표를 반환.
 
@@ -952,89 +949,15 @@ def vault_graph(
         문제가 있어 제거함 (docs/architecture.md D10/D11 참고).
     v0.6.15+: ?community=modularity attaches nodes[i].community = Louvain-style
         community id (0..K-1). 'none' (default) skips the call.
-    v0.7.122+: ?scope=all merges all registered vault graphs. In all scope,
-        node ids and edge endpoints use `{vault}:{slug}` to prevent collisions.
+    v0.7.144+: ?scope=all 제거 — current 단일 vault만 지원.
 
-    current nodes: [{id: slug, title, type, weight, x, y, community?}]
-    all nodes: [{id: "{vault}:{slug}", vault, slug, title, type, weight, x, y, community?}]
+    nodes: [{id: slug, title, type, weight, x, y, community?}]
     edges: [{source, target}]
 
     wiki.db의 links 테이블에서 source/target 직접 매칭 (정확성 우선).
     wiki.db가 없으면 (구 vault) rglob fallback.
     """
-    _vault_or_404(name)
-    if scope == "all":
-        merged_nodes = []
-        merged_edges = []
-        included_vaults = 0
-        # v0.7.133+: all-scope은 각 vault의 current-scope layout 좌표를 그대로 쓰되,
-        # vault들이 같은 ±500 박스 안에서 겹치지 않게 vault별로 자기 영역에 흩어 배치.
-        # v0.7.123~v0.7.132는 "ring"에 균등 배치했지만 이건 edge 없는 관계없는
-        # 요식행위였음 (사용자 보고 2026-07-09). 대신 격자/줄 형태로 vault들이
-        # 자기 영역에 흩어져 보이게 함 — 진짜 wikilink edge만 시각적 연결.
-        per_vault_nodes: list[tuple[str, list[dict]]] = []
-        for meta in registry().list():
-            if not meta.path.exists():
-                continue
-            graph = vault_graph(meta.name, iterations=iterations, community=community, scope="current")
-            included_vaults += 1
-            vault_nodes: list[dict] = []
-            for node in graph.get("nodes", []):
-                slug = node.get("slug") or node.get("id")
-                prefixed = dict(node)
-                prefixed["id"] = f"{meta.name}:{slug}"
-                prefixed["slug"] = slug
-                prefixed["vault"] = meta.name
-                vault_nodes.append(prefixed)
-            per_vault_nodes.append((meta.name, vault_nodes))
-            for edge in graph.get("edges", []):
-                merged_edges.append({
-                    **edge,
-                    "source": f"{meta.name}:{edge.get('source')}",
-                    "target": f"{meta.name}:{edge.get('target')}",
-                })
-
-        # vault들이 자기 영역에 흩어지게 — 격자 배치.
-        # ±500 정규화 contract 유지: vault 최대 12개 정도까지 노드가 viewport 안에 머무름.
-        # 격자 셀 간격은 vault 수에 따라 적응 (sqrt(N) x sqrt(N) 격자).
-        import math
-        n_vaults = max(1, len(per_vault_nodes))
-        # 격자 크기 결정: vault 1~4 → 2x2, 5~9 → 3x3, 10~16 → 4x4 ...
-        grid_side = max(1, math.ceil(math.sqrt(n_vaults)))
-        # 셀 간격: ±500 박스가 grid_side^2 셀에 들어가도록.
-        # vault 좌표가 ±500 안에 있으므로 cell 크기 1100 → 셀 간격 1100.
-        # 안전 마진 포함해서 1300.
-        # v0.7.136: cell_span 1300 → 850. 5 vault 그리드 (±3250)에서 fitView 직후
-        # zoom scale ≈ 0.23 → 0.45로 회복. vault 라벨이 화면에서 식별 가능한
-        # 크기로 표시됨. vault 시각 분리는 여전히 유지.
-        cell_span = 850.0
-        # 격자 중앙이 (0, 0)에 오도록 offset 계산.
-        grid_offset_x = -(grid_side - 1) * cell_span / 2.0
-        grid_offset_y = -(grid_side - 1) * cell_span / 2.0
-
-        for idx, (_vname, vault_nodes) in enumerate(per_vault_nodes):
-            if not vault_nodes:
-                continue
-            row = idx // grid_side
-            col = idx % grid_side
-            target_cx = grid_offset_x + col * cell_span
-            target_cy = grid_offset_y + row * cell_span
-            local_cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
-            local_cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
-            for n in vault_nodes:
-                n["x"] = target_cx + (n["x"] - local_cx)
-                n["y"] = target_cy + (n["y"] - local_cy)
-                merged_nodes.append(n)
-
-        return {
-            "ok": True,
-            "vault": name,
-            "scope": "all",
-            "nodes": merged_nodes,
-            "edges": merged_edges,
-            "stats": {"nodes": len(merged_nodes), "edges": len(merged_edges), "vaults": included_vaults},
-        }
-
+    # v0.7.144+: scope=all 분기 제거 — current 단일 vault만 지원.
     v = _vault_or_404(name)
 
     # 1) wiki.db가 있으면 DB 사용 (정확)
