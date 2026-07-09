@@ -15,7 +15,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -182,6 +182,7 @@ class PageCreate(BaseModel):
     content: str = ""
     type: str = "concept"
     tags: list[str] = []
+    extra_meta: Optional[dict[str, Any]] = None
 
 
 class PageUpdate(BaseModel):
@@ -189,6 +190,7 @@ class PageUpdate(BaseModel):
     title: Optional[str] = None
     type: Optional[str] = None
     tags: Optional[list[str]] = None
+    extra_meta: Optional[dict[str, Any]] = None
 
 
 class FeedbackPayload(BaseModel):
@@ -1609,6 +1611,7 @@ def create_page(name: str, payload: PageCreate):
         title=payload.title,
         type=payload.type,
         tags=payload.tags,
+        extra_meta=payload.extra_meta,
         overwrite=False,  # create-only: 409 on exists (matches pre-v0.6.2)
         enforce_protected_paths=True,
     )
@@ -1653,6 +1656,7 @@ def update_page(name: str, slug: str, payload: PageUpdate):
         title=payload.title,
         type=payload.type,
         tags=payload.tags,
+        extra_meta=payload.extra_meta,
         overwrite=True,
         enforce_protected_paths=True,
     )
@@ -1708,9 +1712,11 @@ def add_page_feedback(name: str, slug: str, payload: FeedbackPayload):
     # We will pass progress in extra_meta.
     extra = dict(meta) if meta else {}
     extra["progress"] = "in-progress"
+    if meta.get("type") == "issue":
+        extra["issue_status"] = "edit_requested"
 
     # Format feedback comment
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     feedback_line = f"* **{now_str} ({payload.actor})**: {payload.feedback}"
 
     # Search for ## 피드백 heading in body
@@ -1758,6 +1764,148 @@ def add_page_feedback(name: str, slug: str, payload: FeedbackPayload):
         "slug": result.slug,
         "progress": "in-progress",
     }
+
+
+class FeedbackUpdatePayload(BaseModel):
+    feedback: str
+
+
+@app.delete("/api/vaults/{name}/feedback/{index}")
+def delete_page_feedback(name: str, slug: str, index: int):
+    import re
+    v = _vault_or_404(name)
+    _safe_slug_or_400(slug, v)
+
+    try:
+        normalized = slug_module.normalize_prefix(slug)
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+        md_file = safe_path.with_suffix(".md")
+        if not md_file.exists():
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
+    except slug_module.SlugError:
+        raise HTTPException(status_code=400, detail="Invalid slug")
+
+    try:
+        text = md_file.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+    from raven.core.frontmatter import parse as fm_parse
+    meta, body = fm_parse(text)
+
+    body_lines = body.splitlines()
+    feedback_idx = -1
+    for idx, line in enumerate(body_lines):
+        if re.match(r"^##\s+피드백\b", line.strip()):
+            feedback_idx = idx
+            break
+
+    if feedback_idx == -1:
+        raise HTTPException(status_code=404, detail="Feedback section not found")
+
+    comment_lines = []
+    re_comment = re.compile(r"^\*\s+\*\*([^*]+)\s+\(([^)]+)\)\*\*:\s+(.*)$")
+
+    for idx in range(feedback_idx + 1, len(body_lines)):
+        line = body_lines[idx]
+        if line.strip().startswith("##"):
+            break
+        match = re_comment.match(line.strip())
+        if match:
+            comment_lines.append((idx, match))
+
+    if index < 0 or index >= len(comment_lines):
+        raise HTTPException(status_code=404, detail=f"Feedback comment at index {index} not found")
+
+    target_line_idx = comment_lines[index][0]
+    body_lines.pop(target_line_idx)
+    new_body = "\n".join(body_lines)
+
+    result = contracts.write_page(
+        v,
+        slug,
+        new_body,
+        title=meta.get("title"),
+        type=meta.get("type"),
+        tags=meta.get("tags"),
+        extra_meta=meta,
+        overwrite=True,
+        enforce_protected_paths=True,
+    )
+    if not result.ok:
+        raise HTTPException(status_code=500, detail="Failed to delete feedback")
+    return {"ok": True}
+
+
+@app.put("/api/vaults/{name}/feedback/{index}")
+def update_page_feedback(name: str, slug: str, index: int, payload: FeedbackUpdatePayload):
+    import re
+    v = _vault_or_404(name)
+    _safe_slug_or_400(slug, v)
+
+    try:
+        normalized = slug_module.normalize_prefix(slug)
+        safe_path = slug_module.validate(normalized, vault_root=v.root)
+        md_file = safe_path.with_suffix(".md")
+        if not md_file.exists():
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found")
+    except slug_module.SlugError:
+        raise HTTPException(status_code=400, detail="Invalid slug")
+
+    try:
+        text = md_file.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+    from raven.core.frontmatter import parse as fm_parse
+    meta, body = fm_parse(text)
+
+    body_lines = body.splitlines()
+    feedback_idx = -1
+    for idx, line in enumerate(body_lines):
+        if re.match(r"^##\s+피드백\b", line.strip()):
+            feedback_idx = idx
+            break
+
+    if feedback_idx == -1:
+        raise HTTPException(status_code=404, detail="Feedback section not found")
+
+    comment_lines = []
+    re_comment = re.compile(r"^\*\s+\*\*([^*]+)\s+\(([^)]+)\)\*\*:\s+(.*)$")
+
+    for idx in range(feedback_idx + 1, len(body_lines)):
+        line = body_lines[idx]
+        if line.strip().startswith("##"):
+            break
+        match = re_comment.match(line.strip())
+        if match:
+            comment_lines.append((idx, match))
+
+    if index < 0 or index >= len(comment_lines):
+        raise HTTPException(status_code=404, detail=f"Feedback comment at index {index} not found")
+
+    target_line_idx, match = comment_lines[index]
+    timestamp = match.group(1)
+    actor = match.group(2)
+
+    new_line = f"* **{timestamp} ({actor})**: {payload.feedback}"
+    body_lines[target_line_idx] = new_line
+    new_body = "\n".join(body_lines)
+
+    result = contracts.write_page(
+        v,
+        slug,
+        new_body,
+        title=meta.get("title"),
+        type=meta.get("type"),
+        tags=meta.get("tags"),
+        extra_meta=meta,
+        overwrite=True,
+        enforce_protected_paths=True,
+    )
+    if not result.ok:
+        raise HTTPException(status_code=500, detail="Failed to update feedback")
+    return {"ok": True}
 
 
 @app.delete("/api/vaults/{name}/pages/{slug:path}")

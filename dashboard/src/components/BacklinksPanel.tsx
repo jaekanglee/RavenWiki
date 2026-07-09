@@ -4,9 +4,11 @@ import { useState } from "react";
 export function BacklinksPanel({
   backlinks,
   vault,
+  vertical,
 }: {
   backlinks: { source_slug: string; source_title: string }[];
   vault: string;
+  vertical?: boolean;
 }) {
   // Mobile-friendly: collapsible on narrow screens.
   const [open, setOpen] = useState(true);
@@ -18,8 +20,10 @@ export function BacklinksPanel({
         className="sidebar-label"
         style={{
           fontSize: 14,
-          padding: 16,
+          padding: vertical ? "16px 0" : 16,
           color: "var(--color-muted)",
+          borderTop: vertical ? "1px solid var(--color-hairline)" : "none",
+          marginTop: vertical ? 24 : 0,
         }}
       >
         <h3
@@ -41,11 +45,13 @@ export function BacklinksPanel({
   return (
     <aside
       style={{
-        position: "sticky",
-        top: 32,
-        alignSelf: "flex-start",
-        padding: 16,
-        borderLeft: "1px solid var(--color-hairline)",
+        position: vertical ? "static" : "sticky",
+        top: vertical ? undefined : 32,
+        alignSelf: vertical ? "stretch" : "flex-start",
+        padding: vertical ? "16px 0" : 16,
+        borderLeft: vertical ? "none" : "1px solid var(--color-hairline)",
+        borderTop: vertical ? "1px solid var(--color-hairline)" : "none",
+        marginTop: vertical ? 24 : 0,
       }}
     >
       <button

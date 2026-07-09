@@ -16,6 +16,8 @@ export interface PageMetaRowProps {
   slug: string;
   tags: string;
   updated?: string;
+  issueStatus?: string;
+  onStatusChange?: (newStatus: string) => void;
 }
 
 function isIndexSlug(slug: string): boolean {
@@ -24,7 +26,7 @@ function isIndexSlug(slug: string): boolean {
   return normalized === "index";
 }
 
-export function PageMetaRow({ type, slug, tags, updated }: PageMetaRowProps) {
+export function PageMetaRow({ type, slug, tags, updated, issueStatus, onStatusChange }: PageMetaRowProps) {
   const isIndex = isIndexSlug(slug);
   const tagList = (tags || "")
     .split(",")
@@ -63,6 +65,32 @@ export function PageMetaRow({ type, slug, tags, updated }: PageMetaRowProps) {
           #{t}
         </span>
       ))}
+
+      {type.toLowerCase() === "issue" && onStatusChange && (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginLeft: "4px" }}>
+          <span style={{ fontSize: 13, color: "var(--color-muted)" }}>이슈 상태:</span>
+          <select
+            value={issueStatus || "open"}
+            onChange={(e) => onStatusChange(e.target.value)}
+            style={{
+              padding: "2px 6px",
+              borderRadius: "4px",
+              border: "1px solid var(--border-subtle, rgba(0,0,0,0.15))",
+              backgroundColor: "var(--bg-surface, #fff)",
+              color: "var(--fg-ink, #000)",
+              fontSize: "12px",
+              outline: "none",
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
+          >
+            <option value="open">🔴 단순 오픈</option>
+            <option value="edit_requested">⚙️ 수정요청</option>
+            <option value="feedback_done">💬 피드백완료</option>
+            <option value="closed">✅ 클로즈</option>
+          </select>
+        </span>
+      )}
     </div>
   );
 }

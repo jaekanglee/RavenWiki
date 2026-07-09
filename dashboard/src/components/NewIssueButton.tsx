@@ -165,6 +165,7 @@ export function NewIssueButton({
         type: "issue",
         content: content + stamp,
         tags: ["issue", severity, kind, "draft"],
+        extra_meta: { issue_status: "open" },
       });
       setOpen(false);
       nav(`/page/${encodeURIComponent(vault)}/${slug}`);

@@ -130,14 +130,14 @@ export async function createFolder(
 }
 
 export async function fetchPage(vault: string, slug: string) {
-  const r = await fetch(`/api/vaults/${vault}/pages/${slug}`);
+  const r = await fetch(`/api/vaults/${vault}/pages/${slug}?_=${Date.now()}`);
   if (!r.ok) throw new Error(`page ${slug} not found in vault ${vault}`);
   return r.json();
 }
 
 export async function createPage(
   vault: string,
-  payload: { slug: string; title: string; content: string; type: string; tags: string[] },
+  payload: { slug: string; title: string; content: string; type: string; tags: string[]; extra_meta?: Record<string, any> },
 ) {
   const r = await fetch(`/api/vaults/${vault}/pages`, {
     method: "POST",
@@ -151,7 +151,7 @@ export async function createPage(
 export async function updatePage(
   vault: string,
   slug: string,
-  payload: { content: string; title?: string; type?: string; tags?: string[] }
+  payload: { content: string; title?: string; type?: string; tags?: string[]; extra_meta?: Record<string, any> }
 ) {
   const r = await fetch(`/api/vaults/${vault}/pages/${slug}`, {
     method: "PUT",
@@ -681,5 +681,32 @@ export async function sendPageFeedback(
     }
   );
   if (!r.ok) throw new Error(`send feedback failed: ${r.status}`);
+  return r.json();
+}
+
+export async function deletePageFeedback(vault: string, slug: string, index: number) {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
+    { method: "DELETE" }
+  );
+  if (!r.ok) throw new Error(`delete feedback failed: ${r.status}`);
+  return r.json();
+}
+
+export async function updatePageFeedback(
+  vault: string,
+  slug: string,
+  index: number,
+  payload: { feedback: string }
+) {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  if (!r.ok) throw new Error(`update feedback failed: ${r.status}`);
   return r.json();
 }
