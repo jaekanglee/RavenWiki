@@ -606,14 +606,21 @@ export function GraphCanvas({
       // scale 가드는 제거: 4% zoom (사용자 화면)에서도 라벨이 보여야 함.
       // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
       const centroids = vaultCentroidsRef.current;
+      // v0.7.140+: 진단 마커 — 항상 그려서 centroids 비어있는지 진단 가능.
+      // TEST가 안 보이면 → ctx.fillText 자체 실패 (state 문제)
+      // TEST 보이고 라벨만 안 보이면 → centroids는 OK인데 라벨 코드 문제
+      ctx.save();
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "16px sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      ctx.fillText("TEST", 200, 100);
+      ctx.restore();
+
       if (centroids && centroids.length > 0) {
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
-        // v0.7.140+: fillText 정상 동작 확인 — screen 좌표 (200,100)에 빨간 TEST 텍스트
-        ctx.fillStyle = "#ff0000";
-        ctx.font = "16px sans-serif";
-        ctx.fillText("TEST", 200, 100);
-        // v0.7.140+: centroids 중 첫 vault 위치에 초록 X 마커
+        // 첫 vault centroid 위치에 초록 X 마커
         if (centroids[0]) {
           ctx.fillStyle = "#00ff00";
           ctx.fillText("X", centroids[0].x, centroids[0].y);
