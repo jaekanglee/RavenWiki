@@ -601,21 +601,24 @@ export function GraphCanvas({
         ctx.fillText(label, node.x, node.y + size + 3.8 / scale);
       }
 
-      // v0.7.137+: vault 라벨 — centroid 위치에 vault 이름 텍스트. nodeCanvasObject
-      // 안에서 매 paint에 안정적으로 호출됨. fillText는 idempotent이라 매 노드 ×
-      // 매 vault 호출되어도 결과는 동일 (성능: 369×5 = 1845 fillText/frame).
+      // v0.7.138+: vault 라벨 — nodeCanvasObject 안에서 매 노드 draw 시 그리기.
+      // fillText idempotent이라 매 노드 × 매 vault 호출되어도 결과 동일.
+      // scale 가드는 제거: 4% zoom (사용자 화면)에서도 라벨이 보여야 함.
+      // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
       const centroids = vaultCentroidsRef.current;
-      if (centroids && centroids.length > 0 && scale >= 0.3) {
+      if (centroids && centroids.length > 0) {
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
         for (const vc of centroids) {
           const color = resolveVaultColor(vc.vault);
-          const fontSize = 14 * scale;
+          // v0.7.138+: fontSize floor 9 — extreme zoom out에서도 식별 가능.
+          const fontSize = Math.max(9, 14 * scale);
           ctx.font = `600 ${fontSize}px sans-serif`;
           const labelX = vc.x;
-          const labelY = vc.y - 50 * scale;
+          // 라벨 위치 — zoom 따라 적응 (min 24px 분리)
+          const labelY = vc.y - Math.max(24, 50 * scale);
           // outline (dark) → 본문 (vault 색)
-          ctx.lineWidth = 3 * scale;
+          ctx.lineWidth = Math.max(1.5, 3 * scale);
           ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
           ctx.lineJoin = "round";
           ctx.strokeText(vc.vault, labelX, labelY);
