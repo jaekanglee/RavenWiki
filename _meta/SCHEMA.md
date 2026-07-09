@@ -80,6 +80,7 @@ confidence: high | medium | low   # 선택
 contested: true                   # 선택: 모순 발견 시
 slug: explicit-slug               # 선택 (v2.2: slug 전략)
 aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to-slug 매핑 보존)
+issue_status: open | feedback_done | edit_requested | closed # 선택 (type: issue 인 경우 상태 필드)
 ---
 
 ### v0.7.x Type 9종 (v2.4 8종 → +1 `issue`)
@@ -119,6 +120,16 @@ aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to
 - 결정: `_meta/decisions/adr-2026-07-06-stale-update-isolate-loop.md`
 - 구현: `raven/mcp/tools/stale.py` + `raven/mcp/tools/write.py`
 - Lite bootstrap 동기: `raven/core/templates/agent/SCHEMA.md` (Tier 2 자동 복사)
+
+### v0.7.153+ Issue Status 4종
+`type: issue` 타입 문서에 한하여, 에이전트 수정 지시 및 피드백 상태를 추적하기 위해 frontmatter `issue_status` 필드를 사용합니다.
+
+| issue_status | 의미 | 트리거 |
+|---|---|---|
+| `open` | 단순 오픈 (기본값) | 이슈 최초 발행 시 |
+| `edit_requested` | 수정요청 | 피드백 전송 또는 사람이 직접 상태 변경 시 |
+| `feedback_done` | 피드백완료 | 피드백에 대해 에이전트가 반영 완료했거나 사람이 직접 변경 시 |
+| `closed` | 클로즈 | 이슈 해결 완료 또는 사람이 직접 닫음 |
 
 ### System Areas (type 면제, v0.7.66+)
 

@@ -54,6 +54,7 @@ confidence: high          # 선택: high | medium | low
 contested: true           # 선택: 모순 발견 시
 contradictions: [slug-a]  # 선택: 모순인 다른 페이지 slug
 aliases: [old-slug-1]     # 선택
+issue_status: open | feedback_done | edit_requested | closed # 선택 (type: issue 인 경우 상태 필드)
 ---
 ```
 
@@ -147,6 +148,16 @@ status: stale
 last_verified: 2026-04-06T00:00:00Z   # ISO 8601 (stale 감지용)
 archived_at: 2026-07-06T12:00:00Z     # archived 시 자동 stamp
 archive_reason: stale_over_threshold  # 또는 user_request / factual_obsolete
+
+### Issue Status 4종
+`type: issue` 타입 문서에 한하여, 에이전트 수정 지시 및 피드백 상태를 추적하기 위해 frontmatter `issue_status` 필드를 사용합니다.
+
+| issue_status | 의미 | 트리거 |
+|---|---|---|
+| `open` | 단순 오픈 (기본값) | 이슈 최초 발행 시 |
+| `edit_requested` | 수정요청 | 피드백 전송 또는 사람이 직접 상태 변경 시 |
+| `feedback_done` | 피드백완료 | 피드백에 대해 에이전트가 반영 완료했거나 사람이 직접 변경 시 |
+| `closed` | 클로즈 | 이슈 해결 완료 또는 사람이 직접 닫음 |
 ```
 
 ### MCP 도구 (ADR §1.3)
@@ -443,6 +454,7 @@ north star "원문 보존 + 증분 누적"의 실행 가드. 신규 생성은 �
 
 ## 상태
 - status frontmatter: `draft` (기본, ADR-2026-07-08) / `current` (검증됨) / `stale` / `contested` / `archived`
+- issue_status: `open` (기본값) / `edit_requested` / `feedback_done` / `closed`
 - 진행: 열림(Open) / 진행중(In Progress) / 해결됨(Resolved)
 - 발행 시 status=draft 자동. 7일+ 유지 + lint #18 통과 시 current 자동 승격.
 

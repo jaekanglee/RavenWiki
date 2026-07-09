@@ -9,7 +9,7 @@ import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { deletePage, fetchPage, getActiveVault, sendPageFeedback } from "../lib/api";
+import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback } from "../lib/api";
 import type { Graph, Page } from "../types";
 
 interface Ctx {
@@ -95,6 +95,45 @@ export function splitRelatedSection(content: string): { body: string; links: str
   return { body: content, links: [] };
 }
 
+export interface FeedbackItem {
+  timestamp: string;
+  actor: string;
+  feedback: string;
+}
+
+export function splitFeedbackSection(content: string): { body: string; feedbacks: FeedbackItem[] } {
+  const lines = content.split(/\r?\n/);
+  const idx = lines.findIndex((line) => line.trim() === "## 피드백");
+  if (idx === -1) {
+    return { body: content, feedbacks: [] };
+  }
+  const body = lines.slice(0, idx).join("\n").trimEnd();
+  const feedbacks: FeedbackItem[] = [];
+  const feedbackLines = lines.slice(idx + 1);
+
+  // Parse items like: * **2026-07-09 17:37 (user)**: 피드백 내용
+  const re = /^\*\s+\*\*([^*]+)\s+\(([^)]+)\)\*\*:\s+(.*)$/;
+  for (const line of feedbackLines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(re);
+    if (match) {
+      feedbacks.push({
+        timestamp: match[1].trim(),
+        actor: match[2].trim(),
+        feedback: match[3].trim(),
+      });
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      feedbacks.push({
+        timestamp: "",
+        actor: "unknown",
+        feedback: trimmed.replace(/^[-*]\s+/, ""),
+      });
+    }
+  }
+  return { body, feedbacks };
+}
+
 // Match a graph node id by suffix of path segments. Both "users" and
 // "concept/users" should resolve to id "concept/users" so URL slugs that
 // carry an extra prefix (e.g. "content/concept/users") still find a node.
@@ -162,6 +201,32 @@ export function PageView() {
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackErr, setFeedbackErr] = useState<string | null>(null);
 
+  const [editingFeedbackIdx, setEditingFeedbackIdx] = useState<number | null>(null);
+  const [editingFeedbackText, setEditingFeedbackText] = useState("");
+
+  const handleDeleteFeedback = async (idx: number) => {
+    if (!window.confirm("이 피드백을 삭제하시겠습니까?")) return;
+    try {
+      await deletePageFeedback(vault, slug!, idx);
+      setReloadKey((k) => k + 1);
+      ctx?.refresh?.();
+    } catch (err: any) {
+      alert(`삭제 실패: ${err.message || err}`);
+    }
+  };
+
+  const handleSaveFeedback = async (idx: number) => {
+    if (!editingFeedbackText.trim()) return;
+    try {
+      await updatePageFeedback(vault, slug!, idx, { feedback: editingFeedbackText.trim() });
+      setEditingFeedbackIdx(null);
+      setReloadKey((k) => k + 1);
+      ctx?.refresh?.();
+    } catch (err: any) {
+      alert(`수정 실패: ${err.message || err}`);
+    }
+  };
+
   const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!feedbackText.trim() || !slug) return;
@@ -211,6 +276,7 @@ export function PageView() {
           tags,
           content: d.content,
           backlinks: d.backlinks || [],
+          issueStatus: fm.issue_status || "",
         });
         console.log("[Raven-Debug] setPage done");
       })
@@ -229,19 +295,23 @@ export function PageView() {
       .catch(() => setGraph({ nodes: [], edges: [] }));
   }, [vault]);
 
-  const related = useMemo(
-    () =>
-      page
-        ? splitRelatedSection(stripLeadingTitleHeading(page.content, page.title))
-        : { body: "", links: [] },
-    [page]
-  );
+  const parsedData = useMemo(() => {
+    if (!page) return { body: "", links: [], feedbacks: [] };
+    const cleaned = stripLeadingTitleHeading(page.content, page.title);
+    const rel = splitRelatedSection(cleaned);
+    const fb = splitFeedbackSection(rel.body);
+    return {
+      body: fb.body,
+      links: rel.links,
+      feedbacks: fb.feedbacks,
+    };
+  }, [page]);
 
   const localGraph = useMemo(() => {
     if (!page) return { nodes: [], edges: [] };
-    const relatedGraph = buildRelatedGraph(graph, page.slug, related.links);
+    const relatedGraph = buildRelatedGraph(graph, page.slug, parsedData.links);
     return relatedGraph.nodes.length > 1 ? relatedGraph : buildLocalGraph(graph, page.slug);
-  }, [graph, page, related.links]);
+  }, [graph, page, parsedData.links]);
 
   const currentGraphNodeId = useMemo(
     () => (page ? resolveGraphId(graph, page.slug) : null),
@@ -292,7 +362,7 @@ export function PageView() {
           slug={page.slug}
           title={page.title}
           content={page.content}
-          viewContent={related.body}
+          viewContent={parsedData.body}
           onSaved={() => {
             setReloadKey((k) => k + 1);
             ctx?.refresh?.();
@@ -397,13 +467,32 @@ export function PageView() {
               slug={page.slug || page.path}
               tags={page.tags || ""}
               updated={page.updated}
+              issueStatus={page.issueStatus}
+              onStatusChange={async (newStatus) => {
+                try {
+                  const tagArray = page.tags
+                    ? page.tags.split(",").map((t) => t.trim()).filter(Boolean)
+                    : [];
+                  await updatePage(vault, page.slug, {
+                    content: page.content,
+                    title: page.title,
+                    type: page.type,
+                    tags: tagArray,
+                    extra_meta: { issue_status: newStatus },
+                  });
+                  setReloadKey((k) => k + 1);
+                  ctx?.refresh?.();
+                } catch (err: any) {
+                  alert(`상태 변경 실패: ${err.message || err}`);
+                }
+              }}
             />
           }
         />
 
-        {related.links.length > 0 && (
+        {parsedData.links.length > 0 && (
           <div className="page-related-links" aria-label="관련 문서">
-            {related.links.map((link) => {
+            {parsedData.links.map((link) => {
               const resolved = resolveGraphId(graph, link) ?? link;
               const node = graph.nodes.find((n) => n.id === resolved);
               return (
@@ -419,6 +508,7 @@ export function PageView() {
             })}
           </div>
         )}
+
 
         {/* 에이전트 수정 지시 / 피드백 입력 패널 (v0.7.127+, P1#27) */}
         {page.type.toLowerCase() === "issue" && (
@@ -457,7 +547,7 @@ export function PageView() {
               >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
-              에이전트 수정 지시 및 피드백
+              에이전트 수정 지시 및 피드백 (댓글)
             </h3>
             <form onSubmit={handleSubmitFeedback} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <textarea
@@ -494,11 +584,132 @@ export function PageView() {
                 </Button>
               </div>
             </form>
+
+            {/* 피드백 댓글 리스트 */}
+            {parsedData.feedbacks.length > 0 && (
+              <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid var(--color-hairline)", paddingTop: "16px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-muted)", marginBottom: "4px" }}>
+                  피드백 내역 ({parsedData.feedbacks.length})
+                </div>
+                {parsedData.feedbacks.map((item, idx) => {
+                  const isEditing = editingFeedbackIdx === idx;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "6px",
+                        backgroundColor: "var(--color-surface-soft, rgba(0,0,0,0.02))",
+                        border: "1px solid var(--border-subtle, rgba(0,0,0,0.05))",
+                        display: "flex",
+                        gap: "16px",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "11px", color: "var(--color-muted, #777)", marginBottom: "6px" }}>
+                          <div>🕒 {item.timestamp || "날짜 없음"}</div>
+                          <div style={{ fontWeight: 600, marginTop: "2px", color: "var(--fg-ink, #000)" }}>
+                            👤 ({item.actor === "user" ? "사람 운영자" : item.actor})
+                          </div>
+                        </div>
+                        {isEditing ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                            <textarea
+                              value={editingFeedbackText}
+                              onChange={(e) => setEditingFeedbackText(e.target.value)}
+                              style={{
+                                width: "100%",
+                                minHeight: "60px",
+                                padding: "8px",
+                                borderRadius: "4px",
+                                border: "1px solid var(--border-subtle, rgba(0,0,0,0.15))",
+                                fontSize: "13px",
+                                fontFamily: "inherit",
+                                backgroundColor: "var(--bg-surface, #fff)",
+                                color: "var(--fg-ink, #000)",
+                                resize: "vertical",
+                              }}
+                            />
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setEditingFeedbackIdx(null)}
+                              >
+                                취소
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => handleSaveFeedback(idx)}
+                              >
+                                저장
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "13px", color: "var(--fg-ink, #222)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>
+                            {item.feedback}
+                          </div>
+                        )}
+                      </div>
+
+                      {!isEditing && (
+                        <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFeedbackIdx(idx);
+                              setEditingFeedbackText(item.feedback);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                              color: "var(--color-primary, #3b82f6)",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              transition: "background-color 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                          >
+                            편집
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFeedback(idx)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                              color: "var(--color-danger, #ef4444)",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              transition: "background-color 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
-      </article>
 
-      <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} />
+        {/* 백링크 섹션 */}
+        <BacklinksPanel backlinks={page.backlinks ?? []} vault={vault} vertical={true} />
+      </article>
 
       {/* Floating overlay panel — bottom-right. Hidden automatically on /graph. */}
       <FloatingGraphPanel
