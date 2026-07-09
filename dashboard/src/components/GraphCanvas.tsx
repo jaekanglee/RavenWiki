@@ -56,11 +56,25 @@ export function nodeColor(type: string | undefined): string {
  *   - normal: 8 + log2(1+w)*6  (leaf 14, w=10 → 27.93, w=24 → 36.20)
  *   - dense:  7 + log2(1+w)*4  (leaf 11, w=10 → 20.28, w=24 → 25.81)
  */
-export function nodeSize(weight: number | undefined, density: "normal" | "dense" = "normal"): number {
+export function nodeSize(
+  weight: number | undefined,
+  density: "normal" | "dense" = "normal",
+  importance?: number | null,
+  totalNodes?: number
+): number {
   const w = Math.max(weight ?? 1, 1);
   const multiplier = density === "dense" ? 4 : 6;
   const base = density === "dense" ? 7 : 8;
-  return base + Math.log2(1 + w) * multiplier;
+  const baseSize = base + Math.log2(1 + w) * multiplier;
+
+  if (typeof importance === "number" && typeof totalNodes === "number" && totalNodes > 0) {
+    // PageRank 값은 평균 1.0/N 이다.
+    // N * PageRank 를 하면 평균이 1.0이 된다.
+    const relativeImportance = importance * totalNodes;
+    const importanceFactor = Math.max(0.5, Math.min(relativeImportance, 4.0));
+    return baseSize * (0.7 + Math.sqrt(importanceFactor) * 0.8);
+  }
+  return baseSize;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -130,6 +144,7 @@ interface HitTestNode {
   fx?: number;
   fy?: number;
   weight?: number;
+  importance?: number;
 }
 
 export function isStationaryClickGesture(
@@ -167,7 +182,7 @@ export function findClosestNodeHit<T extends HitTestNode>(
     const dx = point.x - x;
     const dy = point.y - y;
     const distSq = dx * dx + dy * dy;
-    const visualRadius = nodeSize(node.weight, density) * DIRECT_HIT_NODE_RADIUS_MULTIPLIER;
+    const visualRadius = nodeSize(node.weight, density, node.importance, nodes.length) * DIRECT_HIT_NODE_RADIUS_MULTIPLIER;
     const radius = Math.max(visualRadius + padding / safeScale, minCanvasRadius);
     if (distSq > radius * radius) continue;
     if (distSq < closestDistSq) {
@@ -732,7 +747,7 @@ export function GraphCanvas({
     graph.nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       if (!node || node.x === undefined || node.y === undefined) return;
       const scale = globalScale || 1;
-      const size = nodeSize(node.weight, isDense ? "dense" : "normal");
+      const size = nodeSize(node.weight, isDense ? "dense" : "normal", node.importance, nodes.length);
       // v0.7.139+: ref로 최신 hover state를 매 paint call에서 읽는다 (effect 재실행 없음).
       const currentHover = hoveredNodeRef.current;
       const isHovered = currentHover && currentHover.id === node.id;
@@ -754,13 +769,24 @@ export function GraphCanvas({
         : nodeColor(node.type);
       ctx.fill();
 
-      // 테두리 선
-      ctx.lineWidth = isFocused ? 2 / scale : 0.8 / scale;
-      ctx.strokeStyle = isFocused
-        ? resolvedEdgeHighlightRef.current
-        : isHighlighted
-        ? "rgba(255, 255, 255, 0.72)"
-        : resolvedNodeOutlineRef.current;
+      // 테두리 선 굵기 및 스타일을 centrality에 매핑
+      let borderThickness = isFocused ? 2 : 0.8;
+      if (node.centrality !== undefined && node.centrality !== null) {
+        const centralityFactor = Math.min(node.centrality, 0.2) / 0.2;
+        borderThickness += centralityFactor * 2.5;
+      }
+      ctx.lineWidth = borderThickness / scale;
+
+      let strokeStyle = resolvedNodeOutlineRef.current;
+      if (isFocused) {
+        strokeStyle = resolvedEdgeHighlightRef.current;
+      } else if (isHighlighted) {
+        strokeStyle = "rgba(255, 255, 255, 0.72)";
+      } else if (node.centrality !== undefined && node.centrality !== null && node.centrality > 0.01) {
+        const alpha = Math.min(0.2 + (node.centrality * 10), 0.95);
+        strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      }
+      ctx.strokeStyle = strokeStyle;
       ctx.stroke();
 
       // 이중 링 효과 (focused)

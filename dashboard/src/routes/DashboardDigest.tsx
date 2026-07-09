@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext, Link } from "react-router-dom";
-import { fetchDigest, type DigestPayload, type DigestDayBucket } from "../lib/api";
+import { fetchDigest, type DigestPayload, type DigestDayBucket, fetchAdvice, type Advice } from "../lib/api";
 import { DigestCard } from "../components/DigestCard";
 
 /**
@@ -18,6 +18,7 @@ export function DashboardDigest() {
   const { vault } = useOutletContext<{ vault: string }>();
   const [days, setDays] = useState<number>(7);
   const [data, setData] = useState<DigestPayload | null>(null);
+  const [advices, setAdvices] = useState<Advice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,14 +26,18 @@ export function DashboardDigest() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchDigest(vault, days)
-      .then((d) => {
+    Promise.all([
+      fetchDigest(vault, days),
+      fetchAdvice(vault)
+    ])
+      .then(([d, advs]) => {
         if (cancelled) return;
         if (!d) {
           setError("digest API 응답 실패");
         } else {
           setData(d);
         }
+        setAdvices(advs || []);
       })
       .catch((e) => {
         if (!cancelled) setError(`${e}`);
@@ -61,6 +66,136 @@ export function DashboardDigest() {
 
       {data && (
         <>
+          {/* AI 진단 어드바이스 패널 */}
+          {advices.length > 0 && (
+            <section style={{ marginBottom: 32 }}>
+              <h2 style={{
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "var(--color-muted)",
+                marginBottom: 14
+              }}>
+                🔮 AI 네트워크 분석 & 진단 어드바이스
+              </h2>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 16,
+              }}>
+                {advices.map((adv) => (
+                  <div
+                    key={adv.id}
+                    style={{
+                      background: "linear-gradient(135deg, rgba(30, 27, 75, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%)",
+                      backdropFilter: "blur(12px)",
+                      border: "1px solid rgba(129, 140, 248, 0.25)",
+                      borderRadius: "12px",
+                      padding: "18px 20px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = "translateY(-4px)";
+                      el.style.borderColor = "rgba(129, 140, 248, 0.55)";
+                      el.style.boxShadow = "0 12px 40px 0 rgba(129, 140, 248, 0.18)";
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = "none";
+                      el.style.borderColor = "rgba(129, 140, 248, 0.25)";
+                      el.style.boxShadow = "0 8px 32px 0 rgba(0, 0, 0, 0.3)";
+                    }}
+                  >
+                    {/* Background Ambient Glow */}
+                    <div style={{
+                      position: "absolute",
+                      top: "-20px",
+                      right: "-20px",
+                      width: "80px",
+                      height: "80px",
+                      background: adv.type === "bloated" || adv.severity === "warning"
+                        ? "radial-gradient(circle, rgba(239,68,68,0.15) 0%, rgba(0,0,0,0) 70%)"
+                        : "radial-gradient(circle, rgba(99,102,241,0.2) 0%, rgba(0,0,0,0) 70%)",
+                      pointerEvents: "none"
+                    }} />
+
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                        <span style={{ fontSize: 18 }}>
+                          {adv.type === "bridge" ? "🌉" : adv.type === "bloated" ? "📦" : adv.type === "orphan" ? "🏝" : "💡"}
+                        </span>
+                        <strong style={{ fontSize: 14.5, color: "var(--color-ink)", fontWeight: 600 }}>
+                          {adv.title}
+                        </strong>
+                        <span className="chip" style={{
+                          fontSize: 10,
+                          marginLeft: "auto",
+                          background: adv.severity === "warning" ? "rgba(239, 68, 68, 0.15)" : "rgba(99, 102, 241, 0.15)",
+                          color: adv.severity === "warning" ? "#f87171" : "#818cf8",
+                          border: adv.severity === "warning" ? "1px solid rgba(239, 68, 68, 0.2)" : "1px solid rgba(99, 102, 241, 0.2)",
+                          textTransform: "uppercase",
+                          padding: "2px 6px"
+                        }}>
+                          {adv.severity === "warning" ? "진단" : "인사이트"}
+                        </span>
+                      </div>
+                      <p style={{
+                        fontSize: 13,
+                        color: "rgba(226, 232, 240, 0.85)",
+                        lineHeight: 1.5,
+                        margin: "0 0 16px 0",
+                        wordBreak: "keep-all"
+                      }}>
+                        {adv.message}
+                      </p>
+                    </div>
+
+                    {adv.slug && (
+                      <Link
+                        to={adv.type === "bloated" ? "/vault/manage" : `/page/${encodeURIComponent(vault)}/${adv.slug}`}
+                        className="btn-pill-primary"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          textDecoration: "none",
+                          background: "linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)",
+                          boxShadow: "0 4px 12px 0 rgba(79, 70, 229, 0.3)",
+                          border: "none",
+                          borderRadius: "20px",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          alignSelf: "flex-start"
+                        }}
+                        onMouseEnter={(e) => {
+                          const el = e.currentTarget as HTMLElement;
+                          el.style.filter = "brightness(1.15)";
+                        }}
+                        onMouseLeave={(e) => {
+                          const el = e.currentTarget as HTMLElement;
+                          el.style.filter = "none";
+                        }}
+                      >
+                        {adv.type === "bloated" ? "📁 컬렉션 관리" : "📖 문서 탐색"} →
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {/* Meta row + days selector */}
           <div
             style={{

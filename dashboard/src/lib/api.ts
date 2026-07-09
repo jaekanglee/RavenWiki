@@ -711,6 +711,15 @@ export async function updatePageFeedback(
   return r.json();
 }
 
+export interface Advice {
+  id: string;
+  type: string; // "bridge" | "bloated" | "orphan" | "underlinked"
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "success";
+  slug?: string;
+}
+
 export async function fetchRecommendations(
   vault: string,
   slug: string,
@@ -720,5 +729,11 @@ export async function fetchRecommendations(
     `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/recommendations?limit=${limit}`
   );
   if (!r.ok) throw new Error(`failed to fetch recommendations: ${r.status}`);
+  return r.json();
+}
+
+export async function fetchAdvice(vault: string): Promise<Advice[]> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/advice`);
+  if (!r.ok) return [];
   return r.json();
 }

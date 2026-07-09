@@ -95,8 +95,8 @@ Y2 content
     assert recs[0]["score"] == 4.0
     assert recs[0]["co_citation_score"] == 2
     assert recs[0]["tag_overlap_score"] == 0
-    assert recs[0]["importance"] is None
-    assert recs[0]["centrality"] is None
+    assert isinstance(recs[0]["importance"], float)
+    assert isinstance(recs[0]["centrality"], float)
 
     assert recs[1]["slug"] == "content/page-c"
     assert recs[1]["score"] == 2.0
@@ -128,3 +128,5 @@ def test_recommendation_api(client, isolated_vault: Vault) -> None:
     assert data["recommendations"][0]["slug"] == "content/page-b"
     assert data["recommendations"][0]["score"] == 1.0
     assert data["recommendations"][0]["tag_overlap_score"] == 1
+    assert isinstance(data["recommendations"][0]["importance"], float)
+    assert isinstance(data["recommendations"][0]["centrality"], float)

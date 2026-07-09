@@ -65,6 +65,8 @@ export interface GraphNode {
   community?: number;
   folder_group?: string;
   folder_label?: string;
+  importance?: number;
+  centrality?: number;
 }
 
 export interface GraphEdge {

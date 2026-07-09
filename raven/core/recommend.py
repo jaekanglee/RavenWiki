@@ -54,6 +54,8 @@ def get_recommendations(
         p.title,
         p.type,
         p.raw_content,
+        p.importance,
+        p.centrality,
         COALESCE(c.co_citation_count, 0) AS co_citation_count,
         COALESCE(t.tag_overlap_count, 0) AS tag_overlap_count
     FROM pages p
@@ -95,6 +97,8 @@ def get_recommendations(
         raw_content = row["raw_content"]
         co_cite = row["co_citation_count"]
         tag_overlap = row["tag_overlap_count"]
+        importance = row["importance"]
+        centrality = row["centrality"]
 
         # Parse frontmatter to filter out rejected or archived pages
         try:
@@ -115,8 +119,8 @@ def get_recommendations(
             "score": score,
             "co_citation_score": co_cite,
             "tag_overlap_score": tag_overlap,
-            "importance": None,  # Future expansion (Post-MVP)
-            "centrality": None,  # Future expansion (Post-MVP)
+            "importance": float(importance) if importance is not None else 0.0,
+            "centrality": float(centrality) if centrality is not None else 0.0,
         })
 
     # Sort: highest score first, then fallback to title, then slug alphabetically
