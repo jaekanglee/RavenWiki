@@ -12,7 +12,7 @@
 #              — 운영자(admin)와 권한 분리된 팀원용 인스턴스 (기본 mode=write)
 #   Dashboard: 5173 (RAVEN_DASHBOARD_PORT, Vite dev)
 #
-# Host 바인딩은 .env(git-ignored)에서 머신별로 설정 (.env.example 참고) —
+# Host 바인딩은 .env(git-ignored)에서 머신별로 설정 (.env.example.company / .env.example.house 참고) —
 # 인증 체계가 없으므로 신뢰 수준에 맞게 RAVEN_MCP_HOST / RAVEN_MCP_TEAM_HOST /
 # RAVEN_DASHBOARD_HOST 를 머신마다 다르게 둘 것.
 #

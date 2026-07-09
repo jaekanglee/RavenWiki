@@ -5,7 +5,7 @@
 # Conventions:
 #   - All commands run from project root.
 #   - 로컬 host 실행 (기본): make install && ./raven.sh start
-#   - Docker (deprecated, 남겨두지만 신규 사용자는 비권장): cp .env.example .env && make docker-up
+#   - Docker (deprecated, 남겨두지만 신규 사용자는 비권장): cp .env.example.house .env && make docker-up
 #   - PYTHONPATH=. so `python -m raven.*` works without install.
 
 SHELL := /bin/bash
@@ -42,8 +42,8 @@ venv-check: ## Fail loudly if venv missing (so other targets work)
 .PHONY: docker-build docker-up docker-down docker-logs docker-ps
 docker-build: ## Build Raven Docker image (multi-stage: dashboard + Python runtime)
 	@if [ ! -f .env ]; then \
-		echo "📋 .env 없음. .env.example → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
-		cp .env.example .env; \
+		echo "📋 .env 없음. .env.example.house → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
+		cp .env.example.house .env; \
 	fi
 	# v0.7.17+: 순차 빌드 강제 (병렬 image 빌드 시 같은 tag 충돌 ❌)
 	$(MAKE) --no-print-directory docker-build-api
@@ -63,8 +63,8 @@ docker-build-dashboard: ## Build dashboard service image only
 
 docker-up: ## Start 4 services (API + MCP HTTP + Dashboard, stdio is docker exec)
 	@if [ ! -f .env ]; then \
-		echo "📋 .env 없음. .env.example → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
-		cp .env.example .env; \
+		echo "📋 .env 없음. .env.example.house → .env 복사. RAVEN_VAULTS_DIR 조정 후 사용."; \
+		cp .env.example.house .env; \
 	fi
 	docker compose up -d
 	@echo ""
