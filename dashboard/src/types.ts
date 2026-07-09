@@ -71,6 +71,9 @@ export interface GraphEdge {
   source: string;
   target: string;
   intent?: string;
+  relation_type?: string;
+  evidence?: string[] | string;
+  reason?: string;
 }
 
 export interface Graph {

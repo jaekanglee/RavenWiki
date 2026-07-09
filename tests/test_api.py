@@ -1005,3 +1005,67 @@ def test_api_delete_vault(client, isolated_env):
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
     assert not target2.exists()
+
+
+def test_api_vault_graph_includes_semantic_relations(client, isolated_env):
+    """GET /api/vaults/{name}/graph API가 의미 관계를 포함하여 반환하는지 검증."""
+    target = isolated_env["target_root"] / "gv_semantic"
+    client.post("/api/vaults", json={
+        "name": "gv_semantic", "path": str(target), "bootstrap": True,
+    })
+
+    # 1. 소스 페이지 작성 (relations 포함)
+    source_content = """---
+title: Source Page
+type: concept
+created: 2026-07-09
+updated: 2026-07-09
+relations:
+  - type: uses
+    target: content/target
+    evidence: ["auth_code"]
+    reason: "Uses auth"
+---
+
+I link to target [[content/target]]
+"""
+    (target / "content" / "source.md").write_text(source_content, encoding="utf-8")
+
+    # 2. 타겟 페이지 작성
+    target_content = """---
+title: Target Page
+type: concept
+created: 2026-07-09
+updated: 2026-07-09
+---
+
+I am target.
+"""
+    (target / "content" / "target.md").write_text(target_content, encoding="utf-8")
+
+    # DB 인덱스 리빌드 유도
+    build_resp = client.post("/api/vaults/gv_semantic/build")
+    assert build_resp.status_code == 200
+
+    # 3. 그래프 API 호출
+    resp = client.get("/api/vaults/gv_semantic/graph")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["ok"] is True
+    edges = data["edges"]
+
+    # 의미 관계 1개만 반환되어야 함 (일반 wikilink와 겹쳐서 중복 렌더링 방지되었는지도 검증)
+    rel_edges = [
+        e for e in edges
+        if (e["source"] == "content/source" and e["target"] == "content/target")
+        or (e["source"] == "content/target" and e["target"] == "content/source")
+    ]
+    assert len(rel_edges) == 1
+    edge = rel_edges[0]
+    assert edge["source"] == "content/source"
+    assert edge["target"] == "content/target"
+    assert edge["relation_type"] == "uses"
+    assert edge["evidence"] == ["auth_code"]
+    assert edge["reason"] == "Uses auth"
+

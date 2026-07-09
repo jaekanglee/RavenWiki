@@ -1017,18 +1017,55 @@ def vault_graph(
             edges_raw = db.execute(
                 "SELECT source_slug, target_slug FROM links WHERE intent IN ('auto', 'broken')"
             ).fetchall()
-            # 양방향 상호 링킹(A->B, B->A) 및 중복 엣지 제거 -> 단일 무방향 엣지로 정돈
+
+            # 의미 관계(relations) 테이블의 데이터 가져오기
+            relations_raw = db.execute(
+                "SELECT source_slug, target_slug, relation_type, evidence, reason FROM relations"
+            ).fetchall()
+
+            # 의미 관계와 일반 wikilink 병합
+            edges = []
+            seen_semantic_pairs = set()
+
+            import json
+            for r in relations_raw:
+                s, t = r["source_slug"], r["target_slug"]
+                if s == t:
+                    continue
+                
+                # evidence 필드 파싱 (JSON)
+                ev = r["evidence"]
+                evidence_parsed = None
+                if ev is not None:
+                    try:
+                        evidence_parsed = json.loads(ev)
+                    except Exception:
+                        evidence_parsed = ev
+
+                edges.append({
+                    "source": s,
+                    "target": t,
+                    "relation_type": r["relation_type"],
+                    "evidence": evidence_parsed,
+                    "reason": r["reason"]
+                })
+                seen_semantic_pairs.add((min(s, t), max(s, t)))
+
             seen_pairs = set()
-            unique_edges = []
             for r in edges_raw:
                 s, t = r["source_slug"], r["target_slug"]
                 if s == t:
-                    continue  # self-loop 방지
+                    continue
                 pair = (min(s, t), max(s, t))
+                # 의미 관계가 존재하는 두 노드 간의 중복 실선 렌더링 방지
+                if pair in seen_semantic_pairs:
+                    continue
                 if pair not in seen_pairs:
                     seen_pairs.add(pair)
-                    unique_edges.append({"source": s, "target": t})
-            edges = unique_edges
+                    edges.append({
+                        "source": s,
+                        "target": t
+                    })
             db.close()
             # Patch A1 (v0.6.10+): force-directed 좌표 부착 (서버 1회 계산, 결정론).
             ids = [n["id"] for n in nodes]

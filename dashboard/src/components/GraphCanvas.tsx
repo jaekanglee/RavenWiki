@@ -63,7 +63,6 @@ export function nodeSize(weight: number | undefined, density: "normal" | "dense"
   return base + Math.log2(1 + w) * multiplier;
 }
 
-// Sidebar와 GraphPage에서 사용하는 타입 라벨 매핑 및 typeLabel 헬퍼 복원 (v0.7.132+)
 const TYPE_LABELS: Record<string, string> = {
   concept: "개념",
   person: "인물",
@@ -74,6 +73,30 @@ const TYPE_LABELS: Record<string, string> = {
   query: "Q&A",
   journal: "일지",
   issue: "이슈",
+};
+
+const RELATION_COLORS: Record<string, string> = {
+  uses: "#3b82f6",         // blue
+  depends_on: "#ef4444",   // red
+  implements: "#a855f7",   // purple
+  implemented_by: "#d946ef", // fuchsia
+  related: "#14b8a6",      // teal
+};
+
+const RELATION_DASHES: Record<string, number[]> = {
+  uses: [],
+  depends_on: [],
+  implements: [6, 3],
+  implemented_by: [2, 3],
+  related: [4, 4],
+};
+
+const RELATION_LABELS: Record<string, string> = {
+  uses: "Uses (사용함)",
+  depends_on: "Depends on (의존함)",
+  implements: "Implements (구현함)",
+  implemented_by: "Implemented by (구현체)",
+  related: "Related (연관)",
 };
 
 export function typeLabel(type: string | undefined): string {
@@ -575,20 +598,127 @@ export function GraphCanvas({
     graph
       .linkColor((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        // Use theme tokens instead of fixed gray/white so light mode paths stay readable.
+        const relType = link.relation_type;
+        const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
+        
+        if (relType && RELATION_COLORS[relType]) {
+          const baseColor = RELATION_COLORS[relType];
+          if (hasFocusActive) {
+            return isHighlighted ? baseColor : `${baseColor}22`; // faded
+          }
+          return isHighlighted ? baseColor : `${baseColor}99`; // normal
+        }
+        
         if (isHighlighted) return resolvedEdgeHighlightRef.current;
-        return resolvedEdgeColorRef.current;
+        return hasFocusActive ? `${resolvedEdgeColorRef.current}16` : resolvedEdgeColorRef.current;
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        // Keep paths thin, but dark mode needs enough contrast against the navy canvas.
-        return isHighlighted ? 2.15 : 1.05;
+        const isSemantic = !!link.relation_type;
+        const baseWidth = isSemantic ? 1.5 : 1.05;
+        return isHighlighted ? baseWidth + 1.15 : baseWidth;
+      })
+      .linkLineDash((link: any) => {
+        const relType = link.relation_type;
+        if (relType && RELATION_DASHES[relType]) {
+          return RELATION_DASHES[relType];
+        }
+        return [];
+      })
+      .linkDirectionalArrowLength((link: any) => {
+        const hasArrow = link.relation_type && ['uses', 'depends_on', 'implements', 'implemented_by'].includes(link.relation_type);
+        return hasArrow ? 5.5 : 0;
+      })
+      .linkDirectionalArrowRelPos(1.0)
+      .linkDirectionalArrowColor((link: any) => {
+        const isHighlighted = highlightLinksRef.current.has(link.id);
+        const relType = link.relation_type;
+        if (relType && RELATION_COLORS[relType]) {
+          const baseColor = RELATION_COLORS[relType];
+          const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
+          if (hasFocusActive) {
+            return isHighlighted ? baseColor : `${baseColor}22`;
+          }
+          return isHighlighted ? baseColor : `${baseColor}99`;
+        }
+        return resolvedEdgeHighlightRef.current;
       })
       .linkCurvature(0.035)
       // Remove animated particles: they made selected paths feel busy/tacky rather than clean.
       .linkDirectionalParticles(0)
       .linkDirectionalParticleWidth(0)
-      .linkDirectionalParticleSpeed(0.016);
+      .linkDirectionalParticleSpeed(0.016)
+      .nodeLabel((node: any) => {
+        const typeLabelStr = typeLabel(node.type);
+        const typeBadge = typeLabelStr
+          ? `<span style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); margin-left: 6px;">${typeLabelStr}</span>`
+          : "";
+        return `
+          <div style="
+            padding: 6px 10px; 
+            background: rgba(15, 23, 42, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.12); 
+            border-radius: 4px; 
+            color: #fff; 
+            font-size: 12px;
+            pointer-events: none;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          ">
+            <strong>${node.title || node.id}</strong>${typeBadge}
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${node.id}</div>
+          </div>
+        `;
+      })
+      .linkLabel((link: any) => {
+        if (!link.relation_type) return "";
+        const relLabel = RELATION_LABELS[link.relation_type] || link.relation_type;
+        
+        const getTitle = (nodeOrId: any) => {
+          if (typeof nodeOrId === "object" && nodeOrId !== null) {
+            return nodeOrId.title || nodeOrId.id;
+          }
+          const found = graphNodesRef.current.find(n => n.id === nodeOrId);
+          return found ? (found.title || found.id) : nodeOrId;
+        };
+        const sourceTitle = getTitle(link.source);
+        const targetTitle = getTitle(link.target);
+        
+        const evidenceList = Array.isArray(link.evidence)
+          ? link.evidence
+          : (link.evidence ? [link.evidence] : []);
+        const evidenceHtml = evidenceList.length > 0
+          ? `<div style="margin-top: 4px; font-size: 11px; opacity: 0.85;"><strong>근거:</strong> ${evidenceList.join(', ')}</div>`
+          : "";
+        const reasonHtml = link.reason
+          ? `<div style="margin-top: 4px; font-size: 11px; opacity: 0.85;"><strong>이유:</strong> ${link.reason}</div>`
+          : "";
+          
+        return `
+          <div style="
+            padding: 8px 12px; 
+            background: rgba(15, 23, 42, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.15); 
+            border-radius: 6px; 
+            color: #fff; 
+            font-size: 12px; 
+            max-width: 280px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            pointer-events: none;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          ">
+            <div style="font-weight: 600; color: #818cf8; margin-bottom: 4px;">
+              ${relLabel}
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+              <span style="color: #cbd5e1; font-weight: 500;">${sourceTitle}</span>
+              <span style="color: #64748b;">➔</span>
+              <span style="color: #cbd5e1; font-weight: 500;">${targetTitle}</span>
+            </div>
+            ${evidenceHtml}
+            ${reasonHtml}
+          </div>
+        `;
+      });
 
     // 노드 스타일 커스텀 렌더링 (Obsidian 퀄리티 재현)
     // v0.7.144+: all-scope 모드 제거 — vault ring (resolveVaultColor 사용) 코드 삭제.
