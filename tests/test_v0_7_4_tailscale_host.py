@@ -21,18 +21,20 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENV_EXAMPLE = ROOT / ".env.example"
+ENV_EXAMPLE_HOUSE = ROOT / ".env.example.house"
+ENV_EXAMPLE_COMPANY = ROOT / ".env.example.company"
 
 
 def test_env_example_has_host_variable() -> None:
-    """.env.example = HOST=0.0.0.0 (Tailscale/원격)."""
-    content = ENV_EXAMPLE.read_text(encoding="utf-8")
-    assert "HOST=0.0.0.0" in content, \
-        ".env.example must have HOST=0.0.0.0 for Tailscale/원격 접속"
+    """.env.example.company = 0.0.0.0 (Tailscale/원격)."""
+    content = ENV_EXAMPLE_COMPANY.read_text(encoding="utf-8")
+    assert "0.0.0.0" in content, \
+        ".env.example.company must have 0.0.0.0 bindings for Tailscale/원격 접속"
 
 
 def test_env_example_has_vault_path() -> None:
-    """.env.example = RAVEN_VAULTS_DIR = 호스트 외부 경로 ~/Raven."""
-    content = ENV_EXAMPLE.read_text(encoding="utf-8")
-    assert "RAVEN_VAULTS_DIR=" in content, \
-        ".env.example must have RAVEN_VAULTS_DIR (호스트 외부 vault 경로)"
+    """.env.example.house/.company = RAVEN_VAULTS_DIR = 호스트 외부 경로 ~/Raven."""
+    for path in (ENV_EXAMPLE_HOUSE, ENV_EXAMPLE_COMPANY):
+        content = path.read_text(encoding="utf-8")
+        assert "RAVEN_VAULTS_DIR=" in content, \
+            f"{path.name} must have RAVEN_VAULTS_DIR (호스트 외부 vault 경로)"

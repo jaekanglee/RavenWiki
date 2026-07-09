@@ -246,6 +246,8 @@ export function FloatingGraphPanel({
               onFullscreen={handleOpenFull}
               onNodeClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
               onNodeDoubleClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
+              variant="minimap"
+              density="dense"
             />
           </div>
         </div>
