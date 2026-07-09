@@ -767,3 +767,56 @@ export async function addRelation(vault: string, payload: RelationAddPayload): P
   return r.json();
 }
 
+
+export interface HybridSearchResult {
+  slug: string;
+  title: string;
+  type: string;
+  score: number;
+  bm25_score: number;
+  distance: number;
+  method: string;
+}
+
+export async function fetchHybridSearch(
+  vault: string,
+  query: string,
+  limit: number = 20
+): Promise<HybridSearchResult[]> {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(query)}&limit=${limit}`
+  );
+  if (!r.ok) return [];
+  const d = await r.json();
+  return d.results || [];
+}
+
+export interface RAGCitation {
+  slug: string;
+  title: string;
+  path: string;
+  file_url: string;
+  score: number;
+  method: string;
+}
+
+export interface RAGQueryResult {
+  ok: boolean;
+  query: string;
+  answer: string;
+  citations: RAGCitation[];
+  used_llm: boolean;
+}
+
+export async function fetchRAGQuery(
+  vault: string,
+  query: string
+): Promise<RAGQueryResult | null> {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/rag/query?query=${encodeURIComponent(query)}`
+  );
+  if (!r.ok) return null;
+  return r.json();
+}
+
+

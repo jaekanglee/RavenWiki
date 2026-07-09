@@ -60,8 +60,10 @@ export function SearchResultItem({
         <span style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace" }}>
           {result.path ?? result.slug}
         </span>
-        {typeof result.score === "number" && compact && (
-          <span>점수 {result.score.toFixed(1)}</span>
+        {typeof result.score === "number" && (
+          <span style={{ fontSize: compact ? 11 : 12, opacity: 0.85 }}>
+            • {result.method === "hybrid" ? "하이브리드" : result.method === "bm25_fallback" ? "FTS5" : "점수"}: {result.score.toFixed(3)}
+          </span>
         )}
       </div>
     </>
