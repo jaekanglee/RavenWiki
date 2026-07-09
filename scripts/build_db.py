@@ -45,7 +45,10 @@ CREATE TABLE pages (
   confidence TEXT,
   contested INTEGER DEFAULT 0,
   content TEXT NOT NULL,
-  raw_content TEXT NOT NULL
+  raw_content TEXT NOT NULL,
+  importance REAL DEFAULT 0.0,
+  centrality REAL DEFAULT 0.0,
+  community INTEGER DEFAULT 0
 );
 
 CREATE TABLE tags (
@@ -392,6 +395,20 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
             conn.commit()
         except Exception:
             pass
+
+        # analytics post-processing pass
+        try:
+            import sys
+            from pathlib import Path
+            repo_root = Path(__file__).resolve().parent.parent
+            if str(repo_root) not in sys.path:
+                sys.path.insert(0, str(repo_root))
+            from raven.core.analytics import update_analytics_properties
+            update_analytics_properties(conn)
+            conn.commit()
+        except Exception as exc:
+            import sys
+            sys.stderr.write(f"⚠️  analytics update failed: {exc}\n")
 
         return n_pages, n_links, n_tags
     finally:

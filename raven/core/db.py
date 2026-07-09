@@ -160,6 +160,10 @@ def db_schema_drift(vault: Vault) -> bool:
             ).fetchone()
             if fts_exists is None:
                 return True
+            # 4. pages table must have importance, centrality, community columns.
+            pages_cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)").fetchall()}
+            if not {"importance", "centrality", "community"}.issubset(pages_cols):
+                return True
             return False
         finally:
             conn.close()
@@ -264,7 +268,10 @@ CREATE TABLE pages (
   confidence TEXT,
   contested INTEGER DEFAULT 0,
   content TEXT NOT NULL,
-  raw_content TEXT NOT NULL
+  raw_content TEXT NOT NULL,
+  importance REAL DEFAULT 0.0,
+  centrality REAL DEFAULT 0.0,
+  community INTEGER DEFAULT 0
 );
 CREATE TABLE tags (
   page_slug TEXT NOT NULL, tag TEXT NOT NULL,
@@ -404,5 +411,12 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
                 )
         n_pages += 1
     con.commit()
+    try:
+        from .analytics import update_analytics_properties
+        update_analytics_properties(con)
+        con.commit()
+    except Exception as exc:
+        import sys
+        sys.stderr.write(f"⚠️  inline analytics update failed: {exc}\n")
     con.close()
     return {"ok": True, "vault": vault.meta.name, "db_path": str(db_path), "pages": n_pages, "returncode": 0, "mode": "inline"}
