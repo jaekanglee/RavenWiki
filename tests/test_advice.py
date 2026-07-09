@@ -87,9 +87,30 @@ Bridge
 
 
 def test_mcp_wiki_get_advice_registered() -> None:
-    """MCP 진입점에서 wiki_get_advice가 정상적으로 등록되었는지 검증합니다."""
+    """MCP 진입점에서 wiki_get_advice 및 wiki_get_ai_advice가 정상적으로 등록되었는지 검증합니다."""
     from raven.mcp import cli as cli_module
     assert hasattr(cli_module, "register_tools")
     import inspect
     source = inspect.getsource(cli_module.register_tools)
     assert "wiki_get_advice" in source
+    assert "wiki_get_ai_advice" in source
+
+
+def test_ai_advice_api_call(client, isolated_vault: Vault) -> None:
+    content_dir = isolated_vault.root / "content"
+    # 고립 노드 (Orphan) 생성
+    (content_dir / "orphan-page.md").write_text(
+        "---\ntitle: Orphan Page\ntype: concept\ntags: []\n---\nOrphan\n", encoding="utf-8"
+    )
+    # DB 빌드
+    db_module.build_db(isolated_vault, run_lint=False)
+    
+    # API 호출
+    resp = client.get(f"/api/vaults/{isolated_vault.meta.name}/ai-advice")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    
+    # ai_message 필드가 포함되어 있는지 확인
+    assert "ai_message" in data[0]
+    assert "고립" in data[0]["ai_message"] or "Orphan Page" in data[0]["ai_message"]

@@ -1370,6 +1370,19 @@ def get_vault_advice(name: str):
         return []
 
 
+@app.get("/api/vaults/{name}/ai-advice")
+def get_vault_ai_advice(name: str):
+    """지식 네트워크 분석 결과와 LLM/Fallback 가이드를 결합한 AI 조언(Advice) 목록을 제시합니다."""
+    v = _vault_or_404(name)
+    try:
+        from raven.core.ai_advice import generate_ai_advice
+        return generate_ai_advice(v)
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"⚠️  [get_vault_ai_advice] failed: {e}\n")
+        return []
+
+
 @app.get("/api/vaults/{name}/pages/{slug:path}/recommendations")
 def get_page_recommendations(name: str, slug: str, limit: int = Query(5, ge=1, le=20)):
     v = _vault_or_404(name)

@@ -205,6 +205,21 @@ def register_tools(mcp: Any, mode: str) -> None:
         v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
         return get_advice(v)
 
+    # ─── 7.5.6. wiki_get_ai_advice ───
+    @mcp.tool(
+        name="wiki_get_ai_advice",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "List AI network diagnosis advices with LLM-generated curation guidelines."
+        ),
+    )
+    def wiki_get_ai_advice(vault: str) -> list[dict]:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.ai_advice import generate_ai_advice
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return generate_ai_advice(v)
+
     # ─── 7.6. wiki_relations_list ───
     @mcp.tool(
         name="wiki_relations_list",
