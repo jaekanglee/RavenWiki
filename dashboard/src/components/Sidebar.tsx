@@ -747,6 +747,12 @@ function TreeLeaf({
         navigate(`/page/${vault}/${node.path.replace(/^content\//, "")}`);
         onClose();
       }}
+      onMouseEnter={() => {
+        window.dispatchEvent(new CustomEvent("raven-node-hover", { detail: { id: node.path } }));
+      }}
+      onMouseLeave={() => {
+        window.dispatchEvent(new CustomEvent("raven-node-hover", { detail: { id: null } }));
+      }}
       style={{ paddingLeft: 8 + depth * 10 }}
       title={node.title ?? node.path}
     >

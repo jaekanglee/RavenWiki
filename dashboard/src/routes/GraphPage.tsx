@@ -117,6 +117,18 @@ export function GraphPage() {
     setActiveTab("inbound");
   }, [selectedNodeId]);
 
+  // v0.7.147+: 사이드바 문서 호버 시 그래프 상의 노드 동적 하이라이트 연동
+  useEffect(() => {
+    const handleSidebarHover = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string | null }>;
+      setHoveredInsightNodeId(customEvent.detail.id);
+    };
+    window.addEventListener("raven-node-hover", handleSidebarHover);
+    return () => {
+      window.removeEventListener("raven-node-hover", handleSidebarHover);
+    };
+  }, []);
+
   const loadGraph = () => {
     if (!vault) return;
     setLoading(true);
@@ -378,8 +390,8 @@ export function GraphPage() {
             onNodeDoubleClick={openGraphNode}
             // v0.7.139+: 사용자가 노드를 클릭하면 선택된 노드 + 그 인접 노드(1-hop)가
             // 캔버스에서 하이라이트되고, 나머지는 톤다운되어 포커스된다.
-            // 우선순위: selectedNodeId(클릭) > hoveredInsightNodeId(인사이트 카드 hover).
-            externalHighlightNodeId={selectedNodeId ?? hoveredInsightNodeId}
+            // 우선순위: hoveredInsightNodeId(호버 노드) > selectedNodeId(클릭 선택 노드).
+            externalHighlightNodeId={hoveredInsightNodeId ?? selectedNodeId}
             externalHighlightType={hoveredInsightType}
             density="normal"
             onFullscreen={() => setShowFullGraph(true)}
