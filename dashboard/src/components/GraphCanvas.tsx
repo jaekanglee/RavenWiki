@@ -258,6 +258,11 @@ export function GraphCanvas({
   const vaultCentroidsRef = useRef<VaultCentroid[]>([]);
   vaultCentroidsRef.current = vaultCentroids ?? [];
 
+  // v0.7.143+: vault별 최상단 노드 y — 라벨이 실제 vault 영역 위에 떠있도록.
+  // centroid는 평균이라 정확히 군집 가운데. 진짜 "위 가장자리"는
+  // 그 vault 노드들 중 가장 y 작은 (= 가장 위) 노드.
+  const vaultTopYRef = useRef<Map<string, number>>(new Map());
+
   const recomputeHighlights = (hover: any, extId: string | null | undefined, edgeList: typeof edges) => {
     const nodeSet = new Set<string>();
     const linkSet = new Set<string>();
@@ -342,6 +347,15 @@ export function GraphCanvas({
 
     graph.graphData({ nodes: formattedNodes, links: formattedLinks });
     graphNodesRef.current = formattedNodes;
+
+    // v0.7.143+: vault별 최상단 노드 y 계산 — vault 라벨이 진짜 군집 위에 떠있게.
+    const topMap = new Map<string, number>();
+    for (const n of formattedNodes) {
+      if (!n.vault || typeof n.y !== "number") continue;
+      const cur = topMap.get(n.vault);
+      if (cur === undefined || n.y < cur) topMap.set(n.vault, n.y);
+    }
+    vaultTopYRef.current = topMap;
 
     // v0.7.139+: 데이터 변경 시점에 highlight ref를 미리 계산. hover 중에는
     // setHoveredNode → ref 동기화만 하고 effect는 재실행되지 않아, 캔버스
@@ -606,48 +620,26 @@ export function GraphCanvas({
       // scale 가드는 제거: 4% zoom (사용자 화면)에서도 라벨이 보여야 함.
       // 텍스트 자체가 zoom 따라 작아져서 자연스럽게 잡음 컷.
       const centroids = vaultCentroidsRef.current;
-      // v0.7.140+: 진단 마커 — 항상 그려서 centroids 비어있는지 진단 가능.
-      // TEST가 안 보이면 → ctx.fillText 자체 실패 (state 문제)
-      // TEST 보이고 라벨만 안 보이면 → centroids는 OK인데 라벨 코드 문제
-      ctx.save();
-      ctx.fillStyle = "#ff0000";
-      ctx.font = "16px sans-serif";
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "center";
-      ctx.fillText("TEST", 200, 100);
-      ctx.restore();
+      // v0.7.140~142 (한시 진단 마커)는 v0.7.143에서 제거 — 사용자 보고로 위치/색 문제 규명 완료.
 
       if (centroids && centroids.length > 0) {
-        // v0.7.142+: vault별 최상단 노드 y 계산 — 라벨을 centroid가 아닌
-        // vault 군집의 최상단 노드 위에 띄움. centroid는 노드들 빽빽한 곳이라
-        // 라벨이 묻힘.
-        // nodeCanvasObject 콜백에서는 ctx 외 node가 매개변수로 들어옴.
-        // 모든 노드 순회하면서 vault별 최상단 y 계산.
-        const topYByVault = new Map<string, number>();
-        // 현재 콜백의 node는 사용 불가 — centroids의 x,y 사용:
-        // vault 노드들의 y좌표는 deriveVaultCentroids에 없으므로, centroid.y 자체에서 위로 띄움.
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
-        // 첫 vault centroid 위치에 초록 X 마커
-        if (centroids[0]) {
-          ctx.fillStyle = "#00ff00";
-          ctx.fillText("X", centroids[0].x, centroids[0].y);
-        }
         for (const vc of centroids) {
-          // v0.7.142+: 임시 진단 — vault 색 무시하고 흰색으로 그려서
-          // 안 보이는지 위치 문제인지 분기.
-          const color = "#ffffff";
-          // v0.7.142+: fontSize floor 14 (다크 배경 식별성)
-          const fontSize = Math.max(14, 14 * scale);
+          // v0.7.143+: vault 색 정상 (이전 진단용 흰색에서 복귀).
+          const color = resolveVaultColor(vc.vault);
+          // v0.7.143+: fontSize floor 17 (사용자 "진짜 작다")
+          const fontSize = Math.max(17, 16 * scale);
           ctx.font = `700 ${fontSize}px sans-serif`;
           const labelX = vc.x;
-          // v0.7.142+: 위치 floor 60 — 항상 노드들 위로 더 띄움
-          const labelY = vc.y - Math.max(60, 60 * scale);
-          // 본문 (흰색) 먼저
+          // v0.7.143+: vault별 최상단 노드 y를 vaultTopYRef에서 읽음 (centroid가 아닌 실제 vault 영역)
+          const topY = vaultTopYRef.current.get(vc.vault) ?? vc.y;
+          const labelY = topY - Math.max(20, 25 * scale);
+          // 본문 (vault 색)
           ctx.fillStyle = color;
           ctx.fillText(vc.vault, labelX, labelY);
           // outline (검은색 stroke)
-          ctx.lineWidth = Math.max(0.5, 1.5 * scale);
+          ctx.lineWidth = Math.max(0.5, 2 * scale);
           ctx.strokeStyle = "rgba(0, 0, 0, 1)";
           ctx.lineJoin = "round";
           ctx.strokeText(vc.vault, labelX, labelY);
