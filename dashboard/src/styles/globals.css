@@ -1381,9 +1381,16 @@ mark {
   transform: translateY(0);
 }
 .graph-detail-stat-card.active {
-  background: var(--cds-background-brand);
+  background: var(--color-info-bg);
   border-color: var(--color-info-border);
   box-shadow: 0 0 0 1px var(--color-info-border);
+}
+.graph-detail-stat-card.active span {
+  color: var(--color-info-text);
+  opacity: 0.85;
+}
+.graph-detail-stat-card.active strong {
+  color: var(--color-info-text);
 }
 .graph-detail-stat-card span {
   display: block;
