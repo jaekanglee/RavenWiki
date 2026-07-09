@@ -1,0 +1,10 @@
+name: implements
+inverse: implemented_by
+allowed:
+  - source_type: implementation
+    target_type: feature
+  - source_type: tool
+    target_type: concept
+description: >
+  구체적인 도구나 코드가 추상적인 기능이나 개념을 실제로 구현함을 나타냅니다.
+  예를 들어, AuthRepository(implementation)가 Authentication(feature)을 구현하는 경우 'AuthRepository implements Authentication'으로 연결할 수 있습니다.

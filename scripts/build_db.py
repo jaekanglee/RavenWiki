@@ -66,6 +66,21 @@ CREATE TABLE links (
 );
 CREATE INDEX idx_links_target ON links(target_slug);
 
+CREATE TABLE relations (
+  source_slug TEXT NOT NULL,
+  target_slug TEXT NOT NULL,
+  relation_type TEXT NOT NULL,
+  confidence_semantic REAL,
+  confidence_structural REAL,
+  confidence_provenance REAL,
+  verified_by TEXT,
+  evidence TEXT,
+  reason TEXT,
+  PRIMARY KEY (source_slug, target_slug, relation_type),
+  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
+);
+CREATE INDEX idx_relations_target ON relations(target_slug);
+
 CREATE VIRTUAL TABLE pages_fts USING fts5(
   slug, title, tags_concat, content
 );
@@ -176,6 +191,7 @@ def parse_page(md_path: Path, vault: Path) -> dict:
         "content": body.strip(),
         "raw_content": raw,
         "tags": list(fm.get("tags") or []),
+        "relations": list(fm.get("relations") or []),
     }
 
 
@@ -255,7 +271,7 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
                                       confidence, contested, content, raw_content)
                    VALUES (:slug, :title, :type, :created, :updated, :path,
                            :confidence, :contested, :content, :raw_content)""",
-                {**page, "tags": None},  # tags not a column
+                {**page, "tags": None, "relations": None},  # tags & relations not columns
             )
             n_pages += 1
 
@@ -268,6 +284,50 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
                     (page["slug"], tag),
                 )
                 n_tags += 1
+
+            import json
+            for rel in page["relations"]:
+                if not isinstance(rel, dict):
+                    continue
+                rel_type = rel.get("type")
+                target = rel.get("target")
+                if not rel_type or not target:
+                    continue
+
+                conf = rel.get("confidence")
+                conf_sem = None
+                conf_str = None
+                conf_prov = None
+                if isinstance(conf, dict):
+                    conf_sem = conf.get("semantic")
+                    conf_str = conf.get("structural")
+                    conf_prov = conf.get("provenance")
+                elif conf is not None:
+                    conf_sem = conf
+
+                verified = rel.get("verified_by")
+                if isinstance(verified, list):
+                    verified_by_str = ", ".join(str(v) for v in verified)
+                else:
+                    verified_by_str = str(verified) if verified is not None else None
+
+                ev = rel.get("evidence")
+                evidence_str = json.dumps(ev) if ev is not None else None
+                reason = rel.get("reason")
+
+                normalized = target
+                if target and not _slug_exists(conn, target):
+                    candidate = _resolve_short_slug(conn, target)
+                    if candidate:
+                        normalized = candidate
+
+                conn.execute(
+                    """INSERT OR REPLACE INTO relations (source_slug, target_slug, relation_type,
+                                                          confidence_semantic, confidence_structural, confidence_provenance,
+                                                          verified_by, evidence, reason)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (page["slug"], normalized, rel_type, conf_sem, conf_str, conf_prov, verified_by_str, evidence_str, reason),
+                )
 
             for target, intent, context in extract_links(page["content"]):
                 # v0.6.10: target slug normalize — 옛 wikilink `[[vault-structure]]` (짧은 형태)
@@ -311,6 +371,24 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
                         (cand, src, tgt),
                     )
                     n_fixed += 1
+            conn.commit()
+        except Exception:
+            pass
+
+        # relations post-processing pass
+        try:
+            rows = conn.execute(
+                "SELECT source_slug, target_slug, relation_type FROM relations"
+            ).fetchall()
+            for src, tgt, rel_type in rows:
+                if _slug_exists(conn, tgt):
+                    continue
+                cand = _resolve_short_slug(conn, tgt)
+                if cand:
+                    conn.execute(
+                        "UPDATE relations SET target_slug = ? WHERE source_slug = ? AND target_slug = ? AND relation_type = ?",
+                        (cand, src, tgt, rel_type),
+                    )
             conn.commit()
         except Exception:
             pass

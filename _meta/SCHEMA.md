@@ -81,7 +81,18 @@ contested: true                   # 선택: 모순 발견 시
 slug: explicit-slug               # 선택 (v2.2: slug 전략)
 aliases: [old-slug-1, old-slug-2] # 선택 (v2.3: rename 정책, v0.7.x title-to-slug 매핑 보존)
 issue_status: open | feedback_done | edit_requested | closed # 선택 (type: issue 인 경우 상태 필드)
+relations:                        # 선택 (v0.8.x Semantic Relation): 1급 관계망 정의
+  - type: uses | depends_on | implements | implemented_by | related
+    target: target-slug
+    confidence:
+      semantic: 0.95
+      structural: 0.88
+      provenance: 0.99
+    verified_by: [human, ai]
+    evidence: [repo/path, raw/session/...]
+    reason: Contextual explanation
 ---
+```
 
 ### v0.7.x Type 9종 (v2.4 8종 → +1 `issue`)
 
@@ -130,6 +141,14 @@ issue_status: open | feedback_done | edit_requested | closed # 선택 (type: iss
 | `edit_requested` | 수정요청 | 피드백 전송 또는 사람이 직접 상태 변경 시 |
 | `feedback_done` | 피드백완료 | 피드백에 대해 에이전트가 반영 완료했거나 사람이 직접 변경 시 |
 | `closed` | 클로즈 | 이슈 해결 완료 또는 사람이 직접 닫음 |
+
+### v0.8.0+ Semantic Relations (M5 관계망)
+
+> **Relation 1급화**: 관계(Relation)는 표현(View, 예: [[wikilink]])과 분리된 1급 데이터입니다. `_meta/vocabularies/`에 정의된 5대 핵심 Vocabulary 관계를 따릅니다.
+
+- **Vocabulary 5종**: `uses`, `depends_on`, `implements`, `implemented_by`, `related`
+- **근거(Provenance) 의무**: 모든 relation에는 `evidence`와 `reason`을 포함하여, 지식 망의 생성 근거를 명확히 추적할 수 있도록 합니다.
+- **다차원 신뢰도(Confidence)**: 단일 점수 대신 `semantic`, `structural`, `provenance` 차원으로 나누어 다차원 평가 점수를 기록할 수 있으며, 단일 값(high, medium, low)의 주입도 지원합니다.
 
 ### System Areas (type 면제, v0.7.66+)
 
