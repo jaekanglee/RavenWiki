@@ -83,7 +83,10 @@ const isJSDOM =
     window.navigator.userAgent.includes("Node.js"));
 
 const GRAPH_SCALE_MULTIPLIER = 2.8;
-const DIRECT_CLICK_PADDING_PX = 10;
+const DIRECT_CLICK_PADDING_PX = 0;
+const DIRECT_MOUSE_HIT_RADIUS_PX = 0;
+const DIRECT_TOUCH_HIT_RADIUS_PX = 0;
+const DIRECT_HIT_NODE_RADIUS_MULTIPLIER = 1;
 const DIRECT_MOUSE_MOVE_TOLERANCE_PX = 8;
 const DIRECT_TOUCH_MOVE_TOLERANCE_PX = 14;
 const DOUBLE_CLICK_DELAY_MS = 200;
@@ -97,6 +100,8 @@ interface HitTestNode {
   id: string;
   x?: number;
   y?: number;
+  fx?: number;
+  fy?: number;
   weight?: number;
 }
 
@@ -118,17 +123,25 @@ export function findClosestNodeHit<T extends HitTestNode>(
   nodes: T[],
   point: CanvasPoint,
   density: "normal" | "dense",
-  padding = DIRECT_CLICK_PADDING_PX
+  padding = DIRECT_CLICK_PADDING_PX,
+  scale = 1,
+  minScreenRadius = DIRECT_MOUSE_HIT_RADIUS_PX
 ): T | null {
   let closest: T | null = null;
   let closestDistSq = Number.POSITIVE_INFINITY;
 
+  const safeScale = typeof scale === "number" && scale > 0 ? scale : 1;
+  const minCanvasRadius = Math.max(minScreenRadius, 0) / safeScale;
+
   for (const node of nodes) {
-    if (typeof node.x !== "number" || typeof node.y !== "number") continue;
-    const dx = point.x - node.x;
-    const dy = point.y - node.y;
+    const x = typeof node.x === "number" ? node.x : node.fx;
+    const y = typeof node.y === "number" ? node.y : node.fy;
+    if (typeof x !== "number" || typeof y !== "number") continue;
+    const dx = point.x - x;
+    const dy = point.y - y;
     const distSq = dx * dx + dy * dy;
-    const radius = nodeSize(node.weight, density) + padding;
+    const visualRadius = nodeSize(node.weight, density) * DIRECT_HIT_NODE_RADIUS_MULTIPLIER;
+    const radius = Math.max(visualRadius + padding / safeScale, minCanvasRadius);
     if (distSq > radius * radius) continue;
     if (distSq < closestDistSq) {
       closest = node;
@@ -137,6 +150,31 @@ export function findClosestNodeHit<T extends HitTestNode>(
   }
 
   return closest;
+}
+
+export function shouldShowLabel(
+  node: { type?: string; weight?: number },
+  scale: number,
+  isDense: boolean,
+  isFocused: boolean,
+  isHighlighted: boolean
+): boolean {
+  if (isFocused || isHighlighted) return true;
+  if (scale < 0.7) return false;
+
+  const isIssue = node.type === "issue";
+  if (isDense) {
+    return (
+      (scale > 1.15 && (node.weight ?? 0) >= 3) ||
+      (isIssue && scale > 1.15)
+    );
+  } else {
+    return (
+      (scale > 1.0 && (node.weight ?? 0) >= 3) ||
+      (node.weight ?? 0) >= 8 ||
+      (isIssue && scale > 1.0)
+    );
+  }
 }
 
 // v0.7.134+ (v0.7.144에서 resolveVaultColor 헬퍼와 함께 VAULT_HALO_COLORS 제거 —
@@ -166,8 +204,10 @@ const graphButtonStyle = {
   backdropFilter: "blur(8px)",
 } as const;
 
-const HUD_LABEL_FONT = "sans-serif";
+const GRAPH_LABEL_FONT = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const HUD_LABEL_FONT = GRAPH_LABEL_FONT;
 const HUD_LABEL_BASE_SIZE = 17; // 더 크게 (14 -> 17)
+const NODE_LABEL_BASE_SIZE = 11.4;
 
 export function GraphCanvas({
   nodes,
@@ -192,7 +232,7 @@ export function GraphCanvas({
   const prevNodeCountRef = useRef<number>(0);
   const graphNodesRef = useRef<any[]>([]);
   const pressStartRef = useRef<{ point: CanvasPoint; pointerType: "mouse" | "touch" } | null>(null);
-  const pendingClickRef = useRef<{ nodeId: string; timeoutId: number } | null>(null);
+  const pendingClickRef = useRef<{ nodeId: string; timeoutId: number; startedAt: number } | null>(null);
   const clickHandlersRef = useRef({
     onNodeClick,
     onNodeDoubleClick,
@@ -213,6 +253,8 @@ export function GraphCanvas({
 
   const resolvedLabelColorRef = useRef<string>("rgba(148, 163, 184, 0.7)");
   const resolvedBgColorRef = useRef<string>("#0f172a");
+  const resolvedEdgeColorRef = useRef<string>("rgba(71, 85, 105, 0.52)");
+  const resolvedEdgeHighlightRef = useRef<string>("#f8fafc");
 
   // DOM Container 변경 및 테마 변경 시 Computed Style 캐싱
   useEffect(() => {
@@ -221,6 +263,8 @@ export function GraphCanvas({
       const style = window.getComputedStyle(containerRef.current);
       resolvedLabelColorRef.current = style.getPropertyValue("--graph-label-color").trim() || "rgba(148, 163, 184, 0.7)";
       resolvedBgColorRef.current = style.getPropertyValue("--graph-canvas-bg").trim() || "#0f172a";
+      resolvedEdgeColorRef.current = style.getPropertyValue("--graph-edge").trim() || "rgba(71, 85, 105, 0.52)";
+      resolvedEdgeHighlightRef.current = style.getPropertyValue("--graph-edge-highlight").trim() || "#f8fafc";
     } catch (e) {
       // fallback
     }
@@ -316,11 +360,19 @@ export function GraphCanvas({
     if (!graph) return;
 
     // 데이터 가공 (fx/fy 고정으로 FA2 레이아웃 반영 및 뭉침 방지를 위한 스케일 배율 적용)
-    const formattedNodes = nodes.map((n) => ({
-      ...n,
-      fx: typeof n.x === "number" ? n.x * GRAPH_SCALE_MULTIPLIER : undefined,
-      fy: typeof n.y === "number" ? n.y * GRAPH_SCALE_MULTIPLIER : undefined,
-    }));
+    const formattedNodes = nodes.map((n) => {
+      const scaledX = typeof n.x === "number" ? n.x * GRAPH_SCALE_MULTIPLIER : undefined;
+      const scaledY = typeof n.y === "number" ? n.y * GRAPH_SCALE_MULTIPLIER : undefined;
+      return {
+        ...n,
+        // Keep x/y aligned with the actually rendered force-graph coordinates.
+        // Hit testing also uses x/y, so leaving them unscaled makes taps land away from the visual node.
+        x: scaledX,
+        y: scaledY,
+        fx: scaledX,
+        fy: scaledY,
+      };
+    });
 
     const formattedLinks = edges.map((e, idx) => ({
       id: `e${idx}`,
@@ -346,7 +398,9 @@ export function GraphCanvas({
 
     // 이벤트 리스너 바인딩
     graph
-      .onNodeClick(() => {})
+      .onNodeClick((node: any) => {
+        if (node?.id) queueResolvedNodeClick(node.id);
+      })
       .onNodeHover((node: any) => {
         if (node) {
           onNodeInspect?.(node as GraphNode);
@@ -372,7 +426,11 @@ export function GraphCanvas({
 
     const queueResolvedNodeClick = (nodeId: string) => {
       const pending = pendingClickRef.current;
+      const now = window.performance?.now?.() ?? Date.now();
       if (pending && pending.nodeId === nodeId) {
+        // force-graph's native onNodeClick and our direct mouseup detector can both fire for
+        // the same physical click. Ignore near-simultaneous duplicates; treat later repeats as double-click.
+        if (now - pending.startedAt < 80) return;
         window.clearTimeout(pending.timeoutId);
         pendingClickRef.current = null;
         clickHandlersRef.current.onNodeDoubleClick?.(nodeId);
@@ -384,12 +442,15 @@ export function GraphCanvas({
         pendingClickRef.current = null;
       }
 
+      // Single click must give immediate visual feedback in GraphPage's detail panel.
+      // We only keep a short pending window to upgrade a second same-node click to navigation.
+      clickHandlersRef.current.onNodeClick?.(nodeId);
       pendingClickRef.current = {
         nodeId,
+        startedAt: now,
         timeoutId: window.setTimeout(() => {
           if (pendingClickRef.current?.nodeId !== nodeId) return;
           pendingClickRef.current = null;
-          clickHandlersRef.current.onNodeClick?.(nodeId);
         }, DOUBLE_CLICK_DELAY_MS),
       };
     };
@@ -418,10 +479,17 @@ export function GraphCanvas({
         return;
       }
 
+      const currentScale = graph?.zoom() ?? 1;
+      const liveNodes = Array.isArray(graph.graphData?.().nodes)
+        ? graph.graphData().nodes
+        : graphNodesRef.current;
       const hitNode = findClosestNodeHit(
-        graphNodesRef.current,
+        liveNodes,
         canvasPoint,
-        isDense ? "dense" : "normal"
+        isDense ? "dense" : "normal",
+        DIRECT_CLICK_PADDING_PX,
+        currentScale,
+        pointerType === "touch" ? DIRECT_TOUCH_HIT_RADIUS_PX : DIRECT_MOUSE_HIT_RADIUS_PX
       );
 
       pressStartRef.current = null;
@@ -487,22 +555,19 @@ export function GraphCanvas({
     graph
       .linkColor((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        // v0.7.146 (C): "투박함" 개선 — edge alpha를 약간 올려 부드러움.
-        // 0.28 → 0.40 (highlight는 0.85로 한 단계 더 진하게).
-        if (isHighlighted) return "rgba(241, 245, 249, 0.85)";
-        return "rgba(148, 163, 184, 0.40)"; // slate-400 @ 0.40
+        // Use theme tokens instead of fixed gray/white so light mode paths stay readable.
+        if (isHighlighted) return resolvedEdgeHighlightRef.current;
+        return resolvedEdgeColorRef.current;
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        // v0.7.146 (C): lineWidth 0.8 → 1.2 (default), highlight 2.2 유지.
-        return isHighlighted ? 2.2 : 1.2;
+        // Softer than the previous thick black strokes; highlight stays visible via color, not bulk.
+        return isHighlighted ? 1.85 : 0.95;
       })
-      // 하이라이트 시 연결선을 타고 흐르는 이펙트 적용 (Premium Wow-factor)
-      .linkDirectionalParticles((link: any) => {
-        const isHighlighted = highlightLinksRef.current.has(link.id);
-        return isHighlighted ? 4 : 0;
-      })
-      .linkDirectionalParticleWidth(2.6)
+      .linkCurvature(0.035)
+      // Remove animated particles: they made selected paths feel busy/tacky rather than clean.
+      .linkDirectionalParticles(0)
+      .linkDirectionalParticleWidth(0)
       .linkDirectionalParticleSpeed(0.016);
 
     // 노드 스타일 커스텀 렌더링 (Obsidian 퀄리티 재현)
@@ -554,48 +619,49 @@ export function GraphCanvas({
       // 2. 텍스트 라벨 그리기 (LOD - Level of Detail)
       // dense(all-vault)에서는 라벨을 훨씬 보수적으로 노출해 "떡처럼 붙는" 현상을 줄인다.
       // current scope도 무조건 상시 노출 대신 zoom/중요도(weight) 기준을 둬 시야를 정리한다.
-      const canShowDenseLabel = scale > 1.15 && (node.weight ?? 0) >= 3;
-      // v0.7.146: 라벨 시인성 polish — zoom 100%에선 중간 weight도 보이게.
-      // (A) weight 8 cut-line이 zoom-out에서 random하게 보임 → zoom-aware 분리:
-      //   - zoom > 1.0 (가까이) + weight >= 3 → mid importance도
-      //   - weight >= 8 (어떤 zoom이든 hub) → 무조건
-      //   - 그 외 (zoom 작고 weight 작음) → 가림
-      const canShowNormalLabel =
-        (scale > 1.0 && (node.weight ?? 0) >= 3) || (node.weight ?? 0) >= 8;
-      // scale < 0.7 이면 문서 라벨은 hover/highlight만 표시
-      const showLabel = isFocused || isHighlighted || (scale >= 0.7 && (isDense ? canShowDenseLabel : canShowNormalLabel));
+      const showLabel = shouldShowLabel(
+        node,
+        scale,
+        isDense,
+        isFocused,
+        isHighlighted
+      );
       if (showLabel) {
         const label = node.title || node.slug || node.id;
-        const fontSize = 10.5 / scale;
-        ctx.font = `${isFocused ? "bold" : "normal"} ${fontSize}px sans-serif`;
+        const fontSize = NODE_LABEL_BASE_SIZE / scale;
+        ctx.save();
+        ctx.font = `${isFocused ? "500" : "400"} ${fontSize}px ${GRAPH_LABEL_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
 
         // v0.7.146 (B): zoom-out에서 라벨이 노드 안에 박혀서 깨짐 → 노드 옆으로 오프셋.
         // zoom-in (scale > 1.5) 이하면 라벨을 노드 오른쪽으로 띄움.
         const labelOffsetX = scale < 1.5 ? (size + 8) / scale : 0;
+        const labelX = node.x + labelOffsetX;
+        const labelY = node.y + size + 3.8 / scale;
 
-        // 텍스트 뒷배경 대비용 아웃라인
-        ctx.fillStyle = "var(--graph-canvas-bg)";
-        for (let dx = -1.2; dx <= 1.2; dx += 1.2) {
-          for (let dy = -1.2; dy <= 1.2; dy += 1.2) {
-            if (dx !== 0 || dy !== 0) {
-              ctx.fillText(
-                label,
-                node.x + labelOffsetX + dx * (0.5 / scale),
-                node.y + size + 3.8 / scale + dy * (0.5 / scale)
-              );
-            }
-          }
-        }
-
+        // No text outline: small canvas labels became fat/blurry with halo strokes.
+        // Rely on theme-resolved high-contrast label color instead.
         ctx.fillStyle = isFocused
-          ? "var(--graph-edge-highlight)"
-          : "var(--graph-label-color)";
-        ctx.fillText(label, node.x + labelOffsetX, node.y + size + 3.8 / scale);
+          ? resolvedEdgeHighlightRef.current
+          : resolvedLabelColorRef.current;
+        ctx.fillText(label, labelX, labelY);
+        ctx.restore();
       }
       // v0.7.144+: vault 라벨 코드 제거 (all-scope 모드 들어냄)
-    });
+    })
+      .nodePointerAreaPaint((node: any, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        if (!node || node.x === undefined || node.y === undefined) return;
+        const scale = globalScale || 1;
+        const hitRadius = Math.max(
+          nodeSize(node.weight, isDense ? "dense" : "normal") * DIRECT_HIT_NODE_RADIUS_MULTIPLIER,
+          DIRECT_MOUSE_HIT_RADIUS_PX / scale
+        );
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, hitRadius, 0, 2 * Math.PI, false);
+        ctx.fill();
+      });
 
     // v0.7.144+: vault ring도 제거 — single vault에서는 모든 노드가 같은 vault이라 무의미.
 
