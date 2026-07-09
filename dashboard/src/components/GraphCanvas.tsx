@@ -347,6 +347,12 @@ export function GraphCanvas({
     // 단, 정적 레이아웃 기본 유지를 위해 평소 물리 연산 쿨다운은 0으로 제한.
     graph.cooldownTime(0); // 물리 애니메이션 냉각 단축
 
+    // center force의 중심 중력을 수동 배치 좌표계의 기준점인 (0,0)으로 강제 고정하여 우측 하단 쏠림 현상 해결.
+    const centerForce = graph.d3Force("center");
+    if (centerForce && typeof centerForce.x === "function" && typeof centerForce.y === "function") {
+      centerForce.x(0).y(0);
+    }
+
     // 인터랙션 기본 설정
     graph.enableZoomInteraction(true);
     graph.enablePanInteraction(true);
