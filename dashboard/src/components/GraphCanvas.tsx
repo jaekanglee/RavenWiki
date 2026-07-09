@@ -821,34 +821,11 @@ export function GraphCanvas({
 
   const fitGraph = () => {
     if (graphInstanceRef.current) {
-      // fx/fy를 날려서 시뮬레이션을 풀고 fitView 재배치
-      const { nodes: currentNodes } = graphInstanceRef.current.graphData();
-      currentNodes.forEach((n: any) => {
-        n.fx = undefined;
-        n.fy = undefined;
-      });
-      graphInstanceRef.current.cooldownTime(800);
-      
-      // v0.7.148+: force-graph API 버전에 따른 방어적 시뮬레이션 reheat 처리
-      const graphInst = graphInstanceRef.current;
-      if (typeof graphInst.d3ReheatSimulation === "function") {
-        graphInst.d3ReheatSimulation();
-      } else if (typeof graphInst.reheatSimulation === "function") {
-        graphInst.reheatSimulation();
-      } else if (typeof graphInst.d3AlphaTarget === "function") {
-        graphInst.d3AlphaTarget(0.3);
-        setTimeout(() => {
-          if (graphInstanceRef.current) {
-            graphInstanceRef.current.d3AlphaTarget(0);
-          }
-        }, 120);
-      }
-
-      setTimeout(() => {
-        if (graphInstanceRef.current) {
-          graphInstanceRef.current.zoomToFit(400, 96);
-        }
-      }, 150);
+      // v0.7.150+: '맞춤' 기능은 노드들의 기하학적 배치(fx/fy)를 뭉개지 않고 
+      // 단순히 카메라 줌/팬을 전체 노드 영역에 맞추도록 개선합니다.
+      // D3 시뮬레이션을 재가열하여 배치 데이터를 폭발시키거나 흩뿌리는 대신,
+      // 원래 위치를 유지한 상태에서 zoomToFit만 즉시 실행합니다.
+      graphInstanceRef.current.zoomToFit(400, 96);
     }
   };
 
