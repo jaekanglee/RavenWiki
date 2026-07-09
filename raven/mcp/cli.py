@@ -29,6 +29,7 @@ from typing import Any, Literal, Optional
 
 # Direct SDK import — no name collision (see module docstring).
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 # Local package imports (our own `raven.mcp` module).
 from raven.mcp import db as db_module
@@ -372,7 +373,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.transport == "http":
         print(f"🌐 bind:     {args.host}:{args.port}", file=sys.stderr)
 
-    mcp = FastMCP("wiki")
+    mcp = FastMCP(
+        "wiki",
+        # v0.7.148+ fix: FastMCP's own transport_security auto-locks Host-header
+        # validation to 127.0.0.1/localhost/::1 whenever no `host` kwarg is passed
+        # (mcp/server/transport_security.py) — independent of, and unaffected by,
+        # the TrustedHostMiddleware added below. Remote clients (Tailscale IP, LAN
+        # IP) got a hard 421 "Invalid Host header" no matter what --host/--port
+        # uvicorn bound to. Disabling DNS-rebinding protection here is acceptable:
+        # this server has no browser-facing surface, only direct MCP clients on
+        # Tailscale/segregated internal networks.
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        instructions=(
+            "Raven multi-vault wiki MCP server. Before doing any work in a vault, "
+            "call wiki_get_guide(vault=<name>, kind='_meta/agents/PROJECT-WORKFLOW.md') "
+            "and then kind='_meta/agents/SCHEMA.md' to learn that vault's conventions — "
+            "do not read those files from the filesystem directly. "
+            f"Registered vaults: {', '.join(vault_names) or '(none)'}."
+        ),
+    )
     register_tools(mcp, args.mode)
     register_resources(mcp)
 
@@ -380,28 +399,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         # Default: local in-process transport for desktop / local clients.
         mcp.run()
     else:
-        # streamable-http for Tailscale-bound remote access.
-        # v0.7.23+: FastMCP HTTP는 Starlette app을 만듦.
-        # → 직접 uvicorn 실행 (host 검증 우회 + proxy_headers).
-        # → 421 Misdirected Request 회피:
-        #    uvicorn 0.30+ HTTP/1.1 strict Host check가 default on
-        #    → Tailscale IP로 접속 시 Host 헤더 mismatch → 421
-        #    → 해결: starlette app에 TrustedHostMiddleware(allowed_hosts=["*"]) 추가
+        # streamable-http for Tailscale/LAN-bound remote access.
+        # 421 회피는 FastMCP() 생성 시 transport_security로 처리 (위 참고).
         import uvicorn
-        from starlette.middleware import Middleware
-        from starlette.middleware.trustedhost import TrustedHostMiddleware
 
         app = mcp.streamable_http_app()  # FastMCP starlette app
-        # v0.7.23+: TrustedHostMiddleware 우회 (모든 host 허용)
-        # FastMCP streamable_http_app()이 middleware 파라미터 받음
-        # → 직접 app 만들고 middleware 추가가 더 안전
-        from starlette.applications import Starlette
-
-        # FastMCP의 mount 경로를 그대로 두고 middleware 추가
-        app.add_middleware(
-            TrustedHostMiddleware,
-            allowed_hosts=["*"],  # 모든 host 허용 (Tailscale IP 포함)
-        )
 
         uvicorn.run(
             app,
