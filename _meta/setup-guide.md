@@ -26,8 +26,9 @@ confidence: high
 git clone <your-raven-repo-url>
 cd Raven
 
-# 2. 환경 파일 준비
-cp .env.example .env
+# 2. 환경 파일 준비 (혼자 쓰는 개인/집 환경이면 house, 팀과 함께 쓰는 사내망이면 company)
+cp .env.example.house .env
+# cp .env.example.company .env   # 팀원과 함께 사내망에서 쓰는 경우
 
 # 3. .env 확인
 # - RAVEN_VAULTS_DIR: 다른 PC에서는 보통 ${HOME}/Raven 그대로 사용
@@ -179,7 +180,7 @@ sudo systemctl daemon-reload
 ```bash
 git clone <your-raven-repo-url>
 cd Raven
-cp .env.example .env
+cp .env.example.house .env
 mkdir -p "${HOME}/Raven"
 make rebuild
 docker compose ps
