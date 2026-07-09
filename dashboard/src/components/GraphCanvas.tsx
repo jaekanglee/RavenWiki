@@ -762,7 +762,7 @@ export function GraphCanvas({
       if (nodes.length > 0) {
         setTimeout(() => {
           if (graphInstanceRef.current) {
-            graphInstanceRef.current.zoomToFit(300, 32);
+            graphInstanceRef.current.zoomToFit(300, 96);
           }
         }, 50);
       }
@@ -796,7 +796,17 @@ export function GraphCanvas({
 
   const fitGraph = () => {
     if (graphInstanceRef.current) {
-      graphInstanceRef.current.zoomToFit(360, 40);
+      // fx/fy를 날려서 시뮬레이션을 풀고 fitView 재배치
+      const { nodes: currentNodes } = graphInstanceRef.current.graphData();
+      currentNodes.forEach((n: any) => {
+        n.fx = undefined;
+        n.fy = undefined;
+      });
+      graphInstanceRef.current.cooldownTime(800);
+      graphInstanceRef.current.reheatSimulation();
+      setTimeout(() => {
+        graphInstanceRef.current.zoomToFit(400, 96);
+      }, 100);
     }
   };
 
@@ -816,22 +826,6 @@ export function GraphCanvas({
   // 배율 표시 — 1.0 = 100%. 줌이 1 근처일 때만 "100%"로 단순화, 그 외엔 백분율로 표시.
   const zoomPercent = Math.round(zoomLevel * 100);
   const zoomLabel = `${zoomPercent}%`;
-
-  const resetLayout = () => {
-    if (graphInstanceRef.current) {
-      // fx/fy를 임시 초기화하여 시뮬레이션을 풀고 fitView 재배치
-      const { nodes: currentNodes } = graphInstanceRef.current.graphData();
-      currentNodes.forEach((n: any) => {
-        n.fx = undefined;
-        n.fy = undefined;
-      });
-      graphInstanceRef.current.cooldownTime(800);
-      graphInstanceRef.current.d3Force("charge", null); // force-directed simulation
-      setTimeout(() => {
-        graphInstanceRef.current.zoomToFit(300, 32);
-      }, 100);
-    }
-  };
 
   return (
     <div
@@ -883,10 +877,10 @@ export function GraphCanvas({
           type="button"
           onClick={fitGraph}
           style={graphButtonStyle}
-          aria-label="그래프 맞춤보기"
-          title="모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
+          aria-label="그래프 화면 맞춤"
+          title="배치를 초기화하고 모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
         >
-          맞춤보기
+          맞춤
         </button>
         {/* v0.7.139+: 줌 컨트롤 (− / 배율 / +). 모바일/데스크탑 공통 */}
         <button
@@ -920,14 +914,6 @@ export function GraphCanvas({
           title="확대 (단축키: +)"
         >
           +
-        </button>
-        <button
-          type="button"
-          onClick={resetLayout}
-          style={graphButtonStyle}
-          aria-label="그래프 배치 초기화"
-        >
-          배치 초기화
         </button>
       </div>
     </div>
