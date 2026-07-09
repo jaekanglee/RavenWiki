@@ -55,17 +55,16 @@ export function nodeColor(type: string | undefined): string {
 }
 
 /**
- * v0.7.139+: 노드 사이즈 — weight(=degree, 연결 수)에 로그-스케일로 비례.
- * 옛 sqrt 공식(weight 1 vs 24가 2.6배 차이)으로는 빽빽한 캔버스에서 hub가
- * 묻혔고, leaf는 너무 작아 모바일 tap 타겟도 안 됐다. log2(1+w) 스케일은
- * weight 1~24 구간을 14~43px로 펼쳐서 leaf 가독 + hub-강조 양쪽을 잡는다.
- *   - normal: 8 + log2(1+w)*6  (leaf 14, w=10 → 33.9, w=24 → 42.9)
- *   - dense:  10 + log2(1+w)*7 (leaf 17, w=10 → 38.0, w=24 → 48.0)
+ * v0.7.136: dense에서 multiplier 7 → 4, base 10 → 7. 이전 dense 노드는
+ * weight=10에서 38px (큰 동그라미 빽빽), hub는 48px로 화면 점유 과다.
+ * 사용자 보고: dense 모드 노드가 "두껍다".
+ *   - normal: 8 + log2(1+w)*6  (leaf 14, w=10 → 27.93, w=24 → 36.20)
+ *   - dense:  7 + log2(1+w)*4  (leaf 11, w=10 → 20.28, w=24 → 25.81)
  */
 export function nodeSize(weight: number | undefined, density: "normal" | "dense" = "normal"): number {
   const w = Math.max(weight ?? 1, 1);
-  const multiplier = density === "dense" ? 7 : 6;
-  const base = density === "dense" ? 10 : 8;
+  const multiplier = density === "dense" ? 4 : 6;
+  const base = density === "dense" ? 7 : 8;
   return base + Math.log2(1 + w) * multiplier;
 }
 
@@ -155,7 +154,7 @@ const VAULT_HALO_COLORS = [
   "#10b981", // green
   "#8b5cf6", // purple
   "#f59e0b", // amber
-  "#ec4899", // pink
+  "#a78bfa", // lilac (v0.7.136: pink → lilac — 덜 비비드, 사용자 보고)
   "#06b6d4", // cyan
 ];
 
@@ -558,16 +557,14 @@ export function GraphCanvas({
         ctx.stroke();
       }
 
-      // v0.7.139+: vault 소속 ring — 전체 vault 모드에서만, 노드 바깥쪽에 vault 색 1.2px ring.
-      // 같은 vault 노드들이 시각적으로 묶여 보이고, FA2 자연 클러스터 위에 색 식별 레이어 추가.
-      // v0.7.134: 두께 1.2px → 2.4px (시야성), 색에 alpha 0.55 적용 (캐나다 halo처럼 부드러운 ring),
-      // focused 상태에선 highlight ring이 더 중요해서 vault ring은 안 그림.
+      // v0.7.136+: vault ring — alpha 0.55 → 0.30, 두께 2.4px → 1.6px.
+      // dense에서 ring이 노드 색을 가리는 문제 (사용자: "path 색 좀 조잘하자").
       if (showVaultRing && node.vault && !isFocused) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 2.4 / scale, 0, 2 * Math.PI, false);
+        ctx.arc(node.x, node.y, size + 1.6 / scale, 0, 2 * Math.PI, false);
         const vaultColor = resolveVaultColor(node.vault);
-        ctx.strokeStyle = hexToRgba(vaultColor, 0.55);
-        ctx.lineWidth = 2.4 / scale;
+        ctx.strokeStyle = hexToRgba(vaultColor, 0.30);
+        ctx.lineWidth = 1.6 / scale;
         ctx.stroke();
       }
 

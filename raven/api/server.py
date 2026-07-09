@@ -1004,10 +1004,9 @@ def vault_graph(
         # 셀 간격: ±500 박스가 grid_side^2 셀에 들어가도록.
         # vault 좌표가 ±500 안에 있으므로 cell 크기 1100 → 셀 간격 1100.
         # 안전 마진 포함해서 1300.
-        # v0.7.137: cell_span 1300 → 850. 5 vault 그리드 (±3250)에서 fitView 직후
-        # zoom scale ≈ 0.23 → 0.45로 회복. vault 헤더 박스가 화면에서 식별 가능한
-        # 크기로 표시됨. vault 시각 분리는 여전히 유지 (max_radius ~1035 + cell_span 850
-        # = 노드가 셀 경계 넘을 가능성 있지만 5 vault + 369 노드 실측에서 OK).
+        # v0.7.136: cell_span 1300 → 850. 5 vault 그리드 (±3250)에서 fitView 직후
+        # zoom scale ≈ 0.23 → 0.45로 회복. vault 라벨이 화면에서 식별 가능한
+        # 크기로 표시됨. vault 시각 분리는 여전히 유지.
         cell_span = 850.0
         # 격자 중앙이 (0, 0)에 오도록 offset 계산.
         grid_offset_x = -(grid_side - 1) * cell_span / 2.0
