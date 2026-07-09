@@ -967,12 +967,11 @@ def vault_graph(
         merged_nodes = []
         merged_edges = []
         included_vaults = 0
-        # v0.7.123+ lightweight vault-cluster layout (surgical A').
-        # 1) 각 vault의 노드 좌표를 먼저 수집한 뒤, vault별 centroid를 큰 원형으로 배치.
-        # 2) 그 안에서 노드를 슬롯 분배해 같은 vault 노드끼리 가깝게, 다른 vault와는 멀게.
-        # 3) force-directed는 다시 돌리지 않음 — current scope layout 결과를 그대로
-        #    vault-local 오프셋만 입혀 재배치.
-        #    → 서버 비용 최소, current scope contract는 변경 없음.
+        # v0.7.133+: all-scope은 각 vault의 current-scope layout 좌표를 그대로 쓰되,
+        # vault들이 같은 ±500 박스 안에서 겹치지 않게 vault별로 자기 영역에 흩어 배치.
+        # v0.7.123~v0.7.132는 "ring"에 균등 배치했지만 이건 edge 없는 관계없는
+        # 요식행위였음 (사용자 보고 2026-07-09). 대신 격자/줄 형태로 vault들이
+        # 자기 영역에 흩어져 보이게 함 — 진짜 wikilink edge만 시각적 연결.
         per_vault_nodes: list[tuple[str, list[dict]]] = []
         for meta in registry().list():
             if not meta.path.exists():
@@ -995,38 +994,37 @@ def vault_graph(
                     "target": f"{meta.name}:{edge.get('target')}",
                 })
 
-        # 1) vault centroid를 큰 원형(반경 VAULT_RING_RADIUS)에 균등 배치.
-        #    등록 vault가 1개면 centroid=origin → 효과는 identity (그래도 같은 코드 흐름).
+        # vault들이 자기 영역에 흩어지게 — 격자 배치.
+        # ±500 정규화 contract 유지: vault 최대 12개 정도까지 노드가 viewport 안에 머무름.
+        # 격자 셀 간격은 vault 수에 따라 적응 (sqrt(N) x sqrt(N) 격자).
         import math
         n_vaults = max(1, len(per_vault_nodes))
-        # ±500 정규화 contract 유지: vault가 최대 12개 정도일 때도 ring 안에서
-        # centroid 간 거리가 충분히 떨어지도록 조정.
-        vault_ring_radius = 380.0
-        vault_centroids: dict[str, tuple[float, float]] = {}
-        for idx, (vname, _) in enumerate(per_vault_nodes):
-            # 등록 순서대로 균등 각도 부여 — 결정성.
-            angle = (2.0 * math.pi * idx) / n_vaults
-            vault_centroids[vname] = (
-                vault_ring_radius * math.cos(angle),
-                vault_ring_radius * math.sin(angle),
-            )
+        # 격자 크기 결정: vault 1~4 → 2x2, 5~9 → 3x3, 10~16 → 4x4 ...
+        grid_side = max(1, math.ceil(math.sqrt(n_vaults)))
+        # 셀 간격: ±500 박스가 grid_side^2 셀에 들어가도록.
+        # vault 좌표가 ±500 안에 있으므로 cell 크기 1100 → 셀 간격 1100.
+        # 안전 마진 포함해서 1300.
+        # v0.7.137: cell_span 1300 → 850. 5 vault 그리드 (±3250)에서 fitView 직후
+        # zoom scale ≈ 0.23 → 0.45로 회복. vault 헤더 박스가 화면에서 식별 가능한
+        # 크기로 표시됨. vault 시각 분리는 여전히 유지 (max_radius ~1035 + cell_span 850
+        # = 노드가 셀 경계 넘을 가능성 있지만 5 vault + 369 노드 실측에서 OK).
+        cell_span = 850.0
+        # 격자 중앙이 (0, 0)에 오도록 offset 계산.
+        grid_offset_x = -(grid_side - 1) * cell_span / 2.0
+        grid_offset_y = -(grid_side - 1) * cell_span / 2.0
 
-        # 2) 각 vault 안의 노드를 centroid 주변 슬롯으로 분배.
-        #    현재 layout 좌표(±500 안에 정규화됨)의 무게중심을 target centroid로
-        #    평행이동하되, all-vault 시야에서 각 vault가 자기 중심에 더 묶여 보이도록
-        #    local spread를 살짝 압축한다.
-        #    → 같은 vault 노드 간 상대 패턴은 유지하되(= 기존 force-atlas 느낌 보존),
-        #      서로 다른 vault 노드끼리 과하게 가까워 보이는 문제를 줄인다.
-        cluster_compaction = 0.78
-        for vname, vault_nodes in per_vault_nodes:
+        for idx, (_vname, vault_nodes) in enumerate(per_vault_nodes):
             if not vault_nodes:
                 continue
+            row = idx // grid_side
+            col = idx % grid_side
+            target_cx = grid_offset_x + col * cell_span
+            target_cy = grid_offset_y + row * cell_span
             local_cx = sum(n["x"] for n in vault_nodes) / len(vault_nodes)
             local_cy = sum(n["y"] for n in vault_nodes) / len(vault_nodes)
-            target_cx, target_cy = vault_centroids[vname]
             for n in vault_nodes:
-                n["x"] = target_cx + (n["x"] - local_cx) * cluster_compaction
-                n["y"] = target_cy + (n["y"] - local_cy) * cluster_compaction
+                n["x"] = target_cx + (n["x"] - local_cx)
+                n["y"] = target_cy + (n["y"] - local_cy)
                 merged_nodes.append(n)
 
         return {
