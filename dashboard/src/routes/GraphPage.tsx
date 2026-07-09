@@ -423,7 +423,7 @@ export function GraphPage() {
                 }}
                 title="이 문서와 1-hop 연결망 중심으로 그래프를 포커스합니다"
               >
-                🎯 그래프 포커스
+                🎯 포커스
               </Button>
               <Button
                 type="button"
@@ -433,7 +433,7 @@ export function GraphPage() {
                 onClick={() => openGraphNode(selectedNodeDetail.node.id)}
                 title="문서 읽기/편집 페이지로 이동합니다"
               >
-                📖 문서 열기
+                📖 열기
               </Button>
             </div>
 
