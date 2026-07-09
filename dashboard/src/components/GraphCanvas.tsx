@@ -342,16 +342,11 @@ export function GraphCanvas({
     const graph = (ForceGraphConstructor as any)()(containerRef.current);
     graphInstanceRef.current = graph;
 
-    // v0.7.149+: D3 center force를 유지하여 그래프 원점 (0,0) 정렬 및 2사분면 쏠림 방지.
-    // charge 및 link 힘도 살려두어, 좌표가 고정되지 않은 신규 노드들이 뭉치지 않고 예쁘게 흩어지도록 연동.
-    // 단, 정적 레이아웃 기본 유지를 위해 평소 물리 연산 쿨다운은 0으로 제한.
+    // v0.7.149+: D3 center force를 제거하여 force-graph가 렌더 틱마다 중심을 (width/2, height/2)로
+    // 강제 덮어쓰고 우측 하단으로 노드들을 끌어당기는 현상을 원천 차단.
+    // charge 및 link 힘은 살려두어, 좌표가 고정되지 않은 신규 노드들이 겹치지 않고 흩어지도록 구성.
+    graph.d3Force("center", null);
     graph.cooldownTime(0); // 물리 애니메이션 냉각 단축
-
-    // center force의 중심 중력을 수동 배치 좌표계의 기준점인 (0,0)으로 강제 고정하여 우측 하단 쏠림 현상 해결.
-    const centerForce = graph.d3Force("center");
-    if (centerForce && typeof centerForce.x === "function" && typeof centerForce.y === "function") {
-      centerForce.x(0).y(0);
-    }
 
     // 인터랙션 기본 설정
     graph.enableZoomInteraction(true);
@@ -372,16 +367,19 @@ export function GraphCanvas({
 
     // 데이터 가공 (fx/fy 고정으로 FA2 레이아웃 반영 및 뭉침 방지를 위한 스케일 배율 적용)
     const formattedNodes = nodes.map((n) => {
-      const scaledX = typeof n.x === "number" ? n.x * GRAPH_SCALE_MULTIPLIER : undefined;
-      const scaledY = typeof n.y === "number" ? n.y * GRAPH_SCALE_MULTIPLIER : undefined;
+      const hasPos = typeof n.x === "number" && typeof n.y === "number";
+      // 좌표가 없는 신규 노드는 (0,0) 주변에 미세한 난수(Jitter)를 주어 시작점으로 설정.
+      // D3 시뮬레이션의 원점이 (0,0)이 되므로 수동 배치 노드와 공간적 일관성 확보.
+      const scaledX = hasPos ? (n.x as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
+      const scaledY = hasPos ? (n.y as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
       return {
         ...n,
         // Keep x/y aligned with the actually rendered force-graph coordinates.
         // Hit testing also uses x/y, so leaving them unscaled makes taps land away from the visual node.
         x: scaledX,
         y: scaledY,
-        fx: scaledX,
-        fy: scaledY,
+        fx: hasPos ? scaledX : undefined,
+        fy: hasPos ? scaledY : undefined,
       };
     });
 
