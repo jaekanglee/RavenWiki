@@ -38,6 +38,7 @@ type GraphPageFilters = {
   selectedType: string;
   hideOrphans: boolean;
   selectedNodeId: string | null;
+  visibleRelations: string[];
 };
 
 type GraphPageFilterAction =
@@ -45,6 +46,8 @@ type GraphPageFilterAction =
   | { type: "setSelectedType"; value: string }
   | { type: "setHideOrphans"; value: boolean }
   | { type: "setSelectedNodeId"; value: string | null }
+  | { type: "setVisibleRelations"; value: string[] }
+  | { type: "toggleRelation"; relation: string }
   | { type: "reset" };
 
 const initialFilters: GraphPageFilters = {
@@ -52,6 +55,7 @@ const initialFilters: GraphPageFilters = {
   selectedType: "all",
   hideOrphans: true,
   selectedNodeId: null,
+  visibleRelations: ["wikilink", "uses", "depends_on", "implements", "implemented_by", "related"],
 };
 
 function filterReducer(
@@ -67,6 +71,15 @@ function filterReducer(
       return { ...state, hideOrphans: action.value };
     case "setSelectedNodeId":
       return { ...state, selectedNodeId: action.value };
+    case "setVisibleRelations":
+      return { ...state, visibleRelations: action.value };
+    case "toggleRelation": {
+      const isVisible = state.visibleRelations.includes(action.relation);
+      const nextVisible = isVisible
+        ? state.visibleRelations.filter((r) => r !== action.relation)
+        : [...state.visibleRelations, action.relation];
+      return { ...state, visibleRelations: nextVisible };
+    }
     case "reset":
       return initialFilters;
     default:
@@ -109,7 +122,7 @@ export function GraphPage() {
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
-  const { query, selectedType, hideOrphans, selectedNodeId } = filters;
+  const { query, selectedType, hideOrphans, selectedNodeId, visibleRelations } = filters;
 
   const resetGraphFilters = () => dispatchFilters({ type: "reset" });
 
@@ -155,8 +168,9 @@ export function GraphPage() {
         query,
         selectedType,
         selectedCommunity: null,
+        visibleRelations,
       }),
-    [graph, hideOrphans, query, selectedType]
+    [graph, hideOrphans, query, selectedType, visibleRelations]
   );
 
   const visibleNodes = filteredGraph.nodes;
@@ -186,10 +200,17 @@ export function GraphPage() {
 
   const hasAnyNodes = graph.nodes.length > 0;
   const hasVisibleNodes = visibleNodes.length > 0;
+  const isDefaultRelations =
+    visibleRelations.length === 6 &&
+    ["wikilink", "uses", "depends_on", "implements", "implemented_by", "related"].every((r) =>
+      visibleRelations.includes(r)
+    );
+
   const hasActiveFilter =
     query.trim().length > 0 ||
     selectedType !== "all" ||
-    !hideOrphans;
+    !hideOrphans ||
+    !isDefaultRelations;
 
   const graphNodeMap = useMemo(
     () => new Map(graph.nodes.map((node) => [node.id, node])),
@@ -264,6 +285,50 @@ export function GraphPage() {
         options={typeOptions}
         helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
       />
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          의미 관계 필터
+        </span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: "4px" }}>
+          {[
+            { value: "wikilink", label: "일반 링크", color: "var(--graph-edge)" },
+            { value: "uses", label: "Uses (사용)", color: "#3b82f6" },
+            { value: "depends_on", label: "Depends on (의존)", color: "#ef4444" },
+            { value: "implements", label: "Implements (구현)", color: "#a855f7" },
+            { value: "implemented_by", label: "Implemented by (구현체)", color: "#d946ef" },
+            { value: "related", label: "Related (연관)", color: "#14b8a6" },
+          ].map((item) => (
+            <label
+              key={item.value}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "12px",
+                color: "var(--color-ink)",
+                cursor: "pointer",
+                userSelect: "none"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={visibleRelations.includes(item.value)}
+                onChange={() => dispatchFilters({ type: "toggleRelation", relation: item.value })}
+                style={{
+                  width: "14px",
+                  height: "14px",
+                  borderRadius: "3px",
+                  border: "1px solid var(--border-subtle)",
+                  accentColor: item.color
+                }}
+              />
+              <span style={{ color: visibleRelations.includes(item.value) ? "var(--color-ink)" : "var(--color-muted)", fontWeight: visibleRelations.includes(item.value) ? 500 : 400 }}>
+                {item.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
       <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
         <Button
           type="button"

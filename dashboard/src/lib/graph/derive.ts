@@ -30,6 +30,7 @@ export interface GraphFilterState {
   query: string;
   selectedType: string;
   selectedCommunity: number | null;
+  visibleRelations?: string[];
 }
 
 export interface CommunityOption {
@@ -142,8 +143,26 @@ export function deriveCommunityOptions(graph: Graph, hideOrphans: boolean): Comm
 }
 
 export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph {
-  const visibleByType = graph.nodes.filter((node) => {
-    if (filters.hideOrphans && (node.weight ?? 0) === 0) return false;
+  const visibleRelations = filters.visibleRelations ?? [
+    "wikilink", "uses", "depends_on", "implements", "implemented_by", "related"
+  ];
+
+  // 1. 의미 관계 유형에 따라 엣지 먼저 필터링
+  const filteredEdges = graph.edges.filter((edge) => {
+    const type = edge.relation_type || "wikilink";
+    return visibleRelations.includes(type);
+  });
+
+  // 필터링된 엣지 기준 활성 노드 ID 집합 계산 (고립 노드 판별용)
+  const activeNodeIds = new Set<string>();
+  for (const edge of filteredEdges) {
+    activeNodeIds.add(edge.source);
+    activeNodeIds.add(edge.target);
+  }
+
+  // 2. 노드 필터링
+  const visibleNodes = graph.nodes.filter((node) => {
+    if (filters.hideOrphans && !activeNodeIds.has(node.id)) return false;
     if (filters.selectedType !== "all" && (node.type ?? "미분류") !== filters.selectedType) {
       return false;
     }
@@ -156,20 +175,21 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
     return true;
   });
 
-  const visibleMap = new Map(visibleByType.map((node) => [node.id, node]));
+  const visibleMap = new Map(visibleNodes.map((node) => [node.id, node]));
   const normalizedQuery = normalizeGraphText(filters.query);
 
-  let nodeIds = new Set(visibleByType.map((node) => node.id));
+  let nodeIds = new Set(visibleNodes.map((node) => node.id));
   if (normalizedQuery) {
     const matchedIds = new Set(
-      visibleByType
+      visibleNodes
         .filter((node) => matchesGraphQuery(node, normalizedQuery))
         .map((node) => node.id)
     );
 
     if (matchedIds.size > 0) {
       const expandedIds = new Set(matchedIds);
-      for (const edge of graph.edges) {
+      // 필터링된 엣지를 기반으로 1-hop 확장
+      for (const edge of filteredEdges) {
         const source = edge.source;
         const target = edge.target;
         if (!visibleMap.has(source) || !visibleMap.has(target)) continue;
@@ -184,9 +204,9 @@ export function filterGraphView(graph: Graph, filters: GraphFilterState): Graph 
     }
   }
 
-  const nodes = visibleByType.filter((node) => nodeIds.has(node.id));
+  const nodes = visibleNodes.filter((node) => nodeIds.has(node.id));
   const ids = new Set(nodes.map((node) => node.id));
-  const edges = graph.edges.filter((edge) => {
+  const edges = filteredEdges.filter((edge) => {
     const source = edge.source;
     const target = edge.target;
     return ids.has(source) && ids.has(target);
