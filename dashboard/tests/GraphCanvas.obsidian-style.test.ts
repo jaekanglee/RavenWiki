@@ -54,11 +54,16 @@ describe("GraphCanvas v0.6.11 Obsidian-style", () => {
       expect(nodeSize(-3)).toBeCloseTo(14, 5);
     });
 
-    it("dense 모드는 normal보다 한 단계 더 큼", () => {
-      // normal w=9 → 27.93, dense w=9 → 8 + 7 = 15 ... 어?
-      // 10 + log2(10)*7 = 10 + 23.25 = 33.25
-      expect(nodeSize(9, "dense")).toBeCloseTo(33.25, 1);
-      expect(nodeSize(9, "dense")).toBeGreaterThan(nodeSize(9, "normal"));
+    it("dense 모드는 normal보다 작음 (v0.7.136: 빽빽 노드 화면 점유 과다 → 축소)", () => {
+      // v0.7.136: dense에서 multiplier 7→4, base 10→7.
+      // dense w=9 → 7 + log2(10)*4 = 20.28.
+      // normal w=9 → 8 + log2(10)*6 = 27.93.
+      expect(nodeSize(9, "dense")).toBeCloseTo(20.28, 1);
+      expect(nodeSize(9, "dense")).toBeLessThan(nodeSize(9, "normal"));
+    });
+
+    it("dense hub cap — weight=24도 30px 이하 (사용자: '두껍다')", () => {
+      expect(nodeSize(24, "dense")).toBeLessThanOrEqual(30);
     });
 
     it("이전 박스 사이즈 대비 점 사이즈 범위 검증", () => {
