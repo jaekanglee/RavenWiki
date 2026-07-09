@@ -603,8 +603,9 @@ export function GraphCanvas({
     graph.onRenderFramePre((ctx: CanvasRenderingContext2D, globalScale: number) => {
       const scale = globalScale || 1;
       
-      // LOD 임계값: 줌 아웃(scale < 0.6)에서 max(1.0) ~ 줌 인(scale > 1.0)에서 min(0.0)
-      const labelOpacity = Math.max(0, Math.min(1, (1.0 - scale) / 0.4));
+      // [개선] HUD 노출 줌 레벨을 0.75 이하로 제한 (줌 100% 근처 및 이상에서는 HUD 완벽 제거)
+      // scale = 0.75 일 때 opacity = 0, scale = 0.5 일 때 opacity = 1
+      const labelOpacity = Math.max(0, Math.min(1, (0.75 - scale) / 0.25));
       if (labelOpacity <= 0.05) return;
 
       // 1. 실시간 Centroid 연산
@@ -632,6 +633,10 @@ export function GraphCanvas({
       for (const gid in groupCoords) {
         const data = groupCoords[gid];
         if (data.count === 0) continue;
+        
+        // [A안] 노드 개수가 5개 미만인 지극히 작은 소수 그룹(root, _meta 등)은 HUD 라벨 그리기 생략해 잡음 제거
+        if (data.count < 5) continue;
+
         const cx = data.xSum / data.count;
         const cy = data.ySum / data.count;
         
@@ -639,16 +644,15 @@ export function GraphCanvas({
         const drawY = cy - 24 / scale;
 
         const labelText = data.label;
-        const ratio = data.count / totalNodes;
+        const isContent = gid === "content";
         
-        // content 그룹 하나가 압도적 비중(85% 초과)을 차지하면 덜 강조
-        const isDominant = ratio > 0.85 && gid === "content";
+        // [B안 + alpha] 지배적 content의 opacity를 0.24로 살짝 올리고, meta/root/raw 등은 0.16 이하로 약화
+        const targetGroupAlpha = isContent ? 0.24 : 0.16;
+        const textOpacity = labelOpacity * targetGroupAlpha;
         
-        // 더 옅고 (기본 0.45배, 지배적 그룹은 추가로 0.3배 곱해서 아주 은은하게 처리)
-        const textOpacity = labelOpacity * (isDominant ? 0.14 : 0.45);
         const fontSize = Math.max(
-          isDominant ? 12 : 14, 
-          (isDominant ? 13 : HUD_LABEL_BASE_SIZE) / scale
+          isContent ? 12 : 14, 
+          (isContent ? 13 : HUD_LABEL_BASE_SIZE) / scale
         );
 
         ctx.font = `600 ${fontSize}px ${HUD_LABEL_FONT}`;
