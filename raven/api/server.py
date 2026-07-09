@@ -20,7 +20,7 @@ from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from raven.core import registry, resolve_active_vault, link_module
+from raven.core import registry, resolve_active_vault, link_module, recommend_module
 from raven.core.registry import VAULTS_ROOT
 from raven.core import db_module, lint_module, export_module
 from raven.core import slug_module, frontmatter_module, archive_module
@@ -1346,6 +1346,40 @@ def set_graph_positions(name: str, body: GraphPositionsBody):
             continue
         existing[slug] = (float(raw_x), float(raw_y))
     return _save_user_positions(v.root, existing)
+
+
+@app.get("/api/vaults/{name}/pages/{slug:path}/recommendations")
+def get_page_recommendations(name: str, slug: str, limit: int = Query(5, ge=1, le=20)):
+    v = _vault_or_404(name)
+    _safe_slug_or_400(slug, v)
+    
+    fp = _safe_slug_or_400(slug, v).with_suffix(".md")
+    if not fp.exists():
+        # fuzzy fallback
+        base = slug.rsplit("/", 1)[-1]
+        candidates = []
+        for fp_md in v.content_root.rglob("*.md"):
+            cand_slug = str(fp_md.relative_to(v.root))[:-3]
+            if cand_slug == base or cand_slug.endswith("/" + base):
+                candidates.append(fp_md)
+        if len(candidates) == 1:
+            slug = str(candidates[0].relative_to(v.root))[:-3]
+        elif len(candidates) > 1:
+            best = min(candidates, key=lambda p: len(p.relative_to(v.root).parts))
+            slug = str(best.relative_to(v.root))[:-3]
+        else:
+            raise HTTPException(status_code=404, detail=f"page {slug!r} not found in vault {name!r}")
+
+    try:
+        recs = recommend_module.get_recommendations(v, slug, top_k=limit)
+        return {
+            "ok": True,
+            "vault": name,
+            "slug": slug,
+            "recommendations": recs
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/vaults/{name}/pages/{slug:path}")
