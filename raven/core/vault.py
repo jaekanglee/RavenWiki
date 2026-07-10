@@ -536,11 +536,16 @@ class Vault:
     def meta_root(self) -> Path:
         return self.root / "_meta"
 
+    @property
+    def drafts_root(self) -> Path:
+        return self.root / "drafts"
+
     # ─── bootstrap helpers ─────────────────────────
 
     def ensure_dirs(self) -> None:
         self.content_root.mkdir(parents=True, exist_ok=True)
         self.meta_root.mkdir(parents=True, exist_ok=True)
+        self.drafts_root.mkdir(parents=True, exist_ok=True)
         # log.md 자동 보장 (없으면 빈 헤더)
         from . import log as _log
         _log.ensure_log(self)

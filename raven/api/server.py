@@ -2347,6 +2347,35 @@ def resolve_contradiction_api(name: str, payload: ResolveContradictionPayload):
     return result
 
 
+class DraftGeneratePayload(BaseModel):
+    topic: str
+    outline: str
+    associated_pages: Optional[list[str]] = None
+
+
+@app.post("/api/vaults/{name}/drafts/generate")
+def generate_draft_api(name: str, payload: DraftGeneratePayload):
+    v = _vault_or_404(name)
+    from raven.core.draft import generate_draft
+    return generate_draft(v, topic=payload.topic, outline=payload.outline, associated_pages=payload.associated_pages)
+
+
+class DraftCommitPayload(BaseModel):
+    draft_slug: str
+    content: Optional[str] = None
+
+
+@app.post("/api/vaults/{name}/drafts/commit")
+def commit_draft_api(name: str, payload: DraftCommitPayload):
+    v = _vault_or_404(name)
+    from raven.core.draft import commit_draft
+    res = commit_draft(v, draft_slug=payload.draft_slug, content=payload.content)
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to commit draft"))
+    return res
+
+
+
 
 @app.get("/api/vaults/{name}/search")
 def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):
