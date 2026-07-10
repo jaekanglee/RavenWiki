@@ -882,6 +882,64 @@ export async function resolveContradiction(
 
 
 
+// ─── Drafts (사이드바 초안 섹션용: 읽기/커밋/삭제만, 생성은 MCP 전용) ──────────
+
+export interface DraftListItem {
+  slug: string;
+  filename: string;
+  title: string;
+  type: string;
+  updated: string | null;
+  size: number;
+}
+
+export interface DraftConflictResult {
+  ok: false;
+  conflict: true;
+  error: string;
+  existing_content: string;
+  draft_content: string;
+}
+
+export async function fetchDraftsList(vault: string): Promise<DraftListItem[]> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts`);
+  if (!r.ok) return [];
+  const d = await r.json();
+  return d.drafts || [];
+}
+
+export async function commitDraft(
+  vault: string,
+  payload: { draft_slug: string; content?: string; overwrite?: boolean }
+): Promise<{ ok: boolean; slug: string; path: string; db_rebuild: any } | DraftConflictResult> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts/commit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (r.status === 409) return r.json();
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `commit draft failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+export async function deleteDraft(
+  vault: string,
+  draftName: string
+): Promise<{ ok: boolean; deleted?: string }> {
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/drafts/${encodeURIComponent(draftName)}`,
+    { method: "DELETE" }
+  );
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `delete draft failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
 // ─── Template Editor API (Task 3) ─────────────────────────────────────────
 
 export interface TemplateItem {

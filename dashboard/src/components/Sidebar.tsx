@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { NewPageButton } from "./NewPageButton";
@@ -6,6 +6,7 @@ import { NewIssueButton } from "./NewIssueButton";
 import { nodeColor, typeLabel } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
 import { SearchBar } from "./SearchBar";
+import { fetchDraftsList, type DraftListItem } from "../lib/api";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
 interface SidebarProps {
@@ -664,6 +665,103 @@ function VaultTreeGroup({
               depth={1}
             />
           ))}
+        </div>
+      )}
+      {open && (
+        <DraftSection
+          vault={vault.name}
+          activeSlug={activeSlug}
+          onClose={onClose}
+        />
+      )}
+    </div>
+  );
+}
+
+function DraftSection({
+  vault,
+  activeSlug,
+  onClose,
+}: {
+  vault: string;
+  activeSlug: string | null;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [drafts, setDrafts] = useState<DraftListItem[]>([]);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const list = await fetchDraftsList(vault);
+    setDrafts(list);
+  }, [vault]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // 외부에서 커밋/삭제 후 갱신 이벤트를 수신해 목록 갱신
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener("raven-draft-changed", handler);
+    return () => window.removeEventListener("raven-draft-changed", handler);
+  }, [load]);
+
+  if (drafts.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid var(--color-hairline)", paddingTop: 4 }}>
+      <button
+        type="button"
+        className="sidebar-tree-dir-row"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{ paddingLeft: 8, width: "100%" }}
+        title="에이전트가 생성한 초안 목록"
+      >
+        <span aria-hidden className={clsx("sidebar-chevron", open && "sidebar-chevron-open")}>
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+            <path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <span aria-hidden style={{ fontSize: 13 }}>📋</span>
+        <span className="sidebar-tree-dir-label">
+          초안
+          <span style={{
+            marginLeft: 6,
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "1px 5px",
+            borderRadius: 8,
+            background: "var(--color-primary)",
+            color: "#fff",
+            verticalAlign: "middle",
+          }}>{drafts.length}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="sidebar-tree">
+          {drafts.map((d) => {
+            const isActive = activeSlug === d.slug;
+            return (
+              <button
+                key={d.slug}
+                type="button"
+                className={clsx("sidebar-tree-page-row", isActive && "sidebar-tree-page-row-active")}
+                onClick={() => {
+                  // slug: "drafts/foo" → /page/{vault}/drafts/foo
+                  navigate(`/page/${vault}/${d.slug}`);
+                  onClose();
+                }}
+                style={{ paddingLeft: 18 }}
+                title={d.title}
+              >
+                <span aria-hidden className="sidebar-tree-page-dot" style={{ background: "var(--color-muted)" }} />
+                <span aria-hidden className="sidebar-tree-page-pill" data-type={d.type}>{d.type}</span>
+                <span className="sidebar-tree-page-label">{d.title || d.filename}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
