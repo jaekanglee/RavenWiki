@@ -4,11 +4,24 @@ from __future__ import annotations
 import struct
 import sqlite3
 import hashlib
+import re
 from typing import Any, List, Dict, Optional
 from pathlib import Path
 
 from .vault import Vault
 from . import db as db_module
+
+
+def _build_fts_prefix_query(query_text: str) -> str:
+    """Turn human input into a safe, case-insensitive FTS5 prefix query.
+
+    FTS5 treats a space-separated query as complete terms.  During interactive
+    search that makes ``system ope`` miss a page titled ``System Operations``.
+    Tokenising ordinary words and applying the FTS5 prefix operator to each
+    one keeps multi-word matching while allowing a partially typed final word.
+    """
+    tokens = re.findall(r"[^\W_]+", query_text.casefold(), flags=re.UNICODE)
+    return " AND ".join(f'"{token}"*' for token in tokens)
 
 class LocalEmbeddingEngine:
     """로컬 한국어 임베딩 추출 엔진 (ko-sroberta 또는 bge-m3-ko).
@@ -114,7 +127,8 @@ def hybrid_search(vault: Vault, query_text: str, limit: int = 10) -> list[dict[s
     """BM25 가중치(0.6)와 벡터 유사도 가중치(0.4)를 결합하는 하이브리드 검색을 수행합니다.
     확장 모듈 부재 시 FTS5 BM25 단독 검색 결과로 Fallback합니다.
     """
-    if not vault.db_path.exists():
+    fts_query = _build_fts_prefix_query(query_text)
+    if not vault.db_path.exists() or not fts_query:
         return []
         
     conn = sqlite3.connect(vault.db_path)
@@ -142,7 +156,7 @@ def hybrid_search(vault: Vault, query_text: str, limit: int = 10) -> list[dict[s
                 WHERE pf.pages_fts MATCH ?
                 ORDER BY bm25_score ASC
                 LIMIT ?
-            """, (query_text, limit))
+            """, (fts_query, limit))
             rows = cur.fetchall()
             conn.close()
             
@@ -199,7 +213,7 @@ def hybrid_search(vault: Vault, query_text: str, limit: int = 10) -> list[dict[s
         LIMIT ?
         """
         
-        cur = conn.execute(query_sql, (query_text, query_vector_bytes, limit))
+        cur = conn.execute(query_sql, (fts_query, query_vector_bytes, limit))
         rows = cur.fetchall()
         
         results = []

@@ -117,6 +117,24 @@ def test_hybrid_search_matches_alias(isolated_vault: Vault) -> None:
     assert results[0]["slug"] == "content/doc-c"
 
 
+def test_hybrid_search_matches_partial_words_case_insensitively(
+    isolated_vault: Vault, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """대시보드 입력 중인 ``system ope``도 ``System Operations``를 찾아야 한다."""
+    content_dir = isolated_vault.root / "content"
+    (content_dir / "system-operations.md").write_text(
+        "---\ntitle: System Operations\ntype: concept\ntags: [operations]\n---\n"
+        "Runbook for the production system.\n",
+        encoding="utf-8",
+    )
+    db_module.build_db(isolated_vault, run_lint=False)
+    monkeypatch.setattr("raven.core.hybrid_search.load_vector_extension", lambda conn: False)
+
+    results = hybrid_search(isolated_vault, "  SYSTEM   ope  ", limit=5)
+
+    assert results[0]["slug"] == "content/system-operations"
+
+
 def test_inline_build_fts_includes_alias(tmp_path) -> None:
     """설치 패키지 fallback 빌더(_inline_build)도 pages_fts에 aliases를 포함해야
     한다 — 두 빌더 간 스키마 drift는 과거 실제 버그였다 (db.py 상단 문서 참고)."""
@@ -197,4 +215,3 @@ def test_inline_build_fts_rowid_integrity_with_multiple_tags(tmp_path) -> None:
         f"pages_fts.rowid={actual_rowid}. This indicates the page was indexed "
         f"with the wrong rowid (likely a tag's rowid from the tag insert loop)."
     )
-
