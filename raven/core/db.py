@@ -313,7 +313,7 @@ CREATE TABLE relations (
   CHECK (reason IS NOT NULL AND TRIM(reason) != '')
 );
 CREATE INDEX idx_relations_target ON relations(target_slug);
-CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, tags_concat, content);
+CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, tags_concat, content, aliases);
 CREATE VIEW v_backlinks AS
   SELECT l.target_slug AS slug, l.source_slug, p.title AS source_title,
          p.path AS source_path, l.context
@@ -385,9 +385,9 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
                     (slug, str(tag)),
                 )
         con.execute(
-            "INSERT INTO pages_fts (rowid, slug, title, tags_concat, content) "
-            "VALUES (last_insert_rowid(), ?, ?, ?, ?)",
-            (slug, title, " ".join(str(t) for t in tags) if isinstance(tags, (list, tuple)) else "", body),
+            "INSERT INTO pages_fts (rowid, slug, title, tags_concat, content, aliases) "
+            "SELECT (SELECT rowid FROM pages WHERE slug = ?), ?, ?, ?, ?, ?",
+            (slug, slug, title, " ".join(str(t) for t in tags) if isinstance(tags, (list, tuple)) else "", body, aliases),
         )
         relations = meta.get("relations") or []
         if isinstance(relations, list):
