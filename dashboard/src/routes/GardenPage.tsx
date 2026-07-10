@@ -6,8 +6,11 @@ import {
   fetchPage,
   updatePage,
   fetchPages,
+  fetchContradictions,
+  resolveContradiction,
   type StalePage,
   type OrphanPage,
+  type Contradiction,
 } from "../lib/api";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
@@ -33,10 +36,13 @@ export function GardenPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmState, setConfirmState] = useState<GardenConfirmState>(null);
+  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
+  const [loadingContradictions, setLoadingContradictions] = useState(false);
 
   const loadGardenData = async () => {
     if (!vault) return;
     setLoading(true);
+    setLoadingContradictions(true);
     try {
       const data = await fetchGarden(vault);
       if (data && data.ok) {
@@ -46,9 +52,43 @@ export function GardenPage() {
       }
       const pagesData = await fetchPages(vault);
       setAllPages(pagesData || []);
+
+      const contraData = await fetchContradictions(vault);
+      if (contraData && contraData.ok) {
+        setContradictions(contraData.contradictions || []);
+      }
     } catch (e) {
       console.error(e);
       showToast("데이터를 불러오는 중 오류가 발생했습니다.", "error");
+    } finally {
+      setLoading(false);
+      setLoadingContradictions(false);
+    }
+  };
+
+  const handleResolveContradiction = async (
+    c: Contradiction,
+    action: "update_relation" | "add_backlink"
+  ) => {
+    setLoading(true);
+    try {
+      const res = await resolveContradiction(vault, {
+        source_slug: c.source_slug,
+        target_slug: c.target_slug,
+        relation_type: c.proposed_data.relation_type,
+        action: action,
+        evidence: c.proposed_data.evidence,
+        reason: c.proposed_data.reason,
+      });
+      if (res && res.ok) {
+        showToast("✅ 모순 해결 및 관계 적용 완료");
+        await loadGardenData();
+      } else {
+        showToast("모순 해결 적용에 실패했습니다.", "error");
+      }
+    } catch (e: any) {
+      console.error(e);
+      showToast(`오류: ${e?.message || e}`, "error");
     } finally {
       setLoading(false);
     }
@@ -543,6 +583,101 @@ export function GardenPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ─── AI 논리적 모순 탐지 (Logical Contradictions) ─── */}
+      <div style={{ marginTop: 40, borderTop: "1px solid var(--color-hairline)", paddingTop: 32 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          ⚖️ AI 논리적 모순 탐지 (Logical Contradictions)
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "2px 8px",
+              borderRadius: 12,
+              backgroundColor: "var(--color-surface-soft)",
+              color: "var(--color-ink)",
+            }}
+          >
+            {contradictions.length}
+          </span>
+        </h2>
+        <p className="text-muted" style={{ fontSize: 13, marginBottom: 20 }}>
+          인접하거나 유사한 문서 간 기술 명세, 상태 등 논리적 불일치를 AI가 감지합니다. 승인하면 관계가 자동 업데이트되거나 상호 보완 역참조가 추가됩니다.
+        </p>
+
+        {loadingContradictions ? (
+          <div style={{ padding: 20, color: "var(--color-muted)" }}>모순 검출 검사 중...</div>
+        ) : contradictions.length === 0 ? (
+          <EmptyState
+            icon={<EmptyIcon.Sparkles />}
+            title="모순 없음"
+            description="보관소 지식 구조 내에서 충돌이나 논리적 모순이 발견되지 않았습니다."
+          />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {contradictions.map((c, idx) => (
+              <div
+                key={`${c.source_slug}-${c.target_slug}-${idx}`}
+                className="card-flat"
+                style={{
+                  padding: 20,
+                  borderLeft: "4px solid var(--color-error-text)",
+                  background: "var(--color-canvas)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-error-text)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+                      충돌 감지 노드 쌍
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Link to={`/page/${vault}/${c.source_slug}`} style={{ fontWeight: 600, fontSize: 14, color: "var(--color-ink)", textDecoration: "none" }}>
+                        {c.source_title || c.source_slug}
+                      </Link>
+                      <span style={{ color: "var(--color-muted)", fontSize: 12 }}>↔</span>
+                      <Link to={`/page/${vault}/${c.target_slug}`} style={{ fontWeight: 600, fontSize: 14, color: "var(--color-ink)", textDecoration: "none" }}>
+                        {c.target_title || c.target_slug}
+                      </Link>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, background: "var(--color-danger-bg)", color: "var(--color-danger-text)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                    관계 타입: {c.relation_type}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: 13, color: "var(--color-body)", marginBottom: 16, background: "var(--color-surface-soft)", padding: 12, borderRadius: 6, border: "1px solid var(--color-hairline)" }}>
+                  <strong>🤖 AI 분석 결과:</strong> {c.description}
+                </div>
+
+                {c.proposed_data && (
+                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginBottom: 16 }}>
+                    <div style={{ marginBottom: 4 }}><strong>제안 조치:</strong> {c.proposed_action === "update_relation" ? "관계 정보 업데이트" : "상호 역참조 연결"}</div>
+                    <div style={{ marginBottom: 4 }}><strong>근거(Evidence):</strong> {c.proposed_data.evidence}</div>
+                    <div><strong>이유(Reason):</strong> {c.proposed_data.reason}</div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <Button
+                    onClick={() => handleResolveContradiction(c, "update_relation")}
+                    variant="primary"
+                    size="sm"
+                  >
+                    관계 업데이트 적용
+                  </Button>
+                  <Button
+                    onClick={() => handleResolveContradiction(c, "add_backlink")}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    상호 역참조 추가
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -32,6 +32,7 @@
  import { Button } from "./ui/Button";
  import { TextField } from "./ui/TextField";
  import { Toast } from "./ui/Toast";
+ import { AITagSuggestion } from "./AITagSuggestion";
 
  // Lucide-style SVG icons (MIT, public domain). 16x16 viewBox, currentColor 사용
  // → var(--color-ink) / hover 시 var(--color-accent) 자동 적용.
@@ -499,6 +500,45 @@
                  {showPreview ? <Icon.Eye /> : <Icon.EyeOff />}
                </Button>
                </div>
+
+              {/* AI tag suggestion */}
+              <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-hairline)" }}>
+                <AITagSuggestion
+                  vault={vault}
+                  content={draft.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)?.[2] || draft}
+                  title={titleVal}
+                  onAccept={(newTags) => {
+                    const match = draft.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+                    if (!match) {
+                      const fm = `---\ntags: [${newTags.join(", ")}]\n---\n`;
+                      setDraft(fm + draft);
+                      return;
+                    }
+                    const fmText = match[1];
+                    const bodyText = match[2];
+                    const tagsMatch = fmText.match(/tags:\s*\[(.*?)\]/);
+                    let existingTags: string[] = [];
+                    if (tagsMatch) {
+                      existingTags = tagsMatch[1].split(",").map(t => t.trim()).filter(Boolean);
+                    } else {
+                      const multilineMatch = fmText.match(/tags:\r?\n((?:\s*-\s*\S+\r?\n?)*)/);
+                      if (multilineMatch) {
+                        existingTags = multilineMatch[1].split("\n").map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+                      }
+                    }
+                    const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+                    let newFmText = fmText;
+                    if (tagsMatch) {
+                      newFmText = fmText.replace(/tags:\s*\[.*?\]/, `tags: [${mergedTags.join(", ")}]`);
+                    } else if (fmText.match(/tags:\r?\n((?:\s*-\s*\S+\r?\n?)*)/)) {
+                      newFmText = fmText.replace(/tags:\r?\n((?:\s*-\s*\S+\r?\n?)*)/, `tags: [${mergedTags.join(", ")}]\n`);
+                    } else {
+                      newFmText = fmText.trim() + `\ntags: [${mergedTags.join(", ")}]`;
+                    }
+                    setDraft(`---\n${newFmText}\n---\n${bodyText}`);
+                  }}
+                />
+              </div>
 
              {/* Editor + (optional) Preview split */}
              <div

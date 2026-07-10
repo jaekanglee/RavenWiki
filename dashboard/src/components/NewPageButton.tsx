@@ -6,6 +6,7 @@ import { TextField } from "./ui/TextField";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { SelectField } from "./ui/SelectField";
+import { AITagSuggestion } from "./AITagSuggestion";
 
 const TYPE_OPTIONS = [
   { value: "concept", label: "일반 노트" },
@@ -247,6 +248,17 @@ export function NewPageButton({
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
                     placeholder="ai, llm"
+                  />
+                  <AITagSuggestion
+                    vault={vault}
+                    content=""
+                    title={title}
+                    onAccept={(newTags) => {
+                      const existingList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+                      const updatedList = Array.from(new Set([...existingList, ...newTags]));
+                      setTags(updatedList.join(", "));
+                    }}
+                    style={{ marginTop: 8 }}
                   />
                 </label>
               </div>
