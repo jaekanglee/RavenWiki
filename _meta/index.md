@@ -53,7 +53,8 @@ confidence: high
 - [[deployment]] — VPS + Tailscale 배포 절차
 - [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
 - [[setup-guide]] — 클린 설치 & 언인스톨 가이드
-- [[ai-roadmap]] — AI 활용 로드맵 (M3-M6)
+- [[ai-roadmap]] — AI 활용 로드맵 (M3-M6) ✅ **완료** — 실질 SoT는 [[docs/superpowers/plans/semantic-relation-inference-plan]] 참조
+- [[docs/superpowers/plans/semantic-relation-inference-plan]] — **현재 진행 중 SoT** — Semantic Relation Inference Engine 단계별 MVP (Post-MVP Analytics 진행 중)
 
 ### 최신 changelog
 - [[changelog-v0.7.163]] — Phase 10: AI 기반 관계 근거 확장, AI 진단 어드바이스 생성 및 도메인 뷰 대표 레이블 자동화

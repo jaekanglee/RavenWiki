@@ -1,16 +1,19 @@
 ---
 title: AI 활용 로드맵 (M3-M6)
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-10
 type: rule
-tags: [system, meta, ai, roadmap]
+tags: [system, meta, ai, roadmap, completed]
+status: completed
 ---
 
 # AI 활용 로드맵 (M3-M6)
 
 > **한 줄 요약**: 검색 → 추천 → Q&A → 자동 태깅 → 모순 탐지 → 작성 도우미 — 단계적 AI 기능 확장
 >
-> **결정 노트 (2026-06-26)**: M3 (Vector Search) **보류**. vault 30페이지 수준에서는 FTS5로 충분, vector는 오버엔지니어링. 트리거: vault 50+ 페이지 + "비슷한 거 찾아줘" 패턴 자주 발생 시 재평가.
+> **✅ 완료 (2026-07-10)**: M3~M6 전 마일스톤이 Phase 12~15에서 구현 완료됨. 이 문서는 역사 기록용으로 보존.
+>
+> **⚠️ 실질 SoT 이전**: 현재 진행 중인 작업의 계획 문서는 [[docs/superpowers/plans/semantic-relation-inference-plan]] 참조.
 
 ---
 
@@ -18,12 +21,12 @@ tags: [system, meta, ai, roadmap]
 
 | 단계 | 기능 | 시점 |
 |---|---|---|
-| M1 | 인덱싱 자동화 (curator) | ✅ M1 완료 |
-| M2 | MCP server (외부 AI 접근, read-only 기본) | M2 |
-| M3 | Vector Search (`sqlite-vec` 1차) + 관련 문서 추천 | M3 |
-| M4 | 문서 Q&A (RAG over vault) | M4 |
-| M5 | 자동 태깅 + 모순 강화 탐지 (LLM-driven) | M5 |
-| M6 | 작성 도우미 (초안 생성) | M6 |
+| M1 | 인덱싱 자동화 (curator) | ✅ 완료 |
+| M2 | MCP server (외부 AI 접근, read-only 기본) | ✅ 완료 |
+| M3 | Vector Search (`sqlite-vec` 1차) + 관련 문서 추천 | ✅ 완료 (Phase 12) |
+| M4 | 문서 Q&A (RAG over vault) | ✅ 완료 (Phase 12) |
+| M5 | 자동 태깅 + 모순 강화 탐지 (LLM-driven) | ✅ 완료 (Phase 13) |
+| M6 | 작성 도우미 (초안 생성) | ✅ 완료 (Phase 14~15) |
 | ❌ | AI 채팅 (실시간 대화) | OUT |
 
 ---
