@@ -268,6 +268,15 @@ export function GraphPage() {
       }
       const entries = Object.entries(byVault).filter(([, pos]) => Object.keys(pos).length > 0);
       if (entries.length === 0) return;
+      // 서버 저장은 fire-and-forget이라 로컬 graph 상태를 즉시 갱신해두지 않으면,
+      // 드래그 직후 노드 클릭(→ externalHighlightNodeId 변경)이 GraphCanvas의
+      // graphData 재생성 effect를 트리거해 옛 좌표(props 기준)로 되돌려버린다.
+      setGraph((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          positions[n.id] ? { ...n, x: positions[n.id].x, y: positions[n.id].y } : n
+        ),
+      }));
       void Promise.allSettled(
         entries.map(([targetVault, pos]) =>
           fetch(`/api/vaults/${encodeURIComponent(targetVault)}/graph/positions`, {
