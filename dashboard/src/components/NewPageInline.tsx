@@ -4,6 +4,7 @@ import { createPage, fetchPages } from "../lib/api";
 import { TextField } from "./ui/TextField";
 import { SelectField } from "./ui/SelectField";
 import { Button } from "./ui/Button";
+import { AITagSuggestion } from "./AITagSuggestion";
 
 /**
  * NewPageInline — Plan v1 묶음 B (Tasks 5-7).
@@ -333,6 +334,19 @@ export function NewPageInline({ vault, onClose, onCreated }: NewPageInlineProps)
         placeholder="ai, llm"
         style={fieldStyle}
       />
+
+      <AITagSuggestion
+        vault={vault}
+        content=""
+        title={title}
+        onAccept={(newTags) => {
+          const existingList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+          const updatedList = Array.from(new Set([...existingList, ...newTags]));
+          setTags(updatedList.join(", "));
+        }}
+        style={{ marginBottom: 12 }}
+      />
+
 
       {/* ─── slug preview ─── */}
       <div

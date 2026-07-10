@@ -819,4 +819,66 @@ export async function fetchRAGQuery(
   return r.json();
 }
 
+export async function suggestTags(
+  vault: string,
+  payload: { content: string; title?: string }
+): Promise<{ ok: boolean; tags: string[]; used_llm: boolean }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/suggest-tags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`suggest tags failed: ${r.status}`);
+  return r.json();
+}
+
+export interface Contradiction {
+  source_slug: string;
+  target_slug: string;
+  relation_type: string;
+  description: string;
+  proposed_action: "update_relation" | "add_backlink";
+  proposed_data: {
+    source_slug: string;
+    target_slug: string;
+    relation_type: string;
+    evidence: string;
+    reason: string;
+  };
+  source_title?: string;
+  target_title?: string;
+}
+
+export async function fetchContradictions(
+  vault: string
+): Promise<{ ok: boolean; contradictions: Contradiction[]; used_llm: boolean }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions`);
+  if (!r.ok) throw new Error(`fetch contradictions failed: ${r.status}`);
+  return r.json();
+}
+
+export async function resolveContradiction(
+  vault: string,
+  payload: {
+    source_slug: string;
+    target_slug: string;
+    relation_type: string;
+    action: "update_relation" | "add_backlink";
+    evidence?: string;
+    reason?: string;
+  }
+): Promise<{ ok: boolean; message?: string }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `resolve failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+
 

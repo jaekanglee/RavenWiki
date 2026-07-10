@@ -2287,6 +2287,67 @@ def rag_query_api(name: str, query: str = Query(..., min_length=1)):
     return query_rag(v, query)
 
 
+class SuggestTagsPayload(BaseModel):
+    content: str
+    title: Optional[str] = None
+
+
+@app.post("/api/vaults/{name}/suggest-tags")
+def suggest_tags_api(name: str, payload: SuggestTagsPayload):
+    v = _vault_or_404(name)
+    from raven.core.tagger import suggest_tags
+    return suggest_tags(v, content=payload.content, title=payload.title)
+
+
+@app.get("/api/vaults/{name}/lint/contradictions")
+def check_contradictions_api(name: str):
+    v = _vault_or_404(name)
+    from raven.core.contradiction import check_contradictions
+    return check_contradictions(v)
+
+
+class ResolveContradictionPayload(BaseModel):
+    source_slug: str
+    target_slug: str
+    relation_type: str
+    action: Literal["update_relation", "add_backlink"]
+    evidence: str = ""
+    reason: str = ""
+
+
+@app.post("/api/vaults/{name}/lint/contradictions/resolve")
+def resolve_contradiction_api(name: str, payload: ResolveContradictionPayload):
+    v = _vault_or_404(name)
+    from raven.mcp.tools import VaultContext, WRITE
+    from raven.mcp.tools.write import wiki_relation_add
+    ctx = VaultContext(vault=Path(v.root), mode=WRITE)
+    
+    src = payload.source_slug
+    tgt = payload.target_slug
+    rel_type = payload.relation_type
+    
+    if payload.action == "add_backlink":
+        src, tgt = tgt, src
+        if rel_type == "implements":
+            rel_type = "implemented_by"
+        elif rel_type == "implemented_by":
+            rel_type = "implements"
+            
+    result = wiki_relation_add(
+        source_slug=src,
+        target_slug=tgt,
+        relation_type=rel_type,
+        evidence=payload.evidence,
+        reason=payload.reason,
+        ctx=ctx,
+        actor="ai-contradiction-resolver"
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed to resolve contradiction"))
+    return result
+
+
+
 @app.get("/api/vaults/{name}/search")
 def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):
     v = _vault_or_404(name)

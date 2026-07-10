@@ -251,6 +251,36 @@ def register_tools(mcp: Any, mode: str) -> None:
         v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
         return query_rag(v, query)
 
+    # ─── 7.5.9. wiki_suggest_tags ───
+    @mcp.tool(
+        name="wiki_suggest_tags",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Suggest appropriate tags (up to 5) for a given page content by analyzing it against existing tags."
+        ),
+    )
+    def wiki_suggest_tags(vault: str, content: str, title: Optional[str] = None) -> dict:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.tagger import suggest_tags
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return suggest_tags(v, content=content, title=title)
+
+    # ─── 7.5.10. wiki_check_contradictions ───
+    @mcp.tool(
+        name="wiki_check_contradictions",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Detect logical contradictions or conflicts between related or adjacent pages in the vault."
+        ),
+    )
+    def wiki_check_contradictions(vault: str) -> dict:
+        from raven.core.vault import Vault
+        from raven.core.registry import VaultMeta
+        from raven.core.contradiction import check_contradictions
+        v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+        return check_contradictions(v)
+
     # ─── 7.6. wiki_relations_list ───
     @mcp.tool(
         name="wiki_relations_list",
