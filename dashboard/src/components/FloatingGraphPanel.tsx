@@ -262,6 +262,7 @@ export function FloatingGraphPanel({
             <GraphCanvas
               nodes={nodes}
               edges={edges}
+              focusNodeId={currentNodeId}
               persistentHighlightNodeId={currentNodeId}
               onFullscreen={handleOpenFull}
               onNodeClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}

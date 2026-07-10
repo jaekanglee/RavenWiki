@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  computeFocusDepthMap,
   computeLayeredLayout,
   nodeColor,
   nodeOpacity,
@@ -134,6 +135,27 @@ describe("GraphCanvas v0.6.11 Obsidian-style", () => {
       expect(coords["api"].x).toBeLessThan(coords["dashboard"].x);
       expect(coords["dashboard"].x).toBeCloseTo(coords["dashboard-2"].x, 5);
       expect(coords["dashboard"].y).not.toBe(coords["dashboard-2"].y);
+    });
+
+    it("focus depth map is BFS-based and caps traversal depth", () => {
+      const nodes = [
+        { id: "a", title: "A" },
+        { id: "b", title: "B" },
+        { id: "c", title: "C" },
+        { id: "d", title: "D" },
+      ];
+      const edges = [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+        { source: "c", target: "d" },
+      ];
+
+      const depthMap = computeFocusDepthMap(nodes as any, edges as any, "b", 1);
+
+      expect(depthMap.get("b")).toBe(0);
+      expect(depthMap.get("a")).toBe(1);
+      expect(depthMap.get("c")).toBe(1);
+      expect(depthMap.get("d")).toBeUndefined();
     });
   });
 });

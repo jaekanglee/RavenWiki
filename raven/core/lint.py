@@ -47,6 +47,7 @@ from typing import Optional
 
 from .vault import Vault
 from . import link as link_module
+from .relations import SEMANTIC_RELATION_TYPES, has_relation_evidence, has_relation_reason
 
 
 # vault lint defaults
@@ -1591,8 +1592,6 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
         base = slug.rsplit("/", 1)[-1]
         short_slug_map.setdefault(base, []).append(slug)
 
-    allowed_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
-
     relations_map = {}
     pages_meta = {}
 
@@ -1637,10 +1636,10 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
                     "#23", "warning", slug,
                     f"relations[{idx}] 항목에 'type' 필드가 누락되었거나 비어 있습니다.",
                 ))
-            elif rel_type not in allowed_types:
+            elif rel_type not in SEMANTIC_RELATION_TYPES:
                 out.append(_mk_issue(
                     "#23", "warning", slug,
-                    f"relations[{idx}] 항목의 관계 타입 '{rel_type}'은 허용되지 않습니다. (허용 목록: {', '.join(sorted(allowed_types))})",
+                    f"relations[{idx}] 항목의 관계 타입 '{rel_type}'은 허용되지 않습니다. (허용 목록: {', '.join(sorted(SEMANTIC_RELATION_TYPES))})",
                 ))
 
             if not target:
@@ -1683,20 +1682,7 @@ def check_semantic_relations(vault: Vault) -> list[dict]:
             evidence = rel.get("evidence")
             reason = rel.get("reason")
 
-            has_evidence = False
-            if evidence is not None:
-                if isinstance(evidence, list) and len(evidence) > 0:
-                    has_evidence = any(str(ev).strip() for ev in evidence)
-                elif isinstance(evidence, str) and evidence.strip():
-                    has_evidence = True
-                elif isinstance(evidence, (int, float)):
-                    has_evidence = True
-
-            has_reason = False
-            if reason is not None and str(reason).strip():
-                has_reason = True
-
-            if not has_evidence or not has_reason:
+            if not has_relation_evidence(evidence) or not has_relation_reason(reason):
                 out.append(_mk_issue(
                     "#23", "warning", slug,
                     f"관계 '{rel_type or 'unknown'} ➔ {target}'에 대한 evidence(근거) 또는 reason(이유)이 누락되었습니다.",

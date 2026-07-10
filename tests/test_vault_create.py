@@ -60,6 +60,9 @@ def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
     schema = (v.root / "_meta" / "agents" / "SCHEMA.md").read_text()
     assert "Source of Truth" in schema
     assert "wikilink" in schema.lower()
+    # Curation guidance is product documentation, not part of the Lite
+    # bootstrap surface. Keep the vault-facing contract at 2 files + log.md.
+    assert not (v.root / "_meta" / "agents" / "CURATION.md").exists()
 
 
 def test_bootstrap_does_not_copy_raven_internals(isolated_vaults_root, isolated_target):
@@ -136,6 +139,7 @@ def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
     result = v.sync_meta()  # lite=True default
     assert "_meta/agents/SCHEMA.md" in result["copied"]
     assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
+    assert "_meta/agents/CURATION.md" not in result["copied"]
     # log.md already exists (silent-write by Vault.create) → skipped, not copied
     assert "log.md" not in result["copied"]
     assert "log.md" in result["skipped"]

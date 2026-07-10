@@ -47,7 +47,7 @@ relations:
     target: non-existent-page  # Should remain 'non-existent-page' since it cannot be resolved
     confidence: medium
     verified_by: ai
-    evidence: []
+    evidence: ["manual"]
     reason: Inferred relationship.
 ---
 
@@ -95,5 +95,103 @@ Source content
         assert row_depends["confidence_provenance"] is None
         assert row_depends["verified_by"] == "ai"
         assert row_depends["reason"] == "Inferred relationship."
+    finally:
+        conn.close()
+
+
+def test_build_db_skips_invalid_frontmatter_relations(tmp_path: Path, monkeypatch) -> None:
+    reg_root = tmp_path / "registry"
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
+    vault = Vault.create("build-invalid-relations", tmp_path / "vault", bootstrap=False)
+    content_dir = vault.root / "content"
+    content_dir.mkdir(parents=True, exist_ok=True)
+
+    (content_dir / "target.md").write_text(
+        "---\ntitle: Target\ntype: concept\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nTarget\n",
+        encoding="utf-8",
+    )
+    (content_dir / "source.md").write_text(
+        """---
+title: Source
+type: concept
+created: 2026-01-01
+updated: 2026-01-01
+relations:
+  - type: invalid_type
+    target: target
+    evidence: ["manual"]
+    reason: Invalid relation type.
+  - type: uses
+    target: target
+    evidence: []
+    reason: Missing evidence.
+  - type: depends_on
+    target: target
+    evidence: ["manual"]
+    reason: ""
+  - type: related
+    target: target
+    evidence: ["manual"]
+    reason: Valid relation.
+---
+
+Source
+""",
+        encoding="utf-8",
+    )
+
+    result = db_module.build_db(vault, run_lint=False)
+    assert result["ok"] is True
+
+    conn = sqlite3.connect(str(result["db_path"]))
+    try:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT relation_type, evidence, reason FROM relations WHERE source_slug = 'content/source'"
+        ).fetchall()
+        assert [row["relation_type"] for row in rows] == ["related"]
+        assert json.loads(rows[0]["evidence"]) == ["manual"]
+        assert rows[0]["reason"] == "Valid relation."
+    finally:
+        conn.close()
+
+
+def test_build_db_pages_store_minimal_node_meta(tmp_path: Path, monkeypatch) -> None:
+    reg_root = tmp_path / "registry"
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
+    vault = Vault.create("build-node-meta", tmp_path / "vault", bootstrap=False)
+    content_dir = vault.root / "content" / "projects"
+    content_dir.mkdir(parents=True, exist_ok=True)
+    (content_dir / "raven.md").write_text(
+        """---
+title: Raven
+type: project
+created: 2026-01-01
+updated: 2026-01-01
+status: draft
+aliases:
+  - content/old-raven
+  - raven-old
+---
+
+Raven content
+""",
+        encoding="utf-8",
+    )
+
+    result = db_module.build_db(vault, run_lint=False)
+    assert result["ok"] is True
+
+    conn = sqlite3.connect(str(result["db_path"]))
+    try:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT slug, type, collection, status, aliases FROM pages WHERE slug = ?",
+            ("content/projects/raven",),
+        ).fetchone()
+        assert row is not None
+        assert row["collection"] == "content"
+        assert row["status"] == "draft"
+        assert json.loads(row["aliases"]) == ["content/old-raven", "raven-old"]
     finally:
         conn.close()

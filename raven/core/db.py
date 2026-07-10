@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Optional
 
 from .lock import lock_for_file
+from .node_meta import aliases_to_json, collection_for_slug, normalize_status
+from .relations import is_valid_relation_payload
 from .vault import Vault, resolve_active_vault
 
 
@@ -160,9 +162,12 @@ def db_schema_drift(vault: Vault) -> bool:
             ).fetchone()
             if fts_exists is None:
                 return True
-            # 4. pages table must have importance, centrality, community, layer, freshness columns.
+            # 4. pages table must have minimal node meta + analytics columns.
             pages_cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)").fetchall()}
-            if not {"importance", "centrality", "community", "layer", "freshness"}.issubset(pages_cols):
+            if not {
+                "collection", "status", "aliases",
+                "importance", "centrality", "community", "layer", "freshness",
+            }.issubset(pages_cols):
                 return True
             return False
         finally:
@@ -269,6 +274,9 @@ CREATE TABLE pages (
   contested INTEGER DEFAULT 0,
   content TEXT NOT NULL,
   raw_content TEXT NOT NULL,
+  collection TEXT NOT NULL DEFAULT 'root',
+  status TEXT NOT NULL DEFAULT 'current',
+  aliases TEXT NOT NULL DEFAULT '[]',
   importance REAL DEFAULT 0.0,
   centrality REAL DEFAULT 0.0,
   community INTEGER DEFAULT 0,
@@ -299,7 +307,10 @@ CREATE TABLE relations (
   evidence TEXT,
   reason TEXT,
   PRIMARY KEY (source_slug, target_slug, relation_type),
-  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
+  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE,
+  CHECK (relation_type IN ('uses', 'depends_on', 'implements', 'implemented_by', 'related')),
+  CHECK (evidence IS NOT NULL AND TRIM(evidence) != ''),
+  CHECK (reason IS NOT NULL AND TRIM(reason) != '')
 );
 CREATE INDEX idx_relations_target ON relations(target_slug);
 CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, tags_concat, content);
@@ -355,11 +366,16 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
         created = str(meta.get("created") or today)
         updated = str(meta.get("updated") or today)
         confidence = meta.get("confidence")
+        collection = collection_for_slug(slug)
+        status = normalize_status(meta.get("status"))
+        aliases = aliases_to_json(meta.get("aliases"))
         con.execute(
             "INSERT INTO pages (slug, title, type, created, updated, path, "
-            "confidence, content, raw_content) VALUES (?,?,?,?,?,?,?,?,?)",
+            "confidence, content, raw_content, collection, status, aliases) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (slug, title, ptype, created, updated, str(fp),
-             str(confidence) if confidence else None, body, text),
+             str(confidence) if confidence else None, body, text,
+             collection, status, aliases),
         )
         tags = meta.get("tags") or []
         if isinstance(tags, (list, tuple)):
@@ -377,12 +393,10 @@ def _inline_build(vault: Vault, db_path: Path) -> dict:
         if isinstance(relations, list):
             import json
             for rel in relations:
-                if not isinstance(rel, dict):
+                if not is_valid_relation_payload(rel):
                     continue
                 rel_type = rel.get("type")
-                target = rel.get("target")
-                if not rel_type or not target:
-                    continue
+                target = str(rel.get("target")).strip()
 
                 conf = rel.get("confidence")
                 conf_sem = None

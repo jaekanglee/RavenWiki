@@ -5,7 +5,7 @@ v3 합의안 4종 path 검증:
 - bare `*` ❌ (단, `*.md` ✅)
 - `..` ❌
 - 절대경로 ❌
-- content/ 또는 _ 시작
+- content/, raw/ 또는 _ 시작
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from raven.curator.schema import (
 
 def test_validate_path_simple():
     validate_path("content/harumoa")
+    validate_path("raw/articles")
     validate_path("_meta/log.md")
     validate_path("content/_system/llm-wiki.md")
 
@@ -71,7 +72,7 @@ def test_validate_path_rejects_absolute():
         validate_path("/etc/passwd")
 
 
-def test_validate_path_requires_content_or_underscore():
+def test_validate_path_requires_content_raw_or_underscore():
     with pytest.raises(CollectionsYamlError, match="must start with"):
         validate_path("etc/foo")
 

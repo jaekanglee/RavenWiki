@@ -217,6 +217,7 @@ useEffect(() => {
 * **린트 & 컴파일**:
   - `make typecheck`를 통한 backend 파이썬 타입 정합성 검증.
   - `npm run build` 또는 `npx tsc --noEmit`을 이용해 dashboard TypeScript 빌드 깨짐 없는지 검사.
+  - 2026-07-10: `GraphCanvas.tsx` cleanup을 `onRenderFramePre(null)`로 정리하고 `npm test -- --run tests/GraphCanvas.obsidian-style.test.ts` 경로에서 회귀 확인.
 
 ### Manual Verification
 * 대시보드 그래프 뷰어 줌 아웃 시 노드 텍스트가 사라지고 단순 텍스트 기반의 대분류 4개 폴더명 라벨이 은은하게 뜨는지 확인.

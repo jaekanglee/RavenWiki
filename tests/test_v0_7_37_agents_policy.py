@@ -17,9 +17,16 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from raven.core.contracts import write_page
 from raven.core.registry import VaultMeta
 from raven.core.vault import Vault
+
+
+@pytest.fixture(autouse=True)
+def isolated_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path / "registry"))
 
 
 # ────────────────────────── registry ──────────────────────────

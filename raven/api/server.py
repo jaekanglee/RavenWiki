@@ -919,6 +919,9 @@ def list_pages(
             "slug": slug,
             "title": meta.get("title", slug),
             "type": meta.get("type", "?"),
+            "collection": collection_for_slug(slug),
+            "status": normalize_status(meta.get("status")),
+            "aliases": normalize_aliases(meta.get("aliases")),
             "updated": meta.get("updated", ""),
         })
     return {"ok": True, "vault": name, "pages": rows}
@@ -941,6 +944,8 @@ from raven.core.graph import (
     save_user_positions as _save_user_positions,
     folder_group_for_slug as _folder_group_for_slug,
 )
+from raven.core.relations import SEMANTIC_RELATION_TYPES, is_valid_relation_payload
+from raven.core.node_meta import aliases_from_json, collection_for_slug, normalize_aliases, normalize_status
 
 
 @app.get("/api/vaults/{name}/graph")
@@ -981,7 +986,10 @@ def vault_graph(
             import sqlite3
             db = sqlite3.connect(str(wiki_db))
             db.row_factory = sqlite3.Row
-            pages = db.execute("SELECT slug, title, type, importance, centrality, community, layer, freshness, created, updated FROM pages").fetchall()
+            pages = db.execute(
+                "SELECT slug, title, type, collection, status, aliases, "
+                "importance, centrality, community, layer, freshness, created, updated FROM pages"
+            ).fetchall()
             # in-degree: target_slug별 들어오는 edge 수 (auto+broken 한정, missing 제외)
             in_deg_raw = db.execute(
                 "SELECT target_slug, COUNT(*) AS cnt FROM links "
@@ -994,6 +1002,9 @@ def vault_graph(
                     "slug": p["slug"],
                     "title": p["title"],
                     "type": p["type"],
+                    "collection": p["collection"],
+                    "status": p["status"],
+                    "aliases": aliases_from_json(p["aliases"]),
                     "weight": in_degree.get(p["slug"], 0),
                     "folder_group": _folder_group_for_slug(p["slug"])[0],
                     "folder_label": _folder_group_for_slug(p["slug"])[1],
@@ -1012,14 +1023,14 @@ def vault_graph(
             for node in nodes:
                 slug = node["slug"]
                 node_fp = v.root / f"{slug}.md"
-                status = None
+                status = node["status"]
                 issue_status = None
                 archived = False
                 if node_fp.exists():
                     try:
                         post = frontmatter.loads(node_fp.read_text(errors="replace"))
                         fm = post.metadata
-                        status = fm.get("status")
+                        status = normalize_status(fm.get("status"))
                         issue_status = fm.get("issue_status")
                         archived = bool(fm.get("archived", False))
                         if node["importance"] == 1.0 and "importance" in fm:
@@ -1110,11 +1121,10 @@ def vault_graph(
                                 src_node["broken_dependency"] = True
 
             # 5대 핵심 의미 관계에 더 높은 가중치(5.0) 부여
-            allowed_semantic_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
             edge_weights = []
             for e in edges:
                 rel_type = e.get("relation_type")
-                if rel_type in allowed_semantic_types:
+                if rel_type in SEMANTIC_RELATION_TYPES:
                     edge_weights.append(5.0)
                 else:
                     edge_weights.append(1.0)
@@ -1175,6 +1185,9 @@ def vault_graph(
             "slug": slug,
             "title": meta.get("title", slug),
             "type": meta.get("type", "?"),
+            "collection": collection_for_slug(slug),
+            "status": normalize_status(meta.get("status")),
+            "aliases": normalize_aliases(meta.get("aliases")),
             "folder_group": _folder_group_for_slug(slug)[0],
             "folder_label": _folder_group_for_slug(slug)[1],
         })
@@ -1195,12 +1208,10 @@ def vault_graph(
         relations = meta.get("relations") or []
         if isinstance(relations, list):
             for rel in relations:
-                if not isinstance(rel, dict):
+                if not is_valid_relation_payload(rel):
                     continue
                 rel_type = rel.get("type")
-                target = rel.get("target")
-                if not rel_type or not target:
-                    continue
+                target = str(rel.get("target")).strip()
                 
                 resolved_tgt = target
                 candidates = [n["id"] for n in nodes if n["id"] == target or n["id"].endswith("/" + target)]
@@ -1246,7 +1257,7 @@ def vault_graph(
         slug = node["slug"]
         node_fp = v.root / f"{slug}.md"
         importance = 1
-        status = None
+        status = node.get("status")
         issue_status = None
         archived = False
         if node_fp.exists():
@@ -1254,7 +1265,7 @@ def vault_graph(
                 post = frontmatter.loads(node_fp.read_text(errors="replace"))
                 fm = post.metadata
                 importance = int(fm.get("importance", 1))
-                status = fm.get("status")
+                status = normalize_status(fm.get("status"))
                 issue_status = fm.get("issue_status")
                 archived = bool(fm.get("archived", False))
             except Exception:
@@ -1289,11 +1300,10 @@ def vault_graph(
                         src_node["broken_dependency"] = True
 
     # 5대 핵심 의미 관계에 높은 가중치(5.0) 부여
-    allowed_semantic_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
     edge_weights = []
     for e in edges:
         rel_type = e.get("relation_type")
-        if rel_type in allowed_semantic_types:
+        if rel_type in SEMANTIC_RELATION_TYPES:
             edge_weights.append(5.0)
         else:
             edge_weights.append(1.0)

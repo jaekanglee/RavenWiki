@@ -5,12 +5,14 @@ import { PageView } from "../src/routes/PageView";
 
 const mocks = vi.hoisted(() => ({
   fetchPage: vi.fn(),
+  fetchRecommendations: vi.fn(),
   floatingPanel: vi.fn(),
   fullscreenModal: vi.fn(),
 }));
 
 vi.mock("../src/lib/api", () => ({
   fetchPage: mocks.fetchPage,
+  fetchRecommendations: mocks.fetchRecommendations,
   getActiveVault: () => "fallback-vault",
 }));
 
@@ -59,6 +61,8 @@ function OutletShell() {
 describe("PageView graph scope", () => {
   beforeEach(() => {
     mocks.fetchPage.mockReset();
+    mocks.fetchRecommendations.mockReset();
+    mocks.fetchRecommendations.mockResolvedValue({ ok: true, recommendations: [] });
     mocks.floatingPanel.mockReset();
     mocks.fullscreenModal.mockReset();
   });

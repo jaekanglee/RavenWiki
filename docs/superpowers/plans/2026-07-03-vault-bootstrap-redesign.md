@@ -602,7 +602,7 @@ Expected: `OPERATIONS.md` and `WELCOME.md` only
 - Modify: `raven/core/vault.py:306-358` (`_bootstrap_lite`)
 - Modify: `raven/core/vault.py:360-431` (`sync_meta`)
 
-- [ ] **Step 1: Update `_LITE_BOOTSTRAP_FILES`**
+- [x] **Step 1: Update `_LITE_BOOTSTRAP_FILES`**
 
 Old:
 ```python
@@ -624,7 +624,7 @@ _LITE_BOOTSTRAP_FILES = (
 )
 ```
 
-- [ ] **Step 2: Update `_bootstrap_lite()` docstring + template_map + dir setup**
+- [x] **Step 2: Update `_bootstrap_lite()` docstring + template_map + dir setup**
 
 Old (docstring + body):
 ```python
@@ -711,7 +711,7 @@ New:
         }
 ```
 
-- [ ] **Step 3: Update `sync_meta()`'s two duplicated `file_map` dicts and dir setup**
+- [x] **Step 3: Update `sync_meta()`'s two duplicated `file_map` dicts and dir setup**
 
 Old:
 ```python
