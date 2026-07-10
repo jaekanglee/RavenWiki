@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { GraphCanvas, typeLabel } from "../components/GraphCanvas";
+import { GraphCanvas, typeLabel, type GraphLayoutMode } from "../components/GraphCanvas";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import type { Graph, GraphNode } from "../types";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -119,7 +119,7 @@ export function GraphPage() {
   const [hoveredInsightType, setHoveredInsightType] = useState<string | null>(null);
   const [showFullGraph, setShowFullGraph] = useState(false);
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound" | "neighbors">("inbound");
-  const [layoutMode, setLayoutMode] = useState<"force" | "concentric" | "domain" | "timeline">("force");
+  const [layoutMode, setLayoutMode] = useState<GraphLayoutMode>("force");
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
@@ -278,14 +278,15 @@ export function GraphPage() {
       <SelectField
         label="레이아웃 모드"
         value={layoutMode}
-        onChange={(e) => setLayoutMode(e.target.value as any)}
+        onChange={(e) => setLayoutMode(e.target.value as GraphLayoutMode)}
         options={[
           { value: "force", label: "기본 (Force-Directed)" },
           { value: "concentric", label: "동심원 (Concentric)" },
           { value: "domain", label: "도메인 (Domain/Community)" },
           { value: "timeline", label: "타입별 타임라인 (Timeline)" },
+          { value: "layered", label: "레이어 깊이 (Layered)" },
         ]}
-        helper="지식의 관계 구조를 다각도로 분석하기 위한 대체 레이아웃 모드입니다."
+        helper="동심원은 선택 중심 거리, Layered는 계산된 논리 layer 깊이입니다."
       />
       <TextField
         label="문서 검색"

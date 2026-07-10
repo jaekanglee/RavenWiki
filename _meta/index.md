@@ -1,7 +1,7 @@
 ---
 title: Wiki Index
 created: 2026-06-25
-updated: 2026-07-01
+updated: 2026-07-10
 type: rule
 tags: [system, meta, index]
 sources: []
@@ -12,7 +12,7 @@ confidence: high
 
 > 코드베이스 자기 자신의 카탈로그. Raven은 사람 1차 local-first
 > Zettelkasten-inspired Markdown PKM이며, vault는 기본적으로 `~/Raven/<name>/`에 둔다.
-> 마지막 업데이트: 2026-07-01 (v0.7.x North Star + Lite bootstrap 표면 정렬)
+> 마지막 업데이트: 2026-07-10 (Semantic Relation Inference Plan 완료 상태 반영)
 
 ---
 
@@ -53,8 +53,8 @@ confidence: high
 - [[deployment]] — VPS + Tailscale 배포 절차
 - [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
 - [[setup-guide]] — 클린 설치 & 언인스톨 가이드
-- [[ai-roadmap]] — AI 활용 로드맵 (M3-M6) ✅ **완료** — 실질 SoT는 [[docs/superpowers/plans/semantic-relation-inference-plan]] 참조
-- [[docs/superpowers/plans/semantic-relation-inference-plan]] — **현재 진행 중 SoT** — Semantic Relation Inference Engine 단계별 MVP (Post-MVP Analytics 진행 중)
+- [[ai-roadmap]] — AI 활용 로드맵 (M3-M6) ✅ **완료** — 역사 기록용, 후속 그래프 분석 작업은 별도 계획서에서 관리
+- [[docs/superpowers/plans/semantic-relation-inference-plan]] — ✅ **완료된 SoT** — Semantic Relation Inference Engine 단계별 MVP 및 Post-MVP Analytics 종결 기록
 
 ### 최신 changelog
 - [[changelog-v0.7.163]] — Phase 10: AI 기반 관계 근거 확장, AI 진단 어드바이스 생성 및 도메인 뷰 대표 레이블 자동화

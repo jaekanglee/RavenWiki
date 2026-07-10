@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { nodeColor, nodeSize } from "../src/components/GraphCanvas";
+import {
+  computeLayeredLayout,
+  nodeColor,
+  nodeOpacity,
+  nodeSize,
+} from "../src/components/GraphCanvas";
 
 /**
  * v0.6.11 Graph B — Obsidian-style 신경망 그래프 회귀 가드.
@@ -104,6 +109,31 @@ describe("GraphCanvas v0.6.11 Obsidian-style", () => {
       expect(nodeColor("unknown-xyz")).toBe("#9ca3af");
       expect(nodeColor("")).toBe("#9ca3af");
       expect(nodeColor(undefined)).toBe("#9ca3af");
+    });
+  });
+
+  describe("Post-MVP analytics visual mapping", () => {
+    it("freshness는 opacity로 0.32~1.0 범위에 매핑된다", () => {
+      expect(nodeOpacity(undefined)).toBe(1);
+      expect(nodeOpacity(1)).toBeCloseTo(1, 5);
+      expect(nodeOpacity(0)).toBeCloseTo(0.32, 5);
+      expect(nodeOpacity(0.5)).toBeCloseTo(0.66, 5);
+      expect(nodeOpacity(-1)).toBeCloseTo(0.32, 5);
+      expect(nodeOpacity(2)).toBeCloseTo(1, 5);
+    });
+
+    it("layered 레이아웃은 낮은 layer를 더 왼쪽에 배치하고 같은 layer는 세로로 분산한다", () => {
+      const coords = computeLayeredLayout([
+        { id: "core", title: "Core", layer: 0, importance: 0.8 },
+        { id: "api", title: "API", layer: 1, importance: 0.6 },
+        { id: "dashboard", title: "Dashboard", layer: 2, importance: 0.4 },
+        { id: "dashboard-2", title: "Dashboard 2", layer: 2, importance: 0.2 },
+      ]);
+
+      expect(coords["core"].x).toBeLessThan(coords["api"].x);
+      expect(coords["api"].x).toBeLessThan(coords["dashboard"].x);
+      expect(coords["dashboard"].x).toBeCloseTo(coords["dashboard-2"].x, 5);
+      expect(coords["dashboard"].y).not.toBe(coords["dashboard-2"].y);
     });
   });
 });
