@@ -109,6 +109,39 @@ CORE_TAGS_FALLBACK = {
 }
 
 
+# ────────────────────────── 체크 레지스트리 (단일 소스, v0.8.1+) ──────────────────────────
+#
+# CLI(`raven lint summary`/`check`)와 API/대시보드가 각자 체크 이름·개수를
+# 하드코딩해 발생한 drift(대시보드 14개 vs 실제 23개)를 근본 해결하기 위한
+# 단일 소스. 새 check_* 함수를 추가할 때는 반드시 이 dict에도 등록할 것 —
+# tests/test_lint_check_registry.py가 누락을 감지한다.
+CHECK_REGISTRY: dict[str, dict] = {
+    "#1":  {"name": "깨진 위키링크", "fn": None},
+    "#2":  {"name": "깨진 의도 링크 오탐", "fn": None},
+    "#3":  {"name": "누락된 위키링크", "fn": None},
+    "#4":  {"name": "고아 문서", "fn": "check_orphans"},
+    "#5":  {"name": "모순 감지", "fn": "check_contradictions"},
+    "#6":  {"name": "신뢰도 낮음", "fn": "check_confidence_low"},
+    "#7":  {"name": "오래된 문서", "fn": "check_stale"},
+    "#8":  {"name": "문서 길이 초과", "fn": "check_page_size"},
+    "#9":  {"name": "핵심 분류 밖 태그", "fn": "check_tag_audit"},
+    "#10": {"name": "frontmatter 완전성", "fn": "check_frontmatter_completeness"},
+    "#11": {"name": "index 완전성", "fn": "check_index_completeness"},
+    "#12": {"name": "로그 크기 과다", "fn": "check_log_size"},
+    "#13": {"name": "인지 거버넌스", "fn": "check_cognitive_governance"},
+    "#14": {"name": "계층 무결성", "fn": "check_tier_integrity"},
+    "#15": {"name": "slug-title 매칭", "fn": "check_slug_title_1to1"},
+    "#16": {"name": "vault 성장률 이상", "fn": "check_vault_growth_rate"},
+    "#17": {"name": "중복 제목 후보", "fn": "check_duplicate_title"},
+    "#18": {"name": "감사 위반 패턴", "fn": "check_audit_violation_pattern"},
+    "#19": {"name": "가이드 최신성", "fn": "check_guide_freshness"},
+    "#20": {"name": "플레이스홀더 텍스트", "fn": "check_placeholder_text"},
+    "#21": {"name": "맥락 없는 위키링크", "fn": "check_contextless_wikilinks"},
+    "#22": {"name": "저널 요약 완전성", "fn": "check_journal_summary_completeness"},
+    "#23": {"name": "의미 관계 무결성", "fn": "check_semantic_relations"},
+}
+
+
 # ────────────────────────── 데이터 구조 ──────────────────────────
 
 
@@ -1160,6 +1193,7 @@ def run_all(vault: Vault) -> dict:
         "counts": counts,
         "issues": issues,
         "by_check": by_check,
+        "checks": {cid: meta["name"] for cid, meta in CHECK_REGISTRY.items()},
         # `wiki_lint`/run_all is intentionally read-only. Historical versions
         # auto-promoted stale draft issues here; keep the response key for
         # compatibility but do not mutate vault files from the linter path.
