@@ -28,8 +28,10 @@ interface Props {
   onSaved: () => void;
 }
 
-// ── 단일 태그 pill ──────────────────────────────────────────────────────────
-function TagPill({ tag, onRemove }: { tag: string; onRemove: () => void }) {
+// ── 단일 pill (tags/aliases 공용) ────────────────────────────────────────────
+function Pill({ text, prefix = "", removeLabel, onRemove }: {
+  text: string; prefix?: string; removeLabel: string; onRemove: () => void;
+}) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
@@ -37,10 +39,10 @@ function TagPill({ tag, onRemove }: { tag: string; onRemove: () => void }) {
       background: "rgba(99,102,241,0.12)", color: "var(--color-primary)",
       border: "1px solid rgba(99,102,241,0.25)",
     }}>
-      #{tag}
+      {prefix}{text}
       <button
         type="button"
-        aria-label={`태그 ${tag} 제거`}
+        aria-label={removeLabel}
         onClick={onRemove}
         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1, color: "var(--color-muted)", fontSize: 13 }}
       >×</button>
@@ -64,6 +66,11 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
 
+  // ── aliases ────────────────────────────────────────────────────────────────
+  const [aliases, setAliases] = useState<string[]>(() => page.aliases || []);
+  const [aliasInput, setAliasInput] = useState("");
+  const [aliasSaving, setAliasSaving] = useState(false);
+
   // ── relation 연결 ──────────────────────────────────────────────────────────
   const [relQuery, setRelQuery] = useState("");
   const [relType, setRelType] = useState<string>("references");
@@ -76,20 +83,23 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
   useEffect(() => {
     setType(page.type || "concept");
     setTags((page.tags || "").split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean));
+    setAliases(page.aliases || []);
   }, [page.slug]);
 
   // ── 저장 헬퍼 ─────────────────────────────────────────────────────────────
-  const save = useCallback(async (patch: { type?: string; tags?: string[] }) => {
+  const save = useCallback(async (patch: { type?: string; tags?: string[]; aliases?: string[] }) => {
     const tagArray = patch.tags ?? tags;
     const pageType = patch.type ?? type;
+    const aliasArray = patch.aliases ?? aliases;
     await updatePage(vault, page.slug, {
       content: page.content,
       title: page.title,
       type: pageType,
       tags: tagArray,
+      extra_meta: { aliases: aliasArray },
     });
     onSaved();
-  }, [vault, page, type, tags, onSaved]);
+  }, [vault, page, type, tags, aliases, onSaved]);
 
   // ── type 변경 즉시 저장 ───────────────────────────────────────────────────
   async function handleTypeChange(newType: string) {
@@ -115,6 +125,25 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
     setTags(next);
     setTagSaving(true);
     try { await save({ tags: next }); } catch {} finally { setTagSaving(false); }
+  }
+
+  // ── alias 추가 ─────────────────────────────────────────────────────────────
+  async function handleAddAlias() {
+    const a = aliasInput.trim();
+    if (!a || aliases.includes(a)) { setAliasInput(""); return; }
+    const next = [...aliases, a];
+    setAliases(next);
+    setAliasInput("");
+    setAliasSaving(true);
+    try { await save({ aliases: next }); } catch {} finally { setAliasSaving(false); }
+  }
+
+  // ── alias 삭제 ─────────────────────────────────────────────────────────────
+  async function handleRemoveAlias(alias: string) {
+    const next = aliases.filter(a => a !== alias);
+    setAliases(next);
+    setAliasSaving(true);
+    try { await save({ aliases: next }); } catch {} finally { setAliasSaving(false); }
   }
 
   // ── relation 추가 ─────────────────────────────────────────────────────────
@@ -194,7 +223,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
           <Row label="tags" saving={tagSaving}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
               {tags.map(t => (
-                <TagPill key={t} tag={t} onRemove={() => handleRemoveTag(t)} />
+                <Pill key={t} text={t} prefix="#" removeLabel={`태그 ${t} 제거`} onRemove={() => handleRemoveTag(t)} />
               ))}
               <div style={{ display: "flex", gap: 4 }}>
                 <input
@@ -213,6 +242,39 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
                 <button
                   type="button"
                   onClick={handleAddTag}
+                  style={{
+                    fontSize: 12, padding: "3px 8px", borderRadius: 6,
+                    background: "var(--color-primary)", color: "#fff",
+                    border: "none", cursor: "pointer", fontWeight: 600,
+                  }}
+                >+</button>
+              </div>
+            </div>
+          </Row>
+
+          {/* Aliases */}
+          <Row label="aliases" saving={aliasSaving}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+              {aliases.map(a => (
+                <Pill key={a} text={a} removeLabel={`별칭 ${a} 제거`} onRemove={() => handleRemoveAlias(a)} />
+              ))}
+              <div style={{ display: "flex", gap: 4 }}>
+                <input
+                  type="text"
+                  value={aliasInput}
+                  onChange={e => setAliasInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddAlias(); } }}
+                  placeholder="별칭 추가..."
+                  style={{
+                    fontSize: 12, padding: "3px 8px", borderRadius: 6,
+                    border: "1px solid var(--color-hairline)",
+                    background: "var(--bg-surface)", color: "var(--color-ink)",
+                    width: 90, outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddAlias}
                   style={{
                     fontSize: 12, padding: "3px 8px", borderRadius: 6,
                     background: "var(--color-primary)", color: "#fff",
