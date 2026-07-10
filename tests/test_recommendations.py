@@ -58,8 +58,14 @@ type: concept
 relations:
   - type: uses
     target: page-a
+    evidence:
+      - test fixture
+    reason: Page Y uses Page A in this recommendation fixture.
   - type: depends_on
     target: page-b
+    evidence:
+      - test fixture
+    reason: Page Y depends on Page B in this recommendation fixture.
 ---
 Y content
 """, encoding="utf-8"
@@ -73,8 +79,14 @@ type: concept
 relations:
   - type: implements
     target: page-a
+    evidence:
+      - test fixture
+    reason: Page Y2 implements Page A in this recommendation fixture.
   - type: uses
     target: page-b
+    evidence:
+      - test fixture
+    reason: Page Y2 uses Page B in this recommendation fixture.
 ---
 Y2 content
 """, encoding="utf-8"

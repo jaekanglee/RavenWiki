@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 _LITE_BOOTSTRAP_FILES = (
     "_meta/agents/SCHEMA.md",
     "_meta/agents/PROJECT-WORKFLOW.md",
-    "_meta/agents/CURATION.md",
     "log.md",
 )
 
@@ -351,7 +350,6 @@ class Vault:
         template_map = {
             "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
             "_meta/agents/PROJECT-WORKFLOW.md":  "templates/agent/PROJECT-WORKFLOW.md",
-            "_meta/agents/CURATION.md":          "templates/agent/CURATION.md",
             "log.md":                            "templates/log.md",
         }
 
@@ -401,7 +399,6 @@ class Vault:
         file_map = {
             "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
             "_meta/agents/PROJECT-WORKFLOW.md":  "templates/agent/PROJECT-WORKFLOW.md",
-            "_meta/agents/CURATION.md":          "templates/agent/CURATION.md",
             "log.md":                            "templates/log.md",
         }
         if not lite and not force:

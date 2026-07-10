@@ -86,7 +86,6 @@ def test_lite_bootstrap_files_size_matches_documented_whitelist():
     canonical_lite = {
         "_meta/agents/SCHEMA.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
-        "_meta/agents/CURATION.md",
         "log.md",
     }
     # Every entry in the whitelist must be in the canonical Lite set
@@ -208,7 +207,6 @@ def test_bootstrap_path_constants_use_user_surface_dirs():
     allowed_files = {
         "_meta/agents/SCHEMA.md",
         "_meta/agents/PROJECT-WORKFLOW.md",
-        "_meta/agents/CURATION.md",
         "log.md",
     }
     for path in _LITE_BOOTSTRAP_FILES:

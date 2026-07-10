@@ -1069,3 +1069,39 @@ I am target.
     assert edge["evidence"] == ["auth_code"]
     assert edge["reason"] == "Uses auth"
 
+
+def test_api_vault_graph_nodes_include_minimal_node_meta(client, isolated_env):
+    target = isolated_env["target_root"] / "gv_node_meta"
+    client.post("/api/vaults", json={
+        "name": "gv_node_meta", "path": str(target), "bootstrap": False,
+    })
+    page = target / "content" / "projects" / "raven.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(
+        """---
+title: Raven
+type: project
+created: 2026-07-10
+updated: 2026-07-10
+status: draft
+aliases:
+  - content/old-raven
+---
+
+Raven content.
+""",
+        encoding="utf-8",
+    )
+
+    build_resp = client.post("/api/vaults/gv_node_meta/build")
+    assert build_resp.status_code == 200
+
+    graph_resp = client.get("/api/vaults/gv_node_meta/graph")
+    assert graph_resp.status_code == 200
+    nodes = {node["id"]: node for node in graph_resp.json()["nodes"]}
+    node = nodes["content/projects/raven"]
+    assert node["slug"] == "content/projects/raven"
+    assert node["type"] == "project"
+    assert node["collection"] == "content"
+    assert node["status"] == "draft"
+    assert node["aliases"] == ["content/old-raven"]

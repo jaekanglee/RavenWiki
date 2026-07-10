@@ -974,12 +974,18 @@ def wiki_relation_add(
     ctx = ctx or VaultContext(vault=db._default_vault())
     ctx.require("wiki_relation_add")
 
+    from raven.core.relations import (
+        SEMANTIC_RELATION_TYPES,
+        has_relation_evidence,
+        has_relation_reason,
+        is_valid_relation_type,
+    )
+
     # input validation
-    allowed_types = {"uses", "depends_on", "implements", "implemented_by", "related"}
-    if relation_type not in allowed_types:
+    if not is_valid_relation_type(relation_type):
         return {
             "ok": False,
-            "message": f"Invalid relation type '{relation_type}'. Allowed: {', '.join(sorted(allowed_types))}",
+            "message": f"Invalid relation type '{relation_type}'. Allowed: {', '.join(sorted(SEMANTIC_RELATION_TYPES))}",
             "actor": normalize_actor(actor),
             "idempotency_key": idempotency_key,
             "timestamp": now_iso(),
@@ -1086,8 +1092,8 @@ def wiki_relation_add(
         }
 
     # Auto inference of evidence and reason if missing/empty for uses or depends_on relations
-    is_ev_empty = not evidence or (isinstance(evidence, list) and len(evidence) == 0)
-    is_re_empty = not reason or not reason.strip()
+    is_ev_empty = not has_relation_evidence(evidence)
+    is_re_empty = not has_relation_reason(reason)
 
     if (is_ev_empty or is_re_empty) and relation_type in {"uses", "depends_on"}:
         target_content = ""
@@ -1120,7 +1126,7 @@ def wiki_relation_add(
             reason = auto_re
 
     # final validation checks
-    if not evidence or (isinstance(evidence, list) and len(evidence) == 0):
+    if not has_relation_evidence(evidence):
         return {
             "ok": False,
             "message": "evidence is required and cannot be empty",
@@ -1129,7 +1135,7 @@ def wiki_relation_add(
             "timestamp": now_iso(),
             "error": "evidence_required",
         }
-    if not reason or not reason.strip():
+    if not has_relation_reason(reason):
         return {
             "ok": False,
             "message": "reason is required and cannot be empty",

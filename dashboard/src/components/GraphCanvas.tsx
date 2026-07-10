@@ -5,6 +5,8 @@ import type { GraphNode, GraphEdge } from "../types";
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** 중심 깊이/레이어 계산의 기준이 되는 노드 ID. */
+  focusNodeId?: string | null;
   /** hover/click 시 선택 노드 메타를 상위 UI에 전달 */
   onNodeInspect?: (node: GraphNode) => void;
   /** single click — 데스크탑 전용 (페이지 이동) */
@@ -126,6 +128,50 @@ export function nodeOpacity(freshness: number | null | undefined): number {
   if (typeof freshness !== "number" || Number.isNaN(freshness)) return 1;
   const normalized = Math.max(0, Math.min(freshness, 1));
   return 0.32 + normalized * 0.68;
+}
+
+export function computeFocusDepthMap(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  focusNodeId?: string | null,
+  maxDepth = 3
+): Map<string, number> {
+  const focusId = focusNodeId?.trim();
+  if (!focusId) return new Map();
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  if (!nodeIds.has(focusId)) return new Map();
+
+  const adjacency = new Map<string, Set<string>>();
+  const addEdge = (source: string, target: string) => {
+    if (!nodeIds.has(source) || !nodeIds.has(target)) return;
+    if (!adjacency.has(source)) adjacency.set(source, new Set());
+    if (!adjacency.has(target)) adjacency.set(target, new Set());
+    adjacency.get(source)?.add(target);
+    adjacency.get(target)?.add(source);
+  };
+
+  for (const edge of edges) {
+    addEdge(String(edge.source), String(edge.target));
+  }
+
+  const depthMap = new Map<string, number>();
+  const queue: Array<{ id: string; depth: number }> = [{ id: focusId, depth: 0 }];
+  depthMap.set(focusId, 0);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || current.depth >= maxDepth) continue;
+    const neighbors = adjacency.get(current.id);
+    if (!neighbors) continue;
+    for (const nextId of neighbors) {
+      if (depthMap.has(nextId)) continue;
+      const nextDepth = current.depth + 1;
+      depthMap.set(nextId, nextDepth);
+      queue.push({ id: nextId, depth: nextDepth });
+    }
+  }
+
+  return depthMap;
 }
 
 export function computeLayeredLayout(nodes: GraphNode[]): Record<string, { x: number; y: number }> {
@@ -306,6 +352,7 @@ const NODE_LABEL_BASE_SIZE = 11.4;
 export function GraphCanvas({
   nodes,
   edges,
+  focusNodeId,
   onNodeInspect,
   onNodeClick,
   onNodeDoubleClick,
@@ -354,6 +401,10 @@ export function GraphCanvas({
   const resolvedNodeOutlineRef = useRef<string>("rgba(226, 232, 240, 0.28)");
   const resolvedEdgeColorRef = useRef<string>("rgba(148, 163, 184, 0.38)");
   const resolvedEdgeHighlightRef = useRef<string>("rgba(196, 181, 253, 0.94)");
+  const focusDepthMap = useMemo(
+    () => computeFocusDepthMap(nodes, edges, focusNodeId),
+    [nodes, edges, focusNodeId]
+  );
 
   // DOM Container 변경 및 테마 변경 시 Computed Style 캐싱
   useEffect(() => {
@@ -440,7 +491,9 @@ export function GraphCanvas({
     // 강제 덮어쓰고 우측 하단으로 노드들을 끌어당기는 현상을 원천 차단.
     // charge 및 link 힘은 살려두어, 좌표가 고정되지 않은 신규 노드들이 겹치지 않고 흩어지도록 구성.
     graph.d3Force("center", null);
-    graph.cooldownTime(0); // 물리 애니메이션 냉각 단축
+    // 드래그 직후 연결 노드가 자연스럽게 안정화할 짧은 시간은 남긴다.
+    // 0ms면 native drag가 reset한 simulation이 첫 tick 전에 멈출 수 있다.
+    graph.cooldownTime(600);
 
     // 인터랙션 기본 설정
     graph.enableZoomInteraction(true);
@@ -479,14 +532,30 @@ export function GraphCanvas({
         const hasPos = typeof n.x === "number" && typeof n.y === "number";
         const scaledX = hasPos ? (n.x as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
         const scaledY = hasPos ? (n.y as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
+        const focusDepth = focusDepthMap.get(n.id);
+        const depthRank = typeof focusDepth === "number" ? focusDepth : Number.POSITIVE_INFINITY;
         return {
           ...n,
           x: scaledX,
           y: scaledY,
           fx: hasPos ? scaledX : undefined,
           fy: hasPos ? scaledY : undefined,
+          __focusDepth: focusDepth,
+          __focusDepthRank: depthRank,
         };
       });
+      if (focusDepthMap.size > 0) {
+        formattedNodes.sort((a: any, b: any) => {
+          const depthA = typeof a.__focusDepthRank === "number" ? a.__focusDepthRank : Number.POSITIVE_INFINITY;
+          const depthB = typeof b.__focusDepthRank === "number" ? b.__focusDepthRank : Number.POSITIVE_INFINITY;
+          if (depthA !== depthB) return depthB - depthA;
+          const importanceDiff = (b.importance ?? 0) - (a.importance ?? 0);
+          if (importanceDiff !== 0) return importanceDiff;
+          const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
+          if (weightDiff !== 0) return weightDiff;
+          return String(a.id).localeCompare(String(b.id));
+        });
+      }
     } else if (layoutMode === "concentric") {
       // 1) Concentric View: 특정 노드(또는 중요도가 가장 높은 노드)를 중심으로 N촌 동심원 배치
       const centerId =
@@ -775,11 +844,9 @@ export function GraphCanvas({
     // pan/zoom 위치와 클릭 상태가 보존된다.
     recomputeHighlights(hoveredNodeRef.current, externalHighlightNodeId, edges);
 
-    // 드래그 제어
-    // v0.7.139+: 노드 드래그 완전 비활성화 — 모바일/터치패드에서 살짝만 손가락이 움직여도
-    // force-graph이 drag로 인식해서 click이 무시되는 버그 방지. dense 모드는 이전부터 off.
-    // 사용자가 위치를 미세 조정하고 싶을 땐 '배치 초기화' 버튼으로 force-directed 재배치.
-    graph.enableNodeDrag(false);
+    // force layout에서만 드래그를 열어 노드 위치를 직접 조정할 수 있게 한다.
+    // force-graph native drag가 fx/fy와 simulation reheat를 직접 처리한다.
+    graph.enableNodeDrag(layoutMode === "force");
 
     // 이벤트 리스너 바인딩
     graph
@@ -798,6 +865,8 @@ export function GraphCanvas({
         }
       })
       .onNodeDragEnd((node: any) => {
+        if (layoutMode !== "force") return;
+        if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
         node.fx = node.x;
         node.fy = node.y;
         onPositionsChange?.({
@@ -1081,6 +1150,15 @@ export function GraphCanvas({
       if (!node || node.x === undefined || node.y === undefined) return;
       const scale = globalScale || 1;
       const size = nodeSize(node.weight, isDense ? "dense" : "normal", node.importance, nodes.length);
+      const focusDepth =
+        typeof node.__focusDepth === "number"
+          ? node.__focusDepth
+          : focusDepthMap.get(node.id);
+      const depthMultiplier =
+        typeof focusDepth === "number"
+          ? Math.max(0.68, 1 - focusDepth * 0.12)
+          : (focusDepthMap.size > 0 ? 0.88 : 1);
+      const renderedSize = size * depthMultiplier;
       // v0.7.139+: ref로 최신 hover state를 매 paint call에서 읽는다 (effect 재실행 없음).
       const currentHover = hoveredNodeRef.current;
       const isHovered = currentHover && currentHover.id === node.id;
@@ -1094,15 +1172,20 @@ export function GraphCanvas({
       // force-graph의 `nodeVal/nodeRelSize` 자동 보정에 의존하지 않으므로
       // baseSize를 zoom-out에서도 가독성 있게 키웠다 (옛 공식 대비 1.7~2배).
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
+      ctx.arc(node.x, node.y, renderedSize, 0, 2 * Math.PI, false);
 
       // 흐릿한 비포커스 처리
       const hasFocusActive = externalHighlightNodeId || currentHover || externalHighlightType;
       const baseAlpha = hasFocusActive && !isFocused && !isHighlighted
         ? fillOpacity * 0.28
         : fillOpacity;
+      const depthAlpha = typeof focusDepth === "number"
+        ? Math.max(0.28, 1 - focusDepth * 0.18)
+        : (focusDepthMap.size > 0 ? 0.72 : 1);
       ctx.fillStyle = hexToRgba(nodeColor(node.type), baseAlpha);
+      ctx.globalAlpha = depthAlpha;
       ctx.fill();
+      ctx.globalAlpha = 1;
 
       // 테두리 선 굵기 및 스타일을 centrality에 매핑
       let borderThickness = isFocused ? 2 : 0.8;
@@ -1127,7 +1210,7 @@ export function GraphCanvas({
       // 이중 링 효과 (focused)
       if (isFocused) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 2.5 / scale, 0, 2 * Math.PI, false);
+        ctx.arc(node.x, node.y, renderedSize + 2.5 / scale, 0, 2 * Math.PI, false);
         ctx.strokeStyle = resolvedEdgeHighlightRef.current;
         ctx.lineWidth = 0.8 / scale;
         ctx.stroke();
@@ -1136,7 +1219,7 @@ export function GraphCanvas({
       // 붉은색 경고 Halo 효과 (Broken Dependency Alert)
       if (node.broken_dependency) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, size + 4.5 / scale, 0, 2 * Math.PI, false);
+        ctx.arc(node.x, node.y, renderedSize + 4.5 / scale, 0, 2 * Math.PI, false);
         ctx.strokeStyle = "rgba(239, 68, 68, 0.75)";
         ctx.lineWidth = 2.5 / scale;
         ctx.stroke();
@@ -1162,9 +1245,9 @@ export function GraphCanvas({
 
         // v0.7.146 (B): zoom-out에서 라벨이 노드 안에 박혀서 깨짐 → 노드 옆으로 오프셋.
         // zoom-in (scale > 1.5) 이하면 라벨을 노드 오른쪽으로 띄움.
-        const labelOffsetX = scale < 1.5 ? (size + 8) / scale : 0;
+        const labelOffsetX = scale < 1.5 ? (renderedSize + 8) / scale : 0;
         const labelX = node.x + labelOffsetX;
-        const labelY = node.y + size + 3.8 / scale;
+        const labelY = node.y + renderedSize + 3.8 / scale;
 
         // No text outline: small canvas labels became fat/blurry with halo strokes.
         // Rely on theme-resolved high-contrast label color instead.
@@ -1179,8 +1262,13 @@ export function GraphCanvas({
       .nodePointerAreaPaint((node: any, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
         if (!node || node.x === undefined || node.y === undefined) return;
         const scale = globalScale || 1;
+        const focusDepth = focusDepthMap.get(node.id);
+        const depthMultiplier =
+          typeof focusDepth === "number"
+            ? Math.max(0.68, 1 - focusDepth * 0.12)
+            : (focusDepthMap.size > 0 ? 0.88 : 1);
         const hitRadius = Math.max(
-          nodeSize(node.weight, isDense ? "dense" : "normal") * DIRECT_HIT_NODE_RADIUS_MULTIPLIER,
+          nodeSize(node.weight, isDense ? "dense" : "normal") * depthMultiplier * DIRECT_HIT_NODE_RADIUS_MULTIPLIER,
           DIRECT_MOUSE_HIT_RADIUS_PX / scale
         );
         ctx.fillStyle = color;
@@ -1552,7 +1640,7 @@ export function GraphCanvas({
       container?.removeEventListener("touchend", handleTouchEnd);
       container?.removeEventListener("touchcancel", handleTouchCancel);
       if (graphInstanceRef.current) {
-        graphInstanceRef.current.onRenderFramePre(() => {});
+        graphInstanceRef.current.onRenderFramePre(null);
       }
     };
   }, [

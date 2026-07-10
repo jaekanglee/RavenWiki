@@ -310,10 +310,11 @@ useEffect(() => {
 ### Automated Tests
 * `npm run build` 또는 `npx tsc --noEmit`을 통해 React 컴파일 에러 유무 확인.
 * `vitest --run GraphPage` 실행으로 리액트 라우팅 및 렌더링 회귀 검사.
+  - 2026-07-10: `dashboard/tests/GraphPage.detail-panel.test.tsx` 추가 및 `npm test -- --run tests/GraphPage.detail-panel.test.tsx tests/PageView.graph-scope.test.tsx tests/GraphCanvas.obsidian-style.test.ts` 통과.
 
 ### Manual Verification
 1. 대시보드를 띄우고 그래프 페이지 진입.
-2. 데스크탑 창 크기 및 크롬 개발자 도구의 **모바일 디바이스 뷰포트(iPhone, Galaxy 등 375px~430px)**에서 정상 렌더링 여부 점검.
-3. 모바일 뷰에서도 "참조됨/참조함/관련" 탭 버튼 3개가 가로로 가지런히 1행 배치되며, 각 터치 영역이 정상 기능하는지 검사.
-4. 모바일 뷰에서 툴바 버튼들이 50%씩 균등 배분되는지 확인.
-5. 탭 변경에 따라 상세 내용 스크롤뷰가 캔버스 아래 영역을 침범하지 않고 정상적으로 내부 스크롤되는지 검증.
+2. 데스크탑 창 크기 및 크롬 개발자 도구의 **모바일 디바이스 뷰포트(iPhone, Galaxy 등 375px~430px)**에서 정상 렌더링 여부 점검. (2026-07-10: 사용자 지시로 실제 화면/브라우저 검증은 미실행, 코드 테스트만 수행)
+3. 모바일 뷰에서도 "참조됨/참조함/관련" 탭 버튼 3개가 가로로 가지런히 1행 배치되며, 각 터치 영역이 정상 기능하는지 검사. (미실행)
+4. 모바일 뷰에서 툴바 버튼들이 50%씩 균등 배분되는지 확인. (미실행)
+5. 탭 변경에 따라 상세 내용 스크롤뷰가 캔버스 아래 영역을 침범하지 않고 정상적으로 내부 스크롤되는지 검증. (미실행)

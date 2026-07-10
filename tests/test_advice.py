@@ -53,8 +53,14 @@ type: concept
 relations:
   - type: uses
     target: content/backend/auth
+    evidence:
+      - test fixture
+    reason: Bridge page uses the backend auth module.
   - type: depends_on
     target: content/frontend/ui
+    evidence:
+      - test fixture
+    reason: Bridge page depends on the frontend UI component.
 ---
 Bridge
 """, encoding="utf-8"

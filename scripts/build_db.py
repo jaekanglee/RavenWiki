@@ -19,7 +19,12 @@ import sys
 from pathlib import Path
 from typing import Iterable, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import frontmatter
+
+from raven.core.relations import is_valid_relation_payload
+from raven.core.node_meta import aliases_to_json, collection_for_slug, normalize_status
 
 # ─────────────────────────── constants ──────────────────────────────
 
@@ -46,6 +51,9 @@ CREATE TABLE pages (
   contested INTEGER DEFAULT 0,
   content TEXT NOT NULL,
   raw_content TEXT NOT NULL,
+  collection TEXT NOT NULL DEFAULT 'root',
+  status TEXT NOT NULL DEFAULT 'current',
+  aliases TEXT NOT NULL DEFAULT '[]',
   importance REAL DEFAULT 0.0,
   centrality REAL DEFAULT 0.0,
   community INTEGER DEFAULT 0,
@@ -82,7 +90,10 @@ CREATE TABLE relations (
   evidence TEXT,
   reason TEXT,
   PRIMARY KEY (source_slug, target_slug, relation_type),
-  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE
+  FOREIGN KEY (source_slug) REFERENCES pages(slug) ON DELETE CASCADE,
+  CHECK (relation_type IN ('uses', 'depends_on', 'implements', 'implemented_by', 'related')),
+  CHECK (evidence IS NOT NULL AND TRIM(evidence) != ''),
+  CHECK (reason IS NOT NULL AND TRIM(reason) != '')
 );
 CREATE INDEX idx_relations_target ON relations(target_slug);
 
@@ -195,6 +206,9 @@ def parse_page(md_path: Path, vault: Path) -> dict:
         "contested": contested,
         "content": body.strip(),
         "raw_content": raw,
+        "collection": collection_for_slug(slug),
+        "status": normalize_status(fm.get("status")),
+        "aliases": aliases_to_json(fm.get("aliases")),
         "tags": list(fm.get("tags") or []),
         "relations": list(fm.get("relations") or []),
     }
@@ -273,9 +287,11 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
             page = parse_page(md_path, vault)
             conn.execute(
                 """INSERT INTO pages (slug, title, type, created, updated, path,
-                                      confidence, contested, content, raw_content)
+                                      confidence, contested, content, raw_content,
+                                      collection, status, aliases)
                    VALUES (:slug, :title, :type, :created, :updated, :path,
-                           :confidence, :contested, :content, :raw_content)""",
+                           :confidence, :contested, :content, :raw_content,
+                           :collection, :status, :aliases)""",
                 {**page, "tags": None, "relations": None},  # tags & relations not columns
             )
             n_pages += 1
@@ -292,12 +308,10 @@ def build_db(vault: Path, db_path: Path) -> tuple[int, int, int]:
 
             import json
             for rel in page["relations"]:
-                if not isinstance(rel, dict):
+                if not is_valid_relation_payload(rel):
                     continue
                 rel_type = rel.get("type")
-                target = rel.get("target")
-                if not rel_type or not target:
-                    continue
+                target = str(rel.get("target")).strip()
 
                 conf = rel.get("confidence")
                 conf_sem = None

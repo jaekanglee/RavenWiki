@@ -19,6 +19,15 @@ import {
   type GraphNodeDetail,
 } from "../lib/graph/derive";
 
+const RELATION_HELPERS = [
+  { value: "wikilink", title: "일반 링크", description: "문장/문맥 중심의 기본 연결" },
+  { value: "uses", title: "Uses", description: "이 문서가 다른 문서를 사용함" },
+  { value: "depends_on", title: "Depends on", description: "이 문서가 선행 문서에 의존함" },
+  { value: "implements", title: "Implements", description: "이 문서가 개념이나 설계를 구현함" },
+  { value: "implemented_by", title: "Implemented by", description: "이 문서가 구현체로 실현됨" },
+  { value: "related", title: "Related", description: "명시적 의존은 아니지만 맥락적으로 연관됨" },
+] as const;
+
 // v0.7.125+: 외부 호환을 위해 re-export. 기존 import 경로 보존하면서
 // lib/graph/derive.ts가 단일 source of truth.
 export {
@@ -274,79 +283,69 @@ export function GraphPage() {
 
   const controlsSection = (
     <div className="graph-page-control-grid">
-      {/* v0.7.144+: 범위 SelectField 제거 — all-scope 모드 종료. */}
-      <SelectField
-        label="레이아웃 모드"
-        value={layoutMode}
-        onChange={(e) => setLayoutMode(e.target.value as GraphLayoutMode)}
-        options={[
-          { value: "force", label: "기본 (Force-Directed)" },
-          { value: "concentric", label: "동심원 (Concentric)" },
-          { value: "domain", label: "도메인 (Domain/Community)" },
-          { value: "timeline", label: "타입별 타임라인 (Timeline)" },
-          { value: "layered", label: "레이어 깊이 (Layered)" },
-        ]}
-        helper="동심원은 선택 중심 거리, Layered는 계산된 논리 layer 깊이입니다."
-      />
-      <TextField
-        label="문서 검색"
-        value={query}
-        onChange={(e) => dispatchFilters({ type: "setQuery", value: e.target.value })}
-        placeholder="제목, slug, type으로 필터"
-        helper="검색 시 일치 문서와 1-hop 이웃만 남겨 맥락을 유지합니다."
-      />
-      <SelectField
-        label="타입 필터"
-        value={selectedType}
-        onChange={(e) => dispatchFilters({ type: "setSelectedType", value: e.target.value })}
-        options={typeOptions}
-        helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
-      />
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          의미 관계 필터
-        </span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: "4px" }}>
-          {[
-            { value: "wikilink", label: "일반 링크", color: "var(--graph-edge)" },
-            { value: "uses", label: "Uses (사용)", color: "#3b82f6" },
-            { value: "depends_on", label: "Depends on (의존)", color: "#ef4444" },
-            { value: "implements", label: "Implements (구현)", color: "#a855f7" },
-            { value: "implemented_by", label: "Implemented by (구현체)", color: "#d946ef" },
-            { value: "related", label: "Related (연관)", color: "#14b8a6" },
-          ].map((item) => (
-            <label
-              key={item.value}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "12px",
-                color: "var(--color-ink)",
-                cursor: "pointer",
-                userSelect: "none"
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={visibleRelations.includes(item.value)}
-                onChange={() => dispatchFilters({ type: "toggleRelation", relation: item.value })}
-                style={{
-                  width: "14px",
-                  height: "14px",
-                  borderRadius: "3px",
-                  border: "1px solid var(--border-subtle)",
-                  accentColor: item.color
-                }}
-              />
-              <span style={{ color: visibleRelations.includes(item.value) ? "var(--color-ink)" : "var(--color-muted)", fontWeight: visibleRelations.includes(item.value) ? 500 : 400 }}>
-                {item.label}
-              </span>
-            </label>
-          ))}
+      <section className="graph-page-control-block">
+        <div className="graph-page-control-heading">
+          <strong>탐색</strong>
+          <span>문서와 그래프의 범위를 좁히는 기본 필터</span>
         </div>
-      </div>
-      <div className="graph-page-actions" style={{ display: "flex", gap: 8, alignItems: "flex-end", paddingBottom: 6 }}>
+        <SelectField
+          label="레이아웃 모드"
+          value={layoutMode}
+          onChange={(e) => setLayoutMode(e.target.value as GraphLayoutMode)}
+          options={[
+            { value: "force", label: "기본 (Force-Directed)" },
+            { value: "concentric", label: "동심원 (Concentric)" },
+            { value: "domain", label: "도메인 (Domain/Community)" },
+            { value: "timeline", label: "타입별 타임라인 (Timeline)" },
+            { value: "layered", label: "레이어 깊이 (Layered)" },
+          ]}
+          helper="동심원은 선택 중심 거리, Layered는 계산된 논리 layer 깊이입니다."
+        />
+        <TextField
+          label="문서 검색"
+          value={query}
+          onChange={(e) => dispatchFilters({ type: "setQuery", value: e.target.value })}
+          placeholder="제목, slug, type으로 필터"
+          helper="검색 시 일치 문서와 1-hop 이웃만 남겨 맥락을 유지합니다."
+        />
+        <SelectField
+          label="타입 필터"
+          value={selectedType}
+          onChange={(e) => dispatchFilters({ type: "setSelectedType", value: e.target.value })}
+          options={typeOptions}
+          helper="특정 문서 타입만 남겨 구조를 집중 탐색합니다."
+        />
+      </section>
+
+      <section className="graph-page-control-block">
+        <div className="graph-page-control-heading">
+          <strong>관계</strong>
+          <span>필요한 연결만 남기고 의미망을 정리</span>
+        </div>
+        <div className="graph-page-relation-grid">
+          {RELATION_HELPERS.map((item) => {
+            const active = visibleRelations.includes(item.value);
+            return (
+              <label
+                key={item.value}
+                className={`graph-page-relation-toggle${active ? " active" : ""}`}
+                title={item.description}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => dispatchFilters({ type: "toggleRelation", relation: item.value })}
+                />
+                <span className="graph-page-relation-toggle-copy">
+                  <strong>{item.title}</strong>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="graph-page-actions">
         <Button
           type="button"
           variant="secondary"
@@ -391,10 +390,6 @@ export function GraphPage() {
           />
           연결 없는 문서 숨김
         </label>
-      </div>
-
-      <div className="graph-desktop-only">
-        {controlsSection}
       </div>
 
       <div className="graph-page-workspace">
@@ -463,6 +458,7 @@ export function GraphPage() {
           <GraphCanvas
             nodes={visibleNodes}
             edges={visibleEdges}
+            focusNodeId={selectedNodeId}
             // v0.7.139+: force-graph의 onNodeClick은 node.id를 그대로 전달한다.
             // all-scope에선 id="{vault}:{slug}", current-scope에선 id=slug이므로
             // selectedNodeId는 항상 id로 통일해야 highlightNodes/edge에서 매칭됨.
@@ -492,6 +488,12 @@ export function GraphPage() {
                   <span className="sidebar-tree-page-pill" data-type={selectedNodeDetail.node.type || "unknown"}>
                     {typeLabel(selectedNodeDetail.node.type) || selectedNodeDetail.node.type || "미분류"}
                   </span>
+                  {selectedNodeDetail.node.collection && (
+                    <span className="graph-detail-chip">{selectedNodeDetail.node.collection}</span>
+                  )}
+                  {selectedNodeDetail.node.status && (
+                    <span className="graph-detail-chip graph-detail-chip-muted">{selectedNodeDetail.node.status}</span>
+                  )}
                   {selectedNodeDetail.node.vault && (
                     <span className="graph-vault-chip">{selectedNodeDetail.node.vault}</span>
                   )}
@@ -502,6 +504,16 @@ export function GraphPage() {
                 <p className="graph-detail-slug" style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--color-muted)", wordBreak: "break-all" }}>
                   {nodeSlug(selectedNodeDetail.node)}
                 </p>
+                {selectedNodeDetail.node.aliases && selectedNodeDetail.node.aliases.length > 0 && (
+                  <div className="graph-detail-aliases">
+                    <span>별칭</span>
+                    <div>
+                      {selectedNodeDetail.node.aliases.slice(0, 4).map((alias) => (
+                        <span key={alias} className="graph-detail-chip graph-detail-chip-muted">{alias}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -527,10 +539,25 @@ export function GraphPage() {
                 size="sm"
                 onClick={() => openGraphNode(selectedNodeDetail.node.id)}
                 title="문서 읽기/편집 페이지로 이동합니다"
-              >
+                >
                 📖 열기
               </Button>
             </div>
+
+            <section className="graph-detail-legend">
+              <div className="graph-detail-legend-heading">
+                <strong>관계 설명</strong>
+                <span>탭은 선택된 문서에서 이 관계 묶음을 바로 보여줍니다.</span>
+              </div>
+              <div className="graph-detail-legend-grid">
+                {RELATION_HELPERS.map((item) => (
+                  <div key={item.value} className="graph-detail-legend-item">
+                    <strong>{item.title}</strong>
+                    <span>{item.description}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {/* 통계 기반 클릭 인터랙티브 탭 카드 */}
             <div className="graph-detail-stats">
@@ -651,6 +678,10 @@ export function GraphPage() {
           </div>
         )}
       </aside>
+      </div>
+
+      <div className="graph-desktop-only">
+        {controlsSection}
       </div>
 
       <details className="graph-mobile-panel graph-mobile-only">

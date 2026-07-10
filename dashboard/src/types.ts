@@ -11,6 +11,9 @@ export interface Page {
   slug: string;
   title: string;
   type: string;
+  collection?: string;
+  status?: string;
+  aliases?: string[];
   path: string;
   filePath?: string;
   created: string;
@@ -65,6 +68,9 @@ export interface GraphNode {
   community?: number;
   folder_group?: string;
   folder_label?: string;
+  collection?: string;
+  status?: string;
+  aliases?: string[];
   importance?: number;
   centrality?: number;
   layer?: number;

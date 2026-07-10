@@ -74,6 +74,7 @@ export function FullscreenGraphModal({
           <GraphCanvas
             nodes={nodes}
             edges={edges}
+            focusNodeId={currentNodeId}
             persistentHighlightNodeId={currentNodeId}
             onNodeClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}
             onNodeDoubleClick={(slug) => window.location.assign(`/page/${vault}/${slug}`)}

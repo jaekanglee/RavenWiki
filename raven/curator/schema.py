@@ -84,7 +84,7 @@ def validate_path(path: str) -> None:
     - bare `*` glob ❌ (단, `*.md` 같은 단일 레벨 suffix는 ✅)
     - `..` parent traversal ❌
     - 절대경로 ❌ (vault 상대만)
-    - path는 반드시 `content/` 또는 `_`로 시작 (vault 정책)
+    - path는 반드시 `content/`, `raw/` 또는 `_`로 시작 (vault 정책)
     """
     if not path:
         raise CollectionsYamlError("path is empty")
@@ -112,10 +112,10 @@ def validate_path(path: str) -> None:
             # 예: `foo*bar`, `*foo` — 중간/시작 글롭 ❌
             raise CollectionsYamlError(f"partial glob not allowed: {path} (segment={part!r})")
 
-    # vault 정책: content/ 또는 _ 시작
-    if not (path.startswith("content/") or path.startswith("_")):
+    # vault 정책: content/, raw/ 또는 _ 시작
+    if not (path.startswith("content/") or path.startswith("raw/") or path.startswith("_")):
         raise CollectionsYamlError(
-            f"path must start with 'content/' or '_': {path}"
+            f"path must start with 'content/', 'raw/' or '_': {path}"
         )
 
 
