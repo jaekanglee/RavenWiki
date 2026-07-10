@@ -27,4 +27,11 @@ describe("truncateLabel", () => {
     const result = truncateLabel(ctx, "abcdefghijklmnopqrstuvwxyz", 50);
     expect(ctx.measureText(result).width).toBeLessThanOrEqual(50);
   });
+
+  it("returns empty string when maxWidth is smaller than ellipsis width", () => {
+    const ctx = makeMockCtx(6); // charWidth = 6, so ellipsis "…" is also 6px
+    const result = truncateLabel(ctx, "abcdefghijklmnopqrstuvwxyz", 2); // maxWidth: 2px < ellipsis: 6px
+    expect(result).toBe("");
+    expect(ctx.measureText(result).width).toBeLessThanOrEqual(2);
+  });
 });

@@ -378,6 +378,11 @@ const NODE_LABEL_MAX_WIDTH_PX = 90; // 화면 픽셀 기준 — fontSize와 동�
 export function truncateLabel(ctx: CanvasRenderingContext2D, label: string, maxWidth: number): string {
   if (ctx.measureText(label).width <= maxWidth) return label;
   const ellipsis = "…";
+  // Guard: if the ellipsis alone exceeds maxWidth, return empty string
+  // to ensure the result never exceeds maxWidth.
+  if (ctx.measureText(ellipsis).width > maxWidth) {
+    return "";
+  }
   let lo = 0;
   let hi = label.length;
   while (lo < hi) {
