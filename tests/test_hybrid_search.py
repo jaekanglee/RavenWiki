@@ -101,3 +101,46 @@ def test_mcp_hybrid_search_registered() -> None:
     source = inspect.getsource(cli_module.register_tools)
     assert "wiki_hybrid_search" in source
 
+
+def test_hybrid_search_matches_alias(isolated_vault: Vault) -> None:
+    """title/본문에는 없는 검색어라도 aliases frontmatter에 있으면 검색되어야 한다 (FTS5 aliases 컬럼)."""
+    content_dir = isolated_vault.root / "content"
+    (content_dir / "doc-c.md").write_text(
+        "---\ntitle: 인증 가이드\ntype: concept\ntags: [auth]\naliases: [ZanzibarAuthZ]\n---\n"
+        "권한 부여 흐름을 설명한다.\n",
+        encoding="utf-8",
+    )
+    db_module.build_db(isolated_vault, run_lint=False)
+
+    results = hybrid_search(isolated_vault, "ZanzibarAuthZ", limit=5)
+    assert len(results) >= 1
+    assert results[0]["slug"] == "content/doc-c"
+
+
+def test_inline_build_fts_includes_alias(tmp_path) -> None:
+    """설치 패키지 fallback 빌더(_inline_build)도 pages_fts에 aliases를 포함해야
+    한다 — 두 빌더 간 스키마 drift는 과거 실제 버그였다 (db.py 상단 문서 참고)."""
+    import sqlite3
+    from raven.core.vault import Vault
+    from raven.core.db import _inline_build
+
+    vault = Vault.create("inline-test", tmp_path / "vault", bootstrap=False)
+    content_dir = vault.root / "content"
+    content_dir.mkdir(parents=True, exist_ok=True)
+    (content_dir / "doc-d.md").write_text(
+        "---\ntitle: 결제 가이드\ntype: concept\ntags: [pay]\naliases: [PayGateway]\n---\n"
+        "결제 처리 흐름.\n",
+        encoding="utf-8",
+    )
+
+    db_path = tmp_path / "wiki.db"
+    _inline_build(vault, db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT slug FROM pages_fts WHERE pages_fts MATCH ?", ("PayGateway",)
+    ).fetchall()
+    conn.close()
+    assert [r["slug"] for r in rows] == ["content/doc-d"]
+

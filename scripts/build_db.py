@@ -98,15 +98,15 @@ CREATE TABLE relations (
 CREATE INDEX idx_relations_target ON relations(target_slug);
 
 CREATE VIRTUAL TABLE pages_fts USING fts5(
-  slug, title, tags_concat, content
+  slug, title, tags_concat, content, aliases
 );
 
 CREATE TRIGGER pages_ai AFTER INSERT ON pages BEGIN
-  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content)
+  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content, aliases)
   VALUES (
     new.rowid, new.slug, new.title,
     COALESCE((SELECT GROUP_CONCAT(tag, ' ') FROM tags WHERE page_slug = new.slug), ''),
-    new.content
+    new.content, new.aliases
   );
 END;
 
@@ -116,21 +116,21 @@ END;
 
 CREATE TRIGGER pages_au AFTER UPDATE ON pages BEGIN
   DELETE FROM pages_fts WHERE rowid = old.rowid;
-  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content)
+  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content, aliases)
   VALUES (
     new.rowid, new.slug, new.title,
     COALESCE((SELECT GROUP_CONCAT(tag, ' ') FROM tags WHERE page_slug = new.slug), ''),
-    new.content
+    new.content, new.aliases
   );
 END;
 
 CREATE TRIGGER tags_ai AFTER INSERT ON tags BEGIN
   -- refresh FTS row for this page so new tag joins the index
   DELETE FROM pages_fts WHERE rowid = (SELECT rowid FROM pages WHERE slug = new.page_slug);
-  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content)
+  INSERT INTO pages_fts(rowid, slug, title, tags_concat, content, aliases)
   SELECT p.rowid, p.slug, p.title,
          COALESCE((SELECT GROUP_CONCAT(tag, ' ') FROM tags WHERE page_slug = p.slug), ''),
-         p.content
+         p.content, p.aliases
   FROM pages p WHERE p.slug = new.page_slug;
 END;
 
