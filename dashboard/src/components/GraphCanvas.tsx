@@ -105,6 +105,26 @@ const RELATION_COLORS: Record<string, string> = {
   related: "#14b8a6",      // teal
 };
 
+// Returns `color` with its alpha channel set to `alpha` (0-1). Handles both
+// "#rrggbb" and "rgba(r, g, b, a)" inputs — string-concatenating a hex alpha
+// suffix onto an rgba() string (the previous approach) produces an invalid
+// CSS color, which canvas silently ignores by keeping the last valid
+// strokeStyle, making faded edges render in whatever color was drawn before
+// them instead of actually fading.
+function withAlpha(color: string, alpha: number): string {
+  const rgbaMatch = color.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgbaMatch) {
+    const [r, g, b] = rgbaMatch[1].split(",").map((p) => p.trim());
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  const hexMatch = color.match(/^#([0-9a-fA-F]{6})$/);
+  if (hexMatch) {
+    const a = Math.round(alpha * 255).toString(16).padStart(2, "0");
+    return `${color}${a}`;
+  }
+  return color;
+}
+
 const RELATION_DASHES: Record<string, number[]> = {
   uses: [],
   depends_on: [],
@@ -1027,13 +1047,13 @@ export function GraphCanvas({
         if (relType && RELATION_COLORS[relType]) {
           const baseColor = RELATION_COLORS[relType];
           if (hasFocusActive) {
-            return isHighlighted ? baseColor : `${baseColor}22`; // faded
+            return isHighlighted ? baseColor : withAlpha(baseColor, 0.13); // faded
           }
-          return isHighlighted ? baseColor : `${baseColor}99`; // normal
+          return isHighlighted ? baseColor : withAlpha(baseColor, 0.6); // normal
         }
-        
+
         if (isHighlighted) return resolvedEdgeHighlightRef.current;
-        return hasFocusActive ? `${resolvedEdgeColorRef.current}16` : resolvedEdgeColorRef.current;
+        return hasFocusActive ? withAlpha(resolvedEdgeColorRef.current, 0.1) : resolvedEdgeColorRef.current;
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id) || link.broken_dependency;
@@ -1063,9 +1083,9 @@ export function GraphCanvas({
           const baseColor = RELATION_COLORS[relType];
           const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
           if (hasFocusActive) {
-            return isHighlighted ? baseColor : `${baseColor}22`;
+            return isHighlighted ? baseColor : withAlpha(baseColor, 0.13);
           }
-          return isHighlighted ? baseColor : `${baseColor}99`;
+          return isHighlighted ? baseColor : withAlpha(baseColor, 0.6);
         }
         return resolvedEdgeHighlightRef.current;
       })

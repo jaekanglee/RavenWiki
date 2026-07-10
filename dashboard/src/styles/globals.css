@@ -1123,18 +1123,17 @@ mark {
 
 /* Graph page — maximize canvas area and restyle xyflow controls for dark canvas.
    The shell lives inside Layout's <main> → .page-content (flex-1 + overflow-y-auto).
-   We just take 100% of the available space and let the parent handle viewport math.
-   This works for both desktop landscape (1280×800) and portrait (800×1200) — the
-   height math follows whatever space the flex parent gives us, no hardcoded -128px. */
+   We take at least 100% of the available space, but don't clip: the workspace has
+   its own fixed height (see .graph-page-workspace) and the controls section below
+   it (탐색/문서 검색/타입필터/관계) grows naturally. If everything together is
+   taller than the viewport, .page-content's own overflow-y-auto scrolls the page —
+   overflow:hidden here used to clip that content invisibly instead. */
 .graph-page-shell {
-  height: 100%;
+  min-height: 100%;
   flex: 1 1 auto;
-  min-height: 0;
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow: hidden;
 }
 .graph-page-toolbar {
   flex-shrink: 0;
@@ -1444,53 +1443,6 @@ mark {
   flex: 1;
   justify-content: center;
 }
-.graph-detail-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 8px;
-  background: var(--graph-surface);
-}
-.graph-detail-legend-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-.graph-detail-legend-heading strong {
-  font-size: 12px;
-  color: var(--color-ink);
-}
-.graph-detail-legend-heading span {
-  font-size: 11px;
-  color: var(--color-muted);
-}
-.graph-detail-legend-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.graph-detail-legend-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 9px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 8px;
-  background: var(--graph-surface-strong);
-}
-.graph-detail-legend-item strong {
-  font-size: 11px;
-  color: var(--color-ink);
-}
-.graph-detail-legend-item span {
-  font-size: 11px;
-  color: var(--color-muted);
-  line-height: 1.25;
-}
-
 /* 통계 카드를 클릭형 탭 버튼으로 개편 */
 .graph-detail-stats {
   display: grid;
@@ -1588,18 +1540,27 @@ mark {
   white-space: nowrap;
 }
 .graph-detail-empty {
-  margin: auto 0;
+  margin: auto;
+  max-width: 220px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.graph-detail-empty-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+  opacity: 0.8;
 }
 .graph-detail-empty strong {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--color-ink);
 }
 .graph-detail-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--color-muted);
 }
 /* Sidebar — IBM Plex Sans + clean chevron + 16/24 sizing.

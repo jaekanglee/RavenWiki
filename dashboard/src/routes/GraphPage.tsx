@@ -564,21 +564,6 @@ export function GraphPage() {
               </Button>
             </div>
 
-            <section className="graph-detail-legend">
-              <div className="graph-detail-legend-heading">
-                <strong>관계 설명</strong>
-                <span>탭은 선택된 문서에서 이 관계 묶음을 바로 보여줍니다.</span>
-              </div>
-              <div className="graph-detail-legend-grid">
-                {RELATION_HELPERS.map((item) => (
-                  <div key={item.value} className="graph-detail-legend-item">
-                    <strong>{item.title}</strong>
-                    <span>{item.description}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
             {/* 통계 기반 클릭 인터랙티브 탭 카드 */}
             <div className="graph-detail-stats">
               <button
@@ -693,8 +678,9 @@ export function GraphPage() {
           </>
         ) : (
           <div className="graph-detail-empty">
+            <span className="graph-detail-empty-icon" aria-hidden="true">🕸️</span>
             <strong>문서를 선택해 주세요</strong>
-            <p>그래프의 노드를 클릭하면 해당 문서의 참조 위계와 이동 도구가 여기에 콤팩트하게 제공됩니다.</p>
+            <p>그래프의 노드를 클릭하면 해당 문서의 참조 관계와 이동 도구가 여기에 표시됩니다.</p>
           </div>
         )}
       </aside>

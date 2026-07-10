@@ -395,7 +395,7 @@ export function PageView() {
                   fontFamily: "ui-monospace, SFMono-Regular, monospace",
                   color: "var(--color-muted)",
                   wordBreak: "break-all",
-                  backgroundColor: "var(--color-surface-hover, rgba(0,0,0,0.02))",
+                  backgroundColor: "var(--hover-overlay)",
                   padding: "4px 8px",
                   borderRadius: "4px",
                   maxWidth: "100%",
@@ -410,7 +410,7 @@ export function PageView() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ flexShrink: 0, color: "var(--color-ink-muted)" }}
+                  style={{ flexShrink: 0, color: "var(--color-muted)" }}
                 >
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                   <line x1="2" y1="10" x2="22" y2="10" />
@@ -430,14 +430,14 @@ export function PageView() {
                     border: "none",
                     padding: "2px",
                     cursor: "pointer",
-                    color: copied ? "var(--color-success, #10b981)" : "var(--color-muted)",
+                    color: copied ? "var(--color-success-text)" : "var(--color-muted)",
                     borderRadius: "3px",
                     marginLeft: "4px",
                     flexShrink: 0,
                     transition: "color 0.2s, background-color 0.2s",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--color-surface-active, rgba(0,0,0,0.05))";
+                    e.currentTarget.style.backgroundColor = "var(--hover-overlay)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = "transparent";
@@ -530,10 +530,10 @@ export function PageView() {
             style={{
               marginTop: "32px",
               padding: "20px",
-              border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
+              border: "1px solid var(--border-subtle)",
               borderRadius: "8px",
-              backgroundColor: "var(--bg-surface, #fff)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              backgroundColor: "var(--bg-surface)",
+              boxShadow: "var(--shadow-raised)",
             }}
           >
             <h3
@@ -541,7 +541,7 @@ export function PageView() {
                 margin: "0 0 12px 0",
                 fontSize: "14px",
                 fontWeight: 600,
-                color: "var(--fg-ink, #000)",
+                color: "var(--fg-ink)",
                 fontFamily: "var(--font-display)",
                 display: "flex",
                 alignItems: "center",
@@ -574,16 +574,16 @@ export function PageView() {
                   minHeight: "80px",
                   padding: "12px",
                   borderRadius: "6px",
-                  border: "1px solid var(--border-subtle, rgba(0,0,0,0.15))",
+                  border: "1px solid var(--border-subtle)",
                   fontSize: "13px",
                   fontFamily: "inherit",
-                  backgroundColor: "var(--bg-surface, #fff)",
-                  color: "var(--fg-ink, #000)",
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--fg-ink)",
                   resize: "vertical",
                 }}
               />
               {feedbackErr && (
-                <div style={{ color: "var(--color-error, #ef4444)", fontSize: "12px" }}>
+                <div style={{ color: "var(--color-error-text)", fontSize: "12px" }}>
                   오류: {feedbackErr}
                 </div>
               )}
@@ -613,8 +613,8 @@ export function PageView() {
                       style={{
                         padding: "12px 16px",
                         borderRadius: "6px",
-                        backgroundColor: "var(--color-surface-soft, rgba(0,0,0,0.02))",
-                        border: "1px solid var(--border-subtle, rgba(0,0,0,0.05))",
+                        backgroundColor: "var(--color-surface-soft)",
+                        border: "1px solid var(--border-subtle)",
                         display: "flex",
                         gap: "16px",
                         justifyContent: "space-between",
@@ -622,9 +622,9 @@ export function PageView() {
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "11px", color: "var(--color-muted, #777)", marginBottom: "6px" }}>
+                        <div style={{ fontSize: "11px", color: "var(--color-muted)", marginBottom: "6px" }}>
                           <div>🕒 {item.timestamp || "날짜 없음"}</div>
-                          <div style={{ fontWeight: 600, marginTop: "2px", color: "var(--fg-ink, #000)" }}>
+                          <div style={{ fontWeight: 600, marginTop: "2px", color: "var(--fg-ink)" }}>
                             👤 ({item.actor === "user" ? "사람 운영자" : item.actor})
                           </div>
                         </div>
@@ -638,11 +638,11 @@ export function PageView() {
                                 minHeight: "60px",
                                 padding: "8px",
                                 borderRadius: "4px",
-                                border: "1px solid var(--border-subtle, rgba(0,0,0,0.15))",
+                                border: "1px solid var(--border-subtle)",
                                 fontSize: "13px",
                                 fontFamily: "inherit",
-                                backgroundColor: "var(--bg-surface, #fff)",
-                                color: "var(--fg-ink, #000)",
+                                backgroundColor: "var(--bg-surface)",
+                                color: "var(--fg-ink)",
                                 resize: "vertical",
                               }}
                             />
@@ -664,7 +664,7 @@ export function PageView() {
                             </div>
                           </div>
                         ) : (
-                          <div style={{ fontSize: "13px", color: "var(--fg-ink, #222)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>
+                          <div style={{ fontSize: "13px", color: "var(--fg-ink)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>
                             {item.feedback}
                           </div>
                         )}
@@ -683,12 +683,12 @@ export function PageView() {
                               border: "none",
                               cursor: "pointer",
                               fontSize: "11px",
-                              color: "var(--color-primary, #3b82f6)",
+                              color: "var(--color-primary)",
                               padding: "2px 6px",
                               borderRadius: "4px",
                               transition: "background-color 0.2s",
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))"}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--hover-overlay)"}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                           >
                             편집
@@ -701,12 +701,12 @@ export function PageView() {
                               border: "none",
                               cursor: "pointer",
                               fontSize: "11px",
-                              color: "var(--color-danger, #ef4444)",
+                              color: "var(--color-danger)",
                               padding: "2px 6px",
                               borderRadius: "4px",
                               transition: "background-color 0.2s",
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))"}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--hover-overlay)"}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                           >
                             삭제
@@ -727,10 +727,10 @@ export function PageView() {
             style={{
               marginTop: "32px",
               padding: "20px",
-              border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
+              border: "1px solid var(--border-subtle)",
               borderRadius: "8px",
-              backgroundColor: "var(--bg-surface, #fff)",
-              boxShadow: "0 1.5px 4px rgba(0,0,0,0.05)",
+              backgroundColor: "var(--bg-surface)",
+              boxShadow: "var(--shadow-raised)",
             }}
           >
             <h3
@@ -738,12 +738,12 @@ export function PageView() {
                 margin: "0 0 16px 0",
                 fontSize: "14px",
                 fontWeight: 600,
-                color: "var(--fg-ink, #000)",
+                color: "var(--fg-ink)",
                 fontFamily: "var(--font-display)",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                borderBottom: "1px solid var(--color-hairline, rgba(0,0,0,0.08))",
+                borderBottom: "1px solid var(--color-hairline)",
                 paddingBottom: "8px",
               }}
             >
@@ -784,7 +784,7 @@ export function PageView() {
                         style={{
                           fontSize: "12px",
                           fontWeight: 600,
-                          color: "var(--color-primary, #3b82f6)",
+                          color: "var(--color-primary)",
                           textTransform: "uppercase",
                           letterSpacing: "0.05em",
                         }}
@@ -819,20 +819,20 @@ export function PageView() {
                                   gap: "6px",
                                   padding: "6px 12px",
                                   borderRadius: "6px",
-                                  border: "1px solid var(--border-subtle, rgba(0,0,0,0.1))",
-                                  backgroundColor: "var(--color-surface-soft, rgba(0,0,0,0.02))",
+                                  border: "1px solid var(--border-subtle)",
+                                  backgroundColor: "var(--color-surface-soft)",
                                   fontSize: "13px",
-                                  color: "var(--fg-ink, #222)",
+                                  color: "var(--fg-ink)",
                                   cursor: "pointer",
                                   transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                                 }}
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = "var(--color-surface-hover, rgba(0,0,0,0.05))";
+                                  e.currentTarget.style.backgroundColor = "var(--hover-overlay)";
                                   e.currentTarget.style.transform = "translateY(-1px)";
-                                  e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+                                  e.currentTarget.style.boxShadow = "var(--shadow-raised)";
                                 }}
                                 onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = "var(--color-surface-soft, rgba(0,0,0,0.02))";
+                                  e.currentTarget.style.backgroundColor = "var(--color-surface-soft)";
                                   e.currentTarget.style.transform = "none";
                                   e.currentTarget.style.boxShadow = "none";
                                 }}
@@ -846,7 +846,7 @@ export function PageView() {
                                   style={{
                                     visibility: isHovered ? "visible" : "hidden",
                                     width: "280px",
-                                    backgroundColor: "var(--color-ink, #1f2937)",
+                                    backgroundColor: "#1f2937",
                                     color: "#fff",
                                     textAlign: "left",
                                     borderRadius: "8px",
@@ -866,12 +866,12 @@ export function PageView() {
                                 >
                                   {rel.reason && (
                                     <div style={{ marginBottom: evidenceStr ? "6px" : "0" }}>
-                                      <strong style={{ color: "var(--color-primary-light, #93c5fd)" }}>이유:</strong> {rel.reason}
+                                      <strong style={{ color: "#93c5fd" }}>이유:</strong> {rel.reason}
                                     </div>
                                   )}
                                   {evidenceStr && (
                                     <div>
-                                      <strong style={{ color: "var(--color-success, #34d399)" }}>근거:</strong> {evidenceStr}
+                                      <strong style={{ color: "#34d399" }}>근거:</strong> {evidenceStr}
                                     </div>
                                   )}
                                   <div
@@ -882,7 +882,7 @@ export function PageView() {
                                       marginLeft: "-6px",
                                       borderWidth: "6px",
                                       borderStyle: "solid",
-                                      borderColor: "var(--color-ink, #1f2937) transparent transparent transparent",
+                                      borderColor: "#1f2937 transparent transparent transparent",
                                     }}
                                   />
                                 </div>
@@ -905,14 +905,14 @@ export function PageView() {
             style={{
               marginTop: "2.5rem",
               paddingTop: "2rem",
-              borderTop: "1px solid var(--color-border, #e5e7eb)",
+              borderTop: "1px solid var(--color-hairline)",
             }}
           >
             <h3
               style={{
                 fontSize: "1.25rem",
                 fontWeight: 600,
-                color: "var(--color-ink, #1f2937)",
+                color: "var(--color-ink)",
                 marginBottom: "1rem",
               }}
             >
@@ -932,20 +932,20 @@ export function PageView() {
                   style={{
                     padding: "1rem",
                     borderRadius: "8px",
-                    border: "1px solid var(--color-border, #e5e7eb)",
-                    backgroundColor: "var(--color-bg-alt, #f9fafb)",
+                    border: "1px solid var(--color-hairline)",
+                    backgroundColor: "var(--bg-soft)",
                     cursor: "pointer",
                     transition: "transform 0.2s, box-shadow 0.2s, border-color 0.2s",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.05)";
-                    e.currentTarget.style.borderColor = "var(--color-primary, #3b82f6)";
+                    e.currentTarget.style.boxShadow = "var(--shadow-raised)";
+                    e.currentTarget.style.borderColor = "var(--color-primary)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
                     e.currentTarget.style.boxShadow = "none";
-                    e.currentTarget.style.borderColor = "var(--color-border, #e5e7eb)";
+                    e.currentTarget.style.borderColor = "var(--color-hairline)";
                   }}
                 >
                   <div
@@ -963,8 +963,8 @@ export function PageView() {
                         textTransform: "uppercase",
                         padding: "0.25rem 0.5rem",
                         borderRadius: "4px",
-                        backgroundColor: "var(--color-type-bg, #f3f4f6)",
-                        color: "var(--color-type-text, #4b5563)",
+                        backgroundColor: "var(--color-surface-soft)",
+                        color: "var(--color-muted)",
                       }}
                     >
                       {rec.type}
@@ -973,7 +973,7 @@ export function PageView() {
                       style={{
                         fontSize: "0.875rem",
                         fontWeight: 700,
-                        color: "var(--color-primary, #3b82f6)",
+                        color: "var(--color-primary)",
                       }}
                       title="연관성 점수"
                     >
@@ -984,7 +984,7 @@ export function PageView() {
                     style={{
                       fontSize: "1rem",
                       fontWeight: 600,
-                      color: "var(--color-ink, #1f2937)",
+                      color: "var(--color-ink)",
                       marginBottom: "0.75rem",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -1001,7 +1001,7 @@ export function PageView() {
                           padding: "0.15rem 0.4rem",
                           borderRadius: "4px",
                           backgroundColor: "rgba(59, 130, 246, 0.1)",
-                          color: "var(--color-primary, #3b82f6)",
+                          color: "var(--color-primary)",
                           border: "1px solid rgba(59, 130, 246, 0.2)",
                         }}
                       >
@@ -1015,7 +1015,7 @@ export function PageView() {
                           padding: "0.15rem 0.4rem",
                           borderRadius: "4px",
                           backgroundColor: "rgba(16, 185, 129, 0.1)",
-                          color: "var(--color-success, #10b981)",
+                          color: "var(--color-success-text)",
                           border: "1px solid rgba(16, 185, 129, 0.2)",
                         }}
                       >
