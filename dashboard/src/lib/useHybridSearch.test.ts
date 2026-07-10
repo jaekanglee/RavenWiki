@@ -3,12 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useHybridSearch } from "./useHybridSearch";
 
 describe("useHybridSearch", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -20,8 +15,6 @@ describe("useHybridSearch", () => {
   });
 
   it("debounces then fetches hybrid-search results", async () => {
-    vi.useRealTimers();
-
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -37,6 +30,9 @@ describe("useHybridSearch", () => {
       rerender({ q: "hello" });
     });
 
+    // Verify fetch is not called synchronously before debounce elapses
+    expect(fetchSpy).not.toHaveBeenCalled();
+
     await waitFor(() => expect(result.current.length).toBe(1), { timeout: 3000 });
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -47,9 +43,7 @@ describe("useHybridSearch", () => {
   });
 
   it("filters out excludeSlug from results", async () => {
-    vi.useRealTimers();
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
         results: [
@@ -66,6 +60,9 @@ describe("useHybridSearch", () => {
     act(() => {
       rerender({ q: "term" });
     });
+
+    // Verify fetch is not called synchronously before debounce elapses
+    expect(fetchSpy).not.toHaveBeenCalled();
 
     await waitFor(() => expect(result.current.length).toBe(1), { timeout: 3000 });
     expect(result.current[0].slug).toBe("content/other");
