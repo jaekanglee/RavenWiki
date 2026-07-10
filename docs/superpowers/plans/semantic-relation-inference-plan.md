@@ -1,14 +1,17 @@
 ---
 title: Semantic Relation Inference Engine Plan (v3)
 created: 2026-07-09
-updated: 2026-07-09
+updated: 2026-07-10
 type: rule
-tags: [system, meta, ai, plan, graph, mvp, roadmap]
+tags: [system, meta, ai, plan, graph, mvp, roadmap, completed]
+status: completed
 ---
 
 # Semantic Relation Inference Engine Plan
 
 > **BLUF**: "문서를 잘 저장하는 것"이 아니라 **"문서를 잘 연결하는 것"**이 Raven의 핵심입니다. 욕심내지 않고 MVP 단계에서는 4개의 핵심 의미 관계(`uses`, `depends_on`, `implements`, `related`)와 지식 추출 파이프라인에 집중하며, 향후 Graph Analytics(중심성, 커뮤니티 분석)로 확장하기 위한 3계층 아키텍처를 정의합니다.
+>
+> **✅ 완료 (2026-07-10)**: §3 Post-MVP 항목의 남은 시각화 구멍(`freshness` → opacity, `layer` → layered layout)까지 Dashboard Graph View에 반영되어 이 계획서는 최종 마감 상태입니다.
 
 ## 1. 아키텍처 원칙: 3계층 분리 (3-Layer Separation)
 그래프 엔진이 잘 그려지는 것과 지식이 잘 연결된 것은 완전히 다른 문제입니다. Raven은 이 둘을 명확히 분리합니다.

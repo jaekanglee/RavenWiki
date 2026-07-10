@@ -29,8 +29,10 @@ interface Props {
   /** 그래프 캔버스의 용도 (기본형 vs 미니맵용) */
   variant?: "default" | "minimap";
   /** 그래프 시각화 레이아웃 모드 (기본 force-directed) */
-  layoutMode?: "force" | "concentric" | "domain" | "timeline";
+  layoutMode?: GraphLayoutMode;
 }
+
+export type GraphLayoutMode = "force" | "concentric" | "domain" | "timeline" | "layered";
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
 const TYPE_COLORS: Record<string, string> = {
@@ -118,6 +120,64 @@ const RELATION_LABELS: Record<string, string> = {
 export function typeLabel(type: string | undefined): string {
   if (!type) return "";
   return TYPE_LABELS[type] ?? "";
+}
+
+export function nodeOpacity(freshness: number | null | undefined): number {
+  if (typeof freshness !== "number" || Number.isNaN(freshness)) return 1;
+  const normalized = Math.max(0, Math.min(freshness, 1));
+  return 0.32 + normalized * 0.68;
+}
+
+export function computeLayeredLayout(nodes: GraphNode[]): Record<string, { x: number; y: number }> {
+  const layers = new Map<number, GraphNode[]>();
+  let minLayer = Number.POSITIVE_INFINITY;
+  let maxLayer = Number.NEGATIVE_INFINITY;
+
+  nodes.forEach((node) => {
+    const layerValue = typeof node.layer === "number" && Number.isFinite(node.layer)
+      ? node.layer
+      : 0;
+    const bucket = Math.max(0, Math.round(layerValue));
+    minLayer = Math.min(minLayer, bucket);
+    maxLayer = Math.max(maxLayer, bucket);
+    const group = layers.get(bucket) ?? [];
+    group.push(node);
+    layers.set(bucket, group);
+  });
+
+  if (!Number.isFinite(minLayer) || !Number.isFinite(maxLayer)) {
+    return {};
+  }
+
+  const xStart = -430;
+  const xEnd = 430;
+  const layerSpan = Math.max(1, maxLayer - minLayer);
+  const layerCoords: Record<string, { x: number; y: number }> = {};
+
+  [...layers.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .forEach(([layer, group]) => {
+      const ratio = (layer - minLayer) / layerSpan;
+      const x = xStart + ratio * (xEnd - xStart);
+      const sortedGroup = [...group].sort((a, b) => {
+        const importanceDiff = (b.importance ?? 0) - (a.importance ?? 0);
+        if (importanceDiff !== 0) return importanceDiff;
+        return a.id.localeCompare(b.id);
+      });
+      const count = sortedGroup.length;
+      const spacing = Math.min(90, Math.max(42, 340 / Math.max(1, count)));
+
+      sortedGroup.forEach((node, idx) => {
+        const offsetIndex = idx - (count - 1) / 2;
+        const curvature = count > 1 ? Math.sin((idx / Math.max(1, count - 1)) * Math.PI) : 0;
+        layerCoords[node.id] = {
+          x,
+          y: offsetIndex * spacing + curvature * 18,
+        };
+      });
+    });
+
+  return layerCoords;
 }
 
 const isJSDOM =
@@ -682,6 +742,21 @@ export function GraphCanvas({
           fy: coord.y,
         };
       });
+    } else if (layoutMode === "layered") {
+      // 4) Layered View: 분석된 layer 값을 가로축 깊이로 사용.
+      // Concentric가 "선택 중심으로부터의 거리"라면, layered는
+      // "그래프 전체에서 계산된 논리적 깊이"를 보여주는 별도 분석 뷰다.
+      const nodeCoords = computeLayeredLayout(nodes);
+      formattedNodes = nodes.map((n) => {
+        const coord = nodeCoords[n.id] || { x: 0, y: 0 };
+        return {
+          ...n,
+          x: coord.x,
+          y: coord.y,
+          fx: coord.x,
+          fy: coord.y,
+        };
+      });
     }
 
     const formattedLinks = edges.map((e, idx) => ({
@@ -1013,6 +1088,7 @@ export function GraphCanvas({
       const isPersistent = persistentHighlightNodeId === node.id;
       const isFocused =
         isHovered || isPersistent || externalHighlightNodeId === node.id;
+      const fillOpacity = nodeOpacity(node.freshness);
 
       // 1. 노드 본체 (원) — zoom 보정 없이 픽셀 그대로 그린다.
       // force-graph의 `nodeVal/nodeRelSize` 자동 보정에 의존하지 않으므로
@@ -1022,9 +1098,10 @@ export function GraphCanvas({
 
       // 흐릿한 비포커스 처리
       const hasFocusActive = externalHighlightNodeId || currentHover || externalHighlightType;
-      ctx.fillStyle = hasFocusActive && !isFocused && !isHighlighted
-        ? `${nodeColor(node.type)}36`
-        : nodeColor(node.type);
+      const baseAlpha = hasFocusActive && !isFocused && !isHighlighted
+        ? fillOpacity * 0.28
+        : fillOpacity;
+      ctx.fillStyle = hexToRgba(nodeColor(node.type), baseAlpha);
       ctx.fill();
 
       // 테두리 선 굵기 및 스타일을 centrality에 매핑
@@ -1343,6 +1420,42 @@ export function GraphCanvas({
           ctx.textAlign = "center";
           ctx.fillText(label, x, 215 / scale);
         });
+        ctx.restore();
+        return;
+      }
+
+      if (layoutMode === "layered" && nodes.length > 0) {
+        const currentNodes = graph.graphData().nodes as any[];
+        const layerSet = new Set<number>();
+        currentNodes.forEach((node: any) => {
+          if (typeof node.layer === "number" && Number.isFinite(node.layer)) {
+            layerSet.add(Math.max(0, Math.round(node.layer)));
+          }
+        });
+        const layers = [...layerSet].sort((a, b) => a - b);
+        if (layers.length === 0) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+        ctx.lineWidth = 0.9 / scale;
+        ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
+        ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+        ctx.textAlign = "center";
+
+        const xStart = -430;
+        const xEnd = 430;
+        const span = Math.max(1, layers[layers.length - 1] - layers[0]);
+
+        layers.forEach((layer) => {
+          const ratio = (layer - layers[0]) / span;
+          const x = xStart + ratio * (xEnd - xStart);
+          ctx.beginPath();
+          ctx.moveTo(x, -260);
+          ctx.lineTo(x, 260);
+          ctx.stroke();
+          ctx.fillText(`Layer ${layer}`, x, 276 / scale);
+        });
+
         ctx.restore();
         return;
       }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { GraphCanvas } from "./GraphCanvas";
+import { GraphCanvas, type GraphLayoutMode } from "./GraphCanvas";
 import type { GraphNode, GraphEdge } from "../types";
 
 interface FullscreenGraphModalProps {
@@ -10,7 +10,7 @@ interface FullscreenGraphModalProps {
   currentNodeId?: string | null;
   centerTitle: string;
   onClose: () => void;
-  layoutMode?: "force" | "concentric" | "domain" | "timeline";
+  layoutMode?: GraphLayoutMode;
 }
 
 /**
