@@ -144,3 +144,57 @@ def test_inline_build_fts_includes_alias(tmp_path) -> None:
     conn.close()
     assert [r["slug"] for r in rows] == ["content/doc-d"]
 
+
+def test_inline_build_fts_rowid_integrity_with_multiple_tags(tmp_path) -> None:
+    """_inline_build이 페이지에 2개 이상의 태그가 있어도 pages_fts의 rowid가 올바른
+    페이지 rowid를 가리키는지 검증한다.
+
+    이 테스트는 과거 버그를 포착한다: last_insert_rowid()는 tag INSERT loop에서
+    tag 테이블의 rowid를 반환하기 때문에, 태그가 1개 이상 있으면 pages_fts가
+    잘못된 rowid(마지막 tag의 rowid)를 가지게 된다. 올바른 수정은 subquery로
+    pages 테이블의 rowid를 직접 가져오는 것이다."""
+    import sqlite3
+    from raven.core.vault import Vault
+    from raven.core.db import _inline_build
+
+    vault = Vault.create("rowid-test", tmp_path / "vault", bootstrap=False)
+    content_dir = vault.root / "content"
+    content_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2개 이상의 태그를 가진 페이지 생성
+    (content_dir / "doc-multi-tag.md").write_text(
+        "---\ntitle: Multi-tag Document\ntype: concept\ntags: [tag1, tag2, tag3]\n---\n"
+        "This document has multiple tags.\n",
+        encoding="utf-8",
+    )
+
+    db_path = tmp_path / "wiki.db"
+    _inline_build(vault, db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    # pages 테이블에서 페이지의 rowid 가져오기
+    page_row = conn.execute(
+        "SELECT rowid, slug FROM pages WHERE slug = ?", ("content/doc-multi-tag",)
+    ).fetchone()
+    assert page_row is not None, "Document not found in pages table"
+    expected_rowid = page_row["rowid"]
+
+    # pages_fts 테이블에서 FTS rowid 가져오기
+    fts_row = conn.execute(
+        "SELECT rowid, slug FROM pages_fts WHERE slug = ?", ("content/doc-multi-tag",)
+    ).fetchone()
+    assert fts_row is not None, "Document not found in pages_fts table"
+    actual_rowid = fts_row["rowid"]
+
+    conn.close()
+
+    # 핵심 검증: pages_fts의 rowid는 pages 테이블의 rowid와 일치해야 함
+    # (bug: last_insert_rowid() 사용 시 마지막 tag의 rowid를 가짐)
+    assert actual_rowid == expected_rowid, (
+        f"FTS rowid mismatch: pages.rowid={expected_rowid}, "
+        f"pages_fts.rowid={actual_rowid}. This indicates the page was indexed "
+        f"with the wrong rowid (likely a tag's rowid from the tag insert loop)."
+    )
+
