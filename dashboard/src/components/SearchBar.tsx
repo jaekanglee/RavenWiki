@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchResultItem } from "./SearchResultItem";
-import { useDebounced } from "../lib/useDebounced";
+import { useHybridSearch } from "../lib/useHybridSearch";
 
 /**
  * SearchBar — pill-shaped (search-bar-pill token).
@@ -26,13 +26,16 @@ export function SearchBar({
   variant?: "header" | "sidebar";
 }) {
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<any[]>([]);
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // v0.7.201+: PropertiesPanel 연결 문서 검색과 동일한 hybrid-search 결과를
+  // 공유 (§A 검색 로직 통합, 2026-07-10 스펙) — 중복 fetch/debounce 제거.
+  const results = useHybridSearch(vault, q, { limit: 8 });
 
   const listboxId = `search-results-${vault}`;
   // v0.7.97+: variant별 사이즈 토큰.
@@ -76,23 +79,6 @@ export function SearchBar({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
-
-  // Debounced fetch with AbortController.
-  const debouncedQ = useDebounced(q, 220);
-  useEffect(() => {
-    if (!debouncedQ.trim()) {
-      setResults([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    fetch(`/api/vaults/${vault}/search?q=${encodeURIComponent(debouncedQ)}&top_k=8`, {
-      signal: ctrl.signal,
-    })
-      .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then((d) => setResults(d.results || []))
-      .catch(() => setResults([]));
-    return () => ctrl.abort();
-  }, [debouncedQ, vault]);
 
   const selectResult = (slug: string) => {
     if (onSelect) onSelect(slug);
