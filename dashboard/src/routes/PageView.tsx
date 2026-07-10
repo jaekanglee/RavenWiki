@@ -10,6 +10,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
 import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations, commitDraft, deleteDraft } from "../lib/api";
+import { PropertiesPanel } from "../components/PropertiesPanel";
 import type { Graph, Page, Recommendation } from "../types";
 
 interface Ctx {
@@ -443,6 +444,15 @@ export function PageView() {
             </Button>
           </div>
         )}
+        {/* Properties Panel — type/tags 편집 + 문서 연결 */}
+        <PropertiesPanel
+          vault={vault}
+          page={page}
+          onSaved={() => {
+            setReloadKey((k) => k + 1);
+            ctx?.refresh?.();
+          }}
+        />
         {/* Body — InlineMarkdownEditor (자체 title+actions+editor).
             v0.7.51+ viewContent = 정돈된 본문 (related.body), 편집 모드 전환 시
             전체 MD 원본(content) 안전 수정. onDeleted는 InlineMarkdownEditor
