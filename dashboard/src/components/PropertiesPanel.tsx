@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { updatePage, addRelation, fetchPages } from "../lib/api";
+import { updatePage, addRelation } from "../lib/api";
+import { useDebounced } from "../lib/useDebounced";
 import type { Page } from "../types";
 
 const PAGE_TYPES = [
@@ -69,7 +70,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
   const [relType, setRelType] = useState<string>("references");
   const [relSaving, setRelSaving] = useState(false);
   const [relToast, setRelToast] = useState<string | null>(null);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRelQuery = useDebounced(relQuery, 220);
 
   // page가 바뀌면 state 동기화
   useEffect(() => {
@@ -116,26 +117,22 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
     try { await save({ tags: next }); } catch {} finally { setTagSaving(false); }
   }
 
-  // ── 문서 검색 (debounce 300ms) ─────────────────────────────────────────────
+  // ── 문서 검색 — SearchPage와 동일한 hybrid-search (220ms debounce, AbortController)
   useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!relQuery.trim()) { setRelResults([]); return; }
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const pages = await fetchPages(vault);
-        const q = relQuery.toLowerCase();
-        setRelResults(
-          pages
-            .filter((p: { slug: string; title?: string }) =>
-              p.slug !== page.slug &&
-              (p.title?.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q))
-            )
-            .slice(0, 8)
-        );
-      } catch { setRelResults([]); }
-    }, 300);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [relQuery, vault, page.slug]);
+    if (!debouncedRelQuery.trim()) { setRelResults([]); return; }
+    const ctrl = new AbortController();
+    fetch(
+      `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(debouncedRelQuery)}&limit=8`,
+      { signal: ctrl.signal }
+    )
+      .then(r => r.ok ? r.json() : { results: [] })
+      .then(d => {
+        const hits = (d.results || []) as { slug: string; title: string; type: string }[];
+        setRelResults(hits.filter(h => h.slug !== page.slug));
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [debouncedRelQuery, vault, page.slug]);
 
   // ── relation 추가 ─────────────────────────────────────────────────────────
   async function handleAddRelation(target: { slug: string; title: string }) {
