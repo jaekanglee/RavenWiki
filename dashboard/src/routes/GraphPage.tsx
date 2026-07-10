@@ -281,6 +281,16 @@ export function GraphPage() {
     [vault, graphNodeMap]
   );
 
+  // v0.7.151+: "리셋" 버튼 — 드래그로 저장된 좌표(.graph_positions.json)를 모두
+  // 지우고 서버 원본 ForceAtlas2 배치로 되돌린다. 되돌릴 수 없는 동작이라 확인을 거친다.
+  const resetLayout = useCallback(() => {
+    if (!vault) return;
+    if (!window.confirm("드래그로 옮긴 모든 노드 위치를 버리고 원래 배치로 되돌릴까요?")) return;
+    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph/positions`, { method: "DELETE" })
+      .catch(() => {})
+      .finally(() => loadGraph());
+  }, [vault]);
+
   const controlsSection = (
     <div className="graph-page-control-grid">
       <section className="graph-page-control-block">
@@ -374,7 +384,7 @@ export function GraphPage() {
         <PageHeader
           title="그래프"
           contextLabel={`${vault} 보관소`}
-          titleSize={22}
+          titleSize={24}
           bottomSpacing={0}
         />
         <div className="graph-page-meta" aria-label="그래프 상태">
@@ -475,6 +485,7 @@ export function GraphPage() {
             density="normal"
             onFullscreen={() => setShowFullGraph(true)}
             onPositionsChange={persistPositions}
+            onResetLayout={resetLayout}
           />
         )}
       </div>

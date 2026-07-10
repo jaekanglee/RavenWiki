@@ -1375,6 +1375,17 @@ def set_graph_positions(name: str, body: GraphPositionsBody):
     return _save_user_positions(v.root, existing)
 
 
+@app.delete("/api/vaults/{name}/graph/positions")
+def reset_graph_positions(name: str):
+    """vault의 사용자 정의 그래프 좌표를 모두 지운다 ("레이아웃 리셋" 버튼용).
+
+    v0.7.151+: 드래그로 저장된 `.graph_positions.json` 전체를 비워, 다음
+    `GET /api/vaults/{name}/graph` 호출부터 순수 ForceAtlas2 좌표만 사용하게 한다.
+    """
+    v = _vault_or_404(name)
+    return _save_user_positions(v.root, {})
+
+
 @app.get("/api/vaults/{name}/advice")
 def get_vault_advice(name: str):
     """지식 네트워크 분석 결과를 사용자에게 가독성 높은 조언(Advice) 카드로 제시합니다.

@@ -1145,7 +1145,7 @@ mark {
   flex-wrap: wrap;
 }
 .graph-page-toolbar h1 {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.1;
 }
 .graph-page-meta {
@@ -1267,10 +1267,10 @@ mark {
   gap: 12px;
 }
 .graph-page-workspace {
-  flex: 0 0 clamp(460px, 62dvh, 760px);
-  min-height: 460px;
+  flex: 0 0 clamp(420px, 54dvh, 680px);
+  min-height: 420px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 288px;
   gap: 12px;
 }
 .graph-mobile-panel {

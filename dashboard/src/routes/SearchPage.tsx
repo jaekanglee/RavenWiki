@@ -80,7 +80,8 @@ export function SearchPage() {
         title="검색"
         contextLabel={`${vault} 보관소`}
         subtitle="FTS5 및 로컬 임베딩 벡터가 결합된 하이브리드 지식 검색 및 AI Q&A 서비스를 제공합니다."
-        bottomSpacing={24}
+        titleSize={24}
+        bottomSpacing={16}
       />
 
       <div style={{ marginBottom: 32 }}>
@@ -88,7 +89,7 @@ export function SearchPage() {
           style={{
             display: "flex",
             alignItems: "center",
-            height: 64,
+            height: 48,
             background: "var(--color-canvas)",
             border: "1px solid var(--color-hairline-strong)",
             borderRadius: "var(--radius-full)",
@@ -129,10 +130,10 @@ export function SearchPage() {
             style={{
               background: "linear-gradient(135deg, var(--bg-soft) 0%, var(--bg-surface) 100%)",
               border: "1px solid var(--border-strong)",
-              borderRadius: "12px",
+              borderRadius: "var(--radius-lg)",
               padding: "20px",
               marginBottom: "24px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+              boxShadow: "var(--shadow-raised)",
             }}
           >
             <div

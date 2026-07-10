@@ -26,6 +26,8 @@ interface Props {
   density?: "normal" | "dense";
   /** 노드 드래그 종료 시점에 호출 */
   onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void;
+  /** "리셋" 버튼 클릭 시 호출 — 저장된 드래그 좌표를 버리고 서버 원본(ForceAtlas2) 배치로 되돌린다 */
+  onResetLayout?: () => void;
   /** 캔버스 빈 공간 클릭 시 호출 */
   onBackgroundClick?: () => void;
   /** 그래프 캔버스의 용도 (기본형 vs 미니맵용) */
@@ -362,6 +364,7 @@ export function GraphCanvas({
   onFullscreen,
   density = "normal",
   onPositionsChange,
+  onResetLayout,
   onBackgroundClick,
   variant = "default",
   layoutMode = "force",
@@ -1723,6 +1726,17 @@ export function GraphCanvas({
         >
           맞춤
         </button>
+        {onResetLayout && (
+          <button
+            type="button"
+            onClick={onResetLayout}
+            className="graph-canvas-btn"
+            aria-label="그래프 레이아웃 리셋"
+            title="드래그로 옮긴 노드 위치를 모두 버리고 서버 원본 배치로 되돌립니다"
+          >
+            리셋
+          </button>
+        )}
         {/* v0.7.139+: 줌 컨트롤 순서: + / 배율% / − (미니맵 포함 항상 표시) */}
         <button
           type="button"
