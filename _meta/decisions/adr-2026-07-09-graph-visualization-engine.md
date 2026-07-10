@@ -31,3 +31,12 @@ Raven의 그래프 엔진은 단기적으로 Obsidian 스타일의 미려한 탐
 ## 3. 결과 및 통합
 * **현재 조치**: `force-graph`를 유지하며 시각적 가독성 개선(2.8배 좌표 스케일링)과 모바일 렉 방지(Hand Mode) 튜닝에 집중합니다.
 * **장기 대안**: 향후 지식망 분석 플랫폼으로의 피벗 요건(트리거 3, 4, 5번 만족)이 발생할 경우, 무리한 일괄 전환 대신 `Cytoscape.js` PoC 및 단계적 전환 가능성을 재평가합니다.
+
+---
+
+## 4. 백로그: 3D 모드 검토 (2026-07-10)
+현재 `GraphCanvas.tsx`는 2D Canvas 렌더링에 한정되어 있어 노드 간 깊이(depth)가 시각적으로 잘 드러나지 않는다는 피드백이 있었음. `force-graph` → `3d-force-graph`(three.js/WebGL, 동일 저자 라이브러리군) 마이그레이션을 검토 옵션으로 남겨둔다.
+
+* **비용 평가**: 중간~큰 규모. 전체 1757줄 중 약 25~30%(`nodeCanvasObject`, `nodePointerAreaPaint`, `onRenderFramePre` 등 caret 기반 2D 드로잉)를 three.js 방식으로 재작성해야 하며, `three` 의존성이 아직 없음. 5개 레이아웃 모드(force/concentric/domain/timeline/layered) 전부 x/y만 계산하고 있어 z축 배치 로직을 모드별로 새로 설계해야 함. 가장 리스크가 큰 부분은 `onRenderFramePre`(약 326줄)의 도메인/타임라인/레이어드 오버레이 — 3D 라이브러리에 대응 개념이 없어 재현 난이도가 높음.
+* **저비용 대안(우선 검토)**: 신규 의존성 없이 기존 depth 데이터(`computeFocusDepthMap`)의 크기/투명도/그림자 낙차를 강화하거나 concentric(방사형) 레이아웃을 더 적극 노출하는 방식으로 먼저 시도.
+* **상태**: 아직 미착수. 저비용 대안으로 부족하다고 판단될 경우에만 3D 마이그레이션 PoC를 재검토한다.
