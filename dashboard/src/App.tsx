@@ -13,8 +13,7 @@ import { GardenPage } from "./routes/GardenPage";
 import { RawPanel } from "./routes/RawPanel";
 import { WorkspacePage } from "./routes/WorkspacePage";
 import { GuidesPage } from "./routes/GuidesPage";
-import { DraftPage } from "./routes/DraftPage";
-import { DraftsListPage } from "./routes/DraftsListPage";
+
 import { TemplateEditorPage } from "./routes/TemplateEditorPage";
 
 export default function App() {
@@ -26,8 +25,7 @@ export default function App() {
           <Route path="/page/:vault/*" element={<PageView />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/graph" element={<GraphPage />} />
-          <Route path="/draft" element={<DraftPage />} />
-          <Route path="/drafts" element={<DraftsListPage />} />
+
           <Route path="/settings/templates" element={<TemplateEditorPage />} />
           <Route path="/log" element={<LogPage />} />
           <Route path="/lint" element={<LintPage />} />
