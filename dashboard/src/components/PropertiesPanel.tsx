@@ -12,9 +12,14 @@ const PAGE_TYPES = [
   "project", "tool", "person", "comparison", "query",
 ] as const;
 
-const RELATION_TYPES = [
-  "references", "uses", "extends", "related", "contradicts", "implements",
-] as const;
+const RELATION_TYPES: { value: string; label: string }[] = [
+  { value: "references",   label: "참조함" },
+  { value: "uses",         label: "사용함" },
+  { value: "extends",      label: "확장함" },
+  { value: "related",      label: "관련 있음" },
+  { value: "contradicts",  label: "반박함" },
+  { value: "implements",   label: "구현함" },
+];
 
 interface Props {
   vault: string;
@@ -266,7 +271,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
               }}
             >
               {RELATION_TYPES.map(r => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
 
@@ -343,7 +348,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
                     }}
                   >
                     <span style={{ fontSize: 10, color: "var(--color-muted)", fontStyle: "italic" }}>
-                      {rel.type || rel.relation_type}
+                      {RELATION_TYPES.find(r => r.value === (rel.type || rel.relation_type))?.label ?? (rel.type || rel.relation_type)}
                     </span>
                     <span style={{ fontSize: 12, color: "var(--color-primary)", textDecoration: "underline", textDecorationColor: "transparent" }}
                       onMouseEnter={e => (e.currentTarget.style.textDecorationColor = "var(--color-primary)")}
