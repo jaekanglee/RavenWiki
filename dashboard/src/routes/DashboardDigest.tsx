@@ -168,6 +168,8 @@ export function DashboardDigest() {
                       height: "80px",
                       background: adv.type === "bloated" || adv.severity === "warning"
                         ? "radial-gradient(circle, rgba(239,68,68,0.15) 0%, rgba(0,0,0,0) 70%)"
+                        : adv.type === "community_split"
+                        ? "radial-gradient(circle, rgba(251,146,60,0.18) 0%, rgba(0,0,0,0) 70%)"
                         : "radial-gradient(circle, rgba(99,102,241,0.2) 0%, rgba(0,0,0,0) 70%)",
                       pointerEvents: "none"
                     }} />
@@ -175,7 +177,7 @@ export function DashboardDigest() {
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                         <span style={{ fontSize: 18 }}>
-                          {adv.type === "bridge" ? "🌉" : adv.type === "bloated" ? "📦" : adv.type === "orphan" ? "🏝" : "💡"}
+                          {adv.type === "bridge" ? "🌉" : adv.type === "bloated" ? "📦" : adv.type === "community_split" ? "🔀" : adv.type === "orphan" ? "🏝" : "💡"}
                         </span>
                         <strong style={{ fontSize: 14.5, color: "var(--color-ink)", fontWeight: 600 }}>
                           {adv.title}

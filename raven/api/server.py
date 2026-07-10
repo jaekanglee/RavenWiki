@@ -2392,6 +2392,138 @@ def commit_draft_api(name: str, payload: DraftCommitPayload):
 
 
 
+@app.get("/api/vaults/{name}/drafts")
+def list_drafts(name: str):
+    """vault/drafts/ 하위의 모든 초안 파일 목록을 반환합니다.
+    각 항목에는 conflict: bool (동일 slug가 content/ 에 존재하면 True) 이 포함됩니다.
+    """
+    v = _vault_or_404(name)
+    drafts_dir = v.root / "drafts"
+    if not drafts_dir.exists():
+        return {"ok": True, "drafts": []}
+
+    results = []
+    for fp in sorted(drafts_dir.glob("*.md")):
+        slug = f"drafts/{fp.stem}"
+        conflict = (v.content_root / fp.name).exists()
+
+        # frontmatter에서 title, type, updated 빠르게 읽기
+        title = fp.stem
+        doc_type = "concept"
+        updated = None
+        try:
+            raw = fp.read_text(encoding="utf-8", errors="replace")
+            import re as _re
+            fm_match = _re.match(r"^---\s*\n(.*?)\n---\s*\n", raw, _re.DOTALL)
+            if fm_match:
+                fm_text = fm_match.group(1)
+                t_match = _re.search(r"^title:\s*(.+)$", fm_text, _re.MULTILINE)
+                if t_match:
+                    title = t_match.group(1).strip().strip("\"'")
+                tp_match = _re.search(r"^type:\s*(.+)$", fm_text, _re.MULTILINE)
+                if tp_match:
+                    doc_type = tp_match.group(1).strip().strip("\"'")
+                u_match = _re.search(r"^updated:\s*(.+)$", fm_text, _re.MULTILINE)
+                if u_match:
+                    updated = u_match.group(1).strip().strip("\"'")
+        except Exception:
+            pass
+
+        results.append({
+            "slug": slug,
+            "filename": fp.name,
+            "title": title,
+            "type": doc_type,
+            "updated": updated,
+            "conflict": conflict,
+            "size": fp.stat().st_size,
+        })
+
+    return {"ok": True, "drafts": results}
+
+
+@app.delete("/api/vaults/{name}/drafts/{draft_name}")
+def delete_draft(name: str, draft_name: str):
+    """vault/drafts/{draft_name}.md 파일을 삭제합니다."""
+    v = _vault_or_404(name)
+    # 안전: drafts_name은 stem only (경로 순회 방지)
+    safe_name = Path(draft_name).name
+    fp = v.root / "drafts" / f"{safe_name}.md"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail=f"Draft not found: {draft_name}")
+    fp.unlink()
+    try:
+        from raven.core import log as _log
+        _log.append(v, action="delete", slug=f"drafts/{safe_name}", details={})
+    except Exception:
+        pass
+    return {"ok": True, "deleted": f"drafts/{safe_name}"}
+
+
+
+# ─── Template Editor API (Phase 16 Task 3) ──────────────────────────────────
+
+_TEMPLATE_TYPES = [
+    "concept", "person", "tool", "comparison",
+    "project", "rule", "query", "journal", "issue",
+]
+
+@app.get("/api/vaults/{name}/templates")
+def list_templates(name: str):
+    """vault/_templates/ 하위 타입별 템플릿 목록과 내용을 반환합니다.
+    각 항목: { type, exists, content }
+    """
+    v = _vault_or_404(name)
+    templates_dir = v.root / "_templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    for t in _TEMPLATE_TYPES:
+        fp = templates_dir / f"{t}.md"
+        if fp.exists():
+            try:
+                content = fp.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                content = ""
+            results.append({"type": t, "exists": True, "content": content})
+        else:
+            results.append({"type": t, "exists": False, "content": ""})
+
+    return {"ok": True, "templates": results, "vault": name}
+
+
+class TemplateUpdatePayload(BaseModel):
+    content: str
+
+
+@app.put("/api/vaults/{name}/templates/{template_type}")
+def update_template(name: str, template_type: str, payload: TemplateUpdatePayload):
+    """vault/_templates/{template_type}.md 를 저장합니다.
+    template_type 은 허용된 9종 중 하나여야 합니다.
+    """
+    if template_type not in _TEMPLATE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid template type '{template_type}'. Allowed: {_TEMPLATE_TYPES}"
+        )
+    v = _vault_or_404(name)
+    templates_dir = v.root / "_templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    fp = templates_dir / f"{template_type}.md"
+    try:
+        fp.write_text(payload.content, encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write template: {e}")
+
+    try:
+        from raven.core import log as _log
+        _log.append(v, action="update", slug=f"_templates/{template_type}", details={})
+    except Exception:
+        pass
+
+    return {"ok": True, "type": template_type, "path": str(fp)}
+
+
 
 @app.get("/api/vaults/{name}/search")
 def search(name: str, q: str = Query(..., min_length=1), top_k: int = 10):

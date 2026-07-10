@@ -11,11 +11,13 @@ const GLOBAL_NAV = [
   { to: "/", label: "홈", icon: "🏠", match: (p: string) => p === "/" },
   { to: "/graph", label: "그래프", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
   { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
-  { to: "/draft", label: "초안 작성기", icon: "🤖", match: (p: string) => p.startsWith("/draft") },
+  { to: "/drafts", label: "초안 목록", icon: "📋", match: (p: string) => p.startsWith("/drafts") },
+  { to: "/draft", label: "초안 작성기", icon: "🤖", match: (p: string) => p === "/draft" },
   { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
   { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
   { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
   { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
+  { to: "/settings/templates", label: "템플릿", icon: "📝", match: (p: string) => p.startsWith("/settings/templates") },
   { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
 ];
 

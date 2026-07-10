@@ -26,7 +26,8 @@ def generate_ai_advice(vault: Vault) -> List[Dict[str, Any]]:
                 "너는 지식 네트워크 분석 및 Curation 전문가야. 아래의 규칙 기반 진단 목록을 바탕으로, "
                 "각 진단 항목에 대해 상황에 밀착된 구체적인 맞춤형 큐레이션 해결 가이드 문장(한글)을 작성해줘.\n"
                 "해결책 문장은 다음 예시처럼 친근하면서도 전문적이어야 해:\n"
-                "예시: '이 문서는 핵심 브릿지 역할을 하나 최근 3개월간 갱신되지 않아 지식 전파 병목 리스크가 있습니다. X 문서와 관계를 동기화하세요.'\n\n"
+                "예시(bridge): '이 문서는 핵심 브릿지 역할을 하나 최근 3개월간 갱신되지 않아 지식 전파 병목 리스크가 있습니다. X 문서와 관계를 동기화하세요.'\n"
+                "예시(community_split): '이 Collection은 너무 비대합니다. 하위 토픽 A와 B를 별도 문서로 분리하고, 각 도메인에 맞는 인덱스 페이지를 만들어 주세요.'\n\n"
                 "진단 목록:\n"
                 f"{json.dumps(raw_advices, ensure_ascii=False, indent=2)}\n\n"
                 "응답 형식: 반드시 각 진단 항목의 'id'와 새로 생성된 해결책 문장 'ai_message'를 포함하는 JSON 리스트 형식이어야 해. "
@@ -95,6 +96,13 @@ def generate_ai_advice(vault: Vault) -> List[Dict[str, Any]]:
             adv_copy["ai_message"] = (
                 f"'{title}' 문서는 높은 중요도를 가지지만 참조가 부족하여 지식이 사장될 리스크가 있습니다. "
                 "이 문서를 활용하는 하위 구현체나 연관 문서에서 이 문서를 명시적으로 참조하도록 관계를 설정하세요."
+            )
+        elif adv_type == "community_split":
+            community_size = adv.get("community_size", "?")
+            adv_copy["ai_message"] = (
+                f"이 Collection은 너무 비대합니다 ({community_size}개 노드). "
+                f"서로 다른 서브 토픽이 하나의 군집으로 뭉쳐 있으므로 분리가 필요합니다. "
+                f"도메인 내 문서들을 주제별로 묶어 하위 폴더나 인덱스 페이지로 재구조화하세요."
             )
         else:
             adv_copy["ai_message"] = message
