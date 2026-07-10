@@ -300,6 +300,42 @@ def register_tools(mcp: Any, mode: str) -> None:
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
         @mcp.tool(
+            name="wiki_generate_draft",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "Generate a high-quality Markdown draft inside drafts/ using topic, outline, and associated pages. Requires --write or --admin."
+            ),
+        )
+        def wiki_generate_draft(
+            vault: str,
+            topic: str,
+            outline: str,
+            associated_pages: Optional[list[str]] = None,
+        ) -> dict:
+            from raven.core.vault import Vault
+            from raven.core.registry import VaultMeta
+            from raven.core.draft import generate_draft
+            v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+            return generate_draft(v, topic=topic, outline=outline, associated_pages=associated_pages)
+
+        @mcp.tool(
+            name="wiki_commit_draft",
+            description=(
+                EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+                + "Promote a draft file from drafts/ to content/ folder as an active page, and trigger DB rebuild + lint. Requires --write or --admin."
+            ),
+        )
+        def wiki_commit_draft(
+            vault: str,
+            draft_slug: str,
+        ) -> dict:
+            from raven.core.vault import Vault
+            from raven.core.registry import VaultMeta
+            from raven.core.draft import commit_draft
+            v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
+            return commit_draft(v, draft_slug=draft_slug)
+
+        @mcp.tool(
             name="wiki_stale_detect",
             description=(
                 EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE

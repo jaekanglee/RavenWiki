@@ -27,6 +27,7 @@ from . import digest as digest_module
 from . import contracts as contracts_module
 from . import garden as garden_module
 from . import recommend as recommend_module
+from . import draft as draft_module
 
 __all__ = [
     "VaultRegistry",
@@ -47,4 +48,5 @@ __all__ = [
     "contracts_module",
     "garden_module",
     "recommend_module",
+    "draft_module",
 ]
