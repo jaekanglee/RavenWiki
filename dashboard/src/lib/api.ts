@@ -781,10 +781,12 @@ export interface HybridSearchResult {
 export async function fetchHybridSearch(
   vault: string,
   query: string,
-  limit: number = 20
+  limit: number = 20,
+  opts: { signal?: AbortSignal } = {}
 ): Promise<HybridSearchResult[]> {
   const r = await fetch(
-    `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(query)}&limit=${limit}`
+    `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(query)}&limit=${limit}`,
+    { signal: opts.signal }
   );
   if (!r.ok) return [];
   const d = await r.json();
