@@ -35,7 +35,7 @@ link_app = typer.Typer(help="Wikilink inspection.")
 meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, PROJECT-WORKFLOW.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
-lint_app = typer.Typer(help="vault lint 18개 (v0.7.109+) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title/audit violation pattern 등.")
+lint_app = typer.Typer(help="vault lint (raven.core.lint.CHECK_REGISTRY 참조) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title/audit violation pattern 등.")
 migrate_app = typer.Typer(help="vault 마이그레이션 — lint 5 카테고리 dry-run/apply (v0.5.2+).")
 note_app = typer.Typer(help="트리거 헬퍼 — 결정/개념/lesson/journal 페이지 즉시 생성 (playbook §10).")
 collection_app = typer.Typer(help="collection sync — vault FS ↔ yaml diff (Stateless Curator 합의안 v3).")
@@ -1362,19 +1362,19 @@ def log_status(
         typer.echo(f"   ⚠️  rotation 권장: `raven log rotate`")
 
 
-# ────────────────────────── lint (12 checks) ──────────────────────────
+# ────────────────────────── lint (CHECK_REGISTRY 기반) ──────────────────────────
 
 
 @lint_app.command("run")
 def lint_run(
     vault: Optional[str] = typer.Option(None, "--vault"),
-    check: Optional[str] = typer.Option(None, "--check", "-c", help="특정 check만 (#1-#12)"),
+    check: Optional[str] = typer.Option(None, "--check", "-c", help="특정 check만 (예: #4)"),
     severity: Optional[str] = typer.Option(None, "--severity", "-s", help="critical|warning|info 만 표시"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="이슈 전체 표시"),
     json_out: bool = typer.Option(False, "--json"),
     write_log: bool = typer.Option(False, "--log", help="log.md에 lint entry 자동 append"),
 ) -> None:
-    """vault에 대해 lint 18개 실행 (v0.7.109+)."""
+    """vault에 대해 lint 전체 check 실행."""
     v = _resolve_vault_or_die(vault)
     result = lint_module.run_all(v)
     issues = result["issues"]
@@ -1412,7 +1412,7 @@ def lint_run(
             log_module.append(
                 v,
                 action="lint",
-                subject=f"lint 18개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                subject=f"lint {len(lint_module.CHECK_REGISTRY)}개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
                 extra={"by_check": json.dumps(result["by_check"], ensure_ascii=False)},
             )
         except Exception:
@@ -1427,7 +1427,7 @@ def lint_summary(
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
 ) -> None:
-    """12개 check별 통계 (빠른 헬스체크)."""
+    """check별 통계 (빠른 헬스체크)."""
     v = _resolve_vault_or_die(vault)
     result = lint_module.run_all(v)
     if json_out:
@@ -1445,7 +1445,7 @@ def lint_summary(
     typer.echo(f"   warning:   {c['warning']}  🟡")
     typer.echo(f"   info:      {c['info']}     🔵")
     typer.echo(f"\n   by check:")
-    for cid in [f"#{i}" for i in range(1, 14)]:
+    for cid in sorted(lint_module.CHECK_REGISTRY, key=lambda c: int(c[1:])):
         n = result["by_check"].get(cid, 0)
         bar = "█" * min(n, 20)
         typer.echo(f"     {cid}  {n:3d}  {bar}")
@@ -1453,44 +1453,39 @@ def lint_summary(
 
 @lint_app.command("check")
 def lint_check(
-    check_id: str = typer.Argument(..., help="실행할 check id (#1-#13)"),
+    check_id: str = typer.Argument(..., help="실행할 check id (예: #4)"),
     vault: Optional[str] = typer.Option(None, "--vault"),
     json_out: bool = typer.Option(False, "--json"),
 ) -> None:
     """특정 check 1개만 실행 (디버깅/타겟 검증)."""
     v = _resolve_vault_or_die(vault)
-    fn_name = f"check_{_CHECK_ID_TO_NAME.get(check_id, '')}"
-    fn = getattr(lint_module, fn_name, None)
-    if not fn:
-        typer.echo(f"❌ unknown check: {check_id}. 1-13 중 하나.", err=True)
+    meta = lint_module.CHECK_REGISTRY.get(check_id)
+    if meta is None:
+        typer.echo(
+            f"❌ unknown check: {check_id}. "
+            f"{', '.join(sorted(lint_module.CHECK_REGISTRY, key=lambda c: int(c[1:])))} 중 하나.",
+            err=True,
+        )
         raise typer.Exit(1)
+    fn_name = meta.get("fn")
+    if fn_name is None:
+        typer.echo(
+            f"❌ {check_id} ({meta['name']})는 link_module 기반이라 개별 실행을 "
+            f"지원하지 않습니다 — `raven link check` 사용",
+            err=True,
+        )
+        raise typer.Exit(1)
+    fn = getattr(lint_module, fn_name)
     issues = fn(v)
     if json_out:
         typer.echo(json.dumps(issues, indent=2, ensure_ascii=False))
         return
     if not issues:
-        typer.echo(f"✅ {check_id} ({_CHECK_ID_TO_NAME[check_id]}): no issues")
+        typer.echo(f"✅ {check_id} ({meta['name']}): no issues")
         return
-    typer.echo(f"🔍 {check_id} ({_CHECK_ID_TO_NAME[check_id]}): {len(issues)} issues")
+    typer.echo(f"🔍 {check_id} ({meta['name']}): {len(issues)} issues")
     for iss in issues:
         typer.echo(f"  [{iss.get('severity', '?'):8s}] {iss.get('slug', '?'):40s} {iss.get('message', '')}")
-
-
-# check id → 함수 이름 매핑
-_CHECK_ID_TO_NAME = {
-    "#1": "orphans",  # #1 broken은 link_module
-    "#3": "orphans",  # placeholder
-    "#4": "orphans",
-    "#5": "contradictions",
-    "#6": "confidence_low",
-    "#7": "stale",
-    "#8": "page_size",
-    "#9": "tag_audit",
-    "#10": "frontmatter_completeness",
-    "#11": "index_completeness",
-    "#12": "log_size",
-    "#13": "cognitive_governance",
-}
 
 
 # ────────────────────────── migrate (v0.5.2+) ──────────────────────────
