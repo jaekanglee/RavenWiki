@@ -85,7 +85,7 @@ def get_advice(vault: Vault) -> list[dict[str, Any]]:
                     })
                     bridge_count += 1
 
-        # 2) 비대한 폴더/컬렉션 검출
+        # 2) 비대한 폴더/컬렉션 검출 (폴더 기반)
         folder_counts = {}
         for p in pages:
             parts = p["slug"].split('/')
@@ -104,6 +104,61 @@ def get_advice(vault: Vault) -> list[dict[str, Any]]:
                     "severity": "warning",
                     "slug": f"content/{folder}" if folder != "root" else ""
                 })
+
+        # 2-b) 비대 커뮤니티(Louvain) 검출 — community 노드 수 임계값 초과 시 분리 제안
+        COMMUNITY_BLOAT_THRESHOLD = 8
+        COMMUNITY_RATIO_THRESHOLD = 0.30  # 전체 페이지 중 30% 이상
+        community_members: dict[int, list] = {}
+        for p in pages:
+            cid = p["community"]
+            if cid is None:
+                continue
+            community_members.setdefault(cid, []).append(p)
+
+        for cid, members in community_members.items():
+            count = len(members)
+            if count < COMMUNITY_BLOAT_THRESHOLD:
+                continue
+            if n_pages > 0 and (count / n_pages) < COMMUNITY_RATIO_THRESHOLD:
+                continue
+            # 대표 폴더/도메인 이름 추출 (most-common 2nd-level subfolder in community)
+            # content/backend/auth → backend, content/page → (root-level, use 'content')
+            folder_tally: dict[str, int] = {}
+            for p in members:
+                parts = p["slug"].split('/')
+                # 2단계 이상 경로: content/backend/auth → 'backend'
+                # 1단계 경로: content/page → 'content' (generic)
+                if len(parts) >= 3 and parts[0] in ("content", "raw"):
+                    domain = parts[1]
+                elif len(parts) == 2 and parts[0] not in ("_meta", "raw", "_archive"):
+                    domain = parts[0]  # "content"
+                else:
+                    domain = "root"
+                if domain not in ("_meta", "raw", "_archive"):
+                    folder_tally[domain] = folder_tally.get(domain, 0) + 1
+            if not folder_tally:
+                continue
+            domain_name = max(folder_tally, key=lambda k: folder_tally[k])
+            advice_id = f"community-bloated-{cid}"
+            # 중복 방지: 이미 같은 advice_id가 있으면 추가 안 함
+            # (폴더 기반 bloated 중복 제거는 하지 않음 — community는 별도 semantic 레이어)
+            existing_ids = {a["id"] for a in advice_list}
+            if advice_id in existing_ids:
+                continue
+            advice_list.append({
+                "id": advice_id,
+                "type": "community_split",
+                "title": "비대 도메인 분리 권장",
+                "message": (
+                    f"'{domain_name}' 도메인의 지식 커뮤니티가 {count}개 노드로 비대합니다. "
+                    f"서로 다른 서브 토픽이 하나의 군집으로 뭉쳐 있습니다. "
+                    f"분리가 필요합니다."
+                ),
+                "severity": "warning",
+                "slug": f"content/{domain_name}" if domain_name not in ("root", "content") else "",
+                "community_id": cid,
+                "community_size": count,
+            })
 
         # 3) 고립된 노드 검출
         orphan_count = 0
