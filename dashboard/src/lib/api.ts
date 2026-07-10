@@ -248,6 +248,7 @@ export interface LintResult {
   vault: string;
   counts: Record<LintSeverity | "total", number>;
   by_check: Record<string, number>;
+  checks: Record<string, string>;
   issues: LintIssue[];
 }
 
@@ -256,6 +257,7 @@ export interface LintSummary {
   vault: string;
   counts: Record<LintSeverity | "total", number>;
   by_check: Record<string, number>;
+  checks: Record<string, string>;
 }
 
 export async function fetchLint(
