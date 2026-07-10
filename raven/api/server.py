@@ -2853,6 +2853,7 @@ def get_lint(
             "ok": False,
             "counts": {"critical": 0, "warning": 0, "info": 0, "total": 0},
             "by_check": {},
+            "checks": {},
             "issues": [],
             "error": f"{type(exc).__name__}: {exc}",
         }
@@ -2881,6 +2882,7 @@ def get_lint(
         "vault": name,
         "counts": result["counts"],
         "by_check": result["by_check"],
+        "checks": result.get("checks", {}),
         "issues": issues,
     }
 
@@ -2895,6 +2897,7 @@ def get_lint_summary(name: str):
         "vault": name,
         "counts": result["counts"],
         "by_check": result["by_check"],
+        "checks": result.get("checks", {}),
     }
 
 
