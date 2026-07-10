@@ -171,10 +171,148 @@ def test_draft_api(client, isolated_vault: Vault, monkeypatch) -> None:
 
 
 def test_mcp_draft_registered() -> None:
-    """MCP 진입점에서 wiki_generate_draft 및 wiki_commit_draft 도구가 등록되어 있는지 검증합니다."""
-    from raven.mcp import cli as cli_module
-    import inspect
-    assert hasattr(cli_module, "register_tools")
-    source = inspect.getsource(cli_module.register_tools)
-    assert "wiki_generate_draft" in source
-    assert "wiki_commit_draft" in source
+    """MCP 진입점 소스에 wiki_generate_draft 및 wiki_commit_draft 도구가 등록되어 있는지 검증합니다."""
+    from pathlib import Path
+    cli_src = (Path(__file__).parent.parent / "raven" / "mcp" / "cli.py").read_text(encoding="utf-8")
+    assert "wiki_generate_draft" in cli_src
+    assert "wiki_commit_draft" in cli_src
+
+
+# ──────────────────────────────────────────────
+# Phase 15 — 타입별 템플릿 연동 + 충돌 감지 테스트
+# ──────────────────────────────────────────────
+
+def test_draft_with_type_template_fallback(isolated_vault: Vault) -> None:
+    """_templates/concept.md 템플릿 파일이 존재하면 Fallback 경로에서도 본문 뼈대를 참조해야 합니다."""
+    # 템플릿 파일 생성
+    templates_dir = isolated_vault.root / "_templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    (templates_dir / "concept.md").write_text(
+        "---\ntitle: {title}\ntype: concept\n---\n\n## 왜 중요한가\n\n여기에 핵심 가치를 서술하세요.\n\n## 관련 개념\n",
+        encoding="utf-8",
+    )
+
+    res = generate_draft(
+        isolated_vault,
+        topic="지식 보관소 개념",
+        outline="1. 정의\n2. 필요성",
+        associated_pages=["another-page"],
+        draft_type="concept",
+    )
+
+    assert res["ok"] is True
+    content = Path(res["path"]).read_text(encoding="utf-8")
+    # 템플릿 섹션이 본문에 들어가야 한다
+    assert "왜 중요한가" in content or "관련 개념" in content
+
+
+def test_draft_no_template_fallback(isolated_vault: Vault) -> None:
+    """_templates/concept.md 가 없을 때도 기본 fallback으로 초안이 생성됩니다."""
+    res = generate_draft(
+        isolated_vault,
+        topic="Fallback Template Topic",
+        outline="1. Intro",
+        draft_type="concept",
+    )
+    assert res["ok"] is True
+    assert Path(res["path"]).exists()
+    content = Path(res["path"]).read_text(encoding="utf-8")
+    assert "type: concept" in content
+
+
+def test_commit_conflict_without_overwrite(isolated_vault: Vault) -> None:
+    """content/ 에 동일 slug 파일이 이미 존재하면 overwrite=False(기본)일 때 conflict=True를 반환합니다."""
+    # 기존 content 파일 배치
+    content_dir = isolated_vault.content_root
+    content_dir.mkdir(parents=True, exist_ok=True)
+    (content_dir / "conflict-topic.md").write_text(
+        "---\ntitle: Existing Page\ntype: concept\n---\n기존 내용",
+        encoding="utf-8",
+    )
+
+    # draft 파일 배치
+    drafts_dir = isolated_vault.root / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    (drafts_dir / "conflict-topic.md").write_text(
+        "---\ntitle: Conflict Topic\ntype: concept\n---\n새 초안 내용",
+        encoding="utf-8",
+    )
+
+    res = commit_draft(isolated_vault, "drafts/conflict-topic", overwrite=False)
+
+    assert res["ok"] is False
+    assert res.get("conflict") is True
+    assert "existing_content" in res
+    assert "draft_content" in res
+    # 기존 파일은 그대로여야 한다
+    assert (content_dir / "conflict-topic.md").exists()
+    # draft 파일도 아직 남아있어야 한다
+    assert (drafts_dir / "conflict-topic.md").exists()
+
+
+def test_commit_conflict_resolved_with_overwrite(isolated_vault: Vault) -> None:
+    """overwrite=True를 전달하면 충돌 없이 기존 파일을 대체하고 발행합니다."""
+    content_dir = isolated_vault.content_root
+    content_dir.mkdir(parents=True, exist_ok=True)
+    (content_dir / "overwrite-topic.md").write_text(
+        "---\ntitle: Old Page\ntype: concept\n---\n예전 내용",
+        encoding="utf-8",
+    )
+
+    drafts_dir = isolated_vault.root / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    (drafts_dir / "overwrite-topic.md").write_text(
+        "---\ntitle: Overwrite Topic\ntype: concept\n---\n새 내용으로 대체",
+        encoding="utf-8",
+    )
+
+    res = commit_draft(isolated_vault, "drafts/overwrite-topic", overwrite=True)
+
+    assert res["ok"] is True
+    assert res["slug"] == "content/overwrite-topic"
+    committed_text = (content_dir / "overwrite-topic.md").read_text(encoding="utf-8")
+    assert "새 내용으로 대체" in committed_text
+    # 드래프트 파일은 사라져야 한다
+    assert not (drafts_dir / "overwrite-topic.md").exists()
+
+
+def test_commit_conflict_api_returns_409(client, isolated_vault: Vault) -> None:
+    """API에서 충돌 시 HTTP 409와 conflict 플래그가 포함된 JSON을 반환합니다."""
+    content_dir = isolated_vault.content_root
+    content_dir.mkdir(parents=True, exist_ok=True)
+    (content_dir / "api-conflict.md").write_text(
+        "---\ntitle: API Conflict\ntype: concept\n---\n기존",
+        encoding="utf-8",
+    )
+
+    drafts_dir = isolated_vault.root / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    (drafts_dir / "api-conflict.md").write_text(
+        "---\ntitle: API Conflict\ntype: concept\n---\n신규",
+        encoding="utf-8",
+    )
+
+    resp = client.post(
+        f"/api/vaults/{isolated_vault.meta.name}/drafts/commit",
+        json={"draft_slug": "drafts/api-conflict", "overwrite": False},
+    )
+    assert resp.status_code == 409
+    data = resp.json()
+    assert data["conflict"] is True
+    assert "existing_content" in data
+    assert "draft_content" in data
+
+
+def test_mcp_generate_draft_type_param() -> None:
+    """MCP wiki_generate_draft 소스에 draft_type 파라미터가 선언되어 있습니다."""
+    from pathlib import Path
+    cli_src = (Path(__file__).parent.parent / "raven" / "mcp" / "cli.py").read_text(encoding="utf-8")
+    assert "draft_type" in cli_src
+
+
+def test_mcp_commit_draft_overwrite_param() -> None:
+    """MCP wiki_commit_draft 소스에 overwrite 파라미터가 선언되어 있습니다."""
+    from pathlib import Path
+    cli_src = (Path(__file__).parent.parent / "raven" / "mcp" / "cli.py").read_text(encoding="utf-8")
+    assert "overwrite" in cli_src
+

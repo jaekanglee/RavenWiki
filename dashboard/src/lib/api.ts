@@ -890,9 +890,17 @@ export interface DraftGenerateResult {
   used_llm: boolean;
 }
 
+export interface DraftConflictResult {
+  ok: false;
+  conflict: true;
+  error: string;
+  existing_content: string;
+  draft_content: string;
+}
+
 export async function generateDraft(
   vault: string,
-  payload: { topic: string; outline: string; associated_pages?: string[] }
+  payload: { topic: string; outline: string; associated_pages?: string[]; draft_type?: string }
 ): Promise<DraftGenerateResult> {
   const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts/generate`, {
     method: "POST",
@@ -908,13 +916,16 @@ export async function generateDraft(
 
 export async function commitDraft(
   vault: string,
-  payload: { draft_slug: string; content?: string }
-): Promise<{ ok: boolean; slug: string; path: string; db_rebuild: any }> {
+  payload: { draft_slug: string; content?: string; overwrite?: boolean }
+): Promise<{ ok: boolean; slug: string; path: string; db_rebuild: any } | DraftConflictResult> {
   const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  if (r.status === 409) {
+    return r.json();
+  }
   if (!r.ok) {
     const detail = (await r.json().catch(() => ({}))).detail || `commit draft failed: ${r.status}`;
     throw new Error(detail);
