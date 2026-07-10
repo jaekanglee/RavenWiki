@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import inspect
 import shutil
 import sys
 import tempfile
@@ -45,6 +46,32 @@ def test_check_registry_fn_names_resolve_to_real_functions():
         assert hasattr(lint_module, fn_name), (
             f"{cid}: CHECK_REGISTRY.fn={fn_name!r} 가 raven.core.lint에 없음"
         )
+
+
+def test_all_check_functions_are_registered():
+    """lint.py에 정의된 모든 check_* 함수 ↔ CHECK_REGISTRY.fn 양방향 일치 검증.
+
+    test_check_registry_covers_all_produced_ids는 run_all()이 "실제로 산출한"
+    id만 보므로, 빈 vault에서 아무 issue도 내지 않는 새 check_foo가 추가되고도
+    CHECK_REGISTRY 등록이 빠지면 놓친다. 이 테스트는 모듈에 정의된 check_*
+    함수 집합을 정적으로 훑어 CHECK_REGISTRY.fn 집합과 정확히 일치하는지 봄으로써
+    그 구멍을 막는다.
+    """
+    module_check_fns = {
+        name
+        for name, obj in inspect.getmembers(lint_module, inspect.isfunction)
+        if name.startswith("check_") and obj.__module__ == lint_module.__name__
+    }
+    registry_fns = {
+        meta["fn"]
+        for meta in lint_module.CHECK_REGISTRY.values()
+        if meta.get("fn") is not None
+    }
+    assert module_check_fns == registry_fns, (
+        f"lint.py의 check_* 함수와 CHECK_REGISTRY.fn 불일치: "
+        f"module에만 있음={module_check_fns - registry_fns}, "
+        f"registry에만 있음={registry_fns - module_check_fns}"
+    )
 
 
 def test_run_all_embeds_checks_field(vault):

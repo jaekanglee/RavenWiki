@@ -2830,11 +2830,11 @@ def get_garden(name: str):
 @app.get("/api/vaults/{name}/lint")
 def get_lint(
     name: str,
-    check: Optional[str] = Query(None, description="특정 check id (#1-#12)"),
+    check: Optional[str] = Query(None, description="특정 check id (예: #4)"),
     severity: Optional[str] = Query(None, description="critical|warning|info"),
     write_log: bool = Query(False, description="log.md에 lint entry 자동 append"),
 ):
-    """lint 12개 (카파시 가이드) 실행.
+    """lint 실행 (CHECK_REGISTRY 기반).
 
     v0.7.117 (Fix D): lint_module.run_all() 자체가 예외로 raise되면 (예: 특정
     check가 RuntimeError/ValueError) 응답은 500으로 propagate되지 않고
@@ -2868,7 +2868,7 @@ def get_lint(
             log_module.append(
                 v,
                 action="lint",
-                subject=f"lint 12개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
+                subject=f"lint {len(lint_module.CHECK_REGISTRY)}개 ({c['critical']}C/{c['warning']}W/{c['info']}I)",
                 extra={"by_check": result["by_check"]},
             )
         except Exception as exc:  # AGENTS.md §9: silent 버그 정책 — silent swallow ❌
@@ -2889,7 +2889,7 @@ def get_lint(
 
 @app.get("/api/vaults/{name}/lint/summary")
 def get_lint_summary(name: str):
-    """12개 check별 통계 (빠른 헬스체크)."""
+    """check별 통계 (빠른 헬스체크)."""
     v = _vault_or_404(name)
     result = lint_module.run_all(v)
     return {

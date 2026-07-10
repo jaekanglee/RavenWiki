@@ -1163,9 +1163,9 @@ def link_check(
 def build(
     vault: Optional[str] = typer.Option(None, "--vault"),
     db: Optional[Path] = typer.Option(None, "--db", help="output db path (default: <vault>/wiki.db)"),
-    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 18개 실행 (v0.7.109+)"),
+    lint_after: bool = typer.Option(True, "--lint/--no-lint", help="build 직후 lint 실행"),
 ) -> None:
-    """Rebuild wiki.db for the active vault. lint 18개 자동 실행 (v0.7.109+)."""
+    """Rebuild wiki.db for the active vault. lint 자동 실행."""
     v = _resolve_vault_or_die(vault)
     result = db_module.build_db(v, db_path=db, run_lint=lint_after)
     if result["ok"]:
