@@ -371,6 +371,27 @@ const HUD_LABEL_FONT = GRAPH_LABEL_FONT;
 const HUD_LABEL_BASE_SIZE = 17; // 더 크게 (14 -> 17)
 const NODE_LABEL_BASE_SIZE = 11.4;
 
+const NODE_LABEL_MAX_WIDTH_PX = 90; // 화면 픽셀 기준 — fontSize와 동일하게 scale로 나눠 apparent 크기 고정.
+
+// 캔버스 라벨이 너무 길면 자르고 말줄임표(…)를 붙인다. ctx.font가 이미 설정된
+// 상태에서 호출해야 measureText가 올바른 폭을 반환한다.
+export function truncateLabel(ctx: CanvasRenderingContext2D, label: string, maxWidth: number): string {
+  if (ctx.measureText(label).width <= maxWidth) return label;
+  const ellipsis = "…";
+  let lo = 0;
+  let hi = label.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = label.slice(0, mid) + ellipsis;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return label.slice(0, lo) + ellipsis;
+}
+
 export function GraphCanvas({
   nodes,
   edges,
@@ -1272,12 +1293,30 @@ export function GraphCanvas({
         const labelX = node.x + labelOffsetX;
         const labelY = node.y + renderedSize + 3.8 / scale;
 
+        // v0.7.201+: 긴 제목이 안 잘려서 다른 노드/UI와 겹치던 문제 — 잘라서
+        // 표시하고, 호버/포커스 중인 노드만 배경 박스와 함께 전체 제목을 보여준다.
+        const maxLabelWidth = NODE_LABEL_MAX_WIDTH_PX / scale;
+        const displayLabel = isFocused ? label : truncateLabel(ctx, label, maxLabelWidth);
+
+        if (isFocused) {
+          const textWidth = ctx.measureText(displayLabel).width;
+          const padX = 4 / scale;
+          const padY = 2 / scale;
+          ctx.fillStyle = "rgba(15, 15, 20, 0.82)";
+          ctx.fillRect(
+            labelX - textWidth / 2 - padX,
+            labelY - padY,
+            textWidth + padX * 2,
+            fontSize + padY * 2
+          );
+        }
+
         // No text outline: small canvas labels became fat/blurry with halo strokes.
         // Rely on theme-resolved high-contrast label color instead.
         ctx.fillStyle = isFocused
           ? resolvedEdgeHighlightRef.current
           : resolvedLabelColorRef.current;
-        ctx.fillText(label, labelX, labelY);
+        ctx.fillText(displayLabel, labelX, labelY);
         ctx.restore();
       }
       // v0.7.144+: vault 라벨 코드 제거 (all-scope 모드 들어냄)
