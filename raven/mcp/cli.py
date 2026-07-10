@@ -303,7 +303,9 @@ def register_tools(mcp: Any, mode: str) -> None:
             name="wiki_generate_draft",
             description=(
                 EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-                + "Generate a high-quality Markdown draft inside drafts/ using topic, outline, and associated pages. Requires --write or --admin."
+                + "Generate a high-quality Markdown draft inside drafts/ using topic, outline, associated pages, and optional draft_type. "
+                + "If <vault>/_templates/{draft_type}.md exists, the template is injected into the prompt for structural consistency. "
+                + "Valid types: concept, person, tool, comparison, project, rule, query, journal, issue. Requires --write or --admin."
             ),
         )
         def wiki_generate_draft(
@@ -311,29 +313,33 @@ def register_tools(mcp: Any, mode: str) -> None:
             topic: str,
             outline: str,
             associated_pages: Optional[list[str]] = None,
+            draft_type: Optional[str] = "concept",
         ) -> dict:
             from raven.core.vault import Vault
             from raven.core.registry import VaultMeta
             from raven.core.draft import generate_draft
             v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
-            return generate_draft(v, topic=topic, outline=outline, associated_pages=associated_pages)
+            return generate_draft(v, topic=topic, outline=outline, associated_pages=associated_pages, draft_type=draft_type)
 
         @mcp.tool(
             name="wiki_commit_draft",
             description=(
                 EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-                + "Promote a draft file from drafts/ to content/ folder as an active page, and trigger DB rebuild + lint. Requires --write or --admin."
+                + "Promote a draft file from drafts/ to content/ folder as an active page, and trigger DB rebuild + lint. "
+                + "If a file with the same slug already exists in content/ and overwrite=False (default), returns conflict=True with existing_content and draft_content for comparison. "
+                + "Set overwrite=True to force replace. Requires --write or --admin."
             ),
         )
         def wiki_commit_draft(
             vault: str,
             draft_slug: str,
+            overwrite: bool = False,
         ) -> dict:
             from raven.core.vault import Vault
             from raven.core.registry import VaultMeta
             from raven.core.draft import commit_draft
             v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
-            return commit_draft(v, draft_slug=draft_slug)
+            return commit_draft(v, draft_slug=draft_slug, overwrite=overwrite)
 
         @mcp.tool(
             name="wiki_stale_detect",

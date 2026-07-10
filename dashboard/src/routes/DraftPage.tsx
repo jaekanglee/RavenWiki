@@ -2,10 +2,24 @@ import { useState, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/ui/PageHeader";
 import { TextField } from "../components/ui/TextField";
+import { SelectField } from "../components/ui/SelectField";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Modal } from "../components/ui/Modal";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { generateDraft, commitDraft, fetchPages } from "../lib/api";
+import { generateDraft, commitDraft, fetchPages, DraftConflictResult } from "../lib/api";
+
+const DRAFT_TYPE_OPTIONS = [
+  { value: "concept",    label: "concept — 개념 정의" },
+  { value: "person",     label: "person — 인물/팀" },
+  { value: "tool",       label: "tool — 도구/라이브러리" },
+  { value: "comparison", label: "comparison — 비교분석" },
+  { value: "project",    label: "project — 프로젝트" },
+  { value: "rule",       label: "rule — 정책/규칙" },
+  { value: "query",      label: "query — 조회/리포트" },
+  { value: "journal",    label: "journal — 일지/메모" },
+  { value: "issue",      label: "issue — 이슈 추적" },
+];
 
 export function DraftPage() {
   const { vault, refresh } = useOutletContext<{ vault: string; refresh: () => void }>();
@@ -14,6 +28,7 @@ export function DraftPage() {
   // Inputs
   const [topic, setTopic] = useState("");
   const [outline, setOutline] = useState("");
+  const [draftType, setDraftType] = useState("concept");
   const [pages, setPages] = useState<any[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [searchPageQuery, setSearchPageQuery] = useState("");
@@ -31,9 +46,13 @@ export function DraftPage() {
     path: string;
     content: string;
   } | null>(null);
-  
+
   // Edited content in preview
   const [editedContent, setEditedContent] = useState("");
+
+  // Conflict dialog state
+  const [conflictData, setConflictData] = useState<DraftConflictResult | null>(null);
+  const [conflictView, setConflictView] = useState<"existing" | "draft">("draft");
 
   // Load pages list for selection
   useEffect(() => {
@@ -64,6 +83,7 @@ export function DraftPage() {
         topic,
         outline,
         associated_pages: selectedPages,
+        draft_type: draftType,
       });
       if (res.ok) {
         setDraftResult({
@@ -73,7 +93,7 @@ export function DraftPage() {
           content: res.content,
         });
         setEditedContent(res.content);
-        setToastMessage("🤖 임시 초안이 생성되었습니다.");
+        setToastMessage(`🤖 임시 초안이 생성되었습니다. (타입: ${draftType})`);
       } else {
         setError("초안 생성에 실패했습니다.");
       }
@@ -84,7 +104,7 @@ export function DraftPage() {
     }
   };
 
-  const handleCommit = async () => {
+  const handleCommit = async (overwrite: boolean = false) => {
     if (!draftResult) return;
     setCommitting(true);
     setError(null);
@@ -93,13 +113,23 @@ export function DraftPage() {
       const res = await commitDraft(vault, {
         draft_slug: draftResult.slug,
         content: editedContent,
+        overwrite,
       });
-      if (res.ok) {
+
+      // 충돌 감지 (HTTP 409)
+      if ("conflict" in res && res.conflict) {
+        setConflictData(res as DraftConflictResult);
+        setCommitting(false);
+        return;
+      }
+
+      const successRes = res as { ok: boolean; slug: string; path: string; db_rebuild: any };
+      if (successRes.ok) {
         setToastMessage("✅ 보관소로 발행 완료");
+        setConflictData(null);
         refresh();
-        
-        // 1-click UX로 자연스럽게 생성된 정식 문서 View로 이동
-        const targetSlug = res.slug.replace(/^content\//, "");
+
+        const targetSlug = successRes.slug.replace(/^content\//, "");
         setTimeout(() => {
           navigate(`/page/${vault}/${targetSlug}`);
         }, 1200);
@@ -152,7 +182,7 @@ export function DraftPage() {
       <PageHeader
         title="🤖 AI 초안 작성기"
         contextLabel={`in ${vault}`}
-        subtitle="주제와 아웃라인을 입력하면 AI가 위키링크가 삽입된 정제된 초안을 작성합니다. 초안은 임시 보관되며, 승인 시 정식 페이지로 등록됩니다."
+        subtitle="주제와 아웃라인을 입력하면 AI가 위키링크가 삽입된 정제된 초안을 작성합니다. 타입별 템플릿(vault/_templates/)이 있으면 자동 참조합니다."
         bottomSpacing={24}
       />
 
@@ -193,6 +223,15 @@ export function DraftPage() {
               placeholder="예: 지식 보관소 자율 린터 통합 가이드"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
+            />
+
+            {/* Draft Type 선택기 — 타입별 _templates/{type}.md 연동 */}
+            <SelectField
+              label="문서 타입 (Draft Type)"
+              value={draftType}
+              onChange={(e) => setDraftType(e.target.value)}
+              options={DRAFT_TYPE_OPTIONS}
+              helper={`vault/_templates/${draftType}.md 가 있으면 AI 프롬프트에 자동 반영됩니다.`}
             />
 
             <TextField
@@ -311,7 +350,7 @@ export function DraftPage() {
                     임시 격리 경로: {draftResult.path} (린트 예외 대상)
                   </span>
                 </div>
-                <Button variant="primary" size="sm" onClick={handleCommit} disabled={committing}>
+                <Button variant="primary" size="sm" onClick={() => handleCommit(false)} disabled={committing}>
                   {committing ? "보관소 발행 중..." : "🚀 보관소로 발행 (Commit)"}
                 </Button>
               </div>
@@ -347,6 +386,96 @@ export function DraftPage() {
           )}
         </div>
       </div>
+
+      {/* 충돌 감지 다이얼로그 (HTTP 409) */}
+      <Modal
+        open={!!conflictData}
+        onClose={() => setConflictData(null)}
+        maxWidth={900}
+        disableBackdropClose
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
+            <h3 style={{ margin: "0 0 6px 0", fontSize: 18, fontWeight: 700, color: "var(--color-ink)" }}>
+              ⚠️ 덮어쓰기 충돌 감지
+            </h3>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--color-muted)" }}>
+              {conflictData?.error}
+            </p>
+          </div>
+
+          {/* 버전 비교 탭 */}
+          <div style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--color-hairline)", paddingBottom: 8 }}>
+            <button
+              onClick={() => setConflictView("draft")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "1px solid var(--color-hairline)",
+                background: conflictView === "draft" ? "var(--color-ink)" : "transparent",
+                color: conflictView === "draft" ? "var(--color-canvas)" : "var(--color-ink)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              📝 새 초안 (Draft)
+            </button>
+            <button
+              onClick={() => setConflictView("existing")}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "1px solid var(--color-hairline)",
+                background: conflictView === "existing" ? "var(--color-ink)" : "transparent",
+                color: conflictView === "existing" ? "var(--color-canvas)" : "var(--color-ink)",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              📄 기존 문서 (Existing)
+            </button>
+          </div>
+
+          <textarea
+            readOnly
+            value={conflictView === "draft" ? (conflictData?.draft_content ?? "") : (conflictData?.existing_content ?? "")}
+            style={{
+              width: "100%",
+              minHeight: 280,
+              fontFamily: "var(--font-mono, Monaco, monospace)",
+              fontSize: 13,
+              lineHeight: "1.55",
+              color: "var(--color-ink)",
+              background: "var(--color-canvas)",
+              border: "1px solid var(--color-hairline)",
+              borderRadius: 6,
+              padding: 14,
+              resize: "vertical",
+              outline: "none",
+            }}
+          />
+
+          <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
+            두 버전을 비교한 뒤 행동을 선택하세요. "덮어쓰기"는 기존 content/ 파일을 즉시 대체합니다.
+          </p>
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" onClick={() => setConflictData(null)}>
+              취소 — 초안 유지
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleCommit(true)}
+              disabled={committing}
+            >
+              {committing ? "발행 중..." : "⚡ 덮어쓰기 발행 (Overwrite)"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

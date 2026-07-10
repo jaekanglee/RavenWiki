@@ -2351,26 +2351,42 @@ class DraftGeneratePayload(BaseModel):
     topic: str
     outline: str
     associated_pages: Optional[list[str]] = None
+    draft_type: Optional[str] = "concept"
 
 
 @app.post("/api/vaults/{name}/drafts/generate")
 def generate_draft_api(name: str, payload: DraftGeneratePayload):
     v = _vault_or_404(name)
     from raven.core.draft import generate_draft
-    return generate_draft(v, topic=payload.topic, outline=payload.outline, associated_pages=payload.associated_pages)
+    return generate_draft(
+        v,
+        topic=payload.topic,
+        outline=payload.outline,
+        associated_pages=payload.associated_pages,
+        draft_type=payload.draft_type
+    )
 
 
 class DraftCommitPayload(BaseModel):
     draft_slug: str
     content: Optional[str] = None
+    overwrite: Optional[bool] = False
 
 
 @app.post("/api/vaults/{name}/drafts/commit")
 def commit_draft_api(name: str, payload: DraftCommitPayload):
     v = _vault_or_404(name)
     from raven.core.draft import commit_draft
-    res = commit_draft(v, draft_slug=payload.draft_slug, content=payload.content)
+    res = commit_draft(
+        v,
+        draft_slug=payload.draft_slug,
+        content=payload.content,
+        overwrite=payload.overwrite or False
+    )
     if not res.get("ok"):
+        if res.get("conflict"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=409, content=res)
         raise HTTPException(status_code=400, detail=res.get("error", "Failed to commit draft"))
     return res
 
