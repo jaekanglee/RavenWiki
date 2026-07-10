@@ -23,22 +23,11 @@ import { Toast } from "../components/ui/Toast";
  * 위키 dashboard 톤: 데이터 테이블, Rausch는 status badge accent만.
  * yellow/red는 ink 기반 다층 표현으로 대체 (체크/이니셜 라벨).
  */
-const CHECK_NAMES: Record<string, string> = {
-  "#1": "깨진 위키링크",
-  "#2": "깨진 의도 링크 오탐",
-  "#3": "누락된 위키링크",
-  "#4": "고아 문서 (7일 유예)",
-  "#5": "모순 감지",
-  "#6": "신뢰도 낮음",
-  "#7": "오래된 문서 (90일+)",
-  "#8": "문서 길이 초과 (> 200줄)",
-  "#9": "핵심 분류 밖 태그",
-  "#10": "frontmatter 완전성",
-  "#11": "index 완전성 (FS↔DB)",
-  "#12": "로그 크기 과다 (500+)",
-  "#13": "인지 거버넌스",
-  "#14": "계층 무결성 (누수)",
-};
+function sortedCheckIds(checks: Record<string, string>): string[] {
+  return Object.keys(checks).sort(
+    (a, b) => Number(a.slice(1)) - Number(b.slice(1))
+  );
+}
 
 const SEVERITY_LABELS: Record<LintSeverity, string> = {
   critical: "치명",
@@ -108,6 +97,7 @@ export function LintPage() {
           vault,
           counts: res.lint.counts,
           by_check: res.lint.by_check,
+          checks: res.lint.checks,
         });
       }
       const pageCount = res.build.pages ?? "?";
@@ -128,12 +118,15 @@ export function LintPage() {
     load();
   }, [vault, checkFilter, severityFilter]);
 
+  const checkNames = summary?.checks ?? {};
+  const checkIds = sortedCheckIds(checkNames);
+
   return (
     <div style={{ maxWidth: 1120 }}>
       <PageHeader
         title="린트"
         contextLabel={`${vault} 보관소`}
-        subtitle="14개 lint check 결과 요약입니다."
+        subtitle={`${checkIds.length || ""}개 lint check 결과 요약입니다.`}
       />
 
       {/* Counts header */}
@@ -186,7 +179,7 @@ export function LintPage() {
       {summary && (
         <div className="card-flat" style={{ marginBottom: 24, padding: 24 }}>
           <h3 style={{ marginBottom: 16, fontSize: 18 }}>체크별 이슈 분포</h3>
-          {Array.from({ length: 14 }, (_, i) => `#${i + 1}`).map((cid) => {
+          {checkIds.map((cid) => {
             const n = summary.by_check[cid] || 0;
             const max = Math.max(...Object.values(summary.by_check), 1);
             const width = `${(n / max) * 100}%`;
@@ -210,7 +203,7 @@ export function LintPage() {
                   transition: "background-color 0.15s ease",
                 }}
                 className="hover-bg-soft"
-                title={`${CHECK_NAMES[cid]} 필터링 토글 (${n}개)`}
+                title={`${checkNames[cid] ?? cid} 필터링 토글 (${n}개)`}
               >
                 <span
                   style={{
@@ -231,7 +224,7 @@ export function LintPage() {
                     color: "var(--color-body)",
                   }}
                 >
-                  {CHECK_NAMES[cid]}
+                  {checkNames[cid] ?? cid}
                 </span>
                 <div
                   style={{
@@ -297,9 +290,9 @@ export function LintPage() {
             }}
           >
             <option value="">전체</option>
-            {Array.from({ length: 14 }, (_, i) => `#${i + 1}`).map((cid) => (
+            {checkIds.map((cid) => (
               <option key={cid} value={cid}>
-                {cid} {CHECK_NAMES[cid]}
+                {cid} {checkNames[cid] ?? cid}
               </option>
             ))}
           </select>
