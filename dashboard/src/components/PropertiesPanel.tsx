@@ -2,10 +2,10 @@
 // type 드롭다운, tags pill 편집기, 문서 검색 기반 relation 연결 UI.
 // 변경 즉시 저장 (blur/select 이벤트), 저장 성공 시 onSaved() 콜백.
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { updatePage, addRelation } from "../lib/api";
-import { useDebounced } from "../lib/useDebounced";
+import { useHybridSearch } from "../lib/useHybridSearch";
 import type { Page } from "../types";
 
 const PAGE_TYPES = [
@@ -66,11 +66,11 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
 
   // ── relation 연결 ──────────────────────────────────────────────────────────
   const [relQuery, setRelQuery] = useState("");
-  const [relResults, setRelResults] = useState<{ slug: string; title: string; type: string }[]>([]);
   const [relType, setRelType] = useState<string>("references");
   const [relSaving, setRelSaving] = useState(false);
   const [relToast, setRelToast] = useState<string | null>(null);
-  const debouncedRelQuery = useDebounced(relQuery, 220);
+  // v0.7.201+: 사이드바 SearchBar와 동일한 훅 — 결과 100% 동일 보장.
+  const relResults = useHybridSearch(vault, relQuery, { limit: 8, excludeSlug: page.slug });
 
   // page가 바뀌면 state 동기화
   useEffect(() => {
@@ -117,23 +117,6 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
     try { await save({ tags: next }); } catch {} finally { setTagSaving(false); }
   }
 
-  // ── 문서 검색 — SearchPage와 동일한 hybrid-search (220ms debounce, AbortController)
-  useEffect(() => {
-    if (!debouncedRelQuery.trim()) { setRelResults([]); return; }
-    const ctrl = new AbortController();
-    fetch(
-      `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(debouncedRelQuery)}&limit=8`,
-      { signal: ctrl.signal }
-    )
-      .then(r => r.ok ? r.json() : { results: [] })
-      .then(d => {
-        const hits = (d.results || []) as { slug: string; title: string; type: string }[];
-        setRelResults(hits.filter(h => h.slug !== page.slug));
-      })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, [debouncedRelQuery, vault, page.slug]);
-
   // ── relation 추가 ─────────────────────────────────────────────────────────
   async function handleAddRelation(target: { slug: string; title: string }) {
     setRelSaving(true);
@@ -147,7 +130,6 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
       setRelToast(`✅ ${target.title} 연결됨`);
       setTimeout(() => setRelToast(null), 2400);
       setRelQuery("");
-      setRelResults([]);
       onSaved();
     } catch (e: any) {
       setRelToast(`오류: ${e.message}`);
