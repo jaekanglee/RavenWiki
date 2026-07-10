@@ -9,7 +9,7 @@ import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations } from "../lib/api";
+import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations, commitDraft, deleteDraft } from "../lib/api";
 import type { Graph, Page, Recommendation } from "../types";
 
 interface Ctx {
@@ -191,6 +191,9 @@ export function PageView() {
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] });
   const [err, setErr] = useState<string | null>(null);
   const [showFullGraph, setShowFullGraph] = useState(false);
+  const isDraft = typeof slug === "string" && slug.startsWith("drafts/");
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftToast, setDraftToast] = useState<{ msg: string; ok: boolean } | null>(null);
   // Bumped after a save so the fetchPage effect below re-runs even though
   // slug/vault haven't changed — otherwise the article stays stale until
   // the user navigates away and back.
@@ -367,6 +370,79 @@ export function PageView() {
   return (
     <div className="page-grid">
       <article style={{ minWidth: 0 }}>
+        {/* 초안 배너: drafts/ slug일 때 커밋/삭제 액션 제공 */}
+        {isDraft && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 16px",
+            marginBottom: 16,
+            borderRadius: 8,
+            background: "rgba(234, 179, 8, 0.08)",
+            border: "1px solid rgba(234, 179, 8, 0.3)",
+            fontSize: 13,
+          }}>
+            <span style={{ fontSize: 16 }}>📋</span>
+            <span style={{ flex: 1, color: "var(--color-ink)", fontWeight: 500 }}>
+              에이전트가 작성한 초안입니다. 검토 후 vault에 커밋하거나 삭제하세요.
+            </span>
+            {draftToast && (
+              <span style={{ color: draftToast.ok ? "var(--color-success-text)" : "var(--color-danger)", fontWeight: 600, fontSize: 12 }}>
+                {draftToast.msg}
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={draftBusy}
+              onClick={async () => {
+                if (!slug) return;
+                setDraftBusy(true);
+                try {
+                  const draftName = slug.replace(/^drafts\//, "");
+                  await commitDraft(vault, { draft_slug: slug });
+                  setDraftToast({ msg: "✅ 커밋 완료", ok: true });
+                  setTimeout(() => setDraftToast(null), 2400);
+                  ctx?.refresh?.();
+                  window.dispatchEvent(new CustomEvent("raven-draft-changed"));
+                  navigate(`/page/${vault}/content/${draftName}`);
+                } catch (e: any) {
+                  setDraftToast({ msg: `오류: ${e.message}`, ok: false });
+                  setTimeout(() => setDraftToast(null), 2400);
+                } finally {
+                  setDraftBusy(false);
+                }
+              }}
+            >
+              vault에 커밋
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={draftBusy}
+              onClick={async () => {
+                if (!slug || !window.confirm("이 초안을 삭제하시겠습니까?")) return;
+                setDraftBusy(true);
+                try {
+                  const draftName = slug.replace(/^drafts\//, "");
+                  await deleteDraft(vault, draftName);
+                  window.dispatchEvent(new CustomEvent("raven-draft-changed"));
+                  navigate("/");
+                } catch (e: any) {
+                  setDraftToast({ msg: `오류: ${e.message}`, ok: false });
+                  setTimeout(() => setDraftToast(null), 2400);
+                } finally {
+                  setDraftBusy(false);
+                }
+              }}
+            >
+              삭제
+            </Button>
+          </div>
+        )}
         {/* Body — InlineMarkdownEditor (자체 title+actions+editor).
             v0.7.51+ viewContent = 정돈된 본문 (related.body), 편집 모드 전환 시
             전체 MD 원본(content) 안전 수정. onDeleted는 InlineMarkdownEditor
