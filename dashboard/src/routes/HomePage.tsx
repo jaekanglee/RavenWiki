@@ -96,14 +96,6 @@ const ActionIcon = {
       <path d="M9 18h6" />
     </svg>
   ),
-  Digest: () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true">
-      <path d="M12 2a10 10 0 1 0 10 10" />
-      <path d="M12 6v6l4 2" />
-    </svg>
-  ),
 };
 
 const ACTIONS: QuickAction[] = [
@@ -126,13 +118,6 @@ const ACTIONS: QuickAction[] = [
     label: "그래프",
     description: "vault 페이지 연결",
     icon: <ActionIcon.Graph />,
-    requiresVault: true,
-  },
-  {
-    to: "/digest",
-    label: "디제스트",
-    description: "오늘 vault 운영 요약",
-    icon: <ActionIcon.Digest />,
     requiresVault: true,
   },
 ];
