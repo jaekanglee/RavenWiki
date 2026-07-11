@@ -23,7 +23,6 @@ from . import slug as slug_module
 from . import frontmatter as frontmatter_module
 from . import archive as archive_module
 from . import log as log_module
-from . import digest as digest_module
 from . import contracts as contracts_module
 from . import garden as garden_module
 from . import recommend as recommend_module
@@ -44,7 +43,6 @@ __all__ = [
     "frontmatter_module",
     "archive_module",
     "log_module",
-    "digest_module",
     "contracts_module",
     "garden_module",
     "recommend_module",

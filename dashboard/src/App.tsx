@@ -7,7 +7,6 @@ import { GraphPage } from "./routes/GraphPage";
 import { LogPage } from "./routes/LogPage";
 import { LintPage } from "./routes/LintPage";
 import { NewVaultPage } from "./routes/NewVaultPage";
-import { DashboardDigest } from "./routes/DashboardDigest";
 import { VaultManage } from "./routes/VaultManage";
 import { GardenPage } from "./routes/GardenPage";
 import { RawPanel } from "./routes/RawPanel";
@@ -33,7 +32,6 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
-          <Route path="/digest" element={<DashboardDigest />} />
           {/* v0.7.89+: Lite bootstrap 3종 read-only viewer (split view). */}
           <Route path="/guides" element={<GuidesPage />} />
           {/* v0.7.50+: raw/ folder panel */}
