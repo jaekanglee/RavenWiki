@@ -1361,6 +1361,7 @@ def check_guide_freshness(vault):
            "message": "..."} ] — info 등급 silent warn.
     """
     from raven.mcp.tools.guide import _sha256, _load_version_stamp
+    from .vault import AGENT_POINTER_STUB_FILES, AGENT_POINTER_STUB_CONTENT
 
     out = []
     agents = vault.root / "_meta" / "agents"
@@ -1409,6 +1410,30 @@ def check_guide_freshness(vault):
                 "#19", "info", "_meta/agents/PROJECT-WORKFLOW.md",
                 f"stamp stale — stamp={stamp_hash[:8]}.. vault_hash={vault_hash[:8]}..",
             ))
+
+    # 포인터 스텁 (v0.8.1+): PROJECT-WORKFLOW.md가 있을 때만 검사 —
+    # profile=basic처럼 PROJECT-WORKFLOW.md 자체가 없는 vault는 스텁도
+    # 없는 게 정상이므로 skip.
+    if pww_path.exists():
+        for stub_name in AGENT_POINTER_STUB_FILES:
+            stub_path = vault.root / stub_name
+            if not stub_path.exists():
+                out.append(_mk_issue(
+                    "#19", "info", stub_name,
+                    f"에이전트 포인터 스텁 부재 — {stub_name}이 vault 루트에 없음 "
+                    f"(raven meta sync 실행 시 자동 생성)",
+                ))
+                continue
+            try:
+                content = stub_path.read_text(encoding="utf-8")
+            except Exception:
+                content = None
+            if content != AGENT_POINTER_STUB_CONTENT:
+                out.append(_mk_issue(
+                    "#19", "info", stub_name,
+                    f"에이전트 포인터 스텁 내용 불일치 — {stub_name}이 변조됨 "
+                    f"(raven meta sync 실행 시 자동 복구)",
+                ))
 
     return out
 
