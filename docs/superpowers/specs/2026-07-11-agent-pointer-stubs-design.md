@@ -94,4 +94,6 @@ def _write_agent_pointer_stubs(path: Path) -> None:
 
 ## 영향 범위
 
-파일 2개 수정 (`raven/core/vault.py`, `raven/core/lint.py`) + 테스트 추가. 신규 CLI/API/대시보드 표면 없음 — 기존 `vault create`/`raven build`/`raven meta sync` 흐름에 얹힌다. 신규 진입점 아님, ADR 불필요. 기존 vault도 `raven build` 또는 `raven meta sync` 한 번이면 자동으로 스텁을 얻으므로 별도 마이그레이션 스크립트가 필요 없다.
+파일 2개 수정 (`raven/core/vault.py`, `raven/core/lint.py`) + 테스트 추가. 신규 CLI/API/대시보드 표면 없음 — 기존 `vault create` / `raven meta sync` / `raven vault bootstrap`(CLI) / `POST /api/vaults/{name}/bootstrap`(API) 흐름에 얹힌다 (전부 내부적으로 `_bootstrap_lite()` 또는 `sync_meta()`를 호출). 신규 진입점 아님, ADR 불필요.
+
+**정정 (2026-07-12)**: 최초 설계 시 "raven build 실행 시에도 트리거"라고 적었으나, 실제 코드 확인 결과 `raven build`는 `db_module.build_db()`만 호출하고 `sync_meta()`를 호출하지 않는다 (SCHEMA/PROJECT-WORKFLOW/log.md 3종도 지금까지 build가 건드린 적 없음). 이번 스텁 기능만을 위해 `raven build`의 기존 동작 범위를 넓히지 않기로 결정 — 스텁은 PROJECT-WORKFLOW.md와 동일한 생명주기(vault create + meta sync/vault bootstrap)만 따른다. 기존 vault는 `raven meta sync` 또는 `raven vault bootstrap`을 한 번 실행하면 자동으로 스텁을 얻으므로 별도 마이그레이션 스크립트는 필요 없다.
