@@ -499,6 +499,65 @@ def test_api_vault_graph_default_iterations_is_500():
     )
 
 
+def test_api_vault_graph_reuses_unchanged_response_cache(client, isolated_env, monkeypatch):
+    """같은 graph 입력은 ForceAtlas를 다시 계산하지 않고 이전 응답을 재사용한다."""
+    from raven.api import server
+
+    target = isolated_env["target_root"] / "gv_cache"
+    client.post("/api/vaults", json={"name": "gv_cache", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/gv_cache/pages", json={"slug": "content/a", "title": "A", "content": "[[content/b]]"})
+    client.post("/api/vaults/gv_cache/pages", json={"slug": "content/b", "title": "B"})
+
+    calls = 0
+    original_layout = server._forceatlas_layout
+
+    def count_layout(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_layout(*args, **kwargs)
+
+    monkeypatch.setattr(server, "_forceatlas_layout", count_layout)
+    getattr(server, "_GRAPH_RESPONSE_CACHE", {}).clear()
+
+    first = client.get("/api/vaults/gv_cache/graph")
+    second = client.get("/api/vaults/gv_cache/graph")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json() == first.json()
+    assert calls == 1
+
+
+def test_api_vault_graph_cache_invalidates_after_markdown_change(client, isolated_env, monkeypatch):
+    """직접 수정한 Markdown도 다음 조회에서 새 그래프 계산을 유발한다."""
+    from raven.api import server
+
+    target = isolated_env["target_root"] / "gv_cache_invalidation"
+    client.post("/api/vaults", json={"name": "gv_cache_invalidation", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/gv_cache_invalidation/pages", json={"slug": "content/a", "title": "A", "content": "[[content/b]]"})
+    client.post("/api/vaults/gv_cache_invalidation/pages", json={"slug": "content/b", "title": "B"})
+
+    calls = 0
+    original_layout = server._forceatlas_layout
+
+    def count_layout(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_layout(*args, **kwargs)
+
+    monkeypatch.setattr(server, "_forceatlas_layout", count_layout)
+    server._GRAPH_RESPONSE_CACHE.clear()
+
+    first = client.get("/api/vaults/gv_cache_invalidation/graph")
+    page_path = target / "content" / "a.md"
+    page_path.write_text(page_path.read_text(encoding="utf-8") + "\n직접 수정\n", encoding="utf-8")
+    second = client.get("/api/vaults/gv_cache_invalidation/graph")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert calls == 2
+
+
 def test_api_vault_graph_returns_spread_coordinates(client, isolated_env):
     """실제 API 응답 노드 좌표가 충분히 펼쳐져 있다 (허브 응집 압력에도 최소 spacing 유지)."""
     import math

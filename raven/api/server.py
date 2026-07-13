@@ -943,9 +943,48 @@ from raven.core.graph import (
     load_user_positions as _load_user_positions,
     save_user_positions as _save_user_positions,
     folder_group_for_slug as _folder_group_for_slug,
+    GRAPH_POSITIONS_FILENAME,
 )
 from raven.core.relations import SEMANTIC_RELATION_TYPES, is_valid_relation_payload
 from raven.core.node_meta import aliases_from_json, collection_for_slug, normalize_aliases, normalize_status
+
+
+# 그래프는 Markdown·wiki.db·사용자 좌표에서 결정되는 읽기 전용 파생물이다.
+# 모든 입력 파일의 mtime/size를 key로 삼아 직접 수정도 놓치지 않고, 같은 상태의
+# 페이지 재진입에서는 비용이 큰 Louvain/ForceAtlas 계산을 건너뛴다.
+_GRAPH_RESPONSE_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
+_GRAPH_RESPONSE_CACHE_MAX_ENTRIES = 16
+
+
+def _graph_source_fingerprint(v: Vault, iterations: int, community: str) -> tuple[Any, ...]:
+    def stamp(path: Path) -> tuple[int, int] | None:
+        try:
+            stat = path.stat()
+        except OSError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    markdown_stamps: list[tuple[str, int, int]] = []
+    for path in v.root.rglob("*.md"):
+        path_stamp = stamp(path)
+        if path_stamp is not None:
+            markdown_stamps.append((str(path.relative_to(v.root)), *path_stamp))
+    markdown = tuple(sorted(markdown_stamps))
+    return (
+        str(v.root.resolve()),
+        iterations,
+        community,
+        stamp(v.root / "wiki.db"),
+        stamp(v.root / GRAPH_POSITIONS_FILENAME),
+        markdown,
+    )
+
+
+def _cache_graph_response(key: tuple[Any, ...], response: dict[str, Any]) -> dict[str, Any]:
+    if len(_GRAPH_RESPONSE_CACHE) >= _GRAPH_RESPONSE_CACHE_MAX_ENTRIES:
+        _GRAPH_RESPONSE_CACHE.pop(next(iter(_GRAPH_RESPONSE_CACHE)))
+    _GRAPH_RESPONSE_CACHE[key] = response
+    return response
 
 
 @app.get("/api/vaults/{name}/graph")
@@ -978,6 +1017,10 @@ def vault_graph(
     """
     # v0.7.144+: scope=all 분기 제거 — current 단일 vault만 지원.
     v = _vault_or_404(name)
+    cache_key = _graph_source_fingerprint(v, iterations, community)
+    cached = _GRAPH_RESPONSE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
     # 1) wiki.db가 있으면 DB 사용 (정확)
     wiki_db = v.root / "wiki.db"
@@ -1155,13 +1198,14 @@ def vault_graph(
                 xy = layout_coords.get(node["id"], (0.0, 0.0))
                 node["x"] = xy[0]
                 node["y"] = xy[1]
-            return {
+            response = {
                 "ok": True,
                 "vault": name,
                 "nodes": nodes,
                 "edges": edges,
                 "stats": {"nodes": len(nodes), "edges": len(edges)},
             }
+            return _cache_graph_response(cache_key, response)
         except Exception as e:
             # Silent failure 방지 및 디버깅을 위한 에러 로깅
             import sys
@@ -1333,13 +1377,14 @@ def vault_graph(
         node["x"] = xy[0]
         node["y"] = xy[1]
 
-    return {
+    response = {
         "ok": True,
         "vault": name,
         "nodes": nodes,
         "edges": edges,
         "stats": {"nodes": len(nodes), "edges": len(edges)},
     }
+    return _cache_graph_response(cache_key, response)
 
 
 class GraphPositionsBody(BaseModel):
