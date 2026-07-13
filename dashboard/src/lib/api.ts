@@ -883,38 +883,3 @@ export async function deleteDraft(
   }
   return r.json();
 }
-
-// ─── Template Editor API (Task 3) ─────────────────────────────────────────
-
-export interface TemplateItem {
-  type: string;
-  exists: boolean;
-  content: string;
-}
-
-export async function fetchTemplates(vault: string): Promise<TemplateItem[]> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/templates`);
-  if (!r.ok) return [];
-  const d = await r.json();
-  return d.templates || [];
-}
-
-export async function updateTemplate(
-  vault: string,
-  templateType: string,
-  content: string
-): Promise<{ ok: boolean; type: string; path: string }> {
-  const r = await fetch(
-    `/api/vaults/${encodeURIComponent(vault)}/templates/${encodeURIComponent(templateType)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    }
-  );
-  if (!r.ok) {
-    const detail = (await r.json().catch(() => ({}))).detail || `update template failed: ${r.status}`;
-    throw new Error(detail);
-  }
-  return r.json();
-}

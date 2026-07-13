@@ -789,7 +789,7 @@ def bootstrap_vault(name: str, payload: VaultBootstrapPayload):
 
 # v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.
 # _meta/, _archive/, _deprecated/ 같은 Raven 시스템 폴더는 sidebar에서 제외한다.
-RAVEN_SYSTEM_DIRS = {"_meta", "_archive", "_deprecated", "_templates"}
+RAVEN_SYSTEM_DIRS = {"_meta", "_archive", "_deprecated"}
 # 보관소(Vault)의 대문/홈페이지 역할을 하는 파일명(stem) 후보군 (최상단 정렬 대상)
 INDEX_FILE_STEMS = {"index", "readme", "home"}
 
@@ -2417,7 +2417,6 @@ class DraftGeneratePayload(BaseModel):
     topic: str
     outline: str
     associated_pages: Optional[list[str]] = None
-    draft_type: Optional[str] = "concept"
 
 
 @app.post("/api/vaults/{name}/drafts/generate")
@@ -2429,7 +2428,6 @@ def generate_draft_api(name: str, payload: DraftGeneratePayload):
         topic=payload.topic,
         outline=payload.outline,
         associated_pages=payload.associated_pages,
-        draft_type=payload.draft_type
     )
 
 
@@ -2526,68 +2524,6 @@ def delete_draft(name: str, draft_name: str):
     return {"ok": True, "deleted": f"drafts/{safe_name}"}
 
 
-
-# ─── Template Editor API (Phase 16 Task 3) ──────────────────────────────────
-
-_TEMPLATE_TYPES = [
-    "concept", "person", "tool", "comparison",
-    "project", "rule", "query", "journal", "issue",
-]
-
-@app.get("/api/vaults/{name}/templates")
-def list_templates(name: str):
-    """vault/_templates/ 하위 타입별 템플릿 목록과 내용을 반환합니다.
-    각 항목: { type, exists, content }
-    """
-    v = _vault_or_404(name)
-    templates_dir = v.root / "_templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-
-    results = []
-    for t in _TEMPLATE_TYPES:
-        fp = templates_dir / f"{t}.md"
-        if fp.exists():
-            try:
-                content = fp.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                content = ""
-            results.append({"type": t, "exists": True, "content": content})
-        else:
-            results.append({"type": t, "exists": False, "content": ""})
-
-    return {"ok": True, "templates": results, "vault": name}
-
-
-class TemplateUpdatePayload(BaseModel):
-    content: str
-
-
-@app.put("/api/vaults/{name}/templates/{template_type}")
-def update_template(name: str, template_type: str, payload: TemplateUpdatePayload):
-    """vault/_templates/{template_type}.md 를 저장합니다.
-    template_type 은 허용된 9종 중 하나여야 합니다.
-    """
-    if template_type not in _TEMPLATE_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid template type '{template_type}'. Allowed: {_TEMPLATE_TYPES}"
-        )
-    v = _vault_or_404(name)
-    templates_dir = v.root / "_templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-    fp = templates_dir / f"{template_type}.md"
-    try:
-        fp.write_text(payload.content, encoding="utf-8")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to write template: {e}")
-
-    try:
-        from raven.core import log as _log
-        _log.append(v, action="update", slug=f"_templates/{template_type}", details={})
-    except Exception:
-        pass
-
-    return {"ok": True, "type": template_type, "path": str(fp)}
 
 
 

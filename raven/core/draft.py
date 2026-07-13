@@ -27,11 +27,10 @@ def slugify(s: str) -> str:
     return "".join(out)
 
 def generate_draft(
-    vault: Vault, 
-    topic: str, 
-    outline: str, 
+    vault: Vault,
+    topic: str,
+    outline: str,
     associated_pages: Optional[list[str]] = None,
-    draft_type: Optional[str] = "concept"
 ) -> dict[str, Any]:
     """사용자가 제공한 주제(Topic), 아웃라인(Outline), 연관 페이지를 기반으로
     고품질 마크다운 초안 문서를 작성하여 <vault>/drafts/ 하위에 저장합니다.
@@ -51,17 +50,6 @@ def generate_draft(
     wikilinks = [f"[[{p}]]" for p in associated_pages]
     wikilinks_str = ", ".join(wikilinks)
 
-    # 템플릿 연동: _templates/{draft_type}.md 파일이 존재하면 읽음
-    template_content = ""
-    if draft_type:
-        template_file = vault.root / "_templates" / f"{draft_type}.md"
-        if template_file.exists():
-            try:
-                template_content = template_file.read_text(encoding="utf-8")
-            except Exception as e:
-                import sys
-                sys.stderr.write(f"⚠️ [generate_draft] Failed to read template {draft_type}.md: {e}\n")
-
     if api_key:
         try:
             import httpx
@@ -73,30 +61,14 @@ def generate_draft(
                 "2. Frontmatter는 반드시 아래 형식을 정확히 지켜야 한다:\n"
                 "   ---\n"
                 "   title: <문서 제목>\n"
-                f"   type: {draft_type or 'concept'}\n"
+                "   type: concept\n"
                 "   tags: [<태그1>, <태그2>]\n"
                 "   created: <오늘날짜 YYYY-MM-DD>\n"
                 "   updated: <오늘날짜 YYYY-MM-DD>\n"
                 "   ---\n"
+                "3. 본문에는 아웃라인의 내용을 풍부하게 서술하고, 제공된 연관 페이지 위키링크를 본문 중간에 자연스럽게 삽입하거나 아웃바운드 [[wikilink]] 형태로 포함해야 한다. 최소 2개 이상의 위키링크가 본문에 들어가도록 배치하라.\n"
+                "4. 반드시 최종 마크다운 형식의 결과물만 출력해라. 다른 설명 텍스트를 추가하지 말라.\n\n"
             )
-            
-            if template_content:
-                prompt += (
-                    f"3. [중요] 아래 제공되는 템플릿 형식을 엄격히 학습/참조(Read)하여, 일관된 구조(예: 필수 포함 섹션 등)로 작성해라.\n"
-                    "   템플릿에 포함된 섹션 헤더나 구성 원칙을 준수해야 한다.\n"
-                    "   단, 중괄호 {title} 등 변수 치환이 필요한 부분은 사용자의 주제(Topic)에 맞춰 채워라.\n\n"
-                    f"[초안 타입별 템플릿]\n"
-                    "```markdown\n"
-                    f"{template_content}\n"
-                    "```\n\n"
-                    "4. 본문에는 아웃라인의 내용을 풍부하게 서술하고, 제공된 연관 페이지 위키링크를 본문 중간에 자연스럽게 삽입하거나 아웃바운드 [[wikilink]] 형태로 포함해야 한다. 최소 2개 이상의 위키링크가 본문에 들어가도록 배치하라.\n"
-                    "5. 반드시 최종 마크다운 형식의 결과물만 출력해라. 다른 설명 텍스트를 추가하지 말라.\n\n"
-                )
-            else:
-                prompt += (
-                    "3. 본문에는 아웃라인의 내용을 풍부하게 서술하고, 제공된 연관 페이지 위키링크를 본문 중간에 자연스럽게 삽입하거나 아웃바운드 [[wikilink]] 형태로 포함해야 한다. 최소 2개 이상의 위키링크가 본문에 들어가도록 배치하라.\n"
-                    "4. 반드시 최종 마크다운 형식의 결과물만 출력해라. 다른 설명 텍스트를 추가하지 말라.\n\n"
-                )
 
             prompt += (
                 f"주제 (Topic): {topic}\n"
@@ -157,41 +129,26 @@ def generate_draft(
         import datetime
         today = datetime.date.today().isoformat()
         
-        tags = ["draft", draft_type or "concept"]
-        
-        # 템플릿 파일에서 본문 뼈대를 가져온다
-        if template_content:
-            fm_pattern = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
-            match = fm_pattern.match(template_content)
-            if match:
-                _, template_body = match.groups()
-                template_body = template_body.replace("{title}", title)
-                body_content = template_body + "\n\n## 아웃라인\n" + outline + "\n\n## 연관 문서\n"
-                for p in associated_pages:
-                    body_content += f"- [[{p}]]\n"
-            else:
-                body_content = template_content.replace("{title}", title) + "\n\n## 아웃라인\n" + outline + "\n\n## 연관 문서\n"
-                for p in associated_pages:
-                    body_content += f"- [[{p}]]\n"
-        else:
-            body_lines = [
-                f"# {title}",
-                "",
-                f"이 문서는 {topic}에 대한 AI 초안입니다.",
-                "",
-                "## 아웃라인",
-                outline,
-                "",
-                "## 연관 문서",
-            ]
-            for p in associated_pages:
-                body_lines.append(f"- [[{p}]]")
-            body_content = "\n".join(body_lines)
+        tags = ["draft", "concept"]
+
+        body_lines = [
+            f"# {title}",
+            "",
+            f"이 문서는 {topic}에 대한 AI 초안입니다.",
+            "",
+            "## 아웃라인",
+            outline,
+            "",
+            "## 연관 문서",
+        ]
+        for p in associated_pages:
+            body_lines.append(f"- [[{p}]]")
+        body_content = "\n".join(body_lines)
         
         fm_lines = [
             "---",
             f"title: {title}",
-            f"type: {draft_type or 'concept'}",
+            "type: concept",
             f"tags: {json.dumps(tags, ensure_ascii=False)}",
             f"created: {today}",
             f"updated: {today}",

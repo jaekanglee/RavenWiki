@@ -327,9 +327,8 @@ def register_tools(mcp: Any, mode: str) -> None:
             name="wiki_generate_draft",
             description=(
                 EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-                + "Generate a high-quality Markdown draft inside drafts/ using topic, outline, associated pages, and optional draft_type. "
-                + "If <vault>/_templates/{draft_type}.md exists, the template is injected into the prompt for structural consistency. "
-                + "Valid types: concept, person, tool, comparison, project, rule, query, journal, issue. Requires --write or --admin."
+                + "Generate a high-quality Markdown draft inside drafts/ using topic, outline, and associated pages. "
+                + "Requires --write or --admin."
             ),
         )
         def wiki_generate_draft(
@@ -337,13 +336,12 @@ def register_tools(mcp: Any, mode: str) -> None:
             topic: str,
             outline: str,
             associated_pages: Optional[list[str]] = None,
-            draft_type: Optional[str] = "concept",
         ) -> dict:
             from raven.core.vault import Vault
             from raven.core.registry import VaultMeta
             from raven.core.draft import generate_draft
             v = Vault.load(VaultMeta(name=vault, path=resolve_vault_path(vault)))
-            return generate_draft(v, topic=topic, outline=outline, associated_pages=associated_pages, draft_type=draft_type)
+            return generate_draft(v, topic=topic, outline=outline, associated_pages=associated_pages)
 
         @mcp.tool(
             name="wiki_commit_draft",
