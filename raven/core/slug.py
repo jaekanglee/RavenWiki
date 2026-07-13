@@ -91,7 +91,7 @@ def normalize_prefix(slug: str) -> str:
     if s.startswith("~") or s.startswith("/") or s.startswith("."):
         return s
     
-    prefixes = ("content/", "_meta/", "raw/", "_archive/", "_deprecated/", "_templates/")
+    prefixes = ("content/", "_meta/", "raw/", "_archive/", "_deprecated/")
     lower_s = s.lower()
     if any(lower_s.startswith(p) for p in prefixes):
         return s

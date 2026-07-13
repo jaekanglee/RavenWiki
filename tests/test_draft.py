@@ -179,45 +179,33 @@ def test_mcp_draft_registered() -> None:
 
 
 # ──────────────────────────────────────────────
-# Phase 15 — 타입별 템플릿 연동 + 충돌 감지 테스트
+# Template feature removal regression guard
 # ──────────────────────────────────────────────
 
-def test_draft_with_type_template_fallback(isolated_vault: Vault) -> None:
-    """_templates/concept.md 템플릿 파일이 존재하면 Fallback 경로에서도 본문 뼈대를 참조해야 합니다."""
-    # 템플릿 파일 생성
-    templates_dir = isolated_vault.root / "_templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-    (templates_dir / "concept.md").write_text(
-        "---\ntitle: {title}\ntype: concept\n---\n\n## 왜 중요한가\n\n여기에 핵심 가치를 서술하세요.\n\n## 관련 개념\n",
-        encoding="utf-8",
-    )
+def test_draft_fallback_has_no_template_feature_artifacts(isolated_vault: Vault) -> None:
+    """초안 생성은 vault별 템플릿 파일·Dashboard 템플릿 화면 없이 기본 구조를 사용한다."""
+    repo_root = Path(__file__).parent.parent
 
     res = generate_draft(
         isolated_vault,
-        topic="지식 보관소 개념",
-        outline="1. 정의\n2. 필요성",
-        associated_pages=["another-page"],
-        draft_type="concept",
-    )
-
-    assert res["ok"] is True
-    content = Path(res["path"]).read_text(encoding="utf-8")
-    # 템플릿 섹션이 본문에 들어가야 한다
-    assert "왜 중요한가" in content or "관련 개념" in content
-
-
-def test_draft_no_template_fallback(isolated_vault: Vault) -> None:
-    """_templates/concept.md 가 없을 때도 기본 fallback으로 초안이 생성됩니다."""
-    res = generate_draft(
-        isolated_vault,
-        topic="Fallback Template Topic",
+        topic="Fallback Draft Topic",
         outline="1. Intro",
-        draft_type="concept",
     )
+
     assert res["ok"] is True
     assert Path(res["path"]).exists()
-    content = Path(res["path"]).read_text(encoding="utf-8")
-    assert "type: concept" in content
+    assert not (isolated_vault.root / "_templates").exists()
+
+    draft_source = (repo_root / "raven" / "core" / "draft.py").read_text(encoding="utf-8")
+    api_source = (repo_root / "raven" / "api" / "server.py").read_text(encoding="utf-8")
+    app_source = (repo_root / "dashboard" / "src" / "App.tsx").read_text(encoding="utf-8")
+    layout_source = (repo_root / "dashboard" / "src" / "components" / "Layout.tsx").read_text(encoding="utf-8")
+
+    assert "_templates" not in draft_source
+    assert '"/api/vaults/{name}/templates"' not in api_source
+    assert "TemplateEditorPage" not in app_source
+    assert 'to: "/settings/templates"' not in layout_source
+    assert not (repo_root / "dashboard" / "src" / "routes" / "TemplateEditorPage.tsx").exists()
 
 
 def test_commit_conflict_without_overwrite(isolated_vault: Vault) -> None:
@@ -303,11 +291,11 @@ def test_commit_conflict_api_returns_409(client, isolated_vault: Vault) -> None:
     assert "draft_content" in data
 
 
-def test_mcp_generate_draft_type_param() -> None:
-    """MCP wiki_generate_draft 소스에 draft_type 파라미터가 선언되어 있습니다."""
+def test_mcp_generate_draft_has_no_template_param() -> None:
+    """MCP 초안 생성 도구는 vault별 템플릿 파라미터를 노출하지 않는다."""
     from pathlib import Path
     cli_src = (Path(__file__).parent.parent / "raven" / "mcp" / "cli.py").read_text(encoding="utf-8")
-    assert "draft_type" in cli_src
+    assert "draft_type" not in cli_src
 
 
 def test_mcp_commit_draft_overwrite_param() -> None:
