@@ -1783,6 +1783,7 @@ def docs_list() -> None:
         ("agent-tools", "templates/agent/TOOLS.md", "에이전트 인터페이스 + scope"),
         ("agent-workflow", "templates/agent/WORKFLOW.md", "트리거 / Phase 게이트"),
         ("agent-safety", "templates/agent/SAFETY.md", "에이전트 절대 금지"),
+        ("agent-curation", "templates/agent/CURATION.md", "에이전트 지식 정제 + 컴파일 전 소스 검증 기준"),
         ("policy", "templates/wikisys-policy.md", "raven 운영 정책"),
     ]
     typer.echo("📚 Tier 1 raven-internal docs (vault에 복사되지 않음):\n")
@@ -1797,7 +1798,7 @@ def docs_list() -> None:
 def docs_show(
     topic: str = typer.Argument(
         ...,
-        help="operations | agent-readme | agent-tools | agent-workflow | agent-safety | policy",
+        help="operations | agent-readme | agent-tools | agent-workflow | agent-safety | agent-curation | policy",
     ),
 ) -> None:
     """Print a Tier 1 doc to stdout. Never writes to disk."""
@@ -1809,6 +1810,7 @@ def docs_show(
         "agent-tools": "templates/agent/TOOLS.md",
         "agent-workflow": "templates/agent/WORKFLOW.md",
         "agent-safety": "templates/agent/SAFETY.md",
+        "agent-curation": "templates/agent/CURATION.md",
         "policy": "templates/wikisys-policy.md",
     }
     if topic not in topic_map:
