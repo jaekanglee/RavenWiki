@@ -245,6 +245,29 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode <re
 허용되지 않은 쓰기 시도는 API/MCP 수준에서 `permission_denied`로 차단됩니다.
 상세 데이터 계약은 `SCHEMA.md` 참조.
 
+### §2.1 작업 이력 기록 규약
+
+`log.md`는 감사 숫자 덤프가 아니라 사람이 최근 작업의 **의도와 결과**를 파악하는
+작업 이력입니다. MCP로 `wiki_update`할 때는 아래 두 값을 함께 전달하세요.
+
+| 입력 | 기록 위치 | 기준 |
+|---|---|---|
+| `summary` | 헤더 `action | subject` | 무엇이 달라졌는지 사람말 한 줄 — 경로·코드·건수만 쓰지 않음 |
+| `reason` | `- reason:` | 왜 이 변경이 필요한지 한 줄 |
+
+```text
+update | MCP write 권한 근거 보강
+- reason: 외부 에이전트가 권한 경계를 바로 판단할 수 있게 설명을 보완
+
+❌ update | content/concept/mcp-physical-lock.md
+❌ build+lint: 98c/122w/10i
+```
+
+`actor`, 대상 경로, idempotency key 같은 기술 감사 정보는 도구가 detail로 남깁니다.
+자동 `wiki.db` 재빌드는 원 작업에 포함하므로 별도 `build` 이력으로 반복 기록하지
+않습니다. 같은 작업에 여러 문서를 바꾸면 각 문서의 `summary`도 같은 작업 맥락이
+읽히게 적으세요.
+
 ## §3. 저장 결정 — 4가지 신호
 
 `save`/`ingest` 받으면 페이지 만들기 **전에** 다음 4문항 확인:

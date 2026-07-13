@@ -324,6 +324,8 @@ def wiki_update(
     ctx: Optional[VaultContext] = None,
     actor: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    summary: Optional[str] = None,
+    reason: Optional[str] = None,
 ) -> dict:
     """Update (or create) a markdown page by slug.
 
@@ -415,6 +417,7 @@ def wiki_update(
             params={
                 "slug": slug, "content": content,
                 "frontmatter_data": frontmatter_data,
+                "summary": summary, "reason": reason,
             },
         )
         if cached is not None:
@@ -530,12 +533,13 @@ def wiki_update(
     }
     return _finalize_write(
         tool="wiki_update", vault=vault_path, action="create" if creating else "update",
-        subject=str(rel), actor=actor_norm,
+        subject=summary.strip() if summary and summary.strip() else str(rel), actor=actor_norm,
         idempotency_key=idempotency_key,
         params={"slug": slug, "content": content,
-                "frontmatter_data": frontmatter_data},
+                "frontmatter_data": frontmatter_data,
+                "summary": summary, "reason": reason},
         response=response,
-        extras=[f"path: {rel}"],
+        extras=[f"path: {rel}"] + ([f"reason: {reason.strip()}"] if reason and reason.strip() else []),
         slugs=[slug],
     )
 

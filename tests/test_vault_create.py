@@ -60,6 +60,9 @@ def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
     schema = (v.root / "_meta" / "agents" / "SCHEMA.md").read_text()
     assert "Source of Truth" in schema
     assert "wikilink" in schema.lower()
+    workflow = (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").read_text()
+    assert "작업 이력 기록 규약" in workflow
+    assert "summary" in workflow
     # Curation guidance is product documentation, not part of the Lite
     # bootstrap surface. Keep the vault-facing contract at 2 files + log.md.
     assert not (v.root / "_meta" / "agents" / "CURATION.md").exists()
