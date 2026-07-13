@@ -1,7 +1,7 @@
 ---
 title: Vault Curation & Cleansing Guidelines — 에이전트 지식 정제 규칙
 created: 2026-07-08
-updated: 2026-07-08
+updated: 2026-07-13
 type: rule
 tags: [system, workflow, curation, meta]
 audience: agent
@@ -14,7 +14,47 @@ confidence: high
 
 ---
 
-## 1. 큐레이션 및 클렌징의 3대 대원칙
+## 1. 컴파일 전 소스 검증 체크리스트 (Pre-Compile Source Vetting)
+
+> 볼트에 쌓인 기존 문서(사람 작성 + 에이전트 작성 포함)를 참고해 새 문서를 합성(synthesis)하기 **전에**, 소스로 쓰려는 각 후보 문서가 그대로 인용해도 될 만큼 신뢰할 수 있는지 먼저 판정합니다. 판정에 새 frontmatter 필드는 필요 없습니다 — 이미 `SCHEMA.md`에 있는 신호만 조합합니다.
+
+### 1.1 신호 테이블
+
+| 신호 | 확인 방법 | 의미 |
+|---|---|---|
+| `status: contested` | frontmatter | 모순 미해결 |
+| `status: archived` | frontmatter | 의도적 폐기 |
+| `confidence: low` | frontmatter | 단일 출처/미검증 |
+| stale | `status: stale` 또는 lint #7 (`updated` > 90일) | 사실이 바뀌었을 가능성 |
+| orphan | lint #4 (inbound wikilink 0) | 교차검증된 적 없음 |
+| placeholder | lint #20 | 소스 자체가 미완성 |
+| duplicate-title 미해결 | lint #17 | 어느 쪽이 정본인지 아직 불명 |
+
+### 1.2 판정 결정 트리
+
+합성에 쓰려는 소스 후보마다 아래 순서로 평가합니다:
+
+1. `status: contested` (§4 변증법적 갈등 해소 대상) → **⛔ 인용 금지**. 먼저 §4 절차로 모순을 해소하거나 사람 판정을 기다립니다.
+2. `status: archived` → **⛔ 인용 금지**. 의도적으로 퇴장시킨 지식이므로, 필요하면 `archive_reason`을 확인하고 복원 여부는 사람에게 문의합니다.
+3. placeholder(lint #20) 존재 또는 duplicate-title(lint #17) 미해결 → **⛔ 인용 금지**. 소스 자체가 아직 컴파일되지 않은 상태이므로 §3 절차로 소스부터 정리한 뒤 재시도합니다.
+4. 아래 "약한 신호" 중 **2개 이상 동시 발생** → **⛔ 인용 금지** (누적 시 근거 부족):
+   - `confidence: low`
+   - stale (`status: stale` 또는 lint #7)
+   - orphan (lint #4)
+5. 약한 신호가 **정확히 1개** → **⚠️ 캐비어 달고 인용**:
+   - 새로 쓰는 문서의 `confidence`는 인용한 소스들 중 **최솟값을 상속**합니다.
+   - 본문에 "근거가 약함(사유)"을 한 문장으로 명시합니다. 예: "이 결론은 90일 이상 미검증된 소스에 기반함."
+6. 위 어느 것도 해당하지 않음 (status: current, confidence: medium 이상, 최근 검증됨, inbound backlink 존재) → **✅ 그대로 인용**.
+
+### 1.3 다중 소스 규칙
+
+여러 소스를 종합해 하나의 새 문서를 합성할 때:
+- ⛔ 판정을 받은 소스는 배제하고, 남은 ✅/⚠️ 소스만으로 합성을 진행합니다.
+- 배제 후 남는 근거가 결론을 지지하기에 불충분해지면(예: 핵심 주장 하나가 배제된 소스에만 있었던 경우), 억지로 합성을 강행하지 않고 사람에게 "이 주제는 아직 컴파일 근거가 부족하다"고 보고합니다.
+
+---
+
+## 2. 큐레이션 및 클렌징의 3대 대원칙
 
 에이전트는 린트 경고를 해결하거나 볼트를 정리할 때 단순히 형식적인 린트 오류 통과를 목적으로 해선 안 되며, 다음 대원칙을 준수해야 합니다.
 
@@ -24,7 +64,7 @@ confidence: high
 
 ---
 
-## 2. 린트 규칙별 세부 클렌징 및 조치 가이드
+## 3. 린트 규칙별 세부 클렌징 및 조치 가이드
 
 `wiki_lint()` 실행 시 검출되는 오류에 대해 에이전트는 다음과 같이 큐레이션을 수행합니다.
 
@@ -55,7 +95,7 @@ confidence: high
 
 ---
 
-## 3. 변증법적 갈등 해소 (Dialectic Contradiction Resolver)
+## 4. 변증법적 갈등 해소 (Dialectic Contradiction Resolver)
 
 에이전트가 다른 정보원으로부터 기존 볼트 문서(특히 사람이 작성한 `rule`, `concept`)와 명백한 사실적 모순을 발견했을 때의 행동 프로토콜입니다.
 
@@ -65,7 +105,7 @@ confidence: high
 
 ---
 
-## 4. 지식 계보 및 기원(Provenance) 보존
+## 5. 지식 계보 및 기원(Provenance) 보존
 
 에이전트가 큐레이션을 수행하며 문서를 수정하거나 상태를 전이시킬 때, Frontmatter의 `sources` 필드와 `agents` 이력 필드를 다음과 같이 엄격하게 작성해야 지식의 신뢰성이 유지됩니다.
 
