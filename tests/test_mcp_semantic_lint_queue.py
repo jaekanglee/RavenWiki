@@ -6,14 +6,17 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
 import pytest
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
 from raven.core.registry import VaultMeta
 from raven.core.vault import Vault
+from raven.mcp.cli import register_tools
 from raven.mcp.tools.semantic_lint import (
     ALLOWED_CHECKS,
     wiki_semantic_lint_queue,
@@ -189,3 +192,70 @@ def test_duplicate_title_pair_gets_paired_with_on_both_sides(tmp_path: Path):
     b = by_slug["content/python-guide-2"]["matched_checks"][0]
     assert a["id"] == "#17" and a["paired_with"] == "content/python-guide-2"
     assert b["id"] == "#17" and b["paired_with"] == "content/python-guide"
+
+
+def _call_tool_result(mcp: FastMCP, name: str, arguments: dict):
+    """FastMCP의 `call_tool` 반환 shape을 원래 값으로 정규화.
+
+    tests/test_mcp_multi_vault.py의 동일 헬퍼와 같은 정규화 규칙.
+    """
+    result = asyncio.run(mcp.call_tool(name, arguments))
+    if isinstance(result, tuple):
+        _, structured = result
+        return structured["result"]
+    return json.loads(result[0].text)
+
+
+def test_tool_registered_and_reachable_by_vault_name(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
+    from raven.core.registry import VaultRegistry
+
+    root = _vault(tmp_path, name="reg-vault")
+    _write_page(
+        root,
+        "weak-page",
+        {
+            "title": "Weak Page",
+            "type": "concept",
+            "confidence": "low",
+            "created": "2020-01-01",
+            "updated": "2020-01-01",
+        },
+    )
+    reg = VaultRegistry(root=tmp_path)
+    reg.add(VaultMeta(name="reg-vault", path=root))
+
+    mcp = FastMCP("wiki")
+    register_tools(mcp, "read")
+
+    payload = _call_tool_result(
+        mcp, "wiki_semantic_lint_queue", {"vault": "reg-vault"}
+    )
+
+    assert payload["ok"] is True
+    slugs = {c["slug"] for c in payload["candidates"]}
+    assert "content/weak-page" in slugs
+
+
+def test_tool_rejects_disallowed_check_id_as_tool_error(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
+    from raven.core.registry import VaultRegistry
+
+    root = _vault(tmp_path, name="reg-vault-2")
+    reg = VaultRegistry(root=tmp_path)
+    reg.add(VaultMeta(name="reg-vault-2", path=root))
+
+    mcp = FastMCP("wiki")
+    register_tools(mcp, "read")
+
+    with pytest.raises(ToolError) as excinfo:
+        asyncio.run(
+            mcp.call_tool(
+                "wiki_semantic_lint_queue",
+                {"vault": "reg-vault-2", "checks": ["#9"]},
+            )
+        )
+
+    message = str(excinfo.value)
+    for cid in ALLOWED_CHECKS:
+        assert cid in message
