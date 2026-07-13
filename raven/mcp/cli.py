@@ -413,7 +413,8 @@ def register_tools(mcp: Any, mode: str) -> None:
                 + "Create or overwrite a vault markdown page (upsert; new pages "
                 "must pass the vault schema guard). Requires --write or --admin. "
                 "Optional M4/F1 kwargs: actor (caller identity), "
-                "idempotency_key (retry-suppression token)."
+                "idempotency_key (retry-suppression token). For a readable work "
+                "history, provide summary (human one-line change) and reason."
             ),
         )
         def wiki_update(
@@ -423,6 +424,8 @@ def register_tools(mcp: Any, mode: str) -> None:
             frontmatter: dict | None = None,
             actor: str | None = None,
             idempotency_key: str | None = None,
+            summary: str | None = None,
+            reason: str | None = None,
         ) -> dict:
             ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
             return write_tools.wiki_update(
@@ -431,6 +434,8 @@ def register_tools(mcp: Any, mode: str) -> None:
                 frontmatter_data=frontmatter,
                 actor=actor,
                 idempotency_key=idempotency_key,
+                summary=summary,
+                reason=reason,
                 ctx=ctx,
             )
 

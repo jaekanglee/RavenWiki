@@ -168,6 +168,26 @@ def test_update_appends_log_entry_with_actor(temp_vault: Path):
     assert "##" in log and "update" in log and "carol" in log
 
 
+def test_update_logs_human_summary_and_reason(temp_vault: Path):
+    slug = f"queries/f1_{uuid.uuid4().hex[:8]}"
+    _stage_page(temp_vault, slug)
+    ctx = VaultContext(vault=temp_vault, mode=WRITE)
+
+    result = wiki_update(
+        slug=slug,
+        content="body\n",
+        actor="carol",
+        summary="MCP write 권한 근거 보강",
+        reason="외부 에이전트가 권한 경계를 바로 판단할 수 있게 설명을 보완",
+        ctx=ctx,
+    )
+
+    assert result["ok"] is True
+    log = _read_log(temp_vault)
+    assert "update | MCP write 권한 근거 보강 via mcp" in log
+    assert "reason: 외부 에이전트가 권한 경계를 바로 판단할 수 있게 설명을 보완" in log
+
+
 def test_update_log_entry_includes_idempotency_key(temp_vault: Path):
     slug = f"queries/f1_{uuid.uuid4().hex[:8]}"
     _stage_page(temp_vault, slug)
