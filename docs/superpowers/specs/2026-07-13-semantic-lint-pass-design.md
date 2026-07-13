@@ -83,7 +83,7 @@ def wiki_semantic_lint_queue(
 }
 ```
 
-`#5`(contradiction), `#17`(duplicate-title)은 페이지 쌍 단위 체크이므로 해당 `matched_checks` 항목에 `paired_with: <slug>` 필드가 추가된다.
+`#17`(duplicate-title)만 `"slug_a ↔ slug_b"` 형태의 복합 slug를 반환하는 페이지 쌍 단위 체크이므로, 해당 `matched_checks` 항목에 `paired_with: <slug>` 필드가 양쪽에 추가된다. `#5`(contradiction)는 `contradictions` 필드를 가진 단일 슬러그에 걸리는 체크이며(참조 대상이 vault에 없을 때 발생 — 존재하는 두 페이지의 쌍이 아님), `paired_with`는 붙지 않는다.
 
 ---
 
@@ -115,7 +115,7 @@ def wiki_semantic_lint_queue(
 - 허용목록 밖 id 요청 시 `ValueError` + 메시지에 6개 id 전부 포함되는지.
 - `limit` 초과 시 `truncated: true` + 정확히 `limit`개만 반환.
 - candidate 0개 vault에서 정상 응답(에러 아님).
-- `#5`/`#17` 페어 후보의 `paired_with` 필드 존재 검증.
+- `#17` 페어 후보 양쪽 모두에 `paired_with` 필드가 존재하는지 검증 (`#5`는 단일 슬러그 체크이므로 `paired_with`가 붙지 않음을 검증).
 
 기존 `tests/test_lint_check_registry.py`는 변경하지 않는다 — 허용목록은 새 모듈 안 상수로 별도 관리하고, `lint.py`의 `CHECK_REGISTRY`에 새 키를 추가하지 않는다 (이 tool은 새 체크가 아니라 기존 체크의 뷰이므로).
 
