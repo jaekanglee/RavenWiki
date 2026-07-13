@@ -36,6 +36,7 @@ from raven.mcp import db as db_module
 from raven.mcp.tools import VaultContext, resolve_vault_path
 from raven.mcp.tools import read as read_tools
 from raven.mcp.tools import stale as stale_tools  # ADR-2026-07-06 §1.3 신규 도구
+from raven.mcp.tools import semantic_lint as semantic_lint_tools  # 2026-07-13 spec
 from raven.mcp.tools import write as write_tools
 from raven.mcp.resources import register_resources
 
@@ -296,6 +297,29 @@ def register_tools(mcp: Any, mode: str) -> None:
     ) -> list[dict]:
         ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
         return read_tools.wiki_relations_list(slug=slug, relation_type=relation_type, ctx=ctx)
+
+    # ─── 7.7. wiki_semantic_lint_queue (2026-07-13 spec) ───
+    @mcp.tool(
+        name="wiki_semantic_lint_queue",
+        description=(
+            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
+            + "Read-only candidate queue for CURATION.md §1's pre-compile "
+            + "source-vetting decision tree. Groups existing lint signals "
+            + "#4 (orphan) / #5 (contradiction) / #6 (confidence low) / #7 "
+            + "(stale) / #17 (duplicate-title) / #20 (placeholder) by slug. "
+            + "Does NOT apply the decision tree itself — see `raven docs show "
+            + "agent-curation` §1 for the criteria; the calling agent applies it "
+            + "and writes verdicts back via wiki_update / wiki_generate_draft."
+        ),
+    )
+    def wiki_semantic_lint_queue(
+        vault: str,
+        checks: Optional[list[str]] = None,
+        limit: int = 20,
+    ) -> dict:
+        return semantic_lint_tools.wiki_semantic_lint_queue(
+            vault=resolve_vault_path(vault), checks=checks, limit=limit,
+        )
 
     # ─── 6. wiki_update (write / admin) ───
     if mode in ("write", "admin"):
