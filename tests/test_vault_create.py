@@ -1,7 +1,7 @@
 """Tests for Vault.create bootstrap behavior (v2026-06-26, Lite policy).
 
 Tier 1 ↔ Tier 2 boundary: user vault never receives raven-internal docs.
-Lite bootstrap copies ONLY: _meta/agents/SCHEMA.md, _meta/agents/PROJECT-WORKFLOW.md, log.md.
+Lite bootstrap copies ONLY: _meta/agents/SCHEMA.md, _meta/agents/RAVEN-CONTRACT.md, log.md.
 """
 from __future__ import annotations
 
@@ -54,15 +54,15 @@ def test_bootstrap_copies_lite_templates(isolated_vaults_root, isolated_target):
     v = Vault.create("smoke2", isolated_target / "smoke2", bootstrap=True)
     # Must exist (Lite whitelist)
     assert (v.root / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
+    assert (v.root / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
     assert (v.root / "log.md").is_file()
     # content sanity
     schema = (v.root / "_meta" / "agents" / "SCHEMA.md").read_text()
     assert "Source of Truth" in schema
     assert "wikilink" in schema.lower()
-    workflow = (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").read_text()
-    assert "작업 이력 기록 규약" in workflow
-    assert "summary" in workflow
+    contract = (v.root / "_meta" / "agents" / "RAVEN-CONTRACT.md").read_text()
+    assert "Model Context Protocol" in contract
+    assert "summary" in contract
     # Curation guidance is product documentation, not part of the Lite
     # bootstrap surface. Keep the vault-facing contract at 2 files + log.md.
     assert not (v.root / "_meta" / "agents" / "CURATION.md").exists()
@@ -101,15 +101,16 @@ def test_no_bootstrap_creates_empty_dirs_but_no_template_files(
 
     v0.5.5+ silent-write fix: Vault.create() 가 log.md 를 보장하고 create entry 를
     1개 남기므로 --no-bootstrap 라도 log.md 가 존재한다 (silent write). 단, Lite
-    bootstrap (SCHEMA/PROJECT-WORKFLOW) 은 여전히 복사되지 않음을 검증.
+    bootstrap (SCHEMA/RAVEN-CONTRACT) 은 여전히 복사되지 않음을 검증.
     """
+    # bootstrap=False so SCHEMA/RAVEN-CONTRACT don't exist yet
     v = Vault.create("existing1", isolated_target / "existing1", bootstrap=False)
     assert (v.root / ".vault.json").is_file()
     assert (v.root / "content").is_dir()   # empty, exists
     assert (v.root / "_meta").is_dir()     # empty, exists
     # no Lite bootstrap templates copied
     assert not (v.root / "_meta" / "agents" / "SCHEMA.md").exists()
-    assert not (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").exists()
+    assert not (v.root / "_meta" / "agents" / "RAVEN-CONTRACT.md").exists()
     # silent-write fix: log.md is auto-created by Vault.create() with 1 create entry
     # (this is the v0.5.5+ behavior — log.md is now guaranteed, not a bootstrap artifact)
     assert (v.root / "log.md").is_file()
@@ -141,7 +142,7 @@ def test_sync_meta_lite_default(isolated_vaults_root, isolated_target):
     v = Vault.create("sync1", isolated_target / "sync1", bootstrap=False)
     result = v.sync_meta()  # lite=True default
     assert "_meta/agents/SCHEMA.md" in result["copied"]
-    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
+    assert "_meta/agents/RAVEN-CONTRACT.md" in result["copied"]
     assert "_meta/agents/CURATION.md" not in result["copied"]
     # log.md already exists (silent-write by Vault.create) → skipped, not copied
     assert "log.md" not in result["copied"]
@@ -160,7 +161,7 @@ def test_sync_meta_lite_no_op_when_already_bootstrapped(
     assert result["copied"] == []
     # All Lite files in 'skipped' (because they exist)
     assert "_meta/agents/SCHEMA.md" in result["skipped"]
-    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["skipped"]
+    assert "_meta/agents/RAVEN-CONTRACT.md" in result["skipped"]
     assert "log.md" in result["skipped"]
 
 
@@ -188,7 +189,7 @@ def test_sync_meta_full_copies_raven_internals(isolated_vaults_root, isolated_ta
     result = v.sync_meta(lite=False, force=True)
     # Lite 3종만 복사
     assert "_meta/agents/SCHEMA.md" in result["copied"]
-    assert "_meta/agents/PROJECT-WORKFLOW.md" in result["copied"]
+    assert "_meta/agents/RAVEN-CONTRACT.md" in result["copied"]
     assert "log.md" in result["copied"]
     # Tier 1 internal ❌ (v0.7.1+ Lite bootstrap 정책)
     assert "_meta/system/OPERATIONS.md" not in result["copied"]

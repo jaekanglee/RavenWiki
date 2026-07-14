@@ -604,7 +604,7 @@ def extend_lock(
 
 
 # ─────────────── v0.7.91+ Lite bootstrap guide helper ───────────────
-# Read-only viewer for the 3 Lite bootstrap files (SCHEMA / PROJECT-WORKFLOW /
+# Read-only viewer for the 3 Lite bootstrap files (SCHEMA / RAVEN-CONTRACT /
 # log.md). Mirrors ``raven.api.server.read_guide`` so the MCP surface
 # matches the REST surface — both fail-closed to the same 3-kind whitelist.
 #
@@ -617,8 +617,14 @@ def extend_lock(
 # bootstrap files appear in for external agents.
 LITE_GUIDE_KINDS: tuple[str, ...] = (
     "_meta/agents/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md",
     "log.md",
+)
+
+# Old vaults may still contain this redirect. It remains readable but is not a
+# bootstrap, sync, freshness, or guide-diff artifact.
+_LEGACY_READ_ONLY_GUIDE_KINDS: tuple[str, ...] = (
+    "_meta/agents/PROJECT-WORKFLOW.md",
 )
 
 
@@ -646,7 +652,7 @@ def _resolve_guide_path(vault: Path, kind: str) -> Path:
     if "/" in kind:
         candidates.append(kind.split("/")[-1])
     for c in candidates:
-        if c in LITE_GUIDE_KINDS:
+        if c in LITE_GUIDE_KINDS or c in _LEGACY_READ_ONLY_GUIDE_KINDS:
             return vault / c
     raise GuideNotFoundError(
         f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
@@ -700,7 +706,7 @@ _MAX_DIFF_LINES = 200
 _LITE_GUIDE_DIFF_TEMPLATE: dict[str, str] = {
     # kind (URL path)                        → template-relative path
     "_meta/agents/SCHEMA.md":          "agent/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md": "agent/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md":  "agent/RAVEN-CONTRACT.md",
     "log.md":                            "log.md",
 }
 
@@ -714,11 +720,11 @@ def _resolve_guide_template(kind: str) -> tuple[str, str]:
     if "/" in kind:
         candidates.append(kind.split("/")[-1])
     for c in candidates:
-        if c in LITE_GUIDE_KINDS:
+        if c in _LITE_GUIDE_DIFF_TEMPLATE:
             return c, _LITE_GUIDE_DIFF_TEMPLATE[c]
     raise GuideNotFoundError(
-        f"guide kind {kind!r} is not in the Lite bootstrap whitelist. "
-        f"Allowed: {sorted(LITE_GUIDE_KINDS)}"
+        f"guide kind {kind!r} is not in the Lite bootstrap diff whitelist. "
+        f"Allowed: {sorted(_LITE_GUIDE_DIFF_TEMPLATE.keys())}"
     )
 
 

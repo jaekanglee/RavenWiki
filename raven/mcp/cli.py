@@ -134,7 +134,7 @@ def register_tools(mcp: Any, mode: str) -> None:
         name="wiki_get_guide",
         description=(
             EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-            + "Read a Lite bootstrap file (SCHEMA.md / PROJECT-WORKFLOW.md / log.md). "
+            + "Read a Lite bootstrap file (SCHEMA.md / RAVEN-CONTRACT.md / log.md). "
             + "Mirrors GET /api/vaults/{name}/guide/{kind}. kind must be exactly one of "
             + "the 3 whitelisted paths — anything else returns a tool error so the caller can self-correct. "
             + "Useful for agents that need to read the vault's own workflow rules via MCP "
@@ -159,7 +159,7 @@ def register_tools(mcp: Any, mode: str) -> None:
             + "Mirrors GET /api/vaults/{name}/guide-diff/{kind} (v0.7.94). "
             + "kind must be one of the 3 whitelisted bootstrap paths — same "
             + "whitelist as wiki_get_guide. Truncated at 200 lines. Useful "
-            + "for agents to diagnose 'why is my vault's PROJECT-WORKFLOW "
+            + "for agents to diagnose 'why is my vault's RAVEN-CONTRACT "
             + "mismatched?' without filesystem access (R9)."
         ),
     )
@@ -177,9 +177,9 @@ def register_tools(mcp: Any, mode: str) -> None:
         name="wiki_check_freshness",
         description=(
             VAULT_ARG_NOTE
-            + "ADR-2026-07-08: lite bootstrap 3종 (SCHEMA.md / PROJECT-WORKFLOW.md / log.md) "
+            + "ADR-2026-07-08: lite bootstrap 3종 (SCHEMA.md / RAVEN-CONTRACT.md / log.md) "
             + "SHA256 + 캐시 mismatch → freshness_warning. cache_hash 형식 = "
-            + "'SCHEMA=abc,PROJECT-WORKFLOW=def' (명시) 또는 'abc,def' (순서 고정). "
+            + "'SCHEMA=abc,RAVEN-CONTRACT=def' (명시) 또는 'abc,def' (순서 고정). "
             + "Silent warn 기본 — 강제 read ❌. Stamp은 _meta/agents/.guide-version 자동."
         ),
     )
@@ -609,7 +609,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         instructions=(
             "Raven multi-vault wiki MCP server. Before doing any work in a vault, "
-            "call wiki_get_guide(vault=<name>, kind='_meta/agents/PROJECT-WORKFLOW.md') "
+            "call wiki_get_guide(vault=<name>, kind='_meta/agents/RAVEN-CONTRACT.md') "
             "and then kind='_meta/agents/SCHEMA.md' to learn that vault's conventions — "
             "do not read those files from the filesystem directly. "
             f"Registered vaults: {', '.join(vault_names) or '(none)'}."

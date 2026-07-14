@@ -15,10 +15,10 @@ from fastapi.testclient import TestClient
 from raven.api.server import app
 from raven.mcp.tools import (
     GuideNotFoundError,
-    LITE_GUIDE_KINDS,
     read_guide_diff,
     _resolve_guide_template,
 )
+from raven.mcp.tools import _LITE_GUIDE_DIFF_TEMPLATE
 
 
 @pytest.fixture
@@ -40,8 +40,8 @@ def diff_mcp_vault(monkeypatch):
     (v_root / "_meta" / "agents" / "SCHEMA.md").write_text(
         "# SCHEMA (vault-modified)\n\nvault edited line\n", encoding="utf-8"
     )
-    (v_root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
-        "# PROJECT-WORKFLOW (vault-modified)\n\nanother edited line\n", encoding="utf-8"
+    (v_root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
+        "# RAVEN-CONTRACT (vault-modified)\n\nanother edited line\n", encoding="utf-8"
     )
     (v_root / "log.md").write_text(
         "# Vault Log (vault-modified)\n\n- vault init\n", encoding="utf-8"
@@ -69,7 +69,7 @@ def diff_mcp_vault(monkeypatch):
 # ──────────────────── 화이트 3종 ────────────────────
 
 def test_resolve_guide_template_three_kinds():
-    for kind in LITE_GUIDE_KINDS:
+    for kind in _LITE_GUIDE_DIFF_TEMPLATE.keys():
         rel, tpl = _resolve_guide_template(kind)
         assert rel == kind
         # template path 는 raven install layout (agent/ or log.md)
@@ -136,12 +136,12 @@ def test_read_guide_diff_404_for_missing_file(diff_mcp_vault, monkeypatch):
 
 
 def test_read_guide_diff_truncates_at_200_lines(diff_mcp_vault):
-    """PROJECT-WORKFLOW.md를 매우 다르게 작성 → truncation=True."""
+    """RAVEN-CONTRACT.md를 매우 다르게 작성 → truncation=True."""
     big = "\n".join([f"vault-line-{i}" for i in range(300)]) + "\n"
-    (diff_mcp_vault / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
+    (diff_mcp_vault / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
         big, encoding="utf-8"
     )
-    r = read_guide_diff(vault=diff_mcp_vault, kind="_meta/agents/PROJECT-WORKFLOW.md")
+    r = read_guide_diff(vault=diff_mcp_vault, kind="_meta/agents/RAVEN-CONTRACT.md")
     assert r["identical"] is False
     assert r["truncated"] is True
     assert r["truncation_note"] is not None
