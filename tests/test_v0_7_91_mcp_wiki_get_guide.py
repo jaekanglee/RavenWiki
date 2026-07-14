@@ -40,8 +40,8 @@ def guide_mcp_vault(monkeypatch):
     (v_root / "_meta" / "agents" / "SCHEMA.md").write_text(
         "# SCHEMA\nfrontmatter v2.4", encoding="utf-8"
     )
-    (v_root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
-        "# PROJECT-WORKFLOW\nMCP guide", encoding="utf-8"
+    (v_root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
+        "# RAVEN-CONTRACT\nMCP guide", encoding="utf-8"
     )
     (v_root / "log.md").write_text(
         "# Vault Log\n\n## [2026-07-07] create\n- reason: test\n", encoding="utf-8"

@@ -38,14 +38,14 @@ from typing import Optional
 # importing, so `verify` is independent of any side-effects in `vault.py`.
 LITE_BOOTSTRAP_FILES: tuple[str, ...] = (
     "_meta/agents/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md",
     "log.md",
 )
 
 # Template source paths inside `raven.core` package.
 TEMPLATE_MAP: dict[str, str] = {
     "_meta/agents/SCHEMA.md": "templates/agent/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md": "templates/agent/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md": "templates/agent/RAVEN-CONTRACT.md",
     "log.md": "templates/log.md",
 }
 

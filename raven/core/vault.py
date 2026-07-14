@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 # v0.7.65+: 3 entries — must match template_map in _bootstrap_lite().
 _LITE_BOOTSTRAP_FILES = (
     "_meta/agents/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md",
     "log.md",
 )
 
@@ -48,23 +48,14 @@ _LITE_BOOTSTRAP_FILES = (
 _BASIC_BOOTSTRAP_FILES = (
     "WELCOME.md",
 )
-
-# v0.8.1+: 다른 코딩 에이전트 도구는 프로젝트 루트에서 각자 다른 파일명을
-# 관례적으로 자동 로드한다 (Claude Code → CLAUDE.md, Codex류 → AGENTS.md,
-# Gemini CLI → GEMINI.md, Cursor/Windsurf → .cursorrules/.windsurfrules).
-# 이 5개 스텁은 어떤 도구로 vault를 열든 Tier 2 운영 지침
-# (_meta/agents/PROJECT-WORKFLOW.md)을 자동 발견하게 해준다.
-AGENT_POINTER_STUB_FILES: tuple[str, ...] = (
+# Conventional root instruction files are user-owned. Raven never creates,
+# rewrites, or validates them; the builder only excludes them from page parsing.
+ROOT_AGENT_INSTRUCTION_FILES: tuple[str, ...] = (
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
     ".cursorrules",
     ".windsurfrules",
-)
-
-AGENT_POINTER_STUB_CONTENT = (
-    "이 vault의 에이전트 운영 지침은 `_meta/agents/PROJECT-WORKFLOW.md` 참조.\n"
-    "(자동 생성 파일 — 직접 편집 금지. `raven meta sync`가 매번 덮어씁니다.)\n"
 )
 
 # v0.8.1+: _bootstrap_lite()의 template_map과 sync_meta()의 file_map은
@@ -73,22 +64,9 @@ AGENT_POINTER_STUB_CONTENT = (
 # 하나의 상수로 통합.
 LITE_BOOTSTRAP_FILE_MAP: dict[str, str] = {
     "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md":  "templates/agent/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md":    "templates/agent/RAVEN-CONTRACT.md",
     "log.md":                            "templates/log.md",
 }
-
-
-def _write_agent_pointer_stubs(path: Path) -> None:
-    """PROJECT-WORKFLOW.md가 있으면 5개 포인터 스텁을 무조건 덮어써서 생성.
-
-    profile이 아니라 PROJECT-WORKFLOW.md의 실제 존재 여부로 트리거한다 —
-    basic 프로필로 만들어진 vault가 나중에 sync_meta()로 PROJECT-WORKFLOW.md를
-    얻게 되는 경우에도, 같은 호출 안에서 스텁이 함께 생기도록 하기 위함.
-    """
-    if not (path / "_meta" / "agents" / "PROJECT-WORKFLOW.md").exists():
-        return
-    for rel_target in AGENT_POINTER_STUB_FILES:
-        (path / rel_target).write_text(AGENT_POINTER_STUB_CONTENT, encoding="utf-8")
 
 
 @dataclass
@@ -362,7 +340,7 @@ class Vault:
         Creates:
             content/                          (empty)
             _meta/agents/SCHEMA.md            (데이터 계약: frontmatter/type/tag/wikilink/raw 권한/lint)
-            _meta/agents/PROJECT-WORKFLOW.md  (운영 사실: 읽기순서/MCP매핑/권한/저장신호/협업규칙)
+            _meta/agents/RAVEN-CONTRACT.md    (기술 계약: SoT/인덱스, MCP, 권한 모드, 로그/가드)
             log.md                            (빈 로그 헤더)
 
         Does NOT copy:
@@ -402,14 +380,14 @@ class Vault:
                     f"from {tmpl_path}: {e}"
                 ) from e
 
-        _write_agent_pointer_stubs(path)
+
 
     def sync_meta(self, *, lite: bool = True, force: bool = False) -> dict:
         """Re-copy meta templates into the vault.
 
         Args:
             lite: if True (default), copy the 2-file agent-facing set
-                  (SCHEMA.md, PROJECT-WORKFLOW.md) + log.md. If False
+                  (SCHEMA.md, RAVEN-CONTRACT.md) + log.md. If False
                   ("full"), copies the identical set — v0.7.65+ removed
                   the old superset that injected Tier 1 internal docs
                   (OPERATIONS, agent/*, raven-policy), since that has
@@ -460,7 +438,7 @@ class Vault:
                 out["copied"].append(str(target.relative_to(self.root)))
             except Exception as e:
                 out["errors"].append({"file": rel_target, "error": str(e)})
-        _write_agent_pointer_stubs(self.root)
+
         return out
 
     @classmethod

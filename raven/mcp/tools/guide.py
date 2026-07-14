@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-LITE_BOOTSTRAP_FILES = ("SCHEMA.md", "PROJECT-WORKFLOW.md")
+LITE_BOOTSTRAP_FILES = ("SCHEMA.md", "RAVEN-CONTRACT.md")
 _LOG_MD_NAME = "log.md"
 
 
@@ -44,14 +44,14 @@ def _log_md_stats(path: Path) -> dict:
         return {"lines": 0, "mtime": None, "exists": False}
 
 
-_LITE_BOOTSTRAP_KEYS = ("SCHEMA", "PROJECT-WORKFLOW")
+_LITE_BOOTSTRAP_KEYS = ("SCHEMA", "RAVEN-CONTRACT")
 
 
 def _parse_cache_hash(raw: Optional[str]) -> dict:
     """agent가 보낸 cache_hash 파싱. 두 가지 형식 모두 지원:
 
-    1. 명시 key=value: 'SCHEMA=abc,PROJECT-WORKFLOW=def'  (권장)
-    2. 순서 고정 단순: 'abc,def'  (SCHEMA, PROJECT-WORKFLOW 순서)
+    1. 명시 key=value: 'SCHEMA=abc,RAVEN-CONTRACT=def'  (권장)
+    2. 순서 고정 단순: 'abc,def'  (SCHEMA, RAVEN-CONTRACT 순서)
 
     """
     if not raw:

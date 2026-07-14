@@ -3104,7 +3104,8 @@ def read_raw(name: str, path: str):
 _LITE_GUIDE_WHITELIST: dict[str, str] = {
     # kind (URL path)              → vault-relative filesystem path
     "_meta/agents/SCHEMA.md":          "_meta/agents/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md": "_meta/agents/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md":  "_meta/agents/RAVEN-CONTRACT.md",
+    "_meta/agents/PROJECT-WORKFLOW.md": "_meta/agents/PROJECT-WORKFLOW.md",  # legacy compatibility
     "log.md":                            "log.md",
 }
 
@@ -3166,7 +3167,7 @@ import difflib as _difflib
 _LITE_TEMPLATE_MAP: dict[str, str] = {
     # kind (URL path, vault-relative)        → vault-relative filesystem path
     "_meta/agents/SCHEMA.md":          "_meta/agents/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md": "_meta/agents/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md":  "_meta/agents/RAVEN-CONTRACT.md",
     "log.md":                            "log.md",
 }
 
@@ -3175,7 +3176,7 @@ _LITE_TEMPLATE_MAP: dict[str, str] = {
 _LITE_TEMPLATE_SRC: dict[str, str] = {
     # kind (URL path)                        → template-relative path
     "_meta/agents/SCHEMA.md":          "agent/SCHEMA.md",
-    "_meta/agents/PROJECT-WORKFLOW.md": "agent/PROJECT-WORKFLOW.md",
+    "_meta/agents/RAVEN-CONTRACT.md":  "agent/RAVEN-CONTRACT.md",
     "log.md":                            "log.md",
 }
 

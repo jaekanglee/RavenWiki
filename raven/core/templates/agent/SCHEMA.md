@@ -107,17 +107,18 @@ relations:                        # 선택 (v0.8.x Semantic Relation): 1급 관�
 
 ## Type Taxonomy (9종)
 
-| type | 용도 | 에이전트 write (PWW §7.1) |
-|---|---|---|
-| `concept` | 추상 개념 | ⚠️ draft → 사람 review → final |
-| `person` | 인물 | ⚠️ draft → 사람 review → final |
-| `comparison` | 비교 | ✅ 자유 |
-| `project` | 프로젝트 | ✅ 자유 |
-| `tool` | 도구/시스템 | ✅ 자유 |
-| `rule` | 규칙 | ⚠️ draft → 사람 review → final |
-| `query` | 검색 결과 / 질문 페이지 | ✅ 자유 |
-| `journal` | 일지/메모 | ✅ 자율 (event_date + §3 4신호) |
-| `issue` | 문제 분석 / 장애 / 추적 | ✅ 자율 (status=draft default, 7일+ 자동 current, ADR-2026-07-08) |
+| type | 용도 |
+|---|---|
+| `concept` | 추상 개념 |
+| `person` | 인물 |
+| `comparison` | 비교 |
+| `project` | 프로젝트 |
+| `tool` | 도구/시스템 |
+| `rule` | 규칙 |
+| `query` | 검색 결과 / 질문 페이지 |
+| `journal` | 일지/메모 |
+| `issue` | 문제 분석 / 장애 / 추적 |
+
 
 > **decision (ADR)** — `type: rule` + `decision/adr-YYYY-MM-DD-{slug}.md` 컨벤션 (SCHEMA L99). 사람 1차 작성, 에이전트 보조.
 

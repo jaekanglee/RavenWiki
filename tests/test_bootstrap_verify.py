@@ -65,7 +65,7 @@ def test_lite_bootstrap_files_constant_lists_3_files():
     """
     assert set(LITE_BOOTSTRAP_FILES) == {
         "_meta/agents/SCHEMA.md",
-        "_meta/agents/PROJECT-WORKFLOW.md",
+        "_meta/agents/RAVEN-CONTRACT.md",
         "log.md",
     }
 
@@ -107,7 +107,7 @@ def test_verify_bootstrap_fresh_vault_is_ok(fresh_vault):
     assert len(result.checks) == 3
     static_checks = [c for c in result.checks if c.rel_path != "log.md"]
     append_checks = [c for c in result.checks if c.rel_path == "log.md"]
-    # Static templates (SCHEMA, PROJECT-WORKFLOW): byte-identical to source
+    # Static templates (SCHEMA, RAVEN-CONTRACT): byte-identical to source
     for c in static_checks:
         assert c.status == "ok", f"{c.rel_path}: {c.status} ({c.detail})"
         assert c.expected_sha256 is not None
@@ -147,28 +147,28 @@ def test_verify_bootstrap_detects_missing_file(fresh_vault):
 def test_verify_bootstrap_detects_content_mismatch(fresh_vault):
     """If a STATIC template file is edited, verify_bootstrap flags it `mismatch`.
 
-    We target _meta/agents/PROJECT-WORKFLOW.md (static template) — log.md is
+    We target _meta/agents/RAVEN-CONTRACT.md (static template) — log.md is
     append-only so its content legitimately differs from the template after
     any write.
     """
-    target = fresh_vault.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md"
+    target = fresh_vault.root / "_meta" / "agents" / "RAVEN-CONTRACT.md"
     target.write_text("# user-edited rules\n")
     result = verify_bootstrap(fresh_vault.root)
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert "_meta/agents/PROJECT-WORKFLOW.md" in bad
-    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
-    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].expected_sha256 != bad["_meta/agents/PROJECT-WORKFLOW.md"].actual_sha256
+    assert "_meta/agents/RAVEN-CONTRACT.md" in bad
+    assert bad["_meta/agents/RAVEN-CONTRACT.md"].status == "mismatch"
+    assert bad["_meta/agents/RAVEN-CONTRACT.md"].expected_sha256 != bad["_meta/agents/RAVEN-CONTRACT.md"].actual_sha256
 
 
 def test_verify_bootstrap_detects_corrupt_file(fresh_vault):
     """Truncation also triggers `mismatch` (not `missing`)."""
-    target = fresh_vault.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md"
+    target = fresh_vault.root / "_meta" / "agents" / "RAVEN-CONTRACT.md"
     target.write_bytes(b"# trunc\n")
     result = verify_bootstrap(fresh_vault.root)
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
+    assert bad["_meta/agents/RAVEN-CONTRACT.md"].status == "mismatch"
 
 
 def test_verify_bootstrap_handles_missing_directory():
@@ -246,12 +246,12 @@ def test_vault_create_does_not_raise_on_corrupt_template(
     # Create normally
     v = Vault.create("ok", isolated_target / "ok", bootstrap=True)
     # Now corrupt one of the bootstrap files (simulating external mutation)
-    (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text("# corrupt\n")
+    (v.root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text("# corrupt\n")
     # Run verify directly — should report mismatch, NOT raise
     result = v.verify_bootstrap()
     assert result.ok is False
     bad = {c.rel_path: c for c in result.failures()}
-    assert bad["_meta/agents/PROJECT-WORKFLOW.md"].status == "mismatch"
+    assert bad["_meta/agents/RAVEN-CONTRACT.md"].status == "mismatch"
 
 
 # ─── CLI: raven vault verify ────────────────────────────────────────

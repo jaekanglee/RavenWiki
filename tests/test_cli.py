@@ -229,7 +229,7 @@ def test_cli_meta_sync_copies_when_missing(fresh_env):
     result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
     assert result.exit_code == 0, result.stderr
     assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
+    assert (target / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
     # No internal agent/ subdir created (Lite policy)
     assert not (target / "_meta" / "agent").exists()
     # No OPERATIONS.md
@@ -258,7 +258,7 @@ def test_cli_meta_sync_json_out(fresh_env):
     # Lite: user-facing files copied (no internal agent/, no OPERATIONS, no raven-policy)
     # log.md already exists from Vault.create() (llm-wiki profile) → skipped, not copied
     assert "_meta/agents/SCHEMA.md" in data["copied"]
-    assert "_meta/agents/PROJECT-WORKFLOW.md" in data["copied"]
+    assert "_meta/agents/RAVEN-CONTRACT.md" in data["copied"]
     assert "log.md" not in data["copied"]
     assert "log.md" in data["skipped"]
     assert "_meta/agent/README.md" not in data["copied"]
@@ -277,7 +277,7 @@ def test_cli_meta_sync_full_with_force(fresh_env):
     assert result.exit_code == 0, result.stderr
     # Lite 3종만 복사
     assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
+    assert (target / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
     assert (target / "log.md").is_file()
     # Tier 1 internal ❌ (Tier 1 leak 방지)
     assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()

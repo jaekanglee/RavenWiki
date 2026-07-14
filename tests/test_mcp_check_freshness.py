@@ -11,12 +11,12 @@ def _setup_vault(tmp_path: Path, *, with_stamp: bool = True):
     agents.mkdir(parents=True, exist_ok=True)
     (root / "log.md").write_text("# log\n", encoding="utf-8")
     (agents / "SCHEMA.md").write_text("# SCHEMA v1\n", encoding="utf-8")
-    (agents / "PROJECT-WORKFLOW.md").write_text("# PWW v1\n", encoding="utf-8")
+    (agents / "RAVEN-CONTRACT.md").write_text("# CONTRACT v1\n", encoding="utf-8")
     if with_stamp:
         from raven.mcp.tools.guide import _sha256
         stamp = {
             "SCHEMA": _sha256(agents / "SCHEMA.md"),
-            "PROJECT-WORKFLOW": _sha256(agents / "PROJECT-WORKFLOW.md"),
+            "RAVEN-CONTRACT": _sha256(agents / "RAVEN-CONTRACT.md"),
         }
         (agents / ".guide-version").write_text(
             "\n".join(f"{k}: {v}" for k, v in stamp.items()) + "\n",
@@ -41,14 +41,14 @@ def test_check_freshness_cache_match_returns_no_stale():
 
     root = _setup_vault(Path("/tmp/v_test2"))  # noqa
     schema_h = _sha256(root / "_meta" / "agents" / "SCHEMA.md")
-    pww_h = _sha256(root / "_meta" / "agents" / "PROJECT-WORKFLOW.md")
+    contract_h = _sha256(root / "_meta" / "agents" / "RAVEN-CONTRACT.md")
     info = check_freshness(
         vault_root=root,
-        cache_hash=f"SCHEMA={schema_h},PROJECT-WORKFLOW={pww_h}",
+        cache_hash=f"SCHEMA={schema_h},RAVEN-CONTRACT={contract_h}",
     )
     assert info["stale"] is False
     assert info["guides"]["SCHEMA"]["cache_match"] is True
-    assert info["guides"]["PROJECT-WORKFLOW"]["cache_match"] is True
+    assert info["guides"]["RAVEN-CONTRACT"]["cache_match"] is True
 
 
 def test_check_freshness_mismatch_returns_stale():
@@ -57,10 +57,10 @@ def test_check_freshness_mismatch_returns_stale():
     root = _setup_vault(Path("/tmp/v_test3"))  # noqa
     info = check_freshness(
         vault_root=root,
-        cache_hash="SCHEMA=stale_abc,PROJECT-WORKFLOW=stale_def",
+        cache_hash="SCHEMA=stale_abc,RAVEN-CONTRACT=stale_def",
     )
     assert info["stale"] is True
-    assert set(info["stale_kinds"]) == {"SCHEMA", "PROJECT-WORKFLOW"}
+    assert set(info["stale_kinds"]) == {"SCHEMA", "RAVEN-CONTRACT"}
 
 
 def test_check_freshness_positional_fallback():
@@ -69,10 +69,10 @@ def test_check_freshness_positional_fallback():
 
     root = _setup_vault(Path("/tmp/v_test4"))  # noqa
     schema_h = _sha256(root / "_meta" / "agents" / "SCHEMA.md")
-    pww_h = _sha256(root / "_meta" / "agents" / "PROJECT-WORKFLOW.md")
+    contract_h = _sha256(root / "_meta" / "agents" / "RAVEN-CONTRACT.md")
     info = check_freshness(
         vault_root=root,
-        cache_hash=f"{schema_h},{pww_h}",
+        cache_hash=f"{schema_h},{contract_h}",
     )
     assert info["stale"] is False
     assert info["guides"]["SCHEMA"]["cache_match"] is True
@@ -83,11 +83,11 @@ def test_format_hash_for_header():
 
     guides = {
         "SCHEMA": {"vault_hash": "abc123"},
-        "PROJECT-WORKFLOW": {"vault_hash": "def456"},
+        "RAVEN-CONTRACT": {"vault_hash": "def456"},
         "log": {"lines": 100, "mtime": 1.0},
     }
     out = _format_hash_for_header(guides)
-    assert out == "SCHEMA=abc123,PROJECT-WORKFLOW=def456"
+    assert out == "SCHEMA=abc123,RAVEN-CONTRACT=def456"
 
 
 def test_write_version_stamp_creates_file():
@@ -97,5 +97,5 @@ def test_write_version_stamp_creates_file():
     assert write_version_stamp(root) is True
     stamp = _load_version_stamp(root)
     assert "SCHEMA" in stamp
-    assert "PROJECT-WORKFLOW" in stamp
+    assert "RAVEN-CONTRACT" in stamp
     assert "log.md" in stamp  # log.md line_count:mtime 형식

@@ -25,7 +25,7 @@ import frontmatter
 
 from raven.core.relations import is_valid_relation_payload
 from raven.core.node_meta import aliases_to_json, collection_for_slug, normalize_status
-from raven.core.vault import AGENT_POINTER_STUB_FILES
+from raven.core.vault import ROOT_AGENT_INSTRUCTION_FILES
 
 # ─────────────────────────── constants ──────────────────────────────
 
@@ -263,8 +263,8 @@ def iter_markdown(vault: Path):
         rel_parts = path.relative_to(vault).parts
         if rel_parts and rel_parts[0] in EXCLUDED_TOP_DIRS:
             continue
-        if len(rel_parts) == 1 and rel_parts[0] in AGENT_POINTER_STUB_FILES:
-            continue  # v0.8.1+: pointer stubs, not content pages
+        if len(rel_parts) == 1 and rel_parts[0] in ROOT_AGENT_INSTRUCTION_FILES:
+            continue  # user-owned root instructions, not content pages
         yield path
 
 

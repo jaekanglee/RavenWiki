@@ -32,7 +32,7 @@ app = typer.Typer(
 vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
-meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, PROJECT-WORKFLOW.md) management.")
+meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, RAVEN-CONTRACT.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
 lint_app = typer.Typer(help="vault lint (raven.core.lint.CHECK_REGISTRY 참조) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title/audit violation pattern 등.")
@@ -182,7 +182,7 @@ def vault_verify(
 
     M4 F3 — Bootstrap Self-Test. Checks the Lite bootstrap files
     (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/README.md,
-    _meta/agents/PROJECT-WORKFLOW.md, log.md) for existence + content match
+    _meta/agents/RAVEN-CONTRACT.md, log.md) for existence + content match
     against the raven package's source templates.
 
     Exit codes:

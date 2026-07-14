@@ -5,7 +5,8 @@ Endpoint:
 
 화이트리스트:
   - _meta/agents/SCHEMA.md
-  - _meta/agents/PROJECT-WORKFLOW.md
+  - _meta/agents/RAVEN-CONTRACT.md
+  - _meta/agents/PROJECT-WORKFLOW.md (legacy compatibility)
   - log.md
 
 가드:
@@ -36,6 +37,7 @@ def guide_vault(monkeypatch):
     """Lite bootstrap 3종 + 비화이트 파일을 모두 갖춘 vault.
 
     - _meta/agents/SCHEMA.md              ← 화이트 (200)
+    - _meta/agents/RAVEN-CONTRACT.md      ← 화이트 (200)
     - _meta/agents/PROJECT-WORKFLOW.md    ← 화이트 (200)
     - log.md                              ← 화이트 (200)
     - _meta/system/SECRET.md              ← 비화이트 (403 검증용)
@@ -54,6 +56,9 @@ def guide_vault(monkeypatch):
 
     (v_root / "_meta" / "agents" / "SCHEMA.md").write_text(
         "# SCHEMA\nfrontmatter v2.4 — type 9종", encoding="utf-8"
+    )
+    (v_root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
+        "# RAVEN-CONTRACT\n기술 계약 / MCP / 권한", encoding="utf-8"
     )
     (v_root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
         "# PROJECT-WORKFLOW\n읽기순서 / MCP 매핑 / 권한", encoding="utf-8"
@@ -96,6 +101,15 @@ def test_read_guide_schema_200(client, guide_vault):
     assert "frontmatter v2.4" in body["content"]
     assert body["size"] > 0
     assert body["modified"] is not None
+
+
+def test_read_guide_raven_contract_200(client, guide_vault):
+    """RAVEN-CONTRACT.md (화이트) → 200."""
+    r = client.get("/api/vaults/guide-test-vault/guide/_meta%2Fagents%2FRAVEN-CONTRACT.md")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["kind"] == "_meta/agents/RAVEN-CONTRACT.md"
+    assert "기술 계약" in body["content"]
 
 
 def test_read_guide_project_workflow_200(client, guide_vault):
@@ -159,11 +173,3 @@ def test_read_guide_403_for_path_traversal(client, guide_vault):
 def test_read_guide_404_for_unknown_vault(client, guide_vault):
     r = client.get("/api/vaults/does-not-exist-xyz/guide/log.md")
     assert r.status_code == 404, r.text
-
-
-# ─── directory 400 시나리오 주석 ───
-# 화이트 kind 3종 (SCHEMA.md, PROJECT-WORKFLOW.md, log.md) 은 모두 파일 → 화이트
-# 매칭 후 path가 directory인 자연 발생 케이스가 없음. directory 400 분기는
-# `fp.is_dir()` 가드로만 보호. 인위적으로 400을 만들려면 화이트 kind가 디렉토리인
-# vault를 별도로 만들어야 하나, 화이트 3종은 모두 markdown 파일이라는 SOT 자체를
-# 깨는 fixture라 회귀 가드 가치가 낮음. defense-in-depth 가드는 코드에 그대로 유지.

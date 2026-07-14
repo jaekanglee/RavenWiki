@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from raven.core import db as db_module
 from raven.core.lint import check_index_completeness
-from raven.core.vault import Vault, AGENT_POINTER_STUB_FILES
+from raven.core.vault import Vault, ROOT_AGENT_INSTRUCTION_FILES
 
 
 @pytest.fixture
@@ -41,6 +41,6 @@ def test_agent_pointer_stubs_not_indexed_as_pages(isolated_vaults_root, isolated
     v = Vault.create("stub-db-check", isolated_target / "stub-db-check", profile="llm-wiki")
     db_module.build_db(v, run_lint=False)
     issues = check_index_completeness(v)
-    stub_basenames = {Path(f).stem for f in AGENT_POINTER_STUB_FILES if f.endswith(".md")}
+    stub_basenames = {Path(f).stem for f in ROOT_AGENT_INSTRUCTION_FILES if f.endswith(".md")}
     offending = [i for i in issues if i["slug"] in stub_basenames]
     assert offending == [], offending

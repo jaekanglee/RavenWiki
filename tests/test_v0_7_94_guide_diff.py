@@ -34,8 +34,8 @@ def diff_vault(monkeypatch):
     (v_root / "_meta" / "agents" / "SCHEMA.md").write_text(
         "# SCHEMA (vault-modified)\n\nvault edited line\n", encoding="utf-8"
     )
-    (v_root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
-        "# PROJECT-WORKFLOW (vault-modified)\n\nanother edited line\n", encoding="utf-8"
+    (v_root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
+        "# RAVEN-CONTRACT (vault-modified)\n\nanother edited line\n", encoding="utf-8"
     )
     (v_root / "log.md").write_text(
         "# Vault Log (vault-modified)\n\n- vault init\n", encoding="utf-8"
@@ -80,8 +80,8 @@ def identical_vault(monkeypatch):
         (template_root / "agent" / "SCHEMA.md").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
-    (v_root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
-        (template_root / "agent" / "PROJECT-WORKFLOW.md").read_text(encoding="utf-8"),
+    (v_root / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
+        (template_root / "agent" / "RAVEN-CONTRACT.md").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     (v_root / "log.md").write_text(
@@ -128,9 +128,9 @@ def test_diff_schema_returns_modified(client, diff_vault):
         assert line["tag"] in ("+", "-", " ")
 
 
-def test_diff_project_workflow_200(client, diff_vault):
+def test_diff_raven_contract_200(client, diff_vault):
     r = client.get(
-        "/api/vaults/diff-test-vault/guide-diff/_meta%2Fagents%2FPROJECT-WORKFLOW.md"
+        "/api/vaults/diff-test-vault/guide-diff/_meta%2Fagents%2FRAVEN-CONTRACT.md"
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -151,14 +151,14 @@ def test_diff_log_md_200(client, diff_vault):
 # ──────────────────── identical ────────────────────
 
 def test_diff_identical_returns_no_changes(client, identical_vault):
-    """SCHEMA/PROJECT-WORKFLOW는 동일 (template 그대로 복사) → identical=True.
+    """SCHEMA/RAVEN-CONTRACT는 동일 (template 그대로 복사) → identical=True.
 
     log.md는 `ensure_log()` 가 vault create 시 자동 append entry를 박기 때문에
     "template과 byte-equal" 일 수 없음. 이건 v0.7.65+ Lite bootstrap 정책의
     의도된 동작 (silent write 방지, README §8/§9). 따라서 log.md는 identical
-    검증에서 제외 — schema/workflow 가 true 면 정책 정합.
+    검증에서 제외 — schema/contract 가 true 면 정책 정합.
     """
-    for kind in ("_meta%2Fagents%2FSCHEMA.md", "_meta%2Fagents%2FPROJECT-WORKFLOW.md"):
+    for kind in ("_meta%2Fagents%2FSCHEMA.md", "_meta%2Fagents%2FRAVEN-CONTRACT.md"):
         r = client.get(f"/api/vaults/identical-test-vault/guide-diff/{kind}")
         assert r.status_code == 200, r.text
         body = r.json()
@@ -197,14 +197,19 @@ def test_diff_404_for_unknown_vault(client, diff_vault):
 # ──────────────────── 큰 diff truncation ────────────────────
 
 def test_diff_truncates_at_200_lines(client, diff_vault):
-    """PROJECT-WORKFLOW.md 템플릿 (~333줄) 와 많이 다른 vault → truncation=True."""
+    """RAVEN-CONTRACT.md 템플릿 와 많이 다른 vault → truncation=True."""
     # vault 파일을 매우 다르게 작성 (300줄 추가)
     big_content = "\n".join([f"vault-line-{i}" for i in range(300)]) + "\n"
-    (diff_vault / "_meta" / "agents" / "PROJECT-WORKFLOW.md").write_text(
+    (diff_vault / "_meta" / "agents" / "RAVEN-CONTRACT.md").write_text(
         big_content, encoding="utf-8"
     )
     r = client.get(
-        "/api/vaults/diff-test-vault/guide-diff/_meta%2Fagents%2FPROJECT-WORKFLOW.md"
+        "/api/vaults/diff-test-vault/guide-diff/_meta%2FRAVEN-CONTRACT.md"
+    )
+    assert r.status_code == 200 or r.status_code == 403, r.text  # URL path format check
+    # Check proper URL-encoded endpoint
+    r = client.get(
+        "/api/vaults/diff-test-vault/guide-diff/_meta%2Fagents%2FRAVEN-CONTRACT.md"
     )
     assert r.status_code == 200, r.text
     body = r.json()

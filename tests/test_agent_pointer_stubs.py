@@ -1,7 +1,7 @@
-"""v0.8.1+ 에이전트 포인터 스텁 (AGENTS.md/CLAUDE.md/GEMINI.md/.cursorrules/.windsurfrules).
+"""Tests for preservation of conventional root agent instruction files.
 
-_meta/agents/PROJECT-WORKFLOW.md가 존재하는 vault는 profile과 무관하게
-5개 포인터 스텁을 얻는다. basic 프로필(PROJECT-WORKFLOW.md 없음)은 스텁도 없다.
+Under no condition should Vault.create or sync_meta create, overwrite,
+or delete root AGENTS.md, CLAUDE.md, GEMINI.md, .cursorrules, .windsurfrules.
 """
 from __future__ import annotations
 
@@ -14,12 +14,20 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from raven.core.vault import Vault, AGENT_POINTER_STUB_FILES, AGENT_POINTER_STUB_CONTENT
+from raven.core.vault import Vault
+
+PRESERVATION_FILES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".cursorrules",
+    ".windsurfrules",
+)
 
 
 @pytest.fixture
 def isolated_vaults_root(monkeypatch):
-    tmp = Path(tempfile.mkdtemp(prefix="raven-stub-reg-"))
+    tmp = Path(tempfile.mkdtemp(prefix="raven-preservation-reg-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp))
     yield tmp
     shutil.rmtree(tmp, ignore_errors=True)
@@ -27,53 +35,74 @@ def isolated_vaults_root(monkeypatch):
 
 @pytest.fixture
 def isolated_target():
-    tmp = Path(tempfile.mkdtemp(prefix="raven-stub-target-"))
+    tmp = Path(tempfile.mkdtemp(prefix="raven-preservation-target-"))
     yield tmp
     shutil.rmtree(tmp, ignore_errors=True)
 
 
-def test_llm_wiki_profile_creates_all_stub_files(isolated_vaults_root, isolated_target):
-    v = Vault.create("stub-llm", isolated_target / "stub-llm", profile="llm-wiki")
-    for fname in AGENT_POINTER_STUB_FILES:
+def test_root_agent_instructions_not_created_by_default(isolated_vaults_root, isolated_target):
+    """Vault.create must not create any conventional root agent instruction files."""
+    v = Vault.create("pres-default", isolated_target / "pres-default", bootstrap=True)
+    for fname in PRESERVATION_FILES:
+        assert not (v.root / fname).exists(), f"{fname} should NOT be created by default"
+
+
+def test_root_agent_instructions_preserved_during_create(isolated_vaults_root, isolated_target):
+    """Vault.create must preserve pre-existing root agent files byte-for-byte."""
+    root_path = isolated_target / "pres-create"
+    root_path.mkdir(parents=True, exist_ok=True)
+
+    file_contents = {}
+    for fname in PRESERVATION_FILES:
+        fp = root_path / fname
+        content = f"user content for {fname}\n"
+        fp.write_text(content, encoding="utf-8")
+        file_contents[fname] = content
+
+    v = Vault.create("pres-create", root_path, bootstrap=True)
+
+    for fname in PRESERVATION_FILES:
         fp = v.root / fname
-        assert fp.is_file(), f"{fname} should exist for llm-wiki profile"
-        assert fp.read_text(encoding="utf-8") == AGENT_POINTER_STUB_CONTENT
+        assert fp.is_file()
+        assert fp.read_text(encoding="utf-8") == file_contents[fname]
 
 
-def test_basic_profile_creates_no_stub_files(isolated_vaults_root, isolated_target):
-    v = Vault.create("stub-basic", isolated_target / "stub-basic", profile="basic")
-    for fname in AGENT_POINTER_STUB_FILES:
-        assert not (v.root / fname).exists(), f"{fname} should NOT exist for basic profile"
+def test_root_agent_instructions_preserved_during_sync(isolated_vaults_root, isolated_target):
+    """sync_meta must preserve pre-existing root agent files byte-for-byte."""
+    v = Vault.create("pres-sync", isolated_target / "pres-sync", bootstrap=True)
 
-
-def test_sync_meta_backfills_stubs_after_basic_to_llm_wiki_transition(isolated_vaults_root, isolated_target):
-    v = Vault.create("stub-transition", isolated_target / "stub-transition", profile="basic")
-    for fname in AGENT_POINTER_STUB_FILES:
-        assert not (v.root / fname).exists()
-    v.sync_meta()
-    assert (v.root / "_meta" / "agents" / "PROJECT-WORKFLOW.md").is_file()
-    for fname in AGENT_POINTER_STUB_FILES:
+    file_contents = {}
+    for fname in PRESERVATION_FILES:
         fp = v.root / fname
-        assert fp.is_file(), f"{fname} should appear after sync_meta() backfills PROJECT-WORKFLOW.md"
-        assert fp.read_text(encoding="utf-8") == AGENT_POINTER_STUB_CONTENT
+        content = f"user content for {fname}\n"
+        fp.write_text(content, encoding="utf-8")
+        file_contents[fname] = content
+
+    v.sync_meta(force=True)
+
+    for fname in PRESERVATION_FILES:
+        fp = v.root / fname
+        assert fp.is_file()
+        assert fp.read_text(encoding="utf-8") == file_contents[fname]
 
 
-def test_sync_meta_always_overwrites_stub_files_even_when_manually_edited(isolated_vaults_root, isolated_target):
-    v = Vault.create("stub-overwrite", isolated_target / "stub-overwrite", profile="llm-wiki")
-    tampered = v.root / "CLAUDE.md"
-    tampered.write_text("사용자가 직접 고친 내용\n", encoding="utf-8")
-    v.sync_meta()
-    assert tampered.read_text(encoding="utf-8") == AGENT_POINTER_STUB_CONTENT
+def test_legacy_pointer_stub_api_is_removed(isolated_vaults_root, isolated_target):
+    """Bootstrap must not expose a pointer-stub generation API."""
+    import raven.core.vault as vault_module
+
+    assert not hasattr(vault_module, "AGENT_POINTER_STUB_FILES")
+    assert not hasattr(vault_module, "AGENT_POINTER_STUB_CONTENT")
+    assert not hasattr(vault_module, "_write_agent_pointer_stubs")
 
 
 def test_lite_bootstrap_file_map_is_shared_single_source(isolated_vaults_root, isolated_target):
-    """LITE_BOOTSTRAP_FILE_MAP 통합 회귀 가드: 두 경로가 같은 상수를 참조한다."""
+    """LITE_BOOTSTRAP_FILE_MAP consistency test."""
     from raven.core.vault import LITE_BOOTSTRAP_FILE_MAP
     assert set(LITE_BOOTSTRAP_FILE_MAP.keys()) == {
         "_meta/agents/SCHEMA.md",
-        "_meta/agents/PROJECT-WORKFLOW.md",
+        "_meta/agents/RAVEN-CONTRACT.md",
         "log.md",
     }
-    v = Vault.create("stub-consistency", isolated_target / "stub-consistency", profile="llm-wiki")
+    v = Vault.create("stub-consistency", isolated_target / "stub-consistency", bootstrap=True)
     for rel_target in LITE_BOOTSTRAP_FILE_MAP:
         assert (v.root / rel_target).is_file()
