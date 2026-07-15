@@ -16,7 +16,7 @@ from raven.core import db as db_module
 def isolated_vault(tmp_path: Path, monkeypatch) -> Vault:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("phase16-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("phase16-test", tmp_path / "vault")
     vault.content_root.mkdir(parents=True, exist_ok=True)
     (vault.root / "drafts").mkdir(parents=True, exist_ok=True)
     return vault

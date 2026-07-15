@@ -27,7 +27,14 @@ from raven.core import db as db_module
 @pytest.fixture
 def vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Vault:
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
-    return Vault.create("lintv", tmp_path / "lintv", bootstrap=True)
+    vault = Vault.create("lintv", tmp_path / "lintv")
+    schema = vault.root / "_meta" / "agents" / "SCHEMA.md"
+    schema.parent.mkdir(parents=True)
+    schema.write_text(
+        "### Core\n- 도메인: `pkm`\n- 상태: `draft`\n\n### Custom (자유, lint 면제)\n",
+        encoding="utf-8",
+    )
+    return vault
 
 
 def test_log_slug_exempt_from_index_completeness(vault: Vault):

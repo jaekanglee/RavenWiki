@@ -28,7 +28,7 @@ def isolated_env(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-archive-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-archive-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    v = Vault.create("test", target_root / "test", bootstrap=False)
+    v = Vault.create("test", target_root / "test")
     yield {"reg_root": reg_root, "target_root": target_root, "vault": v}
     shutil.rmtree(reg_root, ignore_errors=True)
     shutil.rmtree(target_root, ignore_errors=True)

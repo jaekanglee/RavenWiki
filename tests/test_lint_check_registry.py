@@ -24,7 +24,7 @@ def vault(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-lintreg-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-lintreg-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    v = Vault.create("lintreg-test", target_root / "lintreg-test", bootstrap=False)
+    v = Vault.create("lintreg-test", target_root / "lintreg-test")
     yield v
     shutil.rmtree(reg_root, ignore_errors=True)
     shutil.rmtree(target_root, ignore_errors=True)

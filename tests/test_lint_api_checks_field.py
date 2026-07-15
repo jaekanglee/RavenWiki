@@ -21,7 +21,7 @@ def client(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-lintapi-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-lintapi-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    Vault.create("lintapi-test", target_root / "lintapi-test", bootstrap=False)
+    Vault.create("lintapi-test", target_root / "lintapi-test")
     from raven.api.server import app
     with TestClient(app) as c:
         yield c
@@ -34,7 +34,7 @@ def client_and_vault(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-lintapi-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-lintapi-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    v = Vault.create("lintapi-test", target_root / "lintapi-test", bootstrap=False)
+    v = Vault.create("lintapi-test", target_root / "lintapi-test")
     from raven.api.server import app
     with TestClient(app) as c:
         yield c, v
@@ -48,7 +48,7 @@ def test_get_lint_includes_checks_field(client):
     body = r.json()
     assert "checks" in body
     assert body["checks"]["#4"] == "고아 문서"
-    assert len(body["checks"]) == 23
+    assert len(body["checks"]) == len(lint_module.CHECK_REGISTRY)
 
 
 def test_get_lint_summary_includes_checks_field(client):
@@ -56,7 +56,7 @@ def test_get_lint_summary_includes_checks_field(client):
     assert r.status_code == 200
     body = r.json()
     assert "checks" in body
-    assert len(body["checks"]) == 23
+    assert len(body["checks"]) == len(lint_module.CHECK_REGISTRY)
 
 
 def test_get_lint_write_log_subject_uses_dynamic_check_count(client_and_vault):

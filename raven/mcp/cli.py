@@ -13,13 +13,11 @@ the SDK exactly as expected.
 
 Tools registered
 ----------------
-Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log, wiki_get_guide, wiki_get_guide_diff, wiki_stale_detect
+Read (always):  wiki_search, wiki_get_page, wiki_lint, wiki_graph, wiki_log, wiki_stale_detect
 Write (--write): + wiki_update, wiki_ingest, wiki_archive
 Admin (--admin): + wiki_delete, wiki_rename
 
 ADR-2026-07-06 신규: wiki_stale_detect (read), wiki_archive (write).
-v0.7.91+: wiki_get_guide (read) — Lite bootstrap 3종 read-only viewer.
-v0.7.95+: wiki_get_guide_diff (read) — Lite bootstrap 3종 diff vs template.
 """
 from __future__ import annotations
 
@@ -128,68 +126,6 @@ def register_tools(mcp: Any, mode: str) -> None:
     def wiki_log(vault: str, tail_n: int = 20) -> list[dict]:
         ctx = VaultContext(vault=resolve_vault_path(vault), mode=permission_mode)
         return read_tools.wiki_log(tail_n=tail_n, ctx=ctx)
-
-    # ─── 6. wiki_get_guide (v0.7.91+) — Lite bootstrap 3종 read-only viewer
-    @mcp.tool(
-        name="wiki_get_guide",
-        description=(
-            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-            + "Read a Lite bootstrap file (SCHEMA.md / RAVEN-CONTRACT.md / log.md). "
-            + "Mirrors GET /api/vaults/{name}/guide/{kind}. kind must be exactly one of "
-            + "the 3 whitelisted paths — anything else returns a tool error so the caller can self-correct. "
-            + "Useful for agents that need to read the vault's own workflow rules via MCP "
-            + "instead of reaching into the filesystem (R9: vault 외부 시스템 ❌)."
-        ),
-    )
-    def wiki_get_guide(vault: str, kind: str) -> dict:
-        from raven.mcp.tools import GuideNotFoundError, read_guide
-        try:
-            return read_guide(vault=resolve_vault_path(vault), kind=kind)
-        except GuideNotFoundError as e:
-            # MCP transports exceptions as tool errors; this is the
-            # 403-equivalent for non-whitelisted kinds.
-            raise ValueError(str(e)) from e
-
-    # ─── 7. wiki_get_guide_diff (v0.7.95+) — Lite bootstrap 3종 diff
-    @mcp.tool(
-        name="wiki_get_guide_diff",
-        description=(
-            EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-            + "Unified diff of a Lite bootstrap file vs raven install template. "
-            + "Mirrors GET /api/vaults/{name}/guide-diff/{kind} (v0.7.94). "
-            + "kind must be one of the 3 whitelisted bootstrap paths — same "
-            + "whitelist as wiki_get_guide. Truncated at 200 lines. Useful "
-            + "for agents to diagnose 'why is my vault's RAVEN-CONTRACT "
-            + "mismatched?' without filesystem access (R9)."
-        ),
-    )
-    def wiki_get_guide_diff(vault: str, kind: str) -> dict:
-        from raven.mcp.tools import GuideNotFoundError, read_guide_diff
-        try:
-            return read_guide_diff(vault=resolve_vault_path(vault), kind=kind)
-        except GuideNotFoundError as e:
-            raise ValueError(str(e)) from e
-
-    # ─── 7.5. wiki_check_freshness (v0.7.114+, ADR-2026-07-08) ───
-    # Lite bootstrap 3종 hash + cache mismatch. silent warn 기본.
-    # HTTP 클라이언트는 동일 동작을 X-Guide-Hash 헤더로도 받을 수 있음 (ADR §2.1).
-    @mcp.tool(
-        name="wiki_check_freshness",
-        description=(
-            VAULT_ARG_NOTE
-            + "ADR-2026-07-08: lite bootstrap 3종 (SCHEMA.md / RAVEN-CONTRACT.md / log.md) "
-            + "SHA256 + 캐시 mismatch → freshness_warning. cache_hash 형식 = "
-            + "'SCHEMA=abc,RAVEN-CONTRACT=def' (명시) 또는 'abc,def' (순서 고정). "
-            + "Silent warn 기본 — 강제 read ❌. Stamp은 _meta/agents/.guide-version 자동."
-        ),
-    )
-    def wiki_check_freshness(vault: str, cache_hash: str | None = None) -> dict:
-        from raven.mcp.tools.guide import check_freshness
-        from raven.mcp.tools import resolve_vault_path
-        return check_freshness(
-            vault_root=resolve_vault_path(vault),
-            cache_hash=cache_hash,
-        )
 
     # ─── 7.5.5. wiki_get_advice ───
     @mcp.tool(
@@ -608,10 +544,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         # Tailscale/segregated internal networks.
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         instructions=(
-            "Raven multi-vault wiki MCP server. Before doing any work in a vault, "
-            "call wiki_get_guide(vault=<name>, kind='_meta/agents/RAVEN-CONTRACT.md') "
-            "and then kind='_meta/agents/SCHEMA.md' to learn that vault's conventions — "
-            "do not read those files from the filesystem directly. "
+            "Raven multi-vault Markdown PKM MCP server. "
             f"Registered vaults: {', '.join(vault_names) or '(none)'}."
         ),
     )

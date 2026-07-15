@@ -23,7 +23,7 @@ runner = CliRunner()
 @pytest.fixture
 def vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Vault:
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
-    return Vault.create("p2v", tmp_path / "p2v", bootstrap=True)
+    return Vault.create("p2v", tmp_path / "p2v")
 
 
 def _page(vault: Vault, name: str, tags: str) -> None:

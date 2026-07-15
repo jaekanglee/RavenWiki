@@ -13,7 +13,7 @@ from raven.core import db as db_module
 def isolated_vault(tmp_path: Path, monkeypatch):
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("advice-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("advice-test", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
     return vault

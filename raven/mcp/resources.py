@@ -9,7 +9,6 @@ MCP server process can serve every vault the registry knows about
     wiki://{vault}/page/{slug}        — one page (content + frontmatter + links)
     wiki://{vault}/graph              — full link graph (nodes + edges)
     wiki://{vault}/log/recent         — last ~5KB of log.md
-    wiki://{vault}/schema             — _meta/agents/SCHEMA.md text
 
 Resources are always read-only — no permission gating needed.
 """
@@ -25,7 +24,7 @@ def _to_json(payload: Any) -> str:
 
 
 def register_resources(mcp: Any) -> None:
-    """Bind the 5 wiki resources onto a FastMCP instance."""
+    """Bind the normal wiki resources onto a FastMCP instance."""
 
     # Local imports kept inside the function so resources.py is importable
     # on its own (e.g. from tests) without forcing db.py to open a connection.
@@ -75,12 +74,3 @@ def register_resources(mcp: Any) -> None:
             return "(no log.md at vault root)"
         text = log_path.read_text(encoding="utf-8")
         return text[-5000:] if len(text) > 5000 else text
-
-    # ─── wiki://{vault}/schema ───
-    @mcp.resource("wiki://{vault}/schema")
-    def wiki_schema(vault: str) -> str:
-        """Raw text of _meta/agents/SCHEMA.md."""
-        schema_path = resolve_vault_path(vault) / "_meta" / "agents" / "SCHEMA.md"
-        if not schema_path.exists():
-            return "(no _meta/agents/SCHEMA.md in this vault)"
-        return schema_path.read_text(encoding="utf-8")

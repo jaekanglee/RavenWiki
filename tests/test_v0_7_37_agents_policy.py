@@ -128,7 +128,7 @@ def test_write_page_allowed_when_no_policy() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "content").mkdir()
-        Vault.create(name="probe", path=root, bootstrap=False, profile="basic")
+        Vault.create(name="probe", path=root)
         v = Vault.load(VaultMeta(name="probe", path=root))
         # No agents in the freshly-created vault → write_allowed_for == True
         # for every actor.
@@ -143,7 +143,7 @@ def test_write_page_denies_unlisted_actor_returns_error_result() -> None:
         root = Path(tmp)
         (root / "content").mkdir()
         # Bootstrap=False + manually set agents in registry policy
-        Vault.create(name="probe", path=root, bootstrap=False, profile="basic")
+        Vault.create(name="probe", path=root)
         # Inject agents allowlist into the .vault.json
         vj = json.loads((root / ".vault.json").read_text())
         vj["agents"] = ["alice", "bob"]
@@ -178,7 +178,7 @@ def test_write_page_denies_anonymous_when_policy_declared() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "content").mkdir()
-        Vault.create(name="probe", path=root, bootstrap=False, profile="basic")
+        Vault.create(name="probe", path=root)
         vj = json.loads((root / ".vault.json").read_text())
         vj["agents"] = ["alice"]
         (root / ".vault.json").write_text(json.dumps(vj, indent=2))
@@ -203,7 +203,7 @@ def test_contract_guards_writes_for_opt_in_vaults_only() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "content").mkdir()
-        Vault.create(name="probe", path=root, bootstrap=False, profile="basic")
+        Vault.create(name="probe", path=root)
         vj = json.loads((root / ".vault.json").read_text())
         vj["agents"] = ["alice"]
         (root / ".vault.json").write_text(json.dumps(vj, indent=2))

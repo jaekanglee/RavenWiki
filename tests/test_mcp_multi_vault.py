@@ -16,7 +16,6 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
 from raven.mcp.cli import register_tools
-from raven.mcp.resources import register_resources
 
 
 def _make_vault(root: Path, name: str, log_text: str, schema_text: str) -> Path:
@@ -58,9 +57,6 @@ def _call_tool_result(mcp: FastMCP, name: str, arguments: dict):
     return json.loads(result[0].text)
 
 
-def _read_resource_text(mcp: FastMCP, uri: str) -> str:
-    contents = list(asyncio.run(mcp.read_resource(uri)))
-    return contents[0].content
 
 
 def test_wiki_log_routes_by_vault_name(two_vaults):
@@ -75,15 +71,6 @@ def test_wiki_log_routes_by_vault_name(two_vaults):
     assert any("beta entry" in d["line"] for d in beta_lines)
 
 
-def test_wiki_schema_resource_routes_by_vault_name(two_vaults):
-    mcp = FastMCP("wiki")
-    register_resources(mcp)
-
-    alpha_text = _read_resource_text(mcp, "wiki://alpha/schema")
-    beta_text = _read_resource_text(mcp, "wiki://beta/schema")
-
-    assert "alpha schema" in alpha_text
-    assert "beta schema" in beta_text
 
 
 def test_wiki_update_only_touches_the_named_vault(two_vaults):

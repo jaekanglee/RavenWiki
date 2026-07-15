@@ -14,7 +14,7 @@ from raven.core.tagger import suggest_tags
 def isolated_vault(tmp_path: Path, monkeypatch) -> Vault:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("tagger-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("tagger-test", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
     return vault

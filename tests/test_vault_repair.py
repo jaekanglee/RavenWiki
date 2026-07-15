@@ -53,7 +53,7 @@ def _register_with_broken_path(name: str, real_path: Path) -> Path:
 
 def test_update_path_rewrites_registry_only(isolated_env):
     real_path = isolated_env["target_root"] / "v1"
-    Vault.create("v1", real_path, bootstrap=True)
+    Vault.create("v1", real_path)
     broken = _register_with_broken_path("v1", real_path)
     assert registry().get("v1").path == broken
 
@@ -73,7 +73,7 @@ def test_update_path_returns_false_for_unknown_vault(isolated_env):
 
 def test_cli_vault_repair_fixes_broken_path(isolated_env):
     real_path = isolated_env["target_root"] / "v2"
-    Vault.create("v2", real_path, bootstrap=True)
+    Vault.create("v2", real_path)
     _register_with_broken_path("v2", real_path)
 
     result = runner.invoke(cli_app, ["vault", "repair", "v2", "--path", str(real_path)])
@@ -83,7 +83,7 @@ def test_cli_vault_repair_fixes_broken_path(isolated_env):
 
 def test_cli_vault_repair_rejects_non_vault_dir(isolated_env):
     real_path = isolated_env["target_root"] / "v3"
-    Vault.create("v3", real_path, bootstrap=True)
+    Vault.create("v3", real_path)
     _register_with_broken_path("v3", real_path)
 
     not_a_vault = isolated_env["target_root"] / "empty-dir"
@@ -104,7 +104,7 @@ def client():
 
 def test_api_vault_load_returns_409_not_500_when_unreachable(client, isolated_env):
     real_path = isolated_env["target_root"] / "v4"
-    Vault.create("v4", real_path, bootstrap=True)
+    Vault.create("v4", real_path)
     _register_with_broken_path("v4", real_path)
 
     resp = client.get("/api/vaults/v4/pages")
@@ -114,7 +114,7 @@ def test_api_vault_load_returns_409_not_500_when_unreachable(client, isolated_en
 
 def test_api_repair_endpoint_fixes_broken_path(client, isolated_env):
     real_path = isolated_env["target_root"] / "v5"
-    Vault.create("v5", real_path, bootstrap=True)
+    Vault.create("v5", real_path)
     _register_with_broken_path("v5", real_path)
 
     resp = client.post(f"/api/vaults/v5/repair", json={"path": str(real_path)})
@@ -133,7 +133,7 @@ def test_api_repair_endpoint_404_for_unknown_vault(client, isolated_env):
 
 def test_api_repair_endpoint_400_for_non_vault_path(client, isolated_env):
     real_path = isolated_env["target_root"] / "v6"
-    Vault.create("v6", real_path, bootstrap=True)
+    Vault.create("v6", real_path)
     _register_with_broken_path("v6", real_path)
 
     not_a_vault = isolated_env["target_root"] / "empty-dir-2"

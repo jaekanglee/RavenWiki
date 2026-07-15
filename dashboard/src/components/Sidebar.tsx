@@ -694,8 +694,12 @@ function DraftSection({
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const list = await fetchDraftsList(vault);
-    setDrafts(list);
+    try {
+      setDrafts(await fetchDraftsList(vault));
+    } catch {
+      // Drafts are optional; an unavailable endpoint must not break navigation.
+      setDrafts([]);
+    }
   }, [vault]);
 
   useEffect(() => {

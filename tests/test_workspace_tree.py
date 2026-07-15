@@ -90,7 +90,7 @@ def isolated_vault(workspace_dir, monkeypatch):
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
 
     vault_path = target_root / "v1"
-    Vault.create("v1", vault_path, bootstrap=True, workspace_path=str(workspace_dir))
+    Vault.create("v1", vault_path, workspace_path=str(workspace_dir))
 
     yield {
         "reg_root": reg_root,
@@ -367,7 +367,7 @@ def test_endpoint_tree_no_workspace(client, monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-wstree-nows-")).resolve()
     target_root = Path(tempfile.mkdtemp(prefix="raven-wstree-nows-target-")).resolve()
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    Vault.create("nows", target_root / "nows", bootstrap=True)
+    Vault.create("nows", target_root / "nows")
 
     resp = client.get("/api/vaults/nows/workspace/tree")
     assert resp.status_code == 400

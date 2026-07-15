@@ -9,7 +9,7 @@ from raven.core.vault import Vault
 def test_semantic_relations_lint_all_cases(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("test-relations-lint", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("test-relations-lint", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 
@@ -80,7 +80,7 @@ Body content
 def test_symmetric_relations_and_broken_dependency_lint(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("test-symmetry-lint", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("test-symmetry-lint", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 

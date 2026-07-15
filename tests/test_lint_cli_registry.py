@@ -23,8 +23,7 @@ def fresh_env(monkeypatch):
     target_root = Path(tempfile.mkdtemp(prefix="raven-lintcli-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(vaults_root))
     result = runner.invoke(app, [
-        "vault", "create", "lintcli-test", str(target_root / "lintcli-test"),
-        "--no-bootstrap",
+        "vault", "create", "lintcli-test", str(target_root / "lintcli-test")
     ])
     assert result.exit_code == 0, result.stderr
     yield

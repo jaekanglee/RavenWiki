@@ -17,7 +17,7 @@ from raven.core import db as db_module
 @pytest.fixture
 def built_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Vault:
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
-    v = Vault.create("searchv", tmp_path / "searchv", bootstrap=True)
+    v = Vault.create("searchv", tmp_path / "searchv")
     (v.root / "content" / "노이즈원칙.md").write_text(
         "---\ntitle: 노이즈원칙\ntype: concept\ntags: [pkm]\n"
         "created: 2026-07-04\nupdated: 2026-07-04\n---\n\n노이즈원칙 본문.\n",
