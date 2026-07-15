@@ -42,29 +42,26 @@ def client():
 # ─── vault create ────────────────────────────────────────────
 
 
-def test_api_vault_create_with_bootstrap(client, isolated_env):
+def test_api_vault_create_makes_plain_workspace(client, isolated_env):
     target = isolated_env["target_root"] / "v1"
     resp = client.post("/api/vaults", json={
-        "name": "v1", "path": str(target), "mode": "personal", "bootstrap": True,
+        "name": "v1", "path": str(target), "mode": "personal",
     })
     assert resp.status_code == 200, resp.text
-    data = resp.json()
-    assert data["ok"] is True
-    assert data["vault"]["bootstrapped"] is True
+    assert resp.json()["ok"] is True
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
+    assert not (target / "_meta").exists()
+    assert not (target / "log.md").exists()
 
 
-def test_api_vault_create_no_bootstrap(client, isolated_env):
+def test_api_vault_create_ignores_retired_bootstrap_fields(client, isolated_env):
     target = isolated_env["target_root"] / "v2"
     resp = client.post("/api/vaults", json={
-        "name": "v2", "path": str(target), "bootstrap": False,
+        "name": "v2", "path": str(target), "bootstrap": True, "profile": "llm-wiki",
     })
     assert resp.status_code == 200
-    # v0.4: empty dirs exist, but templates not copied
     assert (target / "content").is_dir()
-    assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "agents" / "SCHEMA.md").exists()
+    assert not (target / "_meta").exists()
 
 
 def test_api_vault_create_duplicate_name(client, isolated_env):
@@ -188,11 +185,12 @@ def test_api_page_update_rejects_bad_slug(client, isolated_env):
     assert "invalid slug" in resp.text.lower()
 
 
-def test_api_page_update_rejects_protected_log_path(client, isolated_env):
+def test_api_page_update_does_not_create_retired_system_paths(client, isolated_env):
     target = isolated_env["target_root"] / "vp7log"
-    client.post("/api/vaults", json={"name": "vp7log", "path": str(target), "bootstrap": True})
+    client.post("/api/vaults", json={"name": "vp7log", "path": str(target)})
     resp = client.put("/api/vaults/vp7log/pages/_meta/agents/SCHEMA", json={"content": "x"})
-    assert resp.status_code == 403
+    assert resp.status_code == 404
+    assert not (target / "_meta").exists()
 
 
 # ─── page delete (mirror 경로) ────────────────────────────

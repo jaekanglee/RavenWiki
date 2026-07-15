@@ -11,7 +11,6 @@ import { VaultManage } from "./routes/VaultManage";
 import { GardenPage } from "./routes/GardenPage";
 import { RawPanel } from "./routes/RawPanel";
 import { WorkspacePage } from "./routes/WorkspacePage";
-import { GuidesPage } from "./routes/GuidesPage";
 
 export default function App() {
   return (
@@ -28,8 +27,6 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
-          {/* v0.7.89+: Lite bootstrap 3종 read-only viewer (split view). */}
-          <Route path="/guides" element={<GuidesPage />} />
           {/* v0.7.50+: raw/ folder panel */}
           <Route path="/raw/:vault/*" element={<RawPanel />} />
         </Route>

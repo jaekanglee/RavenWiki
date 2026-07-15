@@ -1,23 +1,13 @@
 """vault — single-vault handle.
 
-A vault is any folder on disk containing:
-    .vault.json    — metadata (name, mode, owner, created, description)
-    content/       — user markdown (Obsidian-style hierarchy)
-    _meta/         — system markdown and optional agent-facing workflow guides
-    _archive/      — archived pages (gitignored — see archive.py)
-    wiki.db        — sqlite index (build artifact, gitignored)
+A vault is a user-owned Markdown workspace. Raven registers the folder and
+indexes its pages, but never injects policy documents, setup guides, logs, or
+Git state into it.
 
 The CLI resolves the *active* vault via:
   1. `--vault NAME` flag (explicit override)
   2. `WIKI_VAULT` env var
   3. registry's `default` vault
-
-Tier boundary policy (v2026-06-26, 2-tier model):
-    Tier 1 = raven package (this codebase) — owns its own docs, build, lint
-    Tier 2 = user vault (~/Raven/<name>/ by default) — user runtime data, NEVER receives
-             raven-internal operational docs (OPERATIONS.md, agent/*, raven-policy.md).
-    Lite bootstrap policy: vault create() only copies user-facing essentials.
-    To read raven-internal docs, use `raven docs`.
 """
 from __future__ import annotations
 
@@ -185,26 +175,17 @@ class Vault:
         owner: str = "user",
         description: str = "",
         *,
-        bootstrap: bool = True,
-        profile: str = "llm-wiki",
         workspace_path: str = "",
     ) -> "Vault":
-        """Create a new vault on disk and register it.
+        """Create and register a plain Markdown workspace.
 
-        Args:
-            name, path, mode, owner, description: standard vault meta.
-            bootstrap: if True (default), apply the profile bootstrap.
-                Use False when registering an existing folder.
-            profile: v0.6.38+ bootstrap profile selector. Default is "llm-wiki".
-                - "llm-wiki" (default): project/agent-ready vault. Copies 2-file
-                  Lite bootstrap (SCHEMA + PROJECT-WORKFLOW) + log.md.
-                - "basic": Obsidian-style human-first vault. Only copies
-                  WELCOME.md (1 file). No SCHEMA/RULES/agent workflow — user
-                  opts in later if they want LLM Wiki patterns.
-            workspace_path: associated local project workspace path.
+        Raven creates only the requested folder, its ``content/`` directory,
+        and the current registry metadata. It does not add onboarding pages,
+        agent instructions, activity logs, or Git state.
         """
         path = Path(path).expanduser().resolve()
         path.mkdir(parents=True, exist_ok=True)
+        (path / "content").mkdir(parents=True, exist_ok=True)
         meta = VaultMeta(
             name=name,
             path=path,
@@ -214,80 +195,11 @@ class Vault:
             description=description,
             workspace_path=workspace_path,
         )
-        # write per-vault meta
-        (path / ".vault.json").write_text(json.dumps(meta.to_json(), indent=2, ensure_ascii=False))
-        if bootstrap:
-            if profile == "basic":
-                cls._bootstrap_basic(path)
-            else:
-                cls._bootstrap_lite(path)
-            # M4 F3 — Bootstrap Self-Test (read-back verification).
-            # Lite bootstrap = user-facing files. README.md §9 silent-failure policy:
-            # verify failure emits a warning, write itself succeeds.
-            try:
-                from . import verify as _verify
-                _verify.verify_and_warn(path, context=f"vault.create({name}, profile={profile})")
-            except Exception:
-                # Verify must never break vault create (defensive).
-                pass
-        else:
-            # Even without bootstrap, content/ + _meta/ should exist as empty dirs
-            # so users have a writable starting point. (v0.4 fix — discovered via clone test)
-            (path / "content").mkdir(parents=True, exist_ok=True)
-            (path / "_meta").mkdir(parents=True, exist_ok=True)
-        # register
+        (path / ".vault.json").write_text(
+            json.dumps(meta.to_json(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         registry().add(meta)
-
-        # log.md에 create entry 자동 append (silent write 방지, README.md §8/§9).
-        # ensure_log()가 log.md 부재 시 템플릿에서 1회 생성 → 첫 vault create 안전.
-        # log append 실패는 무시 — vault create 자체는 성공 유지 (db.py와 동일 패턴).
-        # v0.6.38+: basic profile은 log.md 없음 → log append skip.
-        instance = cls(meta=meta, root=path)
-        if profile != "basic":
-            try:
-                from . import log as _log
-                _log.ensure_log(instance)
-                _log.append(
-                    instance,
-                    action="create",
-                    subject=f"vault created (mode={mode}, profile={profile})",
-                    files=[".vault.json"],
-                    note=f"path={path}",
-                )
-            except Exception:
-                pass
-
-        # git init + initial commit — SCHEMA.md declares markdown as the
-        # vault's SoT "tracked by git"; make that true from vault creation
-        # onward instead of leaving it as an unmet doc promise. Best-effort:
-        # missing git binary or init failure must never break vault create.
-        cls._ensure_git_repo(path)
-
-        return instance
-
-    @staticmethod
-    def _ensure_git_repo(path: Path) -> None:
-        """Best-effort `git init` + initial commit for a freshly created vault."""
-        import shutil
-        import subprocess
-
-        if (path / ".git").exists() or shutil.which("git") is None:
-            return
-        gitignore = path / ".gitignore"
-        if not gitignore.exists():
-            # SCHEMA.md: wiki.db is the query index, explicitly gitignored.
-            gitignore.write_text("wiki.db\n", encoding="utf-8")
-        try:
-            run = lambda *args: subprocess.run(
-                ["git", *args], cwd=path, check=True, capture_output=True, text=True
-            )
-            run("init", "-q")
-            run("config", "user.email", "raven@local")
-            run("config", "user.name", "raven")
-            run("add", "-A")
-            run("commit", "-q", "-m", "chore: initial vault bootstrap")
-        except Exception:
-            pass
+        return cls(meta=meta, root=path)
 
     @classmethod
     def _bootstrap_basic(cls, path: Path) -> None:
