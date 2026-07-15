@@ -28,4 +28,22 @@ Raven의 Lite bootstrap에서 에이전트 운영 정책을 제거하고, 제품
 
 ## 관련
 
+## v0.7.174 — Plain vault creation and Dashboard cleanup
+
+### BLUF
+
+새 vault는 Raven 정책·에이전트 지침·활동 로그를 주입하지 않는 빈 Markdown workspace로 생성되며, Dashboard에서도 해당 관리 표면을 제거했습니다.
+
+### 변경
+
+- `Vault.create()`와 `POST /api/vaults`가 `content/`과 vault 등록 메타데이터만 생성하도록 변경
+- Dashboard 새 vault wizard에서 profile/bootstrap, MCP 안내, 자동 index 문서 생성을 제거
+- Dashboard `/guides` route와 guide viewer를 제거하고 Vault 관리 화면을 문서·링크·용량 중심으로 단순화
+
+### 검증
+
+- `pytest tests/test_plain_vault_creation.py tests/test_api.py -q` → 60 passed
+- `npx vitest run tests/PlainVaultDashboard.test.ts` → 2 passed
+- `npx tsc -b --noEmit` → passed
+
 - [[raven-contract-and-user-agent-policy-boundary]] — 소유권 경계 결정

@@ -612,32 +612,14 @@ def git_diff(name: str, file: Optional[str] = Query(None, description="relative 
 class VaultCreate(BaseModel):
     name: str = Field(..., description="vault name (lowercase kebab-case 권장)")
     path: str = Field(..., description="absolute path to vault directory")
-    mode: str = Field("personal", description="personal | shared | agent")
-    owner: str = Field("user", description="user or agent name")
+    mode: str = Field("personal", description="vault mode")
+    owner: str = Field("user", description="vault owner")
     description: str = Field("", description="free text")
-    bootstrap: bool = Field(
-        True,
-        description=(
-            "Lite bootstrap policy: if True, copy ONLY agent-facing essentials "
-            "(SCHEMA, PROJECT-WORKFLOW, log.md). Tier 1 raven-internal "
-            "docs (OPERATIONS, agent/*, raven-policy) are NEVER auto-copied. "
-            "Use `raven docs` command to read raven-internal docs."
-        ),
-    )
-    profile: str = Field("llm-wiki", description="basic | llm-wiki")
 
 
 @app.post("/api/vaults")
 def create_vault(payload: VaultCreate):
-    """Create a new vault on disk + register it.
-
-    Mirrors `raven vault create <name> <path> --mode <mode>`.
-
-    Tier boundary policy: regardless of bootstrap flag, raven-internal
-    operational docs (OPERATIONS.md, agent/*, raven-policy.md) are NEVER
-    copied into the user vault. This enforces the 2-tier boundary
-    (Tier 1 = raven package, Tier 2 = user vault).
-    """
+    """Create and register a plain Markdown vault."""
     from raven.core.vault import Vault as _Vault
 
     # Validate: name not already taken
@@ -653,8 +635,6 @@ def create_vault(payload: VaultCreate):
             mode=payload.mode,
             owner=payload.owner,
             description=payload.description,
-            bootstrap=payload.bootstrap,
-            profile=payload.profile,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"create failed: {e}")
@@ -689,7 +669,6 @@ def create_vault(payload: VaultCreate):
             "mode": v.meta.mode,
             "owner": v.meta.owner,
             "default": v.meta.name == registry()._data.get("default", ""),
-            "bootstrapped": payload.bootstrap,
         },
     }
 
