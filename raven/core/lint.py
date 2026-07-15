@@ -23,7 +23,6 @@ Markdown PKM vault의 무결성을 확인한다. 일부 check는 Karpathy LLM Wi
     #16 vault growth rate anomaly      (v0.7.107, check_vault_growth_rate)
     #17 duplicate title candidate      (v0.7.107, check_duplicate_title)
     #18 audit violation pattern         (v0.7.109, check_audit_violation_pattern)
-    #19 guide freshness                   (v0.7.114+, check_guide_freshness, ADR-2026-07-08)
 
 v0.5.0: #12 (log_size) + #1-3 (link_module) 선반영.
 v0.5.1: #4-#11 추가. 12/12 완성.
@@ -134,7 +133,6 @@ CHECK_REGISTRY: dict[str, dict] = {
     "#16": {"name": "vault 성장률 이상", "fn": "check_vault_growth_rate"},
     "#17": {"name": "중복 제목 후보", "fn": "check_duplicate_title"},
     "#18": {"name": "감사 위반 패턴", "fn": "check_audit_violation_pattern"},
-    "#19": {"name": "가이드 최신성", "fn": "check_guide_freshness"},
     "#20": {"name": "플레이스홀더 텍스트", "fn": "check_placeholder_text"},
     "#21": {"name": "맥락 없는 위키링크", "fn": "check_contextless_wikilinks"},
     "#22": {"name": "저널 요약 완전성", "fn": "check_journal_summary_completeness"},
@@ -1167,8 +1165,6 @@ def run_all(vault: Vault) -> dict:
         issues.extend(check_duplicate_title(vault))
         # v0.7.109+ — audit log 패턴 분석 (G5)
         issues.extend(check_audit_violation_pattern(vault))
-        # v0.7.114+ (ADR-2026-07-08) — Lite bootstrap 3종 freshness 검사
-        issues.extend(check_guide_freshness(vault))
         # v0.7.127+ (Semantic Quality Guards)
         issues.extend(check_placeholder_text(vault))
         issues.extend(check_contextless_wikilinks(vault))
@@ -1349,69 +1345,6 @@ def _append_log_audit(vault, slug, action):
     )
     with log_path.open("a", encoding="utf-8") as f:
         f.write(line)
-
-def check_guide_freshness(vault):
-    """#19 guide freshness (v0.7.114+, ADR-2026-07-08).
-
-    vault `_meta/agents/` 부속의 SHA256 hash를 계산. `_meta/agents/.guide-version`
-    stamp 파일이 있으면 비교. 없으면 info 1건 (vault bootstrap 미완성 알림).
-
-    Returns:
-        [ {"id": "#19", "severity": "info", "slug": "...",
-           "message": "..."} ] — info 등급 silent warn.
-    """
-    from raven.mcp.tools.guide import _sha256, _load_version_stamp
-
-    out = []
-    agents = vault.root / "_meta" / "agents"
-
-    # SCHEMA.md
-    schema_path = agents / "SCHEMA.md"
-    if not schema_path.exists():
-        out.append(_mk_issue(
-            "#19", "info", "_meta/agents/SCHEMA.md",
-            "lite bootstrap SCHEMA.md 부재 — vault에 _meta/agents/SCHEMA.md 부속이 없음 (lite bootstrap 미주입)",
-        ))
-    else:
-        vault_hash = _sha256(schema_path)
-        stamp = _load_version_stamp(vault.root)
-        stamp_hash = stamp.get("SCHEMA") if isinstance(stamp, dict) else None
-        if stamp_hash is None:
-            out.append(_mk_issue(
-                "#19", "info", "_meta/agents/SCHEMA.md",
-                "_meta/agents/.guide-version stamp 없음 — raven build 시 자동 stamp 박힘 (회귀 가드)",
-            ))
-        elif stamp_hash != vault_hash:
-            out.append(_mk_issue(
-                "#19", "info", "_meta/agents/SCHEMA.md",
-                f"stamp stale — stamp={stamp_hash[:8]}.. vault_hash={vault_hash[:8]}.. "
-                f"(raven build 미실행 또는 직접 부속 수정)",
-            ))
-
-    # RAVEN-CONTRACT.md
-    contract_path = agents / "RAVEN-CONTRACT.md"
-    if not contract_path.exists():
-        out.append(_mk_issue(
-            "#19", "info", "_meta/agents/RAVEN-CONTRACT.md",
-            "lite bootstrap RAVEN-CONTRACT.md 부재 — vault에 부속이 없음 (lite bootstrap 미주입)",
-        ))
-    else:
-        vault_hash = _sha256(contract_path)
-        stamp = _load_version_stamp(vault.root)
-        stamp_hash = stamp.get("RAVEN-CONTRACT") if isinstance(stamp, dict) else None
-        if stamp_hash is None:
-            out.append(_mk_issue(
-                "#19", "info", "_meta/agents/RAVEN-CONTRACT.md",
-                "_meta/agents/.guide-version stamp 없음 — raven build 시 자동 stamp 박힘",
-            ))
-        elif stamp_hash != vault_hash:
-            out.append(_mk_issue(
-                "#19", "info", "_meta/agents/RAVEN-CONTRACT.md",
-                f"stamp stale — stamp={stamp_hash[:8]}.. vault_hash={vault_hash[:8]}..",
-            ))
-
-    return out
-
 
 def check_placeholder_text(vault: Vault) -> list[dict]:
     """#20 empty or placeholder text (v0.7.127+).

@@ -12,7 +12,7 @@ from raven.core.hybrid_search import LocalEmbeddingEngine, hybrid_search, load_v
 def isolated_vault(tmp_path: Path, monkeypatch) -> Vault:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("hybrid-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("hybrid-test", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
     return vault
@@ -142,7 +142,7 @@ def test_inline_build_fts_includes_alias(tmp_path) -> None:
     from raven.core.vault import Vault
     from raven.core.db import _inline_build
 
-    vault = Vault.create("inline-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("inline-test", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
     (content_dir / "doc-d.md").write_text(
@@ -175,7 +175,7 @@ def test_inline_build_fts_rowid_integrity_with_multiple_tags(tmp_path) -> None:
     from raven.core.vault import Vault
     from raven.core.db import _inline_build
 
-    vault = Vault.create("rowid-test", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("rowid-test", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 

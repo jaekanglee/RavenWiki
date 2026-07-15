@@ -65,10 +65,10 @@ def test_create_vault_auto_creates_directory(
 
     assert target.is_dir()
     assert v.root == target.resolve()
-    # Lite bootstrap files
-    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
-    assert (target / "log.md").is_file()
+    assert (target / "content").is_dir()
+    assert (target / ".vault.json").is_file()
+    assert not (target / "_meta").exists()
+    assert not (target / "log.md").exists()
     # Registered
     reg = registry()
     assert reg.get("my-new-vault") is not None

@@ -91,7 +91,6 @@ describe("GraphPage detail panel", () => {
     expect(screen.queryByText("content")).not.toBeNull();
     expect(screen.queryByText("current")).not.toBeNull();
     expect(screen.queryByText("Alpha")).not.toBeNull();
-    expect(screen.queryByText("관계 설명")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /포커스/ })).not.toBeNull();
     expect(screen.queryByRole("button", { name: /열기/ })).not.toBeNull();
     expect(mockGraphCanvas.mock.calls.at(-1)?.[0].focusNodeId).toBe("content/a");

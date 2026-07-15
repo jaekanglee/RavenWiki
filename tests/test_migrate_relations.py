@@ -38,7 +38,7 @@ def test_extract_relations_from_text() -> None:
 def test_migrate_relations_integration(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("test-migrate", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("test-migrate", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 

@@ -10,7 +10,7 @@ from raven.core.vault import Vault
 def test_build_db_result_includes_pages_and_returncode(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("build-result", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("build-result", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
     (content_dir / "hello.md").write_text(

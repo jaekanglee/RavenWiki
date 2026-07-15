@@ -50,7 +50,7 @@ def test_vault_create_saves_workspace_path(isolated_env):
     path = isolated_env["target_root"] / "v1"
     ws = isolated_env["workspace_root"]
     
-    v = Vault.create("v1", path, bootstrap=True, workspace_path=str(ws))
+    v = Vault.create("v1", path, workspace_path=str(ws))
     assert v.meta.workspace_path == str(ws)
     
     # Read back from registry
@@ -69,7 +69,7 @@ def test_registry_update_workspace_path(isolated_env):
     path = isolated_env["target_root"] / "v2"
     ws = isolated_env["workspace_root"]
     
-    v = Vault.create("v2", path, bootstrap=True)
+    v = Vault.create("v2", path)
     assert not v.meta.workspace_path
     
     # Associate
@@ -89,7 +89,7 @@ def test_cli_vault_workspace_associate_and_unlink(isolated_env):
     path = isolated_env["target_root"] / "v3"
     ws = isolated_env["workspace_root"]
     
-    Vault.create("v3", path, bootstrap=True)
+    Vault.create("v3", path)
     
     # 1. Show empty
     result = runner.invoke(cli_app, ["vault", "workspace", "v3"])
@@ -120,7 +120,7 @@ def test_api_workspace_associate_and_git_endpoints(client, isolated_env):
     path = isolated_env["target_root"] / "v4"
     ws = isolated_env["workspace_root"]
     
-    Vault.create("v4", path, bootstrap=True)
+    Vault.create("v4", path)
     
     # 1. Associate workspace via API
     resp = client.post("/api/vaults/v4/workspace", json={"workspace_path": str(ws)})

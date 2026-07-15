@@ -44,7 +44,7 @@ def tmp_raven_home(tmp_path, monkeypatch):
 def _make_vault(root: Path, name: str, slug: str, title: str, body: str = "") -> Vault:
     """Create a registered vault with one page."""
     root.mkdir(parents=True, exist_ok=True)
-    v = Vault.create(name=name, path=root, bootstrap=False, profile="basic")
+    v = Vault.create(name=name, path=root)
     (root / ".vault.json").write_text(json.dumps(v.meta.to_json(), indent=2))
     page = root / "content" / f"{slug}.md"
     page.parent.mkdir(parents=True, exist_ok=True)

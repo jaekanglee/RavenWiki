@@ -12,7 +12,7 @@ from raven.core.vault import Vault
 def test_build_db_relations_parsing_and_resolution(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("build-relations", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("build-relations", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 
@@ -102,7 +102,7 @@ Source content
 def test_build_db_skips_invalid_frontmatter_relations(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("build-invalid-relations", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("build-invalid-relations", tmp_path / "vault")
     content_dir = vault.root / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
 
@@ -159,7 +159,7 @@ Source
 def test_build_db_pages_store_minimal_node_meta(tmp_path: Path, monkeypatch) -> None:
     reg_root = tmp_path / "registry"
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    vault = Vault.create("build-node-meta", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("build-node-meta", tmp_path / "vault")
     content_dir = vault.root / "content" / "projects"
     content_dir.mkdir(parents=True, exist_ok=True)
     (content_dir / "raven.md").write_text(

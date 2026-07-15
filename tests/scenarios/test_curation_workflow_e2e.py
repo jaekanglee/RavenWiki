@@ -16,7 +16,10 @@ def _git(vault_root: Path, *args: str) -> None:
 
 def test_raw_curator_proposal_approve_wiki_e2e(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path / "registry"))
-    vault = Vault.create("curation-e2e", tmp_path / "vault", bootstrap=False)
+    vault = Vault.create("curation-e2e", tmp_path / "vault")
+    _git(vault.root, "init", "-q")
+    _git(vault.root, "config", "user.email", "test@example.invalid")
+    _git(vault.root, "config", "user.name", "Raven Test")
 
     # Raw: source material is tracked as the human-owned input.
     raw_file = vault.root / "raw" / "articles" / "session-note.md"

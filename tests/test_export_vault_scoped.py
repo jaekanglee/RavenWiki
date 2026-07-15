@@ -21,7 +21,7 @@ def built_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Vault:
     """페이지 1개 + wiki.db까지 빌드된 vault."""
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
     root = tmp_path / "expo"
-    vault = Vault.create("expo", root, bootstrap=True)
+    vault = Vault.create("expo", root)
     (root / "content" / "수출-테스트.md").write_text(
         "---\ntitle: 수출 테스트\ntype: concept\ncreated: 2026-07-04\nupdated: 2026-07-04\n---\n\n본문\n",
         encoding="utf-8",
@@ -47,7 +47,7 @@ def test_export_fails_loudly_when_db_missing(tmp_path: Path, monkeypatch: pytest
     """wiki.db 없는 vault export는 ok=False (성공 위장 금지)."""
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(tmp_path))
     root = tmp_path / "nodb"
-    vault = Vault.create("nodb", root, bootstrap=True)
+    vault = Vault.create("nodb", root)
     assert not vault.db_path.exists()
 
     out = tmp_path / "static-out2"

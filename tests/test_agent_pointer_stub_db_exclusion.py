@@ -38,7 +38,7 @@ def isolated_target():
 
 
 def test_agent_pointer_stubs_not_indexed_as_pages(isolated_vaults_root, isolated_target):
-    v = Vault.create("stub-db-check", isolated_target / "stub-db-check", profile="llm-wiki")
+    v = Vault.create("stub-db-check", isolated_target / "stub-db-check")
     db_module.build_db(v, run_lint=False)
     issues = check_index_completeness(v)
     stub_basenames = {Path(f).stem for f in ROOT_AGENT_INSTRUCTION_FILES if f.endswith(".md")}

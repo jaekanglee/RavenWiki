@@ -16,30 +16,13 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from .registry import registry, VaultMeta
 
-if TYPE_CHECKING:
-    from .verify import BootstrapVerifyResult
 
-
-# Lite bootstrap whitelist — agent-facing operational essentials only.
-# v0.7.65+: 3 entries — must match template_map in _bootstrap_lite().
-_LITE_BOOTSTRAP_FILES = (
-    "_meta/agents/SCHEMA.md",
-    "_meta/agents/RAVEN-CONTRACT.md",
-    "log.md",
-)
-
-# v0.6.38+: basic profile whitelist — human-first Obsidian-style vault.
-# Only WELCOME.md (1 file) — no schema/rules/agents forced on the user.
-# LLM Wiki patterns are opt-in via _meta/system/features.json.
-_BASIC_BOOTSTRAP_FILES = (
-    "WELCOME.md",
-)
-# Conventional root instruction files are user-owned. Raven never creates,
-# rewrites, or validates them; the builder only excludes them from page parsing.
+# Conventional root instruction files are user-owned. Raven excludes them from
+# page parsing but never creates, rewrites, validates, or migrates them.
 ROOT_AGENT_INSTRUCTION_FILES: tuple[str, ...] = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -47,16 +30,6 @@ ROOT_AGENT_INSTRUCTION_FILES: tuple[str, ...] = (
     ".cursorrules",
     ".windsurfrules",
 )
-
-# v0.8.1+: _bootstrap_lite()의 template_map과 sync_meta()의 file_map은
-# 완전히 동일한 3-entry dict를 각자 중복 정의하고 있었다 (drift 위험 —
-# 위 _LITE_BOOTSTRAP_FILES 주석이 이미 "must match" 라고 경고했던 지점).
-# 하나의 상수로 통합.
-LITE_BOOTSTRAP_FILE_MAP: dict[str, str] = {
-    "_meta/agents/SCHEMA.md":            "templates/agent/SCHEMA.md",
-    "_meta/agents/RAVEN-CONTRACT.md":    "templates/agent/RAVEN-CONTRACT.md",
-    "log.md":                            "templates/log.md",
-}
 
 
 @dataclass
@@ -86,15 +59,6 @@ class Vault:
                     vjson.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
             except Exception:
                 pass
-
-        # v0.7.34+: 자동 마이그레이션 실드 (AGENTS.md -> README.md)
-        old_path = root / "_meta" / "system" / "AGENTS.md"
-        new_path = root / "_meta" / "system" / "README.md"
-        if old_path.exists() and not new_path.exists():
-            try:
-                old_path.rename(new_path)
-            except Exception as e:
-                print(f"⚠️  Failed to migrate AGENTS.md to README.md: {e}")
 
         return cls(meta=meta, root=root)
 
@@ -202,158 +166,6 @@ class Vault:
         return cls(meta=meta, root=path)
 
     @classmethod
-    def _bootstrap_basic(cls, path: Path) -> None:
-        """v0.6.38+ basic profile bootstrap.
-
-        Obsidian-style human-first vault. Only copies WELCOME.md (1 file).
-        User decides if/when to enable LLM Wiki patterns via
-        _meta/system/features.json (opt-in, never forced).
-
-        Creates:
-            content/                     (empty)
-            _meta/                       (empty)
-            WELCOME.md                   (human-friendly welcome guide)
-
-        Does NOT copy:
-            SCHEMA.md, PROJECT-WORKFLOW.md, log.md
-            → user enables LLM Wiki patterns manually if desired
-        """
-        from importlib import resources
-
-        content_dir = path / "content"
-        meta_dir = path / "_meta"
-
-        content_dir.mkdir(parents=True, exist_ok=True)
-        meta_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy WELCOME.md to vault root (visible immediately)
-        template_map = {
-            "WELCOME.md": "templates/system/WELCOME.md",
-        }
-
-        for rel_target, tmpl_path in template_map.items():
-            target = path / rel_target
-            if target.exists():
-                continue  # never overwrite user-edited files
-            try:
-                src = resources.files("raven.core").joinpath(tmpl_path)
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-            except Exception as e:
-                raise RuntimeError(
-                    f"Basic bootstrap failed: could not copy {rel_target} "
-                    f"from {tmpl_path}: {e}"
-                ) from e
-
-    @classmethod
-    def _bootstrap_lite(cls, path: Path) -> None:
-        """Lite bootstrap (v0.7.65+: agent-only 2-file set): copy ONLY the
-        agent-facing operational essentials.
-
-        Creates:
-            content/                          (empty)
-            _meta/agents/SCHEMA.md            (데이터 계약: frontmatter/type/tag/wikilink/raw 권한/lint)
-            _meta/agents/RAVEN-CONTRACT.md    (기술 계약: SoT/인덱스, MCP, 권한 모드, 로그/가드)
-            log.md                            (빈 로그 헤더)
-
-        Does NOT copy:
-            OPERATIONS.md  → raven internal docs, use `raven docs operations`
-            agent/*        → raven LLM agent behavior, use `raven docs agent`
-            raven-policy.md → raven internal policy, use `raven docs policy`
-
-        v0.7.65+: dropped `_meta/system/{SCHEMA,RULES,README}.md` — merged into
-        the 2 files above. No human-manual content is injected into the vault;
-        only facts an agent needs to operate this vault/tool correctly.
-
-        Idempotent: existing files are NOT overwritten. To refresh templates
-        after raven upgrade, use `raven meta sync --lite`.
-        """
-        from importlib import resources
-
-        content_dir = path / "content"
-        meta_dir = path / "_meta"
-        agents_dir = meta_dir / "agents"
-
-        content_dir.mkdir(parents=True, exist_ok=True)
-        meta_dir.mkdir(parents=True, exist_ok=True)
-        agents_dir.mkdir(parents=True, exist_ok=True)
-
-        for rel_target, tmpl_path in LITE_BOOTSTRAP_FILE_MAP.items():
-            target = path / rel_target
-            if target.exists():
-                continue  # never overwrite user-edited files
-            try:
-                src = resources.files("raven.core").joinpath(tmpl_path)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-            except Exception as e:
-                # Loud, not silent — caller (CLI) will surface this.
-                raise RuntimeError(
-                    f"Lite bootstrap failed: could not copy {rel_target} "
-                    f"from {tmpl_path}: {e}"
-                ) from e
-
-
-
-    def sync_meta(self, *, lite: bool = True, force: bool = False) -> dict:
-        """Re-copy meta templates into the vault.
-
-        Args:
-            lite: if True (default), copy the 2-file agent-facing set
-                  (SCHEMA.md, RAVEN-CONTRACT.md) + log.md. If False
-                  ("full"), copies the identical set — v0.7.65+ removed
-                  the old superset that injected Tier 1 internal docs
-                  (OPERATIONS, agent/*, raven-policy), since that has
-                  been banned since v0.7.1 (Tier 1 ↔ Tier 2 boundary).
-                  The only behavioral difference for lite=False is the
-                  safety check below.
-            force: if False (default), do not overwrite existing files
-                   (user-edited protection). If True, overwrite.
-
-        Returns dict with counts of copied/skipped files.
-
-        Raises:
-            ValueError: if lite=False and force=False and any target file
-                        already exists — safety check protecting
-                        user-edited files on the explicit non-lite path.
-        """
-        from importlib import resources
-
-        # Determine target files based on lite flag
-        # v0.7.65+: lite and full are now identical (2-file agent-only set) —
-        # `full` no longer adds Tier 1 internal docs (that policy predates
-        # v0.7.1's Tier 1 leak ban and was already dead code).
-        if not lite and not force:
-            # Safety: full set without force could overwrite user-edited files.
-            for rel_target in LITE_BOOTSTRAP_FILE_MAP:
-                target = self.root / rel_target
-                if target.exists():
-                    raise ValueError(
-                        f"sync_meta(full): target exists at {target}. "
-                        f"Refusing to overwrite without force=True. "
-                        f"This protects user-edited raven-internal docs."
-                    )
-
-        agents_dir = self.meta_root / "agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
-
-        out = {"copied": [], "skipped": [], "errors": []}
-
-        for rel_target, tmpl_path in LITE_BOOTSTRAP_FILE_MAP.items():
-            target = self.root / rel_target
-            if target.exists() and not force:
-                out["skipped"].append(str(target.relative_to(self.root)))
-                continue
-            try:
-                src = resources.files("raven.core").joinpath(tmpl_path)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                out["copied"].append(str(target.relative_to(self.root)))
-            except Exception as e:
-                out["errors"].append({"file": rel_target, "error": str(e)})
-
-        return out
-
-    @classmethod
     def clone(
         cls,
         src: "Vault",
@@ -422,8 +234,6 @@ class Vault:
         copy_meta = copy_meta and not data_only
         if copy_meta and (src.root / "_meta").exists():
             shutil.copytree(src.root / "_meta", new_path / "_meta")
-        else:
-            (new_path / "_meta").mkdir(exist_ok=True)
 
         # write .vault.json with overrides
         meta = VaultMeta(
@@ -459,33 +269,6 @@ class Vault:
     def drafts_root(self) -> Path:
         return self.root / "drafts"
 
-    # ─── bootstrap helpers ─────────────────────────
-
-    def ensure_dirs(self) -> None:
-        self.content_root.mkdir(parents=True, exist_ok=True)
-        self.meta_root.mkdir(parents=True, exist_ok=True)
-        self.drafts_root.mkdir(parents=True, exist_ok=True)
-        # log.md 자동 보장 (없으면 빈 헤더)
-        from . import log as _log
-        _log.ensure_log(self)
-
-    # ─── bootstrap self-test (F3, M4) ────────────
-
-    def verify_bootstrap(self) -> "BootstrapVerifyResult":
-        """Verify this vault's Lite bootstrap files match the source templates.
-
-        Returns:
-            BootstrapVerifyResult with per-file status + overall `ok` flag.
-
-        Use case:
-            - CLI: `raven vault verify <name>`
-            - API: `POST /api/vaults/{name}/verify`
-            - Direct: `Vault.load(meta).verify_bootstrap()`
-
-        Does NOT raise on missing/mismatched files — caller inspects `result.ok`.
-        """
-        from . import verify as _verify
-        return _verify.verify_bootstrap(self.root)
 
 
 # Re-export datetime at module scope (used by clone)

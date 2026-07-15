@@ -39,7 +39,7 @@ def vault(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-log-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-log-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    v = Vault.create("log-test", target_root / "log-test", bootstrap=False)
+    v = Vault.create("log-test", target_root / "log-test")
     yield v
     shutil.rmtree(reg_root, ignore_errors=True)
     shutil.rmtree(target_root, ignore_errors=True)
@@ -57,13 +57,7 @@ def test_log_path_is_vault_root(vault):
 
 
 def test_ensure_log_creates_from_template(vault):
-    """첫 호출 시 템플릿에서 생성.
-
-    v0.5.5+ silent-write fix: Vault.create() 가 이미 log.md 를 보장하고
-    create entry 를 1개 남기므로, 템플릿-from-scratch 생성 경로를 검증하려면
-    fixture 가 남긴 log.md 를 지운 뒤 ensure_log() 를 호출해야 한다.
-    """
-    log_path(vault).unlink()
+    """첫 로그 작업에서만 템플릿을 생성한다."""
     assert not log_path(vault).exists()
     p = ensure_log(vault)
     assert p.exists()
@@ -134,48 +128,29 @@ def test_append_writes_to_disk(vault):
 
 
 def test_append_idempotent_separate_lines(vault):
-    """여러 번 append 시 각자 한 entry로.
-
-    v0.5.5+ silent-write fix: fixture 의 Vault.create() 가 이미 1개 create entry 를
-    남기므로, 3번 append 후 count == 4.
-    """
+    """여러 번 append 시 각자 한 entry로."""
     append(vault, "chore", "first")
     append(vault, "chore", "second")
     append(vault, "chore", "third")
-    assert count(vault) == 4  # 3 explicit + 1 silent-write create
+    assert count(vault) == 3
 
 
 # ────────────────────────── load / count / list ──────────────────────────
 
 
 def test_load_empty(vault):
-    """log.md 가 있으면 파싱, 없으면 빈 리스트.
-
-    v0.5.5+ silent-write fix: fixture 의 Vault.create() 가 log.md 를 보장하고
-    1개 create entry 를 남기므로 load(vault) == [create_entry], count == 1.
-    """
-    entries = load(vault)
-    assert len(entries) == 1
-    assert entries[0].action == "create"
-    assert "vault created" in entries[0].subject
-    assert count(vault) == 1
+    """새 plain vault는 log.md를 만들지 않으며 빈 이력을 반환한다."""
+    assert load(vault) == []
+    assert count(vault) == 0
 
 
 def test_load_parses_entries(vault):
-    """append 후 load 시 entry 객체로 파싱.
-
-    v0.5.5+ silent-write fix: fixture 가 1개 create entry 를 미리 남기므로
-    2번 append 후 load 결과는 3개. 단, [1:] 으로 silent-write entry 를 제외하고
-    사용자가 append 한 2개만 검증.
-    """
+    """append 후 load 시 entry 객체로 파싱."""
     append(vault, "create", "page-a", note="first")
     append(vault, "update", "page-b", files=["content/b"], note="second")
     entries = load(vault)
-    # 1 silent-write + 2 explicit = 3
-    assert len(entries) == 3
-    # skip silent-write create entry from Vault.create()
-    user_entries = entries[1:]
-    assert len(user_entries) == 2
+    assert len(entries) == 2
+    user_entries = entries
     assert user_entries[0].action == "create"
     assert user_entries[0].subject == "page-a"
     assert "reason: first" in user_entries[0].details
@@ -193,16 +168,12 @@ def test_list_entries_tail(vault):
 
 
 def test_list_entries_action_filter(vault):
-    """action 필터 동작.
-
-    v0.5.5+ silent-write fix: fixture 의 Vault.create() 도 create entry 1개를 남기므로
-    explicit 2번 create 후 action=create 필터 → 3개 (1 silent + 2 explicit).
-    """
+    """action 필터 동작."""
     append(vault, "create", "a")
     append(vault, "update", "b")
     append(vault, "create", "c")
     only_create = list_entries(vault, action="create")
-    assert len(only_create) == 3
+    assert len(only_create) == 2
     assert all(e["action"] == "create" for e in only_create)
 
 
@@ -247,8 +218,8 @@ def test_format_grep_compatible(vault):
         line for line in text.splitlines()
         if line.startswith("## [") and _HEADER_RE.match(line)
     ]
-    assert len(real_headers) == 3  # 1 silent-write + 2 explicit
+    assert len(real_headers) == 2
     assert all(_HEADER_RE.match(h) for h in real_headers)
     # grep "^## \[" 카파시 팁과 일치
     grep_style = [line for line in text.splitlines() if line.startswith("## [")]
-    assert len(grep_style) >= 3  # placeholder + 3 actual
+    assert len(grep_style) >= 2

@@ -94,20 +94,9 @@ raven link check
 raven export                      # GUI 정적 JSON 재생성
 ```
 
-### Lite bootstrap — `raven vault create` 시 자동 복사
+### Plain vault creation
 
-새 vault를 `--profile llm-wiki`(기본값)로 만들면 다음 **Raven 소유 기술 계약 2종 + log.md**가
-vault 폴더에 자동 복사됩니다. 이 문서는 제품의 데이터·도구·안전 경계만 설명하며, 에이전트 역할·저장 기준·검토·큐레이션 방식은 운영자가 별도로 관리합니다.
-
-| 파일 | 용도 |
-|---|---|
-| `_meta/agents/SCHEMA.md` | Raven 데이터 계약: frontmatter, 관계 payload, slug, lint 의미 |
-| `_meta/agents/RAVEN-CONTRACT.md` | MCP, 권한 모드, 보호 경로, log·guide·freshness의 기술 계약 |
-| `log.md` | append-only 작업·감사 이력 |
-
-기존 vault의 `_meta/agents/PROJECT-WORKFLOW.md`는 읽기만 가능한 호환 안내로 남을 수 있지만, 새 bootstrap·sync·freshness 대상은 아닙니다. 일반적인 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`는 운영자 소유 파일이며 Raven은 만들거나 수정하지 않습니다.
-
-**Tier 1 문서** (`OPERATIONS.md` / `agent/*` / `raven-policy.md`)는 raven 패키지 내부에 있으며 vault에 **복사되지 않습니다**. 접근은 `raven docs show <topic>`. `vault clone` 기본 = content only (Tier 1 leak 방지).
+`raven vault create <name> <path>` creates only `content/` and the vault metadata required for Raven to register the folder. It never adds `_meta/`, `log.md`, onboarding pages, agent instructions, or Git state. Existing vault files are never removed or migrated automatically.
 
 ---
 

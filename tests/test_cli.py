@@ -38,34 +38,16 @@ def fresh_env(monkeypatch):
 # ─── vault create ───────────────────────────────────────────
 
 
-def test_cli_vault_create_bootstrap(fresh_env):
+def test_cli_vault_create_makes_a_plain_markdown_workspace(fresh_env):
     target = fresh_env["target_root"] / "myvault"
-    result = runner.invoke(app, [
-        "vault", "create", "myvault", str(target),
-    ])
+    result = runner.invoke(app, ["vault", "create", "myvault", str(target)])
+
     assert result.exit_code == 0, result.stderr
     assert "created" in result.stdout
-    assert "bootstrapped" in result.stdout
     assert (target / "content").is_dir()
-    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-
-
-def test_cli_vault_create_no_bootstrap(fresh_env):
-    target = fresh_env["target_root"] / "existing"
-    target.mkdir()
-    (target / "old-doc.md").write_text("# old\n")
-    result = runner.invoke(app, [
-        "vault", "create", "existing", str(target), "--no-bootstrap",
-    ])
-    assert result.exit_code == 0, result.stderr
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "no bootstrap" in combined
-    # v0.4: empty dirs are created (so users have a writable starting point)
-    assert (target / "content").is_dir()
-    assert (target / "_meta").is_dir()
-    assert not (target / "_meta" / "agents" / "SCHEMA.md").exists()
-    # but existing files are not touched
-    assert (target / "old-doc.md").read_text() == "# old\n"
+    assert (target / ".vault.json").is_file()
+    assert not (target / "_meta").exists()
+    assert not (target / "log.md").exists()
 
 
 # ─── page new: auto prefix ──────────────────────────────────
@@ -219,79 +201,13 @@ def test_cli_page_delete_validates_slug(fresh_env):
     assert "invalid slug" in out
 
 
-# ─── meta sync ──────────────────────────────────────────────
-
-
-def test_cli_meta_sync_copies_when_missing(fresh_env):
-    target = fresh_env["target_root"] / "v12"
-    runner.invoke(app, ["vault", "create", "v12", str(target), "--no-bootstrap"])
-    # Lite sync_meta default copies user-facing bootstrap files.
-    result = runner.invoke(app, ["meta", "sync", "--vault", "v12"])
-    assert result.exit_code == 0, result.stderr
-    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
-    # No internal agent/ subdir created (Lite policy)
-    assert not (target / "_meta" / "agent").exists()
-    # No OPERATIONS.md
-    assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()
-
-
-def test_cli_meta_sync_does_not_overwrite_by_default(fresh_env):
-    """Default sync_meta is Lite + no-force (does NOT overwrite)."""
-    target = fresh_env["target_root"] / "v13"
-    runner.invoke(app, ["vault", "create", "v13", str(target)])
-    # customize SCHEMA.md in new location
-    schema_path = target / "_meta" / "agents" / "SCHEMA.md"
-    schema_path.write_text("# CUSTOM OLD\n")
-    result = runner.invoke(app, ["meta", "sync", "--vault", "v13"])
-    assert result.exit_code == 0, result.stderr
-    # NOT overwritten (Lite policy: user-edited protected)
-    assert "# CUSTOM OLD" in schema_path.read_text()
-
-
-def test_cli_meta_sync_json_out(fresh_env):
-    target = fresh_env["target_root"] / "v13"
-    runner.invoke(app, ["vault", "create", "v13", str(target), "--no-bootstrap"])
-    result = runner.invoke(app, ["meta", "sync", "--vault", "v13", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    # Lite: user-facing files copied (no internal agent/, no OPERATIONS, no raven-policy)
-    # log.md already exists from Vault.create() (llm-wiki profile) → skipped, not copied
-    assert "_meta/agents/SCHEMA.md" in data["copied"]
-    assert "_meta/agents/RAVEN-CONTRACT.md" in data["copied"]
-    assert "log.md" not in data["copied"]
-    assert "log.md" in data["skipped"]
-    assert "_meta/agent/README.md" not in data["copied"]
-    assert "_meta/system/OPERATIONS.md" not in data["copied"]
-
-
-def test_cli_meta_sync_full_with_force(fresh_env):
-    """v0.7.6+: --full is now equivalent to --lite (Tier 1 internal sync ❌).
-
-    v0.7.1+ Lite bootstrap 정책: 사용자 vault는 도구 표면만, Tier 1 leak 방지.
-    full 옵션은 deprecated (lite와 동일하게 처리) — Tier 1 internal sync 거부.
-    """
-    target = fresh_env["target_root"] / "vfull"
-    runner.invoke(app, ["vault", "create", "vfull", str(target), "--no-bootstrap"])
-    result = runner.invoke(app, ["meta", "sync", "--full", "--force", "--vault", "vfull"])
-    assert result.exit_code == 0, result.stderr
-    # Lite 3종만 복사
-    assert (target / "_meta" / "agents" / "SCHEMA.md").is_file()
-    assert (target / "_meta" / "agents" / "RAVEN-CONTRACT.md").is_file()
-    assert (target / "log.md").is_file()
-    # Tier 1 internal ❌ (Tier 1 leak 방지)
-    assert not (target / "_meta" / "system" / "OPERATIONS.md").exists()
-    assert not (target / "_meta" / "agent" / "README.md").exists()
-    assert not (target / "raven-policy.md").exists()
-
-
 # ─── vault clone ────────────────────────────────────────────
 
 
 def test_cli_vault_clone_copies_content_only_by_default(fresh_env):
     """Lite default (v2026-06-26): content/ copied, _meta/ NOT copied."""
     src = fresh_env["target_root"] / "src"
-    runner.invoke(app, ["vault", "create", "src", str(src), "--bootstrap"])
+    runner.invoke(app, ["vault", "create", "src", str(src)])
     # Add some content
     (src / "content" / "hello.md").write_text("# Hello\n")
     (src / "content" / "sub").mkdir(exist_ok=True)
@@ -304,8 +220,8 @@ def test_cli_vault_clone_copies_content_only_by_default(fresh_env):
     # content copied
     assert (dst / "content" / "hello.md").is_file()
     assert (dst / "content" / "sub" / "nested.md").is_file()
-    # _meta/ NOT copied (Lite policy)
-    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
+    # default clone does not create _meta/.
+    assert not (dst / "_meta").exists()
     # registered
     reg_list = runner.invoke(app, ["vault", "list", "--json"])
     names = [v["name"] for v in json.loads(reg_list.stdout)]
@@ -315,42 +231,41 @@ def test_cli_vault_clone_copies_content_only_by_default(fresh_env):
 def test_cli_vault_clone_default_is_lite(fresh_env):
     """Lite default (v2026-06-26): _meta/ NOT copied unless --copy-meta."""
     src = fresh_env["target_root"] / "src2"
-    runner.invoke(app, ["vault", "create", "src2", str(src), "--bootstrap"])
+    runner.invoke(app, ["vault", "create", "src2", str(src)])
     dst = fresh_env["target_root"] / "dst2"
     # No flag — Lite default (no _meta copy)
     result = runner.invoke(app, ["vault", "clone", "src2", "dst2", str(dst)])
     assert result.exit_code == 0
     assert (dst / "content").is_dir()
-    # _meta/ exists but empty (Lite: no copy)
-    assert (dst / "_meta").is_dir()
-    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
+    # Default clone preserves the plain-vault contract.
+    assert not (dst / "_meta").exists()
 
 
 def test_cli_vault_clone_explicit_copy_meta(fresh_env):
     """--copy-meta explicit flag copies _meta/ (with Tier 1 leak warning)."""
     src = fresh_env["target_root"] / "src2b"
-    runner.invoke(app, ["vault", "create", "src2b", str(src), "--bootstrap"])
+    runner.invoke(app, ["vault", "create", "src2b", str(src)])
+    (src / "_meta").mkdir()
+    (src / "_meta" / "notes.md").write_text("# copied metadata\n")
     dst = fresh_env["target_root"] / "dst2b"
     result = runner.invoke(
         app, ["vault", "clone", "src2b", "dst2b", str(dst), "--copy-meta"]
     )
     assert result.exit_code == 0
-    # _meta/agents/SCHEMA.md copied
-    assert (dst / "_meta" / "agents" / "SCHEMA.md").is_file()
+    assert (dst / "_meta" / "notes.md").is_file()
 
 
 def test_cli_vault_clone_data_only(fresh_env):
     """--data-only: content only, _meta/ empty (no copy)."""
     src = fresh_env["target_root"] / "src2c"
-    runner.invoke(app, ["vault", "create", "src2c", str(src), "--bootstrap"])
+    runner.invoke(app, ["vault", "create", "src2c", str(src)])
     dst = fresh_env["target_root"] / "dst2c"
     result = runner.invoke(
         app, ["vault", "clone", "src2c", "dst2c", str(dst), "--data-only"]
     )
     assert result.exit_code == 0
     assert (dst / "content").is_dir()
-    assert (dst / "_meta").is_dir()
-    assert not (dst / "_meta" / "agents" / "SCHEMA.md").exists()
+    assert not (dst / "_meta").exists()
 
 
 def test_cli_vault_clone_duplicate_name_rejected(fresh_env):

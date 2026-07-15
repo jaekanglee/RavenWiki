@@ -29,7 +29,7 @@ def vault(monkeypatch):
     reg_root = Path(tempfile.mkdtemp(prefix="raven-mig-reg-"))
     target_root = Path(tempfile.mkdtemp(prefix="raven-mig-target-"))
     monkeypatch.setenv("WIKI_VAULTS_DIR", str(reg_root))
-    v = Vault.create("mig-test", target_root / "mig-test", bootstrap=False)
+    v = Vault.create("mig-test", target_root / "mig-test")
     yield v
     shutil.rmtree(reg_root, ignore_errors=True)
     shutil.rmtree(target_root, ignore_errors=True)

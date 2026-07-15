@@ -32,7 +32,6 @@ app = typer.Typer(
 vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")
 link_app = typer.Typer(help="Wikilink inspection.")
-meta_app = typer.Typer(help="Vault meta docs (_meta/agents/ SCHEMA.md, RAVEN-CONTRACT.md) management.")
 archive_app = typer.Typer(help="Vault _archive/ management (list/clean/restore).")
 log_app = typer.Typer(help="log.md 작업 이력 관리 (LLM Wiki 패턴은 optional).")
 lint_app = typer.Typer(help="vault lint (raven.core.lint.CHECK_REGISTRY 참조) — broken/orphan/contradictions/stale/tier integrity/slug-title 1:1/growth/duplicate title/audit violation pattern 등.")
@@ -50,7 +49,6 @@ docs_app = typer.Typer(
 app.add_typer(vault_app, name="vault")
 app.add_typer(page_app, name="page")
 app.add_typer(link_app, name="link")
-app.add_typer(meta_app, name="meta")
 app.add_typer(archive_app, name="archive")
 app.add_typer(log_app, name="log")
 app.add_typer(lint_app, name="lint")
@@ -139,103 +137,18 @@ def vault_create(
     mode: str = typer.Option("personal", help="personal | shared | agent"),
     owner: str = typer.Option("user"),
     description: str = typer.Option(""),
-    bootstrap: bool = typer.Option(True, "--bootstrap/--no-bootstrap", help="apply profile bootstrap (use --no-bootstrap for existing folders)"),
-    profile: str = typer.Option("llm-wiki", "--profile", help="profile: 'basic' (WELCOME.md only) | 'llm-wiki' (5-file Lite bootstrap)"),
     workspace: str = typer.Option("", "--workspace", "-w", help="associated project workspace directory path"),
 ) -> None:
-    """Create new vault on disk and register it.
-
-    Profiles (v0.6.38+, default: llm-wiki):
-      - llm-wiki (default): project/agent-ready vault, SCHEMA+RULES+README+PROJECT-WORKFLOW+log.md
-      - basic: Obsidian-style human-first vault, only WELCOME.md (opt into LLM Wiki patterns later)
-    """
-    if profile not in ("basic", "llm-wiki"):
-        typer.echo(f"❌ invalid profile: {profile!r} (use 'basic' or 'llm-wiki')", err=True)
-        raise typer.Exit(1)
+    """Create a plain Markdown vault on disk and register it."""
     v = Vault.create(
         name=name,
         path=Path(path).expanduser(),
         mode=mode,
         owner=owner,
         description=description,
-        bootstrap=bootstrap,
-        profile=profile,
         workspace_path=workspace,
     )
-    if bootstrap:
-        if profile == "basic":
-            typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-            typer.echo(f"   profile: basic (WELCOME.md only, human-first Obsidian-style)")
-        else:
-            typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
-            typer.echo(f"   profile: llm-wiki (bootstrapped: content/, _meta/agents, log.md)")
-    else:
-        typer.echo(f"✅ vault registered (no bootstrap): {v.meta.name} → {v.root}")
-
-
-@vault_app.command("verify")
-def vault_verify(
-    name: Optional[str] = typer.Argument(None, help="vault name (default: active)"),
-    json_out: bool = typer.Option(False, "--json", help="machine-readable output"),
-) -> None:
-    """Verify Lite bootstrap files match source templates (SHA256).
-
-    M4 F3 — Bootstrap Self-Test. Checks the Lite bootstrap files
-    (_meta/system/SCHEMA.md, _meta/system/RULES.md, _meta/system/README.md,
-    _meta/agents/RAVEN-CONTRACT.md, log.md) for existence + content match
-    against the raven package's source templates.
-
-    Exit codes:
-      0 = all files OK
-      1 = at least one file missing or hash mismatch
-    """
-    v = _resolve_vault_or_die(name)
-    result = v.verify_bootstrap()
-    if json_out:
-        typer.echo(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
-    else:
-        typer.echo(f"🔍 bootstrap self-test: {v.meta.name} ({v.root})")
-        for c in result.checks:
-            if c.status == "ok":
-                typer.echo(f"   ✅ {c.rel_path:34s} sha256={c.actual_sha256[:12]}…")
-            elif c.status == "missing":
-                typer.echo(f"   ❌ {c.rel_path:34s} MISSING — {c.detail}")
-            elif c.status == "mismatch":
-                exp = (c.expected_sha256 or "")[:12]
-                got = (c.actual_sha256 or "")[:12]
-                typer.echo(f"   ⚠️  {c.rel_path:34s} MISMATCH (expected {exp}…, got {got}…)")
-            elif c.status == "template_error":
-                typer.echo(f"   ⛔ {c.rel_path:34s} TEMPLATE ERROR — {c.detail}")
-        typer.echo(f"\n   {result.summary()}")
-    if not result.ok:
-        raise typer.Exit(1)
-
-
-@vault_app.command("bootstrap")
-def vault_bootstrap(
-    name: Optional[str] = typer.Argument(None, help="vault name (default: active)"),
-    profile: str = typer.Option("llm-wiki", "--profile", help="profile: 'basic' | 'llm-wiki'"),
-) -> None:
-    """Apply/Overwrite profile bootstrap files into an existing vault."""
-    if profile not in ("basic", "llm-wiki"):
-        typer.echo(f"❌ invalid profile: {profile!r} (use 'basic' or 'llm-wiki')", err=True)
-        raise typer.Exit(1)
-    v = _resolve_vault_or_die(name)
-    typer.echo(f"⚙️ Applying bootstrap profile {profile!r} to {v.meta.name} ({v.root})...")
-    
-    if profile == "basic":
-        Vault._bootstrap_basic(v.root)
-    else:
-        v.sync_meta(lite=True, force=True)
-        
-    try:
-        result = v.verify_bootstrap()
-        if result.ok:
-            typer.echo(f"✅ bootstrap success: {v.meta.name} is now updated to {profile}")
-        else:
-            typer.echo(f"⚠️ bootstrap completed, but verification failed.")
-    except Exception as e:
-        typer.echo(f"⚠️ verification error: {e}")
+    typer.echo(f"✅ vault created: {v.meta.name} → {v.root}")
 
 
 @vault_app.command("register")
@@ -993,60 +906,6 @@ def page_rename(
         raise typer.Exit(1)
 
 
-# ────────────────────────── meta (vault _meta/ management) ──────────────────────────
-
-
-@meta_app.command("sync")
-def meta_sync(
-    vault: Optional[str] = typer.Option(None, "--vault"),
-    json_out: bool = typer.Option(False, "--json"),
-    full: bool = typer.Option(
-        False,
-        "--full",
-        help="Full set (Lite + raven-internal: OPERATIONS, agent/*, raven-policy). Lite 정책 무시. --force 필요.",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="기존 파일 덮어쓰기 (user-edited 보호 해제). --full과 함께 사용 권장.",
-    ),
-) -> None:
-    """Re-copy Lite user-facing templates into the vault.
-
-    Tier boundary policy (v2026-06-26, 2-tier model):
-        Default = Lite 모드 (Tier 1 ↔ Tier 2 경계 존중).
-        --full = Tier 1 raven-internal docs도 복사 (raven 개발자/디버깅용).
-                 기존 파일 있으면 --force 없이는 거부됨.
-
-    Examples:
-        raven meta sync                    # Lite user-facing templates
-        raven meta sync --full --force     # Full + 덮어쓰기 (주의)
-        raven meta sync --full             # Full, 기존 파일 있으면 에러
-    """
-    v = _resolve_vault_or_die(vault)
-    try:
-        result = v.sync_meta(lite=not full, force=force)
-    except ValueError as e:
-        # safety check violation
-        typer.echo(f"❌ {e}", err=True)
-        raise typer.Exit(code=1)
-    if json_out:
-        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
-        return
-    if result["copied"]:
-        typer.echo(f"✅ copied: {', '.join(result['copied'])}")
-    if result["skipped"]:
-        typer.echo(f"⏭  skipped (existing): {', '.join(result['skipped'])}")
-    if result["errors"]:
-        typer.echo("⚠️  errors:", err=True)
-        for err in result["errors"]:
-            typer.echo(f"   {err['file']}: {err['error']}", err=True)
-    if not result["copied"] and not result["skipped"] and not result["errors"]:
-        typer.echo("⚠️  no templates found (package install broken?)")
-    if full:
-        typer.echo("💡 full 모드 — Tier 1 raven-internal docs 복사됨 (주의)")
-
-
 # ────────────────────────── archive (vault _archive/ mgmt) ──────────────────────────
 
 
@@ -1768,7 +1627,7 @@ def main() -> int:
 
 # ────────────────────────── docs (Tier 1 raven-internal) ──────────────────────────
 # v2026-06-26: 2-tier boundary enforcement. These docs are Tier 1 (raven package),
-# not Tier 2 (user vault). They are NEVER auto-copied during vault bootstrap.
+# not Tier 2 (user vault). They are never copied into vaults automatically.
 # Use `raven docs <topic>` to read them.
 
 
