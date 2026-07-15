@@ -60,12 +60,16 @@ export function RawPanel() {
       .finally(() => setLoading(false));
   }, [vault]);
 
-  // raw content (relPath가 있고 file일 때만)
+  // raw content: wait for the list so a directory URL is not fetched as a file.
   const selectedPath = relPath ? `raw/${relPath}` : null;
   useEffect(() => {
-    if (!vault || !relPath) {
+    if (!vault || !relPath || loading) {
       setContent(null);
       setEditMode(false);
+      return;
+    }
+    if (items.some((item) => item.path === selectedPath && item.type === "dir")) {
+      navigate(`/raw/${vault}`, { replace: true });
       return;
     }
     setContentLoading(true);
@@ -78,15 +82,13 @@ export function RawPanel() {
       })
       .catch(() => setContent(null))
       .finally(() => setContentLoading(false));
-  }, [vault, relPath]);
+  }, [items, loading, navigate, relPath, selectedPath, vault]);
 
-  const handleSelect = (path: string, _type: "file" | "dir") => {
+  const handleSelect = (path: string, type: "file" | "dir") => {
+    // Directory clicks only expand/collapse RawTree. The raw content API accepts files.
+    if (type === "dir") return;
     const rel = path.replace(/^raw\//, "");
-    if (rel === "") {
-      navigate(`/raw/${vault}`);
-    } else {
-      navigate(`/raw/${vault}/${rel}`);
-    }
+    navigate(`/raw/${vault}/${rel}`);
   };
 
   const handleSave = async () => {
