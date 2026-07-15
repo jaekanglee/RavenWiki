@@ -508,7 +508,9 @@ export function Sidebar({
             <RawTree
               items={activeRawItems}
               selectedPath={null}
-              onSelect={(path) => {
+              onSelect={(path, type) => {
+                // RawTree already expands/collapses directories; only files have a viewer route.
+                if (type === "dir") return;
                 const rel = path.replace(/^raw\//, "");
                 navigate(`/raw/${activeVault}/${rel}`);
                 onClose();
