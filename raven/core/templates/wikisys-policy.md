@@ -7,7 +7,7 @@ raven-internal 운영 정책이라 Lite bootstrap에서는 자동 복사 ❌.
 ---
 title: Vault Operating Policy
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-07-16
 type: rule
 tags: [system, policy, meta]
 confidence: high
@@ -51,6 +51,16 @@ confidence: high
 | 3 | type 9종 + tags core/custom | lint |
 | 4 | wikilink 의도 명시 (`[[x]]!` / `[[x]]?`) | `raven link check` |
 | 5 | 작업마다 log.md 자동 append | `raven log list` |
+
+## 문서 발행 책임
+
+> 문서 발행은 본문 저장으로 끝나지 않습니다. **근거·분류·연결을 갖춘 지식 노드로 vault에 편입**하는 일입니다.
+
+1. **검색 후 작성**: 기존 문서·규칙·결정을 먼저 찾아 중복을 피하고, 실제로 참고한 문서와 원문만 근거로 사용합니다.
+2. **기본 메타데이터**: 발행자는 내용에 맞는 `title`, `type`, 제목에서 파생한 slug, 최소 `tags`, `created`/`updated`를 기록합니다. 원문 근거가 있으면 `sources`, 검증 수준에 맞춰 `confidence`도 기록합니다.
+3. **본문 연결**: 독자가 다음에 확인해야 할 기존 문서는 문맥 설명을 붙인 `[[wikilink]]`로 연결합니다. 링크 수를 채우기 위한 연결은 금지합니다.
+4. **의미 관계**: `uses`, `depends_on`, `implements`, `implemented_by`, `related`는 실제 관계가 확인되고 `evidence`와 `reason`을 적을 수 있을 때만 기록합니다. 대시보드의 "함께 읽어볼 만한 문서" 추천은 관계 후보일 뿐, 관계를 자동 확정하는 근거가 아닙니다.
+5. **예외 메타데이터**: `aliases`는 rename/병합 때만, `contested`·`contradictions`는 실제 충돌을 조사한 뒤에만, `status` 전이는 운영 근거와 권한이 있을 때만 기록합니다.
 
 ## 카파시 운영정책 (v0.5.0 도입)
 
