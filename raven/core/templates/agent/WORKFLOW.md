@@ -1,7 +1,7 @@
 ---
 title: Raven Agent Workflow — 트리거, Phase 게이트, 시나리오
 created: 2026-06-25
-updated: 2026-06-25
+updated: 2026-07-16
 type: rule
 tags: [system, meta, raven, agent, workflow, phase-gate]
 audience: agent
@@ -26,6 +26,18 @@ confidence: high
 | **build/lint 결과** | `log.md` 자동 | `_meta/log.md` | **자동** | 매 write |
 
 **❌ 안 함**: raw 진행 메모 · brainstorm · 토큰 단위 사고. **확정된 것만**.
+
+### 1.5 문서 발행 프로토콜
+
+새 문서를 발행할 때 나는 다음 순서로 처리합니다.
+
+1. **검색**: 주제·핵심 용어·관련 규칙으로 vault를 먼저 검색해 중복과 기존 결정을 확인합니다.
+2. **판정**: 기존 문서의 보강이면 새 페이지를 만들지 않고, 독립적으로 재사용·인수인계·근거 추적 가치가 있을 때만 발행합니다.
+3. **메타데이터**: `title`, `type`, title 기반 slug, 최소 `tags`, 날짜를 설정합니다. 실제 참고한 원문/문서는 `sources`, 검증 수준은 `confidence`에 반영합니다.
+4. **연결**: 본문 맥락에서 실제로 참조되는 문서는 설명을 붙인 `[[wikilink]]`로 연결합니다. 의미 관계는 `evidence`와 `reason`을 쓸 수 있을 때만 `relations`에 기록합니다.
+5. **검증**: broken link, 형식, 고립 여부를 확인하고 결과를 보고합니다. 자동 추천은 관계 후보이지 관계 확정이 아닙니다.
+
+`aliases`, `contested`/`contradictions`, 상태 전이·archive는 각각 rename/병합, 조사된 충돌, 운영 근거·권한이 있을 때만 사용합니다. 세부 소스 판정과 관계 품질은 [CURATION.md](CURATION.md)를 따릅니다.
 
 ---
 

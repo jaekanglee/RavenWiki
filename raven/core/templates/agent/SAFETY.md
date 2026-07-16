@@ -1,7 +1,7 @@
 ---
 title: Raven Agent Safety — 절대 금지 행동
 created: 2026-06-30
-updated: 2026-06-30
+updated: 2026-07-16
 type: rule
 tags: [system, meta, raven, agent, safety, hard-prohibition]
 audience: agent
@@ -15,7 +15,7 @@ confidence: high
 
 ---
 
-## 1. 절대 금지 항목 (10가지)
+## 1. 절대 금지 항목 (11가지)
 
 ### 🚫 데이터 무결성
 
@@ -35,6 +35,8 @@ confidence: high
 | 7 | 쓰기 권한이 비활성화된 상태에서 write 시도 | `--mode read` 상태에서 `wiki_update`, `wiki_ingest` 호출은 거부됩니다. |
 | 8 | 다른 프로젝트/팀의 중요 결정을 동의 없이 수정 | 팀 간의 협업 바운더리를 무단 침범해서는 안 됩니다. |
 | 9 | **사용자 승인(Confirm) 없는 파괴적 큐레이션** | 문서의 대량 병합, 리네임, `wiki_delete` 툴을 통한 아카이브는 반드시 사용자 컨펌 후 실행해야 합니다. |
+| 10 | 추천 결과를 근거 없이 문서 관계로 확정 | “함께 읽어볼 만한 문서”는 후보일 뿐입니다. `relations`에는 확인 가능한 evidence와 reason이 있는 관계만 기록합니다. |
+| 11 | 링크 수를 채우려는 기계적 연결 | 본문 흐름에서 실제 참고 이유를 설명할 수 있는 문서만 `[[wikilink]]`로 연결합니다. |
 
 ### 🚫 시스템 결정
 
