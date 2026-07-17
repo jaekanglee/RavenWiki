@@ -1,7 +1,7 @@
 ---
 title: Raven Agent Guide — 진입점
 created: 2026-06-25
-updated: 2026-07-16
+updated: 2026-07-07
 type: rule
 tags: [system, meta, raven, agent, guide, layer-boundary]
 audience: agent
@@ -45,9 +45,8 @@ raven vault는 **두 종류의 독자**를 위한 규칙이 분리되어 있습�
 |---|---|---|
 | 1 | **이 README.md** | 지금 보고 있는 것 — 전체 그림 |
 | 2 | [TOOLS.md](TOOLS.md) | Agent / CLI / HTTP 인터페이스 사용법, scope 규칙 |
-| 3 | [WORKFLOW.md](WORKFLOW.md) | 트리거별 행동, 문서 발행 절차, Phase 게이트 |
-| 4 | [CURATION.md](CURATION.md) | 소스 검증, 관계·링크 품질, 정제 기준 |
-| 5 | [SAFETY.md](SAFETY.md) | 절대 안 되는 것, scope 우회 금지, vault 외부 read/write 금지 |
+| 3 | [WORKFLOW.md](WORKFLOW.md) | 트리거별 행동, Phase 게이트, 부트스트랩 패턴 |
+| 4 | [SAFETY.md](SAFETY.md) | 절대 안 되는 것, scope 우회 금지, vault 외부 read/write 금지 |
 
 ---
 
