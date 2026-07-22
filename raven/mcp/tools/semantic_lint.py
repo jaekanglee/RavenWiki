@@ -1,9 +1,9 @@
 """semantic_lint.py — wiki_semantic_lint_queue (read-only candidate aggregator).
 
-CURATION.md §1 판정 기준(신호 테이블)이 참조하는 lint 신호(#4/#5/#6/#7/#17/#20)를
-슬러그 단위로 모아 "판단이 필요한 후보 큐"를 만든다. 판단(⛔/⚠️/✅ 결정트리 적용)은
-이 tool을 호출하는 외부 에이전트가 CURATION.md를 근거로 직접 수행한다 — 결정트리
-로직은 여기서 재구현하지 않는다 (2026-07-13 spec).
+Lint 신호(#4/#5/#6/#7/#17/#20)를 슬러그 단위로 모아 "판단이 필요한 후보 큐"를
+만든다. 판단(판정 기준/결정트리 적용)은 호출자(외부 에이전트 또는 vault owner)가
+수행한다 — Raven은 중립적인 조회 도구만 제공하며, 판정 기준은 제공하지 않는다
+(2026-07-13 spec, 2026-07-22 경계 정리).
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from raven.core.vault import Vault
 
 ALLOWED_CHECKS: tuple[str, ...] = ("#4", "#5", "#6", "#7", "#17", "#20")
 
-GUIDE_REF = "raven docs show agent-curation §1 (판정 기준 SoT — 결정트리는 여기서 재구현하지 않음)"
+GUIDE_REF = "판정 기준은 호출자(vault owner + 에이전트 프로필)가 제공"
 
 _FRONTMATTER_FIELDS: tuple[str, ...] = ("status", "confidence", "updated", "sources")
 
@@ -53,7 +53,7 @@ def wiki_semantic_lint_queue(
     checks: Optional[list[str]] = None,
     limit: int = 20,
 ) -> dict:
-    """CURATION.md §1이 참조하는 lint 신호를 슬러그 단위로 모아 반환 (read-only).
+    """Lint 신호를 슬러그 단위로 모아 반환 (read-only, 판단은 호출자 책임).
 
     Args:
         vault: vault 루트 경로 (이미 resolve된 절대 경로).

@@ -80,7 +80,5 @@ Raven MCP 서버는 권한 모드(`--mode read/write/admin`)에 따라 아래 �
 
 ## 5. 관련 문서
 
-* [README.md](README.md) — 에이전트 가이드 진입점
-* [WORKFLOW.md](WORKFLOW.md) — 트리거 및 작업 흐름
-* [SAFETY.md](SAFETY.md) — 절대 금지 행동 규정
-* `_meta/system/SCHEMA.md` — 프론트매터 및 린트 규약 참조
+* [SCHEMA.md](SCHEMA.md) — 데이터 계약 (frontmatter / type / tag / wikilink)
+* `_meta/system/SCHEMA.md` — 프론트매터 및 린트 규약 참조 (vault에 부착된 버전)

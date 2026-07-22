@@ -46,8 +46,8 @@ notes stay untouched.
 
 ## Need more structure?
 
-If you want the full Lite bootstrap (SCHEMA.md / PROJECT-WORKFLOW.md /
-log.md), re-create with `--profile llm-wiki`:
+If you want the full Lite bootstrap (SCHEMA.md / TOOLS.md / log.md),
+re-create with `--profile llm-wiki`:
 
 ```bash
 raven vault create <name> <path> --profile llm-wiki
@@ -56,7 +56,7 @@ raven vault create <name> <path> --profile llm-wiki
 Or copy templates manually:
 
 ```bash
-raven meta sync --lite   # copies user-facing schema/rules/agent workflow files
+raven meta sync --lite   # copies SCHEMA.md, TOOLS.md
 ```
 
 ## That's it
