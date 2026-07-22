@@ -66,11 +66,9 @@ raven build
 │   │   ├── SCHEMA.md        # vault 구조, SoT, frontmatter 규약
 │   │   ├── RULES.md         # 편집 5규칙
 │   │   └── OPERATIONS.md    # 이 문서
-│   └── agent/               # ⭐ 에이전트 행동 지침 (LLM only)
-│       ├── README.md        # 진입점
-│       ├── TOOLS.md         # 인터페이스 + scope
-│       ├── WORKFLOW.md      # 트리거 / Phase 게이트
-│       └── SAFETY.md        # 절대 금지
+│   └── agent/               # ⭐ 에이전트 인터페이스 (LLM only)
+│       ├── SCHEMA.md        # 데이터 계약 (frontmatter/type/tag/wikilink)
+│       └── TOOLS.md         # MCP 도구 surface
 ├── content/                 # ⭐ 사용자 컨텐츠
 │   ├── _system/             # raven 시스템 reference (10페이지)
 │   ├── <team>/              # 프로젝트별 (harumoa/homeauto/...)
@@ -79,14 +77,16 @@ raven build
 └── wiki.db                  # SQLite Query Index (gitignore)
 ```
 
-### 2.1 `system/` vs `agent/` 분리 — 불변 원칙
+### 2.1 `system/` vs `agent/` 분리
 
 - **system/** = 시스템 자체 (lint/build 코드 + 사람 운영자)
   - 변경 = 사용자 컨펌 필수
   - lint가 자동 참조
-- **agent/** = LLM 에이전트 행동 지침
+- **agent/** = 데이터 계약(SCHEMA) + 도구 surface(TOOLS)
   - 변경 = 사용자 컨펌 필수 (별도)
-  - 에이전트가 read (자동 로드 옵션)
+  - 외부 에이전트가 read (자동 로드 옵션)
+
+→ 에이전트 행동 철학/큐레이션 기준은 Raven 영역 ❌. 각 vault owner + 외부 에이전트 프로필이 합의하여 관리.
 
 **혼용 ❌**: 한 파일에 "시스템 동작" + "에이전트 행동" 섹션 혼재 금지.
 

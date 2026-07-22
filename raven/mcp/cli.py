@@ -239,13 +239,12 @@ def register_tools(mcp: Any, mode: str) -> None:
         name="wiki_semantic_lint_queue",
         description=(
             EXPERIMENTAL_PREFIX + VAULT_ARG_NOTE
-            + "Read-only candidate queue for CURATION.md §1's pre-compile "
-            + "source-vetting decision tree. Groups existing lint signals "
+            + "Read-only candidate queue aggregating lint signals "
             + "#4 (orphan) / #5 (contradiction) / #6 (confidence low) / #7 "
             + "(stale) / #17 (duplicate-title) / #20 (placeholder) by slug. "
-            + "Does NOT apply the decision tree itself — see `raven docs show "
-            + "agent-curation` §1 for the criteria; the calling agent applies it "
-            + "and writes verdicts back via wiki_update / wiki_generate_draft."
+            + "Does NOT judge or filter candidates — the calling agent decides "
+            + "what to do with them and writes verdicts back via wiki_update / "
+            + "wiki_generate_draft."
         ),
     )
     def wiki_semantic_lint_queue(
