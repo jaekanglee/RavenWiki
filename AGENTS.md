@@ -1,7 +1,7 @@
 ---
 title: Raven — Agent Operations
 created: 2026-06-27
-updated: 2026-06-30
+updated: 2026-07-22
 type: rule
 audience: agent
 confidence: high
@@ -11,7 +11,7 @@ confidence: high
 
 > AI 에이전트(자율 코딩 도구든, 자동화 스크립트든, 사람 보조자든)가 **이 Raven 코드베이스를 다룰 때** 따라야 하는 규약.
 >
-> 사람 운영자 가이드는 `README.md`. vault 데이터 운영 규칙(에이전트용)은 사용자 vault 내부 `_meta/agents/PROJECT-WORKFLOW.md` 참조 (Lite bootstrap으로 자동 복사됨). 사람 안내문은 vault에 주입하지 않음 (v0.7.65+).
+> 사람 운영자 가이드는 `README.md`. 외부 에이전트 프로필은 각 프로필의 SOUL.md + vault owner 합의 지침을 따름. Raven은 데이터 스키마와 도구 surface만 제공.
 
 ---
 
@@ -34,7 +34,7 @@ confidence: high
 > - **Layer 2 (활용)** = 에이전트 활용 레이어 (옵션, 사용자 켤 때만).
 >   에이전트 자신의 cwd 작업 산출물·인사이트를 vault에 위키화. 사람 curation 옵션, 전제 ❌.
 >
-> Lite bootstrap (vault 자동 주입) = Layer 1 sub-feature. 자세한 정식 정의는 vault 부착 후 `_meta/agents/PROJECT-WORKFLOW.md` §0.5.
+> Lite bootstrap (vault 자동 주입) = Layer 1 sub-feature. SCHEMA.md + TOOLS.md만 자동 복사 (v0.8+).
 >
 > ⚠️ **v0.6.31~v0.6.36 호환 노트**: v0.6.31~36은 "LLM Wiki self-host 구현체" 톤으로 박혀 있었음. v0.6.37에서 사용자 north star 재정렬 — LLM Wiki는 영감/출발점이며 Raven은 Obsidian 대체 자체 구현체. **changelog 원문은 역사 보존**.
 
@@ -93,28 +93,30 @@ raven-policy.md     → raven 내부 정책 (Lite/Full 동작 정의)
 
 접근: `raven docs show <topic>` (CLI 진입점)
 
-### Tier 2 — user vault (Lite bootstrap ✅, v0.7.65+: 2종 + log.md, agent-only)
+### Tier 2 — user vault (v0.8+ 재정의)
+
+Raven이 vault에 자동 주입하는 것은 **데이터 계약과 도구 surface만**:
 
 ```
-|_meta/agents/SCHEMA.md            → 데이터 계약 (frontmatter/type/tag/wikilink/raw 권한/lint) — 에이전트 표면
-|_meta/agents/PROJECT-WORKFLOW.md  → 운영 사실 (읽기순서/MCP매핑/권한/저장신호/협업규칙) — 에이전트 표면
-|log.md                            → 작업 이력 (append-only) — 인프라
+SCHEMA.md   → 데이터 계약 (frontmatter/type/tag/wikilink/raw 권한/lint)
+TOOLS.md    → MCP 도구 surface (도구 목록 + 입출력 schema)
 ```
 
-→ **v0.7.65+ Lite bootstrap은 사람 안내문 없음, 에이전트가 이 vault/도구를 운영하는 데 필요한 사실만**. "에이전트 스스로 판단/기억해야 할 영역"(검색 시점, 정리 시점, 글쓰기 철학)은 vault에 담지 않고 명시적으로 경계 선언만 함 — 에이전트 자신의 soul/memory에 있어야 함. Raven 내부 정책 (Tier 1 leak, vendor 예시, OPERATIONS/agent/raven-policy 복사 금지, 다른 에이전트 프로필의 constitution) ❌.
-→ Tier 1 ↔ Tier 2 경계: `vault clone` 기본 = content only (Tier 1 leak 방지, **이건 raven 도구 내부 안전망** — 사용자에겐 안 보임).
+→ **vault 운영 지침, 에이전트 행동 철학, 판단 프레임워크는 Raven 영역 ❌**. 각 vault owner + 외부 에이전트 프로필이 합의하여 관리.
+→ Lite bootstrap은 위 2종만 자동 복사. `log.md`는 선택적 (vault owner 결정).
 
 ### 4.5 Audience 라우팅 표 (v0.6.35+)
 
-Raven은 **3개 독자**가 다른 문서를 읽습니다. audience 따라 진입점 다름:
+Raven은 **2개 독자**에게 문서를 제공합니다.
 
 | 독자 | 시작 문서 | 예시 |
 |---|---|---|
 | **사람 (운영자)** | `README.md` (CLI/사용법) — vault 안은 Obsidian처럼 자유 탐색, 별도 안내문 없음 (v0.7.65+) | vault 운영, 페이지 작성, 검색 |
 | **Raven 개발팀 (당신)** | `AGENTS.md` (이 문서) + `_meta/changelog-v*.md` | 코드 변경, lint, ADR |
-| **LLM agent (vault에서 일함)** | `raven/core/templates/agent/README.md` + `TOOLS.md` + `WORKFLOW.md` + `SAFETY.md` (4개 묶음) | vault write, cross-reference, log.md |
 
-→ 혼용 ❌. **당신(=Raven 개발팀 agent)**이 `agent/*`를 *읽을 필요 없음* (그건 vault 사용자 에이전트용). 반대로 vault 사용자 agent가 AGENTS.md를 *읽을 필요 없음* (이건 코드베이스용).
+→ **외부 에이전트 프로필**은 각 프로필의 SOUL.md + vault owner 합의 지침을 따름. Raven은 데이터 스키마(`SCHEMA.md`)와 도구 surface(`TOOLS.md`)만 제공.
+
+→ 혼용 ❌. **당신(=Raven 개발팀 agent)**은 코드베이스 개발만 담당. 외부 에이전트 행동 지침/프로필 설계는 별도 전문 프로필의 역할.
 
 ---
 
@@ -350,28 +352,3 @@ v0.6.35 시점엔 "`docs/` 신설 불필요"였으나 v0.7.0+에서 실제로 �
 
 신규 추가 시 위 컨벤션(주제별 단일 문서, `_meta/`는 changelog/ADR/SOT 전용) 따르세요.
 
----
-
-## 15. 에이전트 자가 평가 기준 (Self-Evaluation Criteria)
-
-에이전트가 볼트의 문서를 생성, 수정, 조회 및 관리하는 작업을 수행한 후, 다음의 자가 평가 기준에 따라 본인의 작업을 자율적으로 평가하고 최종 보고서에 결과를 포함해야 합니다.
-
-### 15.1 일반 평가 부문 (RAG 제외)
-*   **지식 밀도 및 생존력 (Value & Utility)**:
-    *   작업한 문서가 §5의 '저장 결정 4가지 신호(재사용성, 인수인계, 맥락 추적, 실패 기록)' 중 최소 1개 이상에 부합하는가?
-    *   단순히 일시적인 커밋 로그나 임시 작업 로그가 아니라, 훗날 다른 에이전트나 사람이 참고할 만큼 지식의 정보 밀도가 높은가?
-*   **형식 및 구조 일관성 (Structure & Conventions)**:
-    *   파일명(Slug)과 Frontmatter의 `title`이 1:1로 매핑되고, 언어(한글/영문)까지 title과 동일하게 유지되는가? ([RULES.md](_meta/RULES.md) §8 준수)
-    *   [SCHEMA.md](_meta/SCHEMA.md)에 지정된 9종 타입 및 태그 스키마에 부합하는가?
-*   **인간 중심 가독성 (Human-Centric UX)**:
-    *   본문 최상단에 BLUF(Bottom Line Up Front) 형식의 핵심 요약이 작성되어 있는가?
-    *   일지(`journal`)나 저널 성격의 문서는 `# 요약` 섹션(3줄 이내)을 명확히 작성했는가? ([RULES.md](_meta/RULES.md) §8 준수)
-*   **연결성 및 지식 그래프화 (Connectivity)**:
-    *   새로 만든 지식이 고립(Orphan)되지 않도록 2개 이상의 아웃바운드 `[[wikilink]]`를 연결하고 적절한 백링크(Backlink)가 형성되었는가?
-
-### 15.2 RAG 및 지식 탐색 평가 부문
-RAG 및 검색 활용 시, 다음의 4원칙에 따라 평가합니다. (출처: Karpathy LLM Wiki +α 패턴 — `docs/vault-patterns.md` 참조. Raven 자체 평가 기준으로 재진술.)
-*   **Think Before Searching (검색 전 사색)**: 뇌피셜로 지식이나 문서의 유무를 추정하지 않고, 가정을 검증하기 위해 `wiki_search`를 능동적으로 계획하여 활용했는가?
-*   **Surgical Retrieval (외과 수술식 조회)**: 필요한 영역에만 동화될 수 있도록 정확하고 최소한의 정밀한 키워드 및 multi-hop 탐색을 수행했는가? (불필요한 대량의 컨텍스트를 과도하게 가져오는 것 방지)
-*   **Goal-Driven Knowledge Extraction (목표 지향 지식 추출)**: 단순히 검색 결과의 상위 텍스트를 나열하는 대신, 사용자가 지시한 문제 해결의 성공 기준에 직접적으로 trace되는 사실 정보만 정밀하게 추출하여 활용했는가?
-*   **Root-Cause Investigation prior to Compiling (지식 컴파일 전 원인 조사)**: 볼트 내의 문서들 간에 모순되거나 충돌하는 정보가 발견되었을 때, 임의로 추정하여 덮어쓰지 않고, 히스토리(log.md, _meta/ 등)를 역추적해 충돌의 근본 원인을 파악한 뒤 지식을 업데이트했는가?
