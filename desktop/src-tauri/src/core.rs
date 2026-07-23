@@ -15,6 +15,7 @@ pub(crate) fn runtime_launch_spec(
     program: PathBuf,
     mcp: bool,
     python_path: Option<PathBuf>,
+    host: Option<String>,
 ) -> RuntimeLaunchSpec {
     let mut args = Vec::new();
     // Bundled mode: -P prevents CWD from shadowing the bundled raven package
@@ -23,6 +24,10 @@ pub(crate) fn runtime_launch_spec(
     }
     args.push("-m".into());
     args.push("raven.desktop.runtime".into());
+    if let Some(h) = &host {
+        args.push("--host".into());
+        args.push(h.clone());
+    }
     if mcp {
         args.push("--mcp".into());
     }
@@ -50,7 +55,10 @@ pub(crate) struct ManagedCore {
 impl ManagedCore {
     pub(crate) fn start(mcp: bool, resource_dir: Option<PathBuf>) -> Result<Self, String> {
         let (python, python_path) = resolve_python(resource_dir.as_deref());
-        let spec = runtime_launch_spec(python, mcp, python_path);
+        let host = env::var("RAVEN_DESKTOP_HOST")
+            .ok()
+            .filter(|h| !h.is_empty());
+        let spec = runtime_launch_spec(python, mcp, python_path, host);
         let mut cmd = Command::new(&spec.program);
         cmd.args(&spec.args)
             .current_dir(workspace_root())
