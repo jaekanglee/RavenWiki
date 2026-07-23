@@ -3,6 +3,25 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles/globals.css";
 
+// v0.7.175+: Tauri desktop mode — inject Core endpoint before React renders.
+import { setApiBase } from "./lib/api-base";
+
+// Detect Tauri webview and fetch the Python Core endpoint.
+// Uses the internal invoke bridge (no @tauri-apps/api dependency needed).
+// Wrapped in a promise so React render waits for the endpoint without
+// requiring top-level await (vite default build target).
+const tauriInternals = (window as any).__TAURI_INTERNALS__;
+const endpointReady: Promise<void> = tauriInternals?.invoke
+  ? tauriInternals
+      .invoke("core_endpoint")
+      .then((endpoint: string) => {
+        if (endpoint) setApiBase(endpoint);
+      })
+      .catch(() => {
+        // fallback: relative URLs (browser-like behavior)
+      })
+  : Promise.resolve();
+
 // v0.6.10 (P16): PWA registerType="prompt" handler.
 import { registerSW } from "virtual:pwa-register";
 
@@ -121,8 +140,10 @@ if (typeof window !== "undefined") {
   };
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+endpointReady.then(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+});
