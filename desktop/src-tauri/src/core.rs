@@ -8,14 +8,29 @@ use std::process::{Child, Command, Stdio};
 pub(crate) struct RuntimeLaunchSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
 }
 
-pub(crate) fn runtime_launch_spec(program: PathBuf, mcp: bool) -> RuntimeLaunchSpec {
-    let mut args = vec!["-m".into(), "raven.desktop.runtime".into()];
+pub(crate) fn runtime_launch_spec(
+    program: PathBuf,
+    mcp: bool,
+    python_path: Option<PathBuf>,
+) -> RuntimeLaunchSpec {
+    let mut args = Vec::new();
+    // Bundled mode: -P prevents CWD from shadowing the bundled raven package
+    if python_path.is_some() {
+        args.push("-P".into());
+    }
+    args.push("-m".into());
+    args.push("raven.desktop.runtime".into());
     if mcp {
         args.push("--mcp".into());
     }
-    RuntimeLaunchSpec { program, args }
+    let mut env = Vec::new();
+    if let Some(pp) = python_path {
+        env.push(("PYTHONPATH".into(), pp.to_string_lossy().into_owned()));
+    }
+    RuntimeLaunchSpec { program, args, env }
 }
 
 #[derive(Deserialize)]
@@ -33,20 +48,23 @@ pub(crate) struct ManagedCore {
 }
 
 impl ManagedCore {
-    pub(crate) fn start(mcp: bool) -> Result<Self, String> {
-        let spec = runtime_launch_spec(resolve_python(), mcp);
-        let mut child = Command::new(&spec.program)
-            .args(&spec.args)
+    pub(crate) fn start(mcp: bool, resource_dir: Option<PathBuf>) -> Result<Self, String> {
+        let (python, python_path) = resolve_python(resource_dir.as_deref());
+        let spec = runtime_launch_spec(python, mcp, python_path);
+        let mut cmd = Command::new(&spec.program);
+        cmd.args(&spec.args)
             .current_dir(workspace_root())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(|error| {
-                format!(
-                    "Python Core 시작 실패 ({}): {error}",
-                    spec.program.display()
-                )
-            })?;
+            .stderr(Stdio::inherit());
+        for (key, value) in &spec.env {
+            cmd.env(key, value);
+        }
+        let mut child = cmd.spawn().map_err(|error| {
+            format!(
+                "Python Core 시작 실패 ({}): {error}",
+                spec.program.display()
+            )
+        })?;
 
         let stdout = child
             .stdout
@@ -88,10 +106,29 @@ impl Drop for ManagedCore {
     }
 }
 
-fn resolve_python() -> PathBuf {
-    env::var_os("RAVEN_PYTHON")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("scripts/.venv/bin/python"))
+/// Resolve the Python interpreter and optional PYTHONPATH.
+///
+/// Priority: RAVEN_PYTHON env → bundled resources → dev venv.
+fn resolve_python(resource_dir: Option<&Path>) -> (PathBuf, Option<PathBuf>) {
+    if let Some(p) = env::var_os("RAVEN_PYTHON") {
+        return (PathBuf::from(p), None);
+    }
+
+    // Bundled mode: Resources/resources/python/bin/python3 + Resources/resources/raven/
+    if let Some(res) = resource_dir {
+        let bundled_python = res
+            .join("resources")
+            .join("python")
+            .join("bin")
+            .join("python3");
+        let bundled_raven = res.join("resources").join("raven");
+        if bundled_python.exists() && bundled_raven.exists() {
+            return (bundled_python, Some(bundled_raven));
+        }
+    }
+
+    // Dev mode: scripts/.venv/bin/python, raven importable from CWD
+    (workspace_root().join("scripts/.venv/bin/python"), None)
 }
 
 fn workspace_root() -> PathBuf {

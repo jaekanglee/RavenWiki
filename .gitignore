@@ -47,3 +47,5 @@ dist/
 dashboard/public/api/
 desktop/src-tauri/gen/
 desktop/src-tauri/target/
+desktop/src-tauri/resources/
+.cache/

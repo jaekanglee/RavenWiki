@@ -7,8 +7,8 @@ use tauri::{command, Manager, RunEvent, State};
 struct CoreState(Mutex<Option<core::ManagedCore>>);
 
 impl CoreState {
-    fn start(&self, mcp: bool) -> Result<(), String> {
-        let core = core::ManagedCore::start(mcp)?;
+    fn start(&self, mcp: bool, resource_dir: Option<std::path::PathBuf>) -> Result<(), String> {
+        let core = core::ManagedCore::start(mcp, resource_dir)?;
         eprintln!("Raven Python Core ready at {}", core.endpoint);
         if let Some(ref mcp_ep) = core.mcp_endpoint {
             eprintln!("Raven MCP endpoint at {mcp_ep}");
@@ -60,8 +60,9 @@ pub fn run() {
         .manage(CoreState::default())
         .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
         .setup(move |app| {
+            let resource_dir = app.path().resource_dir().ok();
             app.state::<CoreState>()
-                .start(mcp_enabled)
+                .start(mcp_enabled, resource_dir)
                 .map_err(std::io::Error::other)?;
             Ok(())
         })
@@ -82,15 +83,28 @@ mod tests {
     #[test]
     fn runtime_launch_spec_invokes_python_desktop_module() {
         let python = PathBuf::from("/tmp/python");
-        let spec = runtime_launch_spec(python.clone(), false);
+        let spec = runtime_launch_spec(python.clone(), false, None);
         assert_eq!(spec.program, python);
         assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime"]);
+        assert!(spec.env.is_empty());
     }
 
     #[test]
     fn runtime_launch_spec_with_mcp_adds_flag() {
         let python = PathBuf::from("/tmp/python");
-        let spec = runtime_launch_spec(python.clone(), true);
+        let spec = runtime_launch_spec(python.clone(), true, None);
         assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime", "--mcp"]);
+    }
+
+    #[test]
+    fn runtime_launch_spec_with_python_path_sets_env() {
+        let python = PathBuf::from("/tmp/python");
+        let pp = PathBuf::from("/app/Resources/raven");
+        let spec = runtime_launch_spec(python, false, Some(pp.clone()));
+        assert_eq!(spec.args, vec!["-P", "-m", "raven.desktop.runtime"]);
+        assert_eq!(
+            spec.env,
+            vec![("PYTHONPATH".to_string(), pp.to_string_lossy().into_owned())]
+        );
     }
 }
