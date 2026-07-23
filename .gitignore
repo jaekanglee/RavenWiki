@@ -46,3 +46,4 @@ node_modules/
 dist/
 dashboard/public/api/
 desktop/src-tauri/gen/
+desktop/src-tauri/target/

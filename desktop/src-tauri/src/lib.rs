@@ -1,7 +1,7 @@
 mod core;
 
 use std::sync::Mutex;
-use tauri::{Manager, RunEvent};
+use tauri::{command, Manager, RunEvent, State};
 
 #[derive(Default)]
 struct CoreState(Mutex<Option<core::ManagedCore>>);
@@ -26,9 +26,23 @@ impl CoreState {
     }
 }
 
+/// Exposes the managed Python Core endpoint to the webview.
+/// Returns an empty string if the Core is not running (should not happen
+/// after a successful setup, but the frontend falls back gracefully).
+#[command]
+fn core_endpoint(state: State<'_, CoreState>) -> String {
+    state
+        .0
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|core| core.endpoint.clone()))
+        .unwrap_or_default()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .manage(CoreState::default())
+        .invoke_handler(tauri::generate_handler![core_endpoint])
         .setup(|app| {
             app.state::<CoreState>()
                 .start()

@@ -1,54 +1,78 @@
-"""Minimal local Python Core process for the Desktop Runtime spike.
+"""Desktop Python Core — starts the real Raven API on a random loopback port.
 
-This is intentionally not the production Raven API.  It proves that a desktop
-shell can own a Python child process, receive its dynamically assigned loopback
-endpoint, probe readiness, and terminate it without touching a vault.
+Readiness protocol (unchanged from spike):
+  stdout line 1 → {"host": "127.0.0.1", "port": <int>}
+
+The Tauri shell reads this line, then exposes the endpoint to the webview
+via the ``core_endpoint`` command.
 """
 from __future__ import annotations
 
 import json
+import os
 import signal
+import socket
 import sys
 import threading
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import time
 
 
 LOOPBACK_HOST = "127.0.0.1"
 
 
-class _HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 - stdlib handler contract
-        if self.path != "/health":
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-
-        body = b'{"status": "ready"}'
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args: object) -> None:
-        """Keep stdout reserved for the one readiness payload."""
+def _free_port() -> int:
+    """Bind to port 0 to let the OS assign a free port, then release."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((LOOPBACK_HOST, 0))
+        return s.getsockname()[1]
 
 
 def main() -> int:
-    server = ThreadingHTTPServer((LOOPBACK_HOST, 0), _HealthHandler)
+    import uvicorn
+
+    port = _free_port()
+
+    # CORS: allow the Tauri webview origin (prod + dev) before app import.
+    extra = os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "")
+    os.environ["RAVEN_EXTRA_CORS_ORIGIN"] = (
+        f"{extra},http://tauri.localhost,http://localhost:5173"
+        if extra
+        else "http://tauri.localhost,http://localhost:5173"
+    )
+
+    config = uvicorn.Config(
+        "raven.api:app",
+        host=LOOPBACK_HOST,
+        port=port,
+        log_level="warning",
+    )
+    server = uvicorn.Server(config)
 
     def stop(_signum: int, _frame: object) -> None:
-        # shutdown() must run outside serve_forever's thread to avoid deadlock.
-        threading.Thread(target=server.shutdown, daemon=True).start()
+        server.should_exit = True
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
 
-    print(json.dumps({"host": LOOPBACK_HOST, "port": server.server_port}), flush=True)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    deadline = time.monotonic() + 10
+    while not server.started:
+        if time.monotonic() > deadline:
+            print("Python Core: uvicorn startup timeout", file=sys.stderr)
+            return 1
+        time.sleep(0.05)
+
+    print(json.dumps({"host": LOOPBACK_HOST, "port": port}), flush=True)
+
     try:
-        server.serve_forever(poll_interval=0.1)
-    finally:
-        server.server_close()
+        while not server.should_exit:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        pass
+    server.should_exit = True
+    thread.join(timeout=5)
     return 0
 
 

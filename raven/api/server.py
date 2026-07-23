@@ -45,6 +45,12 @@ app = FastAPI(title="raven API", version="0.2.0")
 # (.env.example의 PORT_API/PORT_DASHBOARD로 커스터마이즈 가능).
 _dashboard_port = os.environ.get("PORT_DASHBOARD", "5173")
 _api_port = os.environ.get("PORT_API", "8765")
+# v0.7.175+: desktop runtime injects extra origins (tauri.localhost, etc.)
+_extra_cors = [
+    o.strip()
+    for o in os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -52,6 +58,7 @@ app.add_middleware(
         f"http://127.0.0.1:{_dashboard_port}",
         f"http://localhost:{_api_port}",         # built dashboard served by this API
         f"http://127.0.0.1:{_api_port}",
+        *_extra_cors,
     ],
     allow_methods=["*"],
     allow_headers=["*"],

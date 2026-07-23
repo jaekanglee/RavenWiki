@@ -1,4 +1,4 @@
-"""Lifecycle contract for the local Python Core used by the desktop spike."""
+"""Lifecycle contract for the desktop Python Core (real Raven API)."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ from urllib.request import urlopen
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _wait_for_ready(process: subprocess.Popen[str], timeout: float = 5.0) -> dict:
+def _wait_for_ready(process: subprocess.Popen[str], timeout: float = 15.0) -> dict:
     assert process.stdout is not None
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -28,7 +28,7 @@ def _wait_for_ready(process: subprocess.Popen[str], timeout: float = 5.0) -> dic
     raise AssertionError("desktop core did not report readiness")
 
 
-def test_desktop_core_reports_loopback_health_and_stops_cleanly() -> None:
+def test_desktop_core_starts_real_api_and_stops_cleanly() -> None:
     process = subprocess.Popen(
         [sys.executable, "-m", "raven.desktop.runtime"],
         cwd=REPO_ROOT,
@@ -41,11 +41,15 @@ def test_desktop_core_reports_loopback_health_and_stops_cleanly() -> None:
         assert ready["host"] == "127.0.0.1"
         assert isinstance(ready["port"], int) and ready["port"] > 0
 
-        with urlopen(f"http://{ready['host']}:{ready['port']}/health", timeout=2) as response:
+        # The real Raven API should respond on /api/vaults
+        url = f"http://{ready['host']}:{ready['port']}/api/vaults"
+        with urlopen(url, timeout=5) as response:
             assert response.status == 200
-            assert json.load(response) == {"status": "ready"}
+            data = json.load(response)
+            assert data["ok"] is True
+            assert isinstance(data["vaults"], list)
     finally:
         process.terminate()
-        process.wait(timeout=3)
+        process.wait(timeout=5)
 
     assert process.returncode is not None
