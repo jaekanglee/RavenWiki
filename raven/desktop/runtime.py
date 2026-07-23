@@ -1,13 +1,16 @@
 """Desktop Python Core — starts the real Raven API on a random loopback port.
 
-Readiness protocol (unchanged from spike):
+Readiness protocol:
   stdout line 1 → {"host": "127.0.0.1", "port": <int>}
+  With --mcp:    → {"host": "127.0.0.1", "port": <int>, "mcp_port": <int>}
 
-The Tauri shell reads this line, then exposes the endpoint to the webview
-via the ``core_endpoint`` command.
+The Tauri shell reads this line, then exposes the endpoint(s) to the webview
+via the ``core_endpoint`` / ``mcp_endpoint`` commands.
 """
 from __future__ import annotations
 
+import argparse
+import asyncio
 import json
 import os
 import signal
@@ -18,6 +21,7 @@ import time
 
 
 LOOPBACK_HOST = "127.0.0.1"
+DEFAULT_MCP_PORT = 8765
 
 
 def _free_port() -> int:
@@ -27,10 +31,40 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+def _build_mcp_app(mode: str):
+    """Create the FastMCP streamable-http Starlette app (same as raven.mcp.cli)."""
+    from mcp.server.fastmcp import FastMCP
+    from mcp.server.transport_security import TransportSecuritySettings
+    from raven.mcp.cli import register_tools
+    from raven.mcp.resources import register_resources
+    from raven.core.registry import registry
+
+    reg = registry()
+    vault_names = sorted(v.name for v in reg.list())
+
+    mcp = FastMCP(
+        "wiki",
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        instructions=(
+            "Raven multi-vault Markdown PKM MCP server. "
+            f"Registered vaults: {', '.join(vault_names) or '(none)'}."
+        ),
+    )
+    register_tools(mcp, mode)
+    register_resources(mcp)
+    return mcp.streamable_http_app()
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(prog="raven-desktop-core")
+    parser.add_argument("--mcp", action="store_true", help="Enable MCP HTTP listener")
+    parser.add_argument("--mcp-port", type=int, default=DEFAULT_MCP_PORT, help="MCP HTTP port")
+    parser.add_argument("--mcp-mode", choices=["read", "write", "admin"], default="read")
+    args = parser.parse_args()
+
     import uvicorn
 
-    port = _free_port()
+    api_port = _free_port()
 
     # CORS: allow the Tauri webview origin (prod + dev) before app import.
     extra = os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "")
@@ -40,39 +74,75 @@ def main() -> int:
         else "http://tauri.localhost,http://localhost:5173"
     )
 
-    config = uvicorn.Config(
+    api_config = uvicorn.Config(
         "raven.api:app",
         host=LOOPBACK_HOST,
-        port=port,
+        port=api_port,
         log_level="warning",
     )
-    server = uvicorn.Server(config)
+    api_server = uvicorn.Server(api_config)
+
+    # Optional MCP server
+    mcp_server: uvicorn.Server | None = None
+    if args.mcp:
+        mcp_app = _build_mcp_app(args.mcp_mode)
+        mcp_config = uvicorn.Config(
+            mcp_app,
+            host=LOOPBACK_HOST,
+            port=args.mcp_port,
+            log_level="warning",
+        )
+        mcp_server = uvicorn.Server(mcp_config)
 
     def stop(_signum: int, _frame: object) -> None:
-        server.should_exit = True
+        api_server.should_exit = True
+        if mcp_server is not None:
+            mcp_server.should_exit = True
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
 
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
+    api_thread = threading.Thread(target=api_server.run, daemon=True)
+    api_thread.start()
 
+    mcp_thread: threading.Thread | None = None
+    if mcp_server is not None:
+        mcp_thread = threading.Thread(target=mcp_server.run, daemon=True)
+        mcp_thread.start()
+
+    # Wait for API readiness
     deadline = time.monotonic() + 10
-    while not server.started:
+    while not api_server.started:
         if time.monotonic() > deadline:
             print("Python Core: uvicorn startup timeout", file=sys.stderr)
             return 1
         time.sleep(0.05)
 
-    print(json.dumps({"host": LOOPBACK_HOST, "port": port}), flush=True)
+    # Wait for MCP readiness (if enabled)
+    if mcp_server is not None:
+        mcp_deadline = time.monotonic() + 10
+        while not mcp_server.started:
+            if time.monotonic() > mcp_deadline:
+                print("Python Core: MCP uvicorn startup timeout", file=sys.stderr)
+                return 1
+            time.sleep(0.05)
+
+    ready = {"host": LOOPBACK_HOST, "port": api_port}
+    if args.mcp:
+        ready["mcp_port"] = args.mcp_port
+    print(json.dumps(ready), flush=True)
 
     try:
-        while not server.should_exit:
+        while not api_server.should_exit:
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
-    server.should_exit = True
-    thread.join(timeout=5)
+    api_server.should_exit = True
+    if mcp_server is not None:
+        mcp_server.should_exit = True
+    api_thread.join(timeout=5)
+    if mcp_thread is not None:
+        mcp_thread.join(timeout=5)
     return 0
 
 
