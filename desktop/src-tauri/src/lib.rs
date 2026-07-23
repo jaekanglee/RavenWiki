@@ -7,9 +7,12 @@ use tauri::{command, Manager, RunEvent, State};
 struct CoreState(Mutex<Option<core::ManagedCore>>);
 
 impl CoreState {
-    fn start(&self) -> Result<(), String> {
-        let core = core::ManagedCore::start()?;
+    fn start(&self, mcp: bool) -> Result<(), String> {
+        let core = core::ManagedCore::start(mcp)?;
         eprintln!("Raven Python Core ready at {}", core.endpoint);
+        if let Some(ref mcp_ep) = core.mcp_endpoint {
+            eprintln!("Raven MCP endpoint at {mcp_ep}");
+        }
         *self
             .0
             .lock()
@@ -27,8 +30,6 @@ impl CoreState {
 }
 
 /// Exposes the managed Python Core endpoint to the webview.
-/// Returns an empty string if the Core is not running (should not happen
-/// after a successful setup, but the frontend falls back gracefully).
 #[command]
 fn core_endpoint(state: State<'_, CoreState>) -> String {
     state
@@ -39,13 +40,28 @@ fn core_endpoint(state: State<'_, CoreState>) -> String {
         .unwrap_or_default()
 }
 
+/// Exposes the MCP HTTP endpoint to the webview (empty string if disabled).
+#[command]
+fn mcp_endpoint(state: State<'_, CoreState>) -> String {
+    state
+        .0
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().and_then(|core| core.mcp_endpoint.clone()))
+        .unwrap_or_default()
+}
+
 pub fn run() {
+    let mcp_enabled = std::env::var("RAVEN_DESKTOP_MCP")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
     tauri::Builder::default()
         .manage(CoreState::default())
-        .invoke_handler(tauri::generate_handler![core_endpoint])
-        .setup(|app| {
+        .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
+        .setup(move |app| {
             app.state::<CoreState>()
-                .start()
+                .start(mcp_enabled)
                 .map_err(std::io::Error::other)?;
             Ok(())
         })
@@ -66,10 +82,15 @@ mod tests {
     #[test]
     fn runtime_launch_spec_invokes_python_desktop_module() {
         let python = PathBuf::from("/tmp/python");
-
-        let spec = runtime_launch_spec(python.clone());
-
+        let spec = runtime_launch_spec(python.clone(), false);
         assert_eq!(spec.program, python);
         assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime"]);
+    }
+
+    #[test]
+    fn runtime_launch_spec_with_mcp_adds_flag() {
+        let python = PathBuf::from("/tmp/python");
+        let spec = runtime_launch_spec(python.clone(), true);
+        assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime", "--mcp"]);
     }
 }

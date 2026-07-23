@@ -10,27 +10,31 @@ pub(crate) struct RuntimeLaunchSpec {
     pub args: Vec<String>,
 }
 
-pub(crate) fn runtime_launch_spec(program: PathBuf) -> RuntimeLaunchSpec {
-    RuntimeLaunchSpec {
-        program,
-        args: vec!["-m".into(), "raven.desktop.runtime".into()],
+pub(crate) fn runtime_launch_spec(program: PathBuf, mcp: bool) -> RuntimeLaunchSpec {
+    let mut args = vec!["-m".into(), "raven.desktop.runtime".into()];
+    if mcp {
+        args.push("--mcp".into());
     }
+    RuntimeLaunchSpec { program, args }
 }
 
 #[derive(Deserialize)]
 struct ReadyMessage {
     host: String,
     port: u16,
+    #[serde(default)]
+    mcp_port: Option<u16>,
 }
 
 pub(crate) struct ManagedCore {
     child: Child,
     pub endpoint: String,
+    pub mcp_endpoint: Option<String>,
 }
 
 impl ManagedCore {
-    pub(crate) fn start() -> Result<Self, String> {
-        let spec = runtime_launch_spec(resolve_python());
+    pub(crate) fn start(mcp: bool) -> Result<Self, String> {
+        let spec = runtime_launch_spec(resolve_python(), mcp);
         let mut child = Command::new(&spec.program)
             .args(&spec.args)
             .current_dir(workspace_root())
@@ -59,9 +63,14 @@ impl ManagedCore {
             return Err("Python Core가 유효한 loopback endpoint를 보고하지 않았습니다".to_string());
         }
 
+        let mcp_endpoint = ready
+            .mcp_port
+            .map(|p| format!("http://{}:{}", ready.host, p));
+
         Ok(Self {
             child,
             endpoint: format!("http://{}:{}", ready.host, ready.port),
+            mcp_endpoint,
         })
     }
 
