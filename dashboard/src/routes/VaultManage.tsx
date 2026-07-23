@@ -109,7 +109,10 @@ export function VaultManage() {
             등록된 Markdown workspace를 확인하고 이름을 변경하거나 연결을 해제합니다.
           </p>
         </div>
-        <Button variant="pillPrimary" onClick={() => navigate("/vault/new")}>새 vault 만들기</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={() => navigate("/archive")}>🗄 보관함</Button>
+          <Button variant="pillPrimary" onClick={() => navigate("/vault/new")}>새 vault 만들기</Button>
+        </div>
       </div>
 
       {error && <p role="alert" style={{ color: "var(--color-danger-text)", fontSize: 13 }}>{error}</p>}

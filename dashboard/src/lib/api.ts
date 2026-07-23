@@ -822,3 +822,62 @@ export async function deleteDraft(
   }
   return r.json();
 }
+
+// ─── archive (P0-1: 삭제 페이지 열람/복원/정리) ─────────────────────
+
+export interface ArchiveEntry {
+  rel_path: string;
+  original_slug: string;
+  timestamp: string | null;
+  age_days: number | null;
+}
+
+export async function fetchArchive(
+  vault: string,
+  olderThan = 0
+): Promise<{ ok: boolean; count: number; entries: ArchiveEntry[] }> {
+  const params = new URLSearchParams();
+  if (olderThan > 0) params.set("older_than", String(olderThan));
+  const qs = params.toString();
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/archive${qs ? `?${qs}` : ""}`);
+  if (!r.ok) throw new Error(`archive list failed: ${r.status}`);
+  return r.json();
+}
+
+export async function restoreArchive(
+  vault: string,
+  archivePath: string
+): Promise<{ ok: boolean; original_slug: string; restored_to: string }> {
+  const params = new URLSearchParams({ archive_path: archivePath });
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/archive/restore?${params}`,
+    { method: "POST" }
+  );
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `restore failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+export async function cleanArchive(
+  vault: string,
+  olderThan: number,
+  apply: boolean
+): Promise<{
+  ok: boolean;
+  dry_run: boolean;
+  would_delete_count: number;
+  deleted_count: number;
+  would_delete: ArchiveEntry[];
+  deleted: ArchiveEntry[];
+  errors: { path: string; error: string }[];
+}> {
+  const params = new URLSearchParams({ older_than: String(olderThan), apply: String(apply) });
+  const r = await fetch(
+    `/api/vaults/${encodeURIComponent(vault)}/archive/clean?${params}`,
+    { method: "POST" }
+  );
+  if (!r.ok) throw new Error(`archive clean failed: ${r.status}`);
+  return r.json();
+}

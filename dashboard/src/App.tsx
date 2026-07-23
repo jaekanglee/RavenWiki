@@ -8,6 +8,7 @@ import { LogPage } from "./routes/LogPage";
 import { LintPage } from "./routes/LintPage";
 import { NewVaultPage } from "./routes/NewVaultPage";
 import { VaultManage } from "./routes/VaultManage";
+import { ArchivePage } from "./routes/ArchivePage";
 import { GardenPage } from "./routes/GardenPage";
 import { RawPanel } from "./routes/RawPanel";
 import { WorkspacePage } from "./routes/WorkspacePage";
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/vault/new" element={<NewVaultPage />} />
           <Route path="/vault/manage" element={<VaultManage />} />
+          <Route path="/archive" element={<ArchivePage />} />
           {/* v0.7.50+: raw/ folder panel */}
           <Route path="/raw/:vault/*" element={<RawPanel />} />
         </Route>
