@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "desktop:dev": "cd ../desktop/src-tauri && ../../dashboard/node_modules/.bin/tauri dev",
+    "desktop:build": "cd ../desktop/src-tauri && ../../dashboard/node_modules/.bin/tauri build"
   },
   "dependencies": {
     "@uiw/react-md-editor": "^4.1.1",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",
