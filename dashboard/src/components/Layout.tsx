@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useMatch, Navigate } from "react-router-dom";
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
+import { CommandPalette } from "./CommandPalette";
 import { fetchRawList, fetchVaults, fetchTree, getActiveVault, setActiveVault, type RawItem } from "../lib/api";
 import { useEffect, useState } from "react";
 import type { TreeNode, VaultMeta } from "../types";
@@ -33,6 +34,7 @@ export function Layout() {
   const [rawItems, setRawItems] = useState<Record<string, RawItem[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
 
   // v0.7.99+: 현재 path에서 page slug 추출. /page/:vault/* 패턴에 매치될 때만.
@@ -113,6 +115,18 @@ export function Layout() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileNavOpen]);
+
+  // Cmd+K / Ctrl+K — 커맨드 팔레트 (P0-2)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   if (loaded && vaults.length === 0 && location.pathname !== "/vault/new") {
     return <Navigate to="/vault/new" replace />;
@@ -287,6 +301,8 @@ export function Layout() {
           />
         </div>
       </main>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} vault={vault} />
     </div>
   );
 }
