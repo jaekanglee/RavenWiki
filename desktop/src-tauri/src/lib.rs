@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn runtime_launch_spec_invokes_python_desktop_module() {
         let python = PathBuf::from("/tmp/python");
-        let spec = runtime_launch_spec(python.clone(), false, None);
+        let spec = runtime_launch_spec(python.clone(), false, None, None);
         assert_eq!(spec.program, python);
         assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime"]);
         assert!(spec.env.is_empty());
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn runtime_launch_spec_with_mcp_adds_flag() {
         let python = PathBuf::from("/tmp/python");
-        let spec = runtime_launch_spec(python.clone(), true, None);
+        let spec = runtime_launch_spec(python.clone(), true, None, None);
         assert_eq!(spec.args, vec!["-m", "raven.desktop.runtime", "--mcp"]);
     }
 
@@ -100,11 +100,21 @@ mod tests {
     fn runtime_launch_spec_with_python_path_sets_env() {
         let python = PathBuf::from("/tmp/python");
         let pp = PathBuf::from("/app/Resources/raven");
-        let spec = runtime_launch_spec(python, false, Some(pp.clone()));
+        let spec = runtime_launch_spec(python, false, Some(pp.clone()), None);
         assert_eq!(spec.args, vec!["-P", "-m", "raven.desktop.runtime"]);
         assert_eq!(
             spec.env,
             vec![("PYTHONPATH".to_string(), pp.to_string_lossy().into_owned())]
+        );
+    }
+
+    #[test]
+    fn runtime_launch_spec_with_host_adds_flag() {
+        let python = PathBuf::from("/tmp/python");
+        let spec = runtime_launch_spec(python, false, None, Some("0.0.0.0".to_string()));
+        assert_eq!(
+            spec.args,
+            vec!["-m", "raven.desktop.runtime", "--host", "0.0.0.0"]
         );
     }
 }

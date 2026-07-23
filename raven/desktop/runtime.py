@@ -6,6 +6,10 @@ Readiness protocol:
 
 The Tauri shell reads this line, then exposes the endpoint(s) to the webview
 via the ``core_endpoint`` / ``mcp_endpoint`` commands.
+
+External access (Tailscale):
+  --host 0.0.0.0  binds all interfaces (same pattern as ``python -m raven.api``).
+  The readiness JSON always reports 127.0.0.1 so the local webview keeps working.
 """
 from __future__ import annotations
 
@@ -24,10 +28,10 @@ LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_MCP_PORT = 8765
 
 
-def _free_port() -> int:
+def _free_port(host: str = LOOPBACK_HOST) -> int:
     """Bind to port 0 to let the OS assign a free port, then release."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((LOOPBACK_HOST, 0))
+        s.bind((host, 0))
         return s.getsockname()[1]
 
 
@@ -57,6 +61,11 @@ def _build_mcp_app(mode: str):
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="raven-desktop-core")
+    parser.add_argument(
+        "--host",
+        default=LOOPBACK_HOST,
+        help="Bind address (127.0.0.1 default; 0.0.0.0 for Tailscale/external access)",
+    )
     parser.add_argument("--mcp", action="store_true", help="Enable MCP HTTP listener")
     parser.add_argument("--mcp-port", type=int, default=DEFAULT_MCP_PORT, help="MCP HTTP port")
     parser.add_argument("--mcp-mode", choices=["read", "write", "admin"], default="read")
@@ -64,7 +73,8 @@ def main() -> int:
 
     import uvicorn
 
-    api_port = _free_port()
+    bind_host = args.host
+    api_port = _free_port(bind_host)
 
     # CORS: allow the Tauri webview origin (prod + dev) before app import.
     extra = os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "")
@@ -76,7 +86,7 @@ def main() -> int:
 
     api_config = uvicorn.Config(
         "raven.api:app",
-        host=LOOPBACK_HOST,
+        host=bind_host,
         port=api_port,
         log_level="warning",
     )
@@ -88,7 +98,7 @@ def main() -> int:
         mcp_app = _build_mcp_app(args.mcp_mode)
         mcp_config = uvicorn.Config(
             mcp_app,
-            host=LOOPBACK_HOST,
+            host=bind_host,
             port=args.mcp_port,
             log_level="warning",
         )
