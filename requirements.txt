@@ -1,0 +1,14 @@
+# Raven Python dependencies (direct)
+fastapi>=0.115
+uvicorn[standard]>=0.34
+mcp>=1.12
+starlette>=0.46
+pydantic>=2.11
+httpx>=0.28
+python-dotenv>=1.1
+cffi>=1.17
+click>=8.2
+rich>=14.0
+typer>=0.15
+watchfiles>=1.0
+python-multipart>=0.0.20
