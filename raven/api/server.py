@@ -3020,6 +3020,30 @@ def delete_raw(
     }
 
 
+# ────────────────────────── dashboard static serving ──────────────────────────
+# Serves the built dashboard (dashboard/dist/) so a single port (8765)
+# provides both API and UI.  Tauri desktop still serves dist/ via its own
+# webview; this path is for browser access (phone / other machines).
+
+_DASHBOARD_DIST = Path(__file__).resolve().parents[2] / "dashboard" / "dist"
+
+if _DASHBOARD_DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    # Static assets (js/css/images) — mounted first so they take priority.
+    app.mount("/assets", StaticFiles(directory=_DASHBOARD_DIST / "assets"), name="assets")
+
+    # SPA fallback: any non-API GET that didn't match a route → index.html
+    @app.get("/{full_path:path}")
+    async def _spa_fallback(full_path: str):
+        # Serve the exact file if it exists (favicon, sw.js, manifest…)
+        candidate = _DASHBOARD_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_DASHBOARD_DIST / "index.html")
+
+
 # ────────────────────────── local helpers ──────────────────────────
 
 
