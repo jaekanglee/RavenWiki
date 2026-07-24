@@ -7,7 +7,7 @@
 # installs deps, and builds the dashboard.
 set -euo pipefail
 
-REPO_URL="${RAVEN_REPO_URL:-https://github.com/jaekanglee/Raven.git}"
+REPO_URL="${RAVEN_REPO_URL:-https://github.com/jaekanglee/RavenWiki.git}"
 INSTALL_DIR="${RAVEN_INSTALL_DIR:-$HOME/Raven}"
 
 # --- detect: inside repo already, or fresh clone? ---
@@ -27,7 +27,23 @@ else
 fi
 cd "$ROOT"
 
-# --- prerequisites ---
+# --- prerequisites (macOS auto-bootstrap) ---
+if [[ "$(uname)" == "Darwin" ]]; then
+  if ! command -v git >/dev/null || ! command -v python3 >/dev/null; then
+    echo "--- Xcode Command Line Tools 설치 (python3 + git) ---"
+    xcode-select --install 2>/dev/null || true
+    echo "    설치 대화상자에서 '설치' 클릭 후 완료되면 Enter..."
+    read -r
+  fi
+  if ! command -v node >/dev/null; then
+    if ! command -v brew >/dev/null; then
+      echo "--- Homebrew 설치 ---"
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    echo "--- Node.js 설치 ---"
+    brew install node
+  fi
+fi
 command -v python3 >/dev/null || { echo "ERROR: python3 not found"; exit 1; }
 command -v node    >/dev/null || { echo "ERROR: node not found (need >=18)"; exit 1; }
 command -v git     >/dev/null || { echo "ERROR: git not found"; exit 1; }
