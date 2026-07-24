@@ -28,7 +28,7 @@ fi
 cd "$ROOT"
 
 # --- prerequisites (macOS auto-bootstrap) ---
-if [[ "$(uname)" == "Darwin" ]]; then
+if [ "$(uname)" = "Darwin" ]; then
   if ! command -v git >/dev/null || ! command -v python3 >/dev/null; then
     echo "--- Xcode Command Line Tools 설치 (python3 + git) ---"
     xcode-select --install 2>/dev/null || true
@@ -56,14 +56,14 @@ VENV="$ROOT/scripts/.venv"
 if [ ! -d "$VENV" ]; then
   echo "--- creating venv ---"
   python3 -m venv "$VENV"
-elif ! "$VENV/bin/python3" -c "pass" 2>/dev/null; then
+elif ! "$VENV/bin/pip" --version >/dev/null 2>&1; then
   echo "--- stale venv detected (moved repo?), recreating ---"
   rm -rf "$VENV"
   python3 -m venv "$VENV"
 fi
 echo "--- installing python deps ---"
-"$VENV/bin/pip" install -q --upgrade pip
-"$VENV/bin/pip" install -q -r requirements.txt
+"$VENV/bin/python3" -m pip install -q --upgrade pip
+"$VENV/bin/python3" -m pip install -q -r requirements.txt
 
 # --- Dashboard build ---
 echo "--- building dashboard ---"
