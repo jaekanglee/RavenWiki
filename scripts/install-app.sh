@@ -19,7 +19,12 @@ if [ -f "$TMP_DMG" ]; then
 else
   if command -v gh >/dev/null 2>&1; then
     echo "📥 gh로 다운로드..."
-    gh release download "$TAG" --repo "$REPO" --pattern "$DMG_NAME" --dir /tmp
+    if ! gh release download "$TAG" --repo "$REPO" --pattern "$DMG_NAME" --dir /tmp 2>/dev/null; then
+      echo "❌ gh 다운로드 실패 — private repo 접근 권한 없음"
+      echo "   해결: gh auth login (repo 소유 계정으로 로그인)"
+      echo "   또는: 이 DMG를 AirDrop으로 전송"
+      exit 1
+    fi
   else
     URL="https://github.com/$REPO/releases/download/$TAG/$DMG_NAME"
     echo "📥 curl로 다운로드..."
