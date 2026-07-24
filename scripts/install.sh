@@ -56,6 +56,10 @@ VENV="$ROOT/scripts/.venv"
 if [ ! -d "$VENV" ]; then
   echo "--- creating venv ---"
   python3 -m venv "$VENV"
+elif ! "$VENV/bin/python3" -c "pass" 2>/dev/null; then
+  echo "--- stale venv detected (moved repo?), recreating ---"
+  rm -rf "$VENV"
+  python3 -m venv "$VENV"
 fi
 echo "--- installing python deps ---"
 "$VENV/bin/pip" install -q --upgrade pip
