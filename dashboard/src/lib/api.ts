@@ -933,3 +933,78 @@ export async function cleanArchive(
   invalidateCache(`tree:${vault}`);
   return r.json();
 }
+
+// ─── P2: vault 도구 (link-check / export / repair / clone / locks) ───
+
+export interface LinkCheckResult {
+  ok: boolean;
+  vault: string;
+  broken: { slug: string; target: string; line?: number }[];
+  missing: { slug: string; target: string }[];
+}
+
+export async function fetchLinkCheck(vault: string, slug?: string): Promise<LinkCheckResult> {
+  const qs = slug ? `?slug=${encodeURIComponent(slug)}` : "";
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/link-check${qs}`);
+  if (!r.ok) throw new Error(`link-check failed: ${r.status}`);
+  return r.json();
+}
+
+export async function runExport(vault: string, outDir?: string): Promise<{ ok: boolean; export: Record<string, unknown> }> {
+  const qs = outDir ? `?out_dir=${encodeURIComponent(outDir)}` : "";
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/export${qs}`, { method: "POST" });
+  if (!r.ok) throw new Error(`export failed: ${r.status}`);
+  return r.json();
+}
+
+export async function repairVault(vault: string, path: string): Promise<{ ok: boolean; vault: string; path: string }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/repair`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `repair failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  invalidateCache("vaults");
+  return r.json();
+}
+
+export async function cloneVault(payload: {
+  src: string; name: string; path: string; mode?: string; owner?: string; copy_meta?: boolean;
+}): Promise<{ ok: boolean; vault: string; path: string }> {
+  const r = await fetch("/api/vaults/clone", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail || `clone failed: ${r.status}`;
+    throw new Error(detail);
+  }
+  invalidateCache("vaults");
+  return r.json();
+}
+
+export interface LockEntry {
+  holder: string;
+  acquired_at: string;
+  ttl_seconds: number;
+}
+
+export async function fetchLocks(vault: string): Promise<{ ok: boolean; vault: string; locks: Record<string, LockEntry> }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/locks`);
+  if (!r.ok) throw new Error(`locks failed: ${r.status}`);
+  return r.json();
+}
+
+export async function releaseLock(vault: string, slug: string): Promise<{ ok: boolean }> {
+  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/locks`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug }),
+  });
+  if (!r.ok) throw new Error(`release lock failed: ${r.status}`);
+  return r.json();
+}
