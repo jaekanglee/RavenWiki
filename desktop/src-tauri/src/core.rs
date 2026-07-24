@@ -61,7 +61,7 @@ impl ManagedCore {
         let spec = runtime_launch_spec(python, mcp, python_path, host);
         let mut cmd = Command::new(&spec.program);
         cmd.args(&spec.args)
-            .current_dir(workspace_root())
+            .current_dir(safe_workspace(spec.env.iter().any(|(k, _)| k == "PYTHONPATH")))
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
         for (key, value) in &spec.env {
@@ -136,13 +136,30 @@ fn resolve_python(resource_dir: Option<&Path>) -> (PathBuf, Option<PathBuf>) {
     }
 
     // Dev mode: scripts/.venv/bin/python, raven importable from CWD
-    (workspace_root().join("scripts/.venv/bin/python"), None)
+    (dev_workspace_root().join("scripts/.venv/bin/python"), None)
 }
 
-fn workspace_root() -> PathBuf {
+/// Dev-mode workspace root (compile-time path — only valid on the build machine).
+fn dev_workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
         .expect("desktop/src-tauri must be nested under the Raven workspace")
         .to_path_buf()
+}
+
+/// Safe working directory for the Python child process.
+/// Bundled mode: home dir (CWD irrelevant — PYTHONPATH points at bundled raven).
+/// Dev mode: compile-time workspace root (only on the build machine).
+fn safe_workspace(bundled: bool) -> PathBuf {
+    if bundled {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"))
+    } else {
+        let dev = dev_workspace_root();
+        if dev.exists() {
+            dev
+        } else {
+            dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"))
+        }
+    }
 }
