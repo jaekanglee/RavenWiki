@@ -56,7 +56,7 @@ pub fn run() {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(CoreState::default())
         .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
         .setup(move |app| {
@@ -66,13 +66,30 @@ pub fn run() {
                 .map_err(std::io::Error::other)?;
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("Raven desktop application error")
-        .run(|app, event| {
+        .build(tauri::generate_context!());
+
+    match app {
+        Ok(app) => app.run(|app, event| {
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 app.state::<CoreState>().stop();
             }
-        });
+        }),
+        Err(e) => {
+            let msg = format!("Raven failed to start:\n{e}");
+            eprintln!("{msg}");
+            // Native macOS dialog instead of panic → abort
+            let _ = std::process::Command::new("osascript")
+                .args([
+                    "-e",
+                    &format!(
+                        "display dialog \"{}\" with title \"Raven\" buttons {{\"OK\"}} default button \"OK\" with icon stop",
+                        msg.replace('"', "\\\"").replace('\n', "\\n")
+                    ),
+                ])
+                .status();
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]
