@@ -1,0 +1,49 @@
+# Raven Desktop — DMG 빌드 + GitHub Release 업로드
+# 트리거: git tag v* 푸시 (예: git tag v0.2.0 && git push --tags)
+name: desktop-release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-dmg:
+    runs-on: macos-14  # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Dashboard
+        working-directory: dashboard
+        run: npm ci && npm run build
+
+      - name: Prepare Python bundle
+        run: bash scripts/prepare-bundle.sh
+
+      - name: Build Tauri binary
+        working-directory: desktop/src-tauri
+        run: cargo build --release
+
+      - name: Build DMG
+        run: bash scripts/make-dmg.sh
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          DMG="desktop/src-tauri/target/release/bundle/dmg/Raven_0.1.0_aarch64.dmg"
+          gh release create "$TAG" "$DMG" \
+            --title "Raven $TAG" \
+            --notes "Raven Desktop — macOS (Apple Silicon)" \
+            --generate-notes \
+            2>/dev/null || \
+          gh release upload "$TAG" "$DMG" --clobber

@@ -143,3 +143,26 @@ rebuild: docker-build docker-restart ## Rebuild Docker images and restart Docker
 #           후 UI가 stale하게 갱신 안 될 때 사용. 기본 재시작은 `make restart`.
 restart-all: ## Full local restart: wipe caches (Vite/__pycache__/pytest/logs) + restart
 	@bash scripts/restart-all.sh
+
+# ────────────────────────── desktop ──────────────────────────
+
+.PHONY: desktop-bundle desktop-build desktop-dmg desktop-release
+
+desktop-bundle: ## Prepare bundled Python + Raven source for Tauri .app
+	@bash scripts/prepare-bundle.sh
+
+desktop-build: desktop-bundle ## Build Tauri desktop app (release binary + .app)
+	cd dashboard && npm ci && npm run build
+	cd desktop/src-tauri && cargo build --release
+	@echo "✅ Binary: desktop/src-tauri/target/release/raven-desktop"
+
+desktop-dmg: desktop-build ## Build DMG installer from release binary
+	@bash scripts/make-dmg.sh
+	@echo "✅ DMG: desktop/src-tauri/target/release/bundle/dmg/Raven_0.1.0_aarch64.dmg"
+
+desktop-release: desktop-dmg ## Build DMG + upload to GitHub Release (requires gh CLI)
+	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0"); \
+	DMG="desktop/src-tauri/target/release/bundle/dmg/Raven_0.1.0_aarch64.dmg"; \
+	echo "📦 Uploading $$DMG to release $$TAG ..."; \
+	gh release upload "$$TAG" "$$DMG" --clobber; \
+	echo "✅ Release $$TAG updated"
