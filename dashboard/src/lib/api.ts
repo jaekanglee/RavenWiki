@@ -6,6 +6,41 @@
  */
 import type { TreeNode } from "../types";
 
+// ─── TTL cache + in-flight dedup (P1-b) ─────────────────────
+// fetchVaults/fetchPages/fetchTree가 여러 컴포넌트에서 중복 호출되는 문제.
+// 짧은 TTL로 중복 제거 + mutation 시 invalidateCache()로 신선도 보장.
+interface CacheEntry<T> {
+  data: T;
+  ts: number;
+}
+const _cache = new Map<string, CacheEntry<unknown>>();
+const _inflight = new Map<string, Promise<unknown>>();
+
+function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.ts < ttlMs) return Promise.resolve(hit.data as T);
+  const pending = _inflight.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = fn().then((data) => {
+    _cache.set(key, { data, ts: Date.now() });
+    _inflight.delete(key);
+    return data;
+  }).catch((err) => {
+    _inflight.delete(key);
+    throw err;
+  });
+  _inflight.set(key, p);
+  return p;
+}
+
+/** mutation 후 호출 — 해당 key 또는 전체 캐시 무효화. */
+export function invalidateCache(keyPrefix?: string): void {
+  if (!keyPrefix) { _cache.clear(); return; }
+  for (const k of _cache.keys()) {
+    if (k.startsWith(keyPrefix)) _cache.delete(k);
+  }
+}
+
 export const ACTIVE_VAULT_KEY = "raven:active_vault";
 
 export function getActiveVault(): string {
@@ -82,10 +117,12 @@ export interface VaultInfo {
 }
 
 export async function fetchVaults(): Promise<VaultInfo[]> {
-  const r = await fetch("/api/vaults");
-  if (!r.ok) return [];
-  const d = await r.json();
-  return d.vaults || [];
+  return cachedFetch("vaults", 30_000, async () => {
+    const r = await fetch("/api/vaults");
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.vaults || [];
+  });
 }
 
 export async function fetchVaultInfo(name: string): Promise<any> {
@@ -100,17 +137,22 @@ export async function fetchPages(vault: string, opts: { type?: string; tag?: str
   if (opts.type) params.set("type", opts.type);
   if (opts.tag) params.set("tag", opts.tag);
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${vault}/pages${qs ? "?" + qs : ""}`);
-  if (!r.ok) return [];
-  const d = await r.json();
-  return d.pages || [];
+  const key = `pages:${vault}${qs ? ":" + qs : ""}`;
+  return cachedFetch(key, 15_000, async () => {
+    const r = await fetch(`/api/vaults/${vault}/pages${qs ? "?" + qs : ""}`);
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.pages || [];
+  });
 }
 
 export async function fetchTree(vault: string): Promise<TreeNode | null> {
-  const r = await fetch(`/api/vaults/${vault}/tree`);
-  if (!r.ok) return null;
-  const d = await r.json();
-  return d.tree || null;
+  return cachedFetch(`tree:${vault}`, 15_000, async () => {
+    const r = await fetch(`/api/vaults/${vault}/tree`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.tree || null;
+  });
 }
 
 export async function createFolder(
@@ -126,6 +168,7 @@ export async function createFolder(
     const detail = (await r.json().catch(() => ({}))).detail || `create folder failed: ${r.status}`;
     throw new Error(detail);
   }
+  invalidateCache(`tree:${vault}`);
   return r.json();
 }
 
@@ -145,6 +188,8 @@ export async function createPage(
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error(`create failed: ${r.status}`);
+  invalidateCache(`pages:${vault}`);
+  invalidateCache(`tree:${vault}`);
   return r.json();
 }
 
@@ -159,12 +204,15 @@ export async function updatePage(
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error(`update failed: ${r.status}`);
+  invalidateCache(`pages:${vault}`);
   return r.json();
 }
 
 export async function deletePage(vault: string, slug: string) {
   const r = await fetch(`/api/vaults/${vault}/pages/${slug}`, { method: "DELETE" });
   if (!r.ok) throw new Error(`delete failed: ${r.status}`);
+  invalidateCache(`pages:${vault}`);
+  invalidateCache(`tree:${vault}`);
   return r.json();
 }
 
@@ -857,6 +905,8 @@ export async function restoreArchive(
     const detail = (await r.json().catch(() => ({}))).detail || `restore failed: ${r.status}`;
     throw new Error(detail);
   }
+  invalidateCache(`pages:${vault}`);
+  invalidateCache(`tree:${vault}`);
   return r.json();
 }
 
@@ -879,5 +929,7 @@ export async function cleanArchive(
     { method: "POST" }
   );
   if (!r.ok) throw new Error(`archive clean failed: ${r.status}`);
+  invalidateCache(`pages:${vault}`);
+  invalidateCache(`tree:${vault}`);
   return r.json();
 }
