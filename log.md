@@ -455,3 +455,13 @@ A  _meta/ai-roadmap.md
 - 파일: `dashboard/src/components/GraphCanvas.tsx`, `dashboard/src/routes/GraphPage.tsx`, `dashboard/tests/GraphPage.all-vault-scope.test.tsx`, `raven/api/server.py`, `log.md`
 - 검증: `make typecheck` 통과, vitest 11 passed, pytest 730 passed ✅
 
+
+## [2026-07-27] feature | CMP Mobile App MVP Implementation (v0.7.176)
+- **목표**: 모바일 환경에서 Raven의 지식 탐색 및 소비(Read & Traverse) 경험 제공을 위한 기반 마련.
+- **주요 구현 사항**:
+  - `mobile/shared/`: Ktor 기반 네트워크 동기화, SQLDelight 기반 오프라인 캐시 및 설정 보관(API Key 등), Koin 의존성 주입.
+  - `QrScanner`: PC 앱과 페어링하기 위한 엔드포인트/토큰 스캔 인터페이스 및 임시 Fake 구현체.
+  - `PairingViewModel`, `MainViewModel`: 상태 머신(StateFlow) 기반 뷰 모델.
+  - **테스트**: MockEngine 및 TestDispatcher를 활용한 KMP(androidUnitTest) 단위 테스트 검증(통과).
+- **패키지 변경**: Android/iOS 패키지명을 `com.ppizil.raven`으로 일괄 통일.
+- **아티팩트 기록**: `mobile-app-implementation-plan.md`를 통해 요구사항 및 순서 정리.
