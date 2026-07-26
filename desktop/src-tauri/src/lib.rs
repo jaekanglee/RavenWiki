@@ -1,7 +1,9 @@
 mod core;
 
 use std::sync::Mutex;
-use tauri::{command, Manager, RunEvent, State};
+use tauri::{command, Manager, RunEvent, State, WindowEvent};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 
 #[derive(Default)]
 struct CoreState(Mutex<Option<core::ManagedCore>>);
@@ -64,14 +66,63 @@ pub fn run() {
             app.state::<CoreState>()
                 .start(mcp_enabled, resource_dir)
                 .map_err(std::io::Error::other)?;
+
+            let show_i = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
+            let restart_i = MenuItem::with_id(app, "restart", "Restart Backend", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit Raven", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &restart_i, &quit_i])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => app.exit(0),
+                    "restart" => {
+                        let state = app.state::<CoreState>();
+                        state.stop();
+                        let resource_dir = app.path().resource_dir().ok();
+                        let mcp_enabled = std::env::var("RAVEN_DESKTOP_MCP")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(false);
+                        if let Err(e) = state.start(mcp_enabled, resource_dir) {
+                            eprintln!("Failed to restart core: {}", e);
+                        }
+                    }
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                        }
+                    }
+                    _ => {}
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                window.hide().unwrap();
+            }
         })
         .build(tauri::generate_context!());
 
     match app {
         Ok(app) => app.run(|app, event| {
-            if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
-                app.state::<CoreState>().stop();
+            match event {
+                RunEvent::Exit | RunEvent::ExitRequested { .. } => {
+                    app.state::<CoreState>().stop();
+                }
+                RunEvent::Reopen { has_visible_windows, .. } => {
+                    if !has_visible_windows {
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                        }
+                    }
+                }
+                _ => {}
             }
         }),
         Err(e) => {

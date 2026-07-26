@@ -40,3 +40,12 @@ Raven Dashboard를 macOS Tauri 창으로 기동하고, 그 수명주기에 맞�
 ## 전체 Suite에서 관찰된 실패
 
 전체 Python suite는 agent curation·Lite bootstrap contract 테스트 14건이 실패했습니다. 이번 작업의 직접 변경 경로와 겹치지 않지만, 별도 triage가 필요합니다.
+
+## 2026-07-27 Mobile App Implementation (CMP)
+
+모바일 앱 ADR(`adr-2026-07-27-cmp-mobile-app.md`) 요구사항에 따라 Compose Multiplatform 환경에 아래 사항들을 모두 구현하고 테스트를 완료했습니다.
+
+- **데이터 레이어**: SQLDelight를 이용한 `Settings` 테이블(인증키 보관) 및 `DocumentRepository` 오프라인 퍼스트 Ktor 연동 완비.
+- **보안/페어링**: QR 코드 스캐너 공통 인터페이스(`QrScanner`) 및 `PairingViewModel` 구현 (테스트 완료).
+- **UI/UX**: `MainViewModel` 및 실제 도메인 객체와 바인딩된 `SlidingPanelLayout` 적용 완료.
+- **패키지 명 변경**: Android, iOS 공통으로 패키지/번들 ID를 `com.ppizil.raven`으로 일괄 변경하고 `androidUnitTest` 등 19개 테스크 빌드 정상 동작 확인 완료.

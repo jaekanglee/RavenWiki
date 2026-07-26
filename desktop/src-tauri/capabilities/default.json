@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Raven desktop default capability — allow the webview to query the managed Python Core / MCP endpoints.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-core-endpoint",
+    "allow-mcp-endpoint"
+  ]
+}

@@ -1,0 +1,31 @@
+CREATE TABLE Document (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    isFavorite INTEGER AS kotlin.Boolean DEFAULT 0,
+    lastUpdated INTEGER NOT NULL
+);
+
+selectAll:
+SELECT * FROM Document;
+
+selectById:
+SELECT * FROM Document WHERE id = ?;
+
+insertDocument:
+INSERT OR REPLACE INTO Document(id, title, content, isFavorite, lastUpdated)
+VALUES (?, ?, ?, ?, ?);
+
+toggleFavorite:
+UPDATE Document SET isFavorite = 1 - isFavorite WHERE id = ?;
+
+CREATE TABLE Settings (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+getSetting:
+SELECT value FROM Settings WHERE key = ?;
+
+setSetting:
+INSERT OR REPLACE INTO Settings(key, value) VALUES (?, ?);
