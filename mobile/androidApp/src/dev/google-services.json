@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "837738262401",
+    "project_id": "raven-eb0e7",
+    "storage_bucket": "raven-eb0e7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837738262401:android:9e67a53d3548a992354280",
+        "android_client_info": {
+          "package_name": "com.ppizil.raven"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs_jLQbqPf1vPe0m4pCoefmylGlw8JAso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837738262401:android:2928e6c14480ba9e354280",
+        "android_client_info": {
+          "package_name": "com.ppizil.raven.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs_jLQbqPf1vPe0m4pCoefmylGlw8JAso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
