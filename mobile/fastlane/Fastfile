@@ -1,8 +1,20 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build and upload Dev Debug APK to Firebase App Distribution"
+  desc "Distribute the Dev Android app via Firebase App Distribution"
   lane :distribute_dev do
+    properties_file = "../androidApp/version.properties"
+    properties = {}
+    File.readlines(properties_file).each do |line|
+      key, value = line.strip.split('=')
+      properties[key] = value if key && value
+    end
+
+    properties["devBuildNumber"] = (properties["devBuildNumber"].to_i + 1).to_s
+
+    content = properties.map { |k, v| "#{k}=#{v}" }.join("\n") + "\n"
+    File.write(properties_file, content)
+
     gradle(
       project_dir: ".",
       task: "assemble",

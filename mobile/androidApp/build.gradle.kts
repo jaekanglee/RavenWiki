@@ -1,9 +1,21 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
 }
+
+val versionProps = Properties()
+val versionPropsFile = file("version.properties")
+if (versionPropsFile.exists()) {
+    versionProps.load(FileInputStream(versionPropsFile))
+}
+val baseVersionName = versionProps.getProperty("versionName", "1.0")
+val baseVersionCode = versionProps.getProperty("versionCode", "1").toInt()
+val devBuildNumber = versionProps.getProperty("devBuildNumber", "1")
 
 kotlin {
     androidTarget()
@@ -26,8 +38,8 @@ android {
         applicationId = "com.ppizil.raven"
         minSdk = (findProperty("android.minSdk") as String).toInt()
         targetSdk = (findProperty("android.targetSdk") as String).toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = baseVersionCode
+        versionName = baseVersionName
     }
 
     flavorDimensions += "environment"
@@ -35,7 +47,7 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
+            versionNameSuffix = "-dev$devBuildNumber"
         }
         create("prod") {
             dimension = "environment"
