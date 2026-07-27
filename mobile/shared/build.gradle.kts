@@ -1,10 +1,10 @@
 plugins {
-    kotlin("multiplatform")
-    id("com.android.library")
-    id("org.jetbrains.compose")
-    kotlin("plugin.compose")
-    kotlin("plugin.serialization")
-    id("app.cash.sqldelight")
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -30,51 +30,42 @@ kotlin {
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.components.resources)
                 
-                val ktorVersion = project.findProperty("ktor.version") as String
-                val koinVersion = project.findProperty("koin.version") as String
-                val sqldelightVersion = project.findProperty("sqldelight.version") as String
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.serialization.kotlinx.json)
                 
-                implementation("io.ktor:ktor-client-core:$ktorVersion")
-                implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-                implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+                implementation(libs.koin.core)
                 
-                implementation("io.insert-koin:koin-core:$koinVersion")
-                
-                implementation("app.cash.sqldelight:coroutines-extensions:$sqldelightVersion")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+                implementation(libs.sqldelight.coroutines)
+                implementation(libs.kotlinx.serialization.json)
+                implementation(libs.kotlinx.coroutines.core)
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+                implementation(libs.kotlinx.coroutines.test)
             }
         }
         val androidMain by getting {
             dependencies {
-                api("androidx.activity:activity-compose:1.7.2")
-                api("androidx.appcompat:appcompat:1.6.1")
-                api("androidx.core:core-ktx:1.10.1")
+                api(libs.androidx.activity.compose)
+                api(libs.androidx.appcompat)
+                api(libs.androidx.core.ktx)
                 
-                val ktorVersion = project.findProperty("ktor.version") as String
-                val sqldelightVersion = project.findProperty("sqldelight.version") as String
-                val koinVersion = project.findProperty("koin.version") as String
-                
-                implementation("io.ktor:ktor-client-android:$ktorVersion")
-                implementation("app.cash.sqldelight:android-driver:$sqldelightVersion")
-                implementation("io.insert-koin:koin-android:$koinVersion")
+                implementation(libs.ktor.client.android)
+                implementation(libs.sqldelight.android)
+                implementation(libs.koin.android)
             }
         }
         val androidUnitTest by getting {
             dependencies {
                 implementation(kotlin("test-junit"))
-                implementation("junit:junit:4.13.2")
-                implementation("app.cash.sqldelight:sqlite-driver:2.0.1")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+                implementation(libs.junit)
+                implementation(libs.sqldelight.sqlite)
+                implementation(libs.kotlinx.coroutines.test)
                 
-                val ktorVersion = project.findProperty("ktor.version") as String
-                implementation("io.ktor:ktor-client-mock:$ktorVersion")
+                implementation(libs.ktor.client.mock)
             }
         }
         val iosX64Main by getting
@@ -86,11 +77,8 @@ kotlin {
             iosArm64Main.dependsOn(this)
             iosSimulatorArm64Main.dependsOn(this)
             dependencies {
-                val ktorVersion = project.findProperty("ktor.version") as String
-                val sqldelightVersion = project.findProperty("sqldelight.version") as String
-                
-                implementation("io.ktor:ktor-client-darwin:$ktorVersion")
-                implementation("app.cash.sqldelight:native-driver:$sqldelightVersion")
+                implementation(libs.ktor.client.darwin)
+                implementation(libs.sqldelight.native)
             }
         }
     }
