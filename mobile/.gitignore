@@ -10,3 +10,8 @@ build/
 iosApp/iosApp.xcworkspace/*
 iosApp/iosApp.xcodeproj/*
 !iosApp/iosApp.xcodeproj/project.pbxproj
+
+# Bundler
+.bundle/
+vendor/bundle/
+

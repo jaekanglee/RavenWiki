@@ -1,0 +1,37 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build and upload Dev Debug APK to Firebase App Distribution"
+  lane :distribute_dev do
+    gradle(
+      project_dir: ".",
+      task: "assemble",
+      flavor: "dev",
+      build_type: "Debug"
+    )
+
+    firebase_app_distribution(
+      app: "1:837738262401:android:2928e6c14480ba9e354280",
+      groups: "testers",
+      release_notes: "Dev build uploaded via Fastlane",
+      firebase_cli_path: `which firebase`.strip
+    )
+  end
+
+  desc "Build and upload Prod Release APK to Firebase App Distribution"
+  lane :distribute_prod do
+    gradle(
+      project_dir: ".",
+      task: "assemble",
+      flavor: "prod",
+      build_type: "Release"
+    )
+
+    firebase_app_distribution(
+      app: "1:837738262401:android:9e67a53d3548a992354280",
+      groups: "testers",
+      release_notes: "Prod build uploaded via Fastlane",
+      firebase_cli_path: `which firebase`.strip
+    )
+  end
+end
