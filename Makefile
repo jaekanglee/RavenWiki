@@ -168,10 +168,10 @@ desktop-release: desktop-dmg ## Build DMG + upload to GitHub Release (requires g
 	echo "✅ Release $$TAG updated"
 # ────────────────────────── mobile ──────────────────────────
 
-.PHONY: deploy-mobile-dev deploy-mobile-prod
+.PHONY: deploy-dev deploy-prod
 
-deploy-mobile-dev: ## Deploy mobile Dev build via Fastlane
+deploy-dev: ## Deploy mobile Dev build via Fastlane
 	cd mobile && bundle exec fastlane distribute_dev
 
-deploy-mobile-prod: ## Deploy mobile Prod build via Fastlane
+deploy-prod: ## Deploy mobile Prod build via Fastlane
 	cd mobile && bundle exec fastlane distribute_prod
