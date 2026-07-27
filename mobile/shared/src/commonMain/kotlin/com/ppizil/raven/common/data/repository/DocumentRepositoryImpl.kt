@@ -1,36 +1,35 @@
-package com.ppizil.raven.common.repository
+package com.ppizil.raven.common.data.repository
 
 import com.ppizil.raven.common.db.RavenDatabase
+import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.repository.DocumentRepository
+import com.ppizil.raven.common.domain.repository.SettingsRepository
+import com.ppizil.raven.common.data.remote.model.DocumentDto
+import com.ppizil.raven.common.data.mapper.toDomainModel
 import io.ktor.client.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import com.ppizil.raven.common.db.Document
-import kotlinx.coroutines.Dispatchers
-
-import kotlinx.serialization.Serializable
 import io.ktor.client.call.body
 import io.ktor.http.headers
-import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
+import kotlinx.coroutines.Dispatchers
 
-@Serializable
-data class DocumentDto(val id: String, val title: String, val content: String)
-
-class DocumentRepository(
+class DocumentRepositoryImpl(
     private val httpClient: HttpClient,
     private val database: RavenDatabase,
     private val settingsRepository: SettingsRepository
-) {
+) : DocumentRepository {
     private val queries = database.documentQueries
 
-    fun getAllDocuments(): Flow<List<Document>> {
-        return queries.selectAll().asFlow().mapToList(Dispatchers.Default)
+    override fun getAllDocuments(): Flow<List<Document>> {
+        return queries.selectAll().asFlow().mapToList(Dispatchers.Default).map { list ->
+            list.map { it.toDomainModel() }
+        }
     }
 
-    suspend fun fetchDocument(id: String) {
+    override suspend fun fetchDocument(id: String) {
         val endpoint = settingsRepository.getEndpoint() ?: return
         val apiKey = settingsRepository.getApiKey() ?: return
         
@@ -43,12 +42,11 @@ class DocumentRepository(
             val doc = response.body<DocumentDto>()
             queries.insertDocument(doc.id, doc.title, doc.content, false, System.currentTimeMillis())
         } catch (e: Exception) {
-            // Offline or error: rely on cache
             println("Failed to fetch document: ${e.message}")
         }
     }
 
-    suspend fun syncAllDocuments() {
+    override suspend fun syncAllDocuments() {
         val endpoint = settingsRepository.getEndpoint() ?: return
         val apiKey = settingsRepository.getApiKey() ?: return
 

@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 
-import com.ppizil.raven.common.db.Document
+import com.ppizil.raven.common.domain.model.Document
 
 @Composable
 fun SlidingPanelLayout(

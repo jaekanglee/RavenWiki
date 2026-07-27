@@ -1,4 +1,4 @@
-package com.ppizil.raven.common.qr
+package com.ppizil.raven.common.framework.qr
 
 interface QrScanner {
     suspend fun scan(): QrResult

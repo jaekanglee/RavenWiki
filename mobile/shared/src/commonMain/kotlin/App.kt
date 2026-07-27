@@ -8,9 +8,9 @@ import com.ppizil.raven.common.ui.theme.RavenTheme
 fun App() {
     RavenTheme {
         val dummyDocuments = listOf(
-            com.ppizil.raven.common.db.Document("1", "Doc 1: Home", "Welcome to Raven.", false, 0),
-            com.ppizil.raven.common.db.Document("2", "Doc 2: Ideas", "Here are some ideas.", false, 0),
-            com.ppizil.raven.common.db.Document("3", "Doc 3: Meeting Notes", "Notes from the meeting.", false, 0)
+            com.ppizil.raven.common.domain.model.Document("1", "Doc 1: Home", "Welcome to Raven.", false, 0),
+            com.ppizil.raven.common.domain.model.Document("2", "Doc 2: Ideas", "Here are some ideas.", false, 0),
+            com.ppizil.raven.common.domain.model.Document("3", "Doc 3: Meeting Notes", "Notes from the meeting.", false, 0)
         )
         SlidingPanelLayout(
             documents = dummyDocuments,
