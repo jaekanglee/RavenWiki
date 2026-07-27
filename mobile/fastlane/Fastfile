@@ -12,9 +12,7 @@ platform :android do
 
     firebase_app_distribution(
       app: "1:837738262401:android:2928e6c14480ba9e354280",
-      groups: "testers",
-      release_notes: "Dev build uploaded via Fastlane",
-      firebase_cli_path: `which firebase`.strip
+      release_notes: "Dev build uploaded via Fastlane"
     )
   end
 
@@ -29,9 +27,7 @@ platform :android do
 
     firebase_app_distribution(
       app: "1:837738262401:android:9e67a53d3548a992354280",
-      groups: "testers",
-      release_notes: "Prod build uploaded via Fastlane",
-      firebase_cli_path: `which firebase`.strip
+      release_notes: "Prod build uploaded via Fastlane"
     )
   end
 end
