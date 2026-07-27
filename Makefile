@@ -166,3 +166,6 @@ desktop-release: desktop-dmg ## Build DMG + upload to GitHub Release (requires g
 	echo "📦 Uploading $$DMG to release $$TAG ..."; \
 	gh release upload "$$TAG" "$$DMG" --clobber; \
 	echo "✅ Release $$TAG updated"
+
+desktop-install: ## Rebuild from current source and (re)install Raven.app to /Applications (no clone/pull)
+	@bash scripts/install-desktop.sh

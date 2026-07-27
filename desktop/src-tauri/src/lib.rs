@@ -62,10 +62,27 @@ pub fn run() {
         .manage(CoreState::default())
         .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
         .setup(move |app| {
+            // Python Core는 setup 훅에서 동기적으로 기다리지 않고 별도 task로 기동한다.
+            // setup 훅이 Err를 반환하면 Tauri 내부가 응답 불가능한 패닉(panic→abort, FFI 경계라
+            // unwind 불가)으로 처리하므로, 여기서 실패를 직접 흡수해 다이얼로그 후 종료한다.
+            let handle = app.handle().clone();
             let resource_dir = app.path().resource_dir().ok();
-            app.state::<CoreState>()
-                .start(mcp_enabled, resource_dir)
-                .map_err(std::io::Error::other)?;
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = handle.state::<CoreState>().start(mcp_enabled, resource_dir) {
+                    let msg = format!("Raven failed to start:\n{e}");
+                    eprintln!("{msg}");
+                    let _ = std::process::Command::new("osascript")
+                        .args([
+                            "-e",
+                            &format!(
+                                "display dialog \"{}\" with title \"Raven\" buttons {{\"OK\"}} default button \"OK\" with icon stop",
+                                msg.replace('"', "\\\"").replace('\n', "\\n")
+                            ),
+                        ])
+                        .status();
+                    handle.exit(1);
+                }
+            });
 
             let show_i = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
             let restart_i = MenuItem::with_id(app, "restart", "Restart Backend", true, None::<&str>)?;
