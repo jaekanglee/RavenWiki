@@ -3,11 +3,15 @@
 ## 1. 개요
 
 - **작성일**: 2026-07-28
-- **주요 내용**: Desktop Tauri 개발 모드(`debug_assertions`)에서 Python Core 인터프리터 감지 우선순위 개선 (개발 모드 시 stale한 번들 자원 대신 `scripts/.venv` 최우선 적용)
+- **주요 내용**: Makefile install venv 자동 복구 보강 및 Desktop Tauri 개발 모드(`debug_assertions`)에서 Python Core 인터프리터 감지 우선순위 개선
 
 ---
 
 ## 2. 주요 변경 사항
+
+- **Makefile `install` 및 `venv-check` 타겟 안정화**:
+  - `test -d scripts/.venv` 검사 방식의 허점(신규 PC/clone 환경에서 venv 생성이 꼬여 `scripts/.venv` 디렉토리만 남아있을 경우 `pip` 실행 파일 부재로 `No such file or directory`가 무한 발생하던 문제) 수정.
+  - `test -x scripts/.venv/bin/pip` 검사로 변경하고, 유효한 `pip` 실행 파일이 없으면 기존 꼬인 폴더를 자동 제거(`rm -rf`) 후 `python3 -m venv`를 깨끗하게 재생성하도록 보강.
 
 - **Desktop Tauri Python Core 탐지 로직 개선 (`desktop/src-tauri/src/core.rs`)**:
   - `cfg!(debug_assertions)` (개발 및 `cargo run` / `desktop-dev` 구동 시) 활성화 상태일 경우, `desktop/src-tauri/resources` 번들 파일 존재 여부와 무관하게 `scripts/.venv/bin/python`을 최우선으로 탐지하여 구동하도록 보강.
@@ -18,3 +22,4 @@
 ## 3. 검증
 
 - **Rust 유닛 테스트**: `desktop/src-tauri`에서 `cargo test` 실행 완료 (4 passed, 0 failed).
+- **Makefile install 테스트**: `make install` 갱신 동작 확인 완료.

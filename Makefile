@@ -24,7 +24,11 @@ help: ## Show this help message
 
 .PHONY: install
 install: ## Create venv + install raven + dev deps (v0.7.55+ 기본 경로 — Docker는 deprecated)
-	@test -d $(VENV) || python3 -m venv $(VENV)
+	@if [ ! -x $(PIP) ]; then \
+		echo "📦 Creating Python venv in $(VENV)..."; \
+		rm -rf $(VENV); \
+		python3 -m venv $(VENV) || (echo "❌ python3 -m venv 실패"; exit 1); \
+	fi
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -e ./scripts
 	$(PIP) install --quiet pytest typer fastapi uvicorn 'httpx<0.28' pydantic python-frontmatter 'mcp[cli]>=1.0' 'starlette>=0.30'
@@ -32,7 +36,7 @@ install: ## Create venv + install raven + dev deps (v0.7.55+ 기본 경로 — D
 
 .PHONY: venv-check
 venv-check: ## Fail loudly if venv missing (so other targets work)
-	@test -d $(VENV) || (echo "❌ run 'make install' first"; exit 1)
+	@test -x $(PIP) || (echo "❌ run 'make install' first"; exit 1)
 
 # ────────────────────────── Docker (v0.7.55+ deprecated) ──────────────────────
 # v0.7.12~54: Docker compose 표준이었음. v0.7.55+: local host stack(./raven.sh,
