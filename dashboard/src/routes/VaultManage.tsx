@@ -4,6 +4,7 @@ import { Button } from "../components/ui/Button";
 import {
   fetchLinkCheck, runExport, repairVault, cloneVault,
   fetchLocks, releaseLock, apiFetch, formatApiError,
+  getActiveHost, getActiveHostUrl,
   type LinkCheckResult, type LockEntry,
 } from "../lib/api";
 
@@ -37,6 +38,15 @@ export function VaultManage() {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // ── 복사 피드백 상태 ──
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  function handleCopy(text: string, key: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  }
 
   // ── 데스크톱 업데이트 상태 ──
   const [appVersion, setAppVersion] = useState<string>("0.1.0");
@@ -430,6 +440,112 @@ export function VaultManage() {
           </div>
         </div>
       )}
+
+      {/* ── 서버 & API / MCP 환경 정보 ── */}
+      <div style={{ marginTop: 32, borderTop: "2px solid var(--color-hairline)", paddingTop: 24 }}>
+        <h2 style={{ fontSize: 17, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
+          <span>⚙️</span> 현재 서버 & API / MCP 환경 정보
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 16,
+            background: "var(--color-surface-soft)",
+            padding: 18,
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-hairline)",
+          }}
+        >
+          {/* API Endpoint Card */}
+          <div
+            style={{
+              background: "var(--color-canvas)",
+              padding: 14,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-hairline)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 4 }}>
+                REST API 엔드포인트
+              </div>
+              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
+                {getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopy(getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765"), "api")}
+              style={{ fontSize: 11, alignSelf: "flex-start" }}
+            >
+              {copiedKey === "api" ? "✅ 복사됨!" : "📋 API URL 복사"}
+            </Button>
+          </div>
+
+          {/* MCP Endpoint Card */}
+          <div
+            style={{
+              background: "var(--color-canvas)",
+              padding: 14,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-hairline)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase", marginBottom: 4 }}>
+                MCP (LLM 에이전트) 엔드포인트
+              </div>
+              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
+                {`${getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}/mcp`}
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopy(`${getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}/mcp`, "mcp")}
+              style={{ fontSize: 11, alignSelf: "flex-start" }}
+            >
+              {copiedKey === "mcp" ? "✅ 복사됨!" : "📋 MCP URL 복사"}
+            </Button>
+          </div>
+
+          {/* Network & Binding Status */}
+          <div
+            style={{
+              background: "var(--color-canvas)",
+              padding: 14,
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-hairline)",
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 6 }}>
+              바인딩 & 호스트 연결 정보
+            </div>
+            <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div>
+                <span style={{ color: "var(--color-muted)" }}>활성 호스트:</span>{" "}
+                <strong>{getActiveHost().name}</strong> {getActiveHost().isLocal ? "(로컬)" : `(${getActiveHost().endpoint})`}
+              </div>
+              <div>
+                <span style={{ color: "var(--color-muted)" }}>네트워크 수신:</span>{" "}
+                <span style={{ color: "var(--color-success-text)", fontWeight: 600 }}>0.0.0.0 (Tailscale & LAN 허용)</span>
+              </div>
+              <div>
+                <span style={{ color: "var(--color-muted)" }}>CORS 보안:</span>{" "}
+                <span style={{ color: "var(--color-success-text)", fontWeight: 600 }}>전면 허용 (RAVEN_ALLOW_ALL_CORS)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── 데스크톱 전용 설정 및 업데이트 ── */}
       {isTauri && (
