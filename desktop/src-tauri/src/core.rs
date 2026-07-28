@@ -57,8 +57,10 @@ impl ManagedCore {
         let (python, python_path) = resolve_python(resource_dir.as_deref());
         let host = env::var("RAVEN_DESKTOP_HOST")
             .ok()
-            .filter(|h| !h.is_empty());
-        let spec = runtime_launch_spec(python, mcp, python_path, host);
+            .or_else(|| env::var("RAVEN_HOST").ok())
+            .filter(|h| !h.is_empty())
+            .unwrap_or_else(|| "0.0.0.0".to_string());
+        let spec = runtime_launch_spec(python, mcp, python_path, Some(host));
         let mut cmd = Command::new(&spec.program);
         cmd.args(&spec.args)
             .current_dir(safe_workspace(spec.env.iter().any(|(k, _)| k == "PYTHONPATH")))

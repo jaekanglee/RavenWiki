@@ -83,6 +83,10 @@ def main() -> int:
 
     api_port = _free_port(bind_host)
 
+    # Enable seamless CORS across Tailscale / LAN devices when binding externally
+    if bind_host == "0.0.0.0" or bind_host.lower() in ("tailscale", "auto-tailscale", "ts"):
+        os.environ["RAVEN_ALLOW_ALL_CORS"] = "1"
+
     # CORS: allow the Tauri webview origin (prod + dev) before app import.
     extra = os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "")
     os.environ["RAVEN_EXTRA_CORS_ORIGIN"] = (
