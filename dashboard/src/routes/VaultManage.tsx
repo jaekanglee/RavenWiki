@@ -441,11 +441,16 @@ export function VaultManage() {
         </div>
       )}
 
-      {/* ── 서버 & API / MCP 환경 정보 ── */}
+      {/* ── 내 PC 및 서버 & API / MCP 환경 정보 ── */}
       <div style={{ marginTop: 32, borderTop: "2px solid var(--color-hairline)", paddingTop: 24 }}>
         <h2 style={{ fontSize: 17, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
-          <span>⚙️</span> 현재 서버 & API / MCP 환경 정보
+          <span>⚙️</span> 내 PC 및 서버 API / MCP 환경 정보
         </h2>
+        
+        {/* 1. 내 로컬 PC 백엔드 정보 (Local Engine) */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-muted)", marginBottom: 8 }}>
+          💻 내 PC (Local Machine) 백엔드 & MCP 정보
+        </div>
         <div
           style={{
             display: "grid",
@@ -455,9 +460,10 @@ export function VaultManage() {
             padding: 18,
             borderRadius: "var(--radius-md)",
             border: "1px solid var(--color-hairline)",
+            marginBottom: 16,
           }}
         >
-          {/* API Endpoint Card */}
+          {/* Local API Endpoint Card */}
           <div
             style={{
               background: "var(--color-canvas)",
@@ -471,23 +477,23 @@ export function VaultManage() {
           >
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 4 }}>
-                REST API 엔드포인트
+                내 로컬 REST API 엔드포인트
               </div>
               <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
-                {getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}
+                http://127.0.0.1:8765
               </div>
             </div>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => handleCopy(getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765"), "api")}
+              onClick={() => handleCopy("http://127.0.0.1:8765", "local_api")}
               style={{ fontSize: 11, alignSelf: "flex-start" }}
             >
-              {copiedKey === "api" ? "✅ 복사됨!" : "📋 API URL 복사"}
+              {copiedKey === "local_api" ? "✅ 복사됨!" : "📋 로컬 API URL 복사"}
             </Button>
           </div>
 
-          {/* MCP Endpoint Card */}
+          {/* Local MCP Endpoint Card */}
           <div
             style={{
               background: "var(--color-canvas)",
@@ -501,23 +507,23 @@ export function VaultManage() {
           >
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase", marginBottom: 4 }}>
-                MCP (LLM 에이전트) 엔드포인트
+                내 로컬 MCP (LLM 에이전트) 엔드포인트
               </div>
               <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
-                {`${getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}/mcp`}
+                http://127.0.0.1:8765/mcp
               </div>
             </div>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => handleCopy(`${getActiveHostUrl() || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8765")}/mcp`, "mcp")}
+              onClick={() => handleCopy("http://127.0.0.1:8765/mcp", "local_mcp")}
               style={{ fontSize: 11, alignSelf: "flex-start" }}
             >
-              {copiedKey === "mcp" ? "✅ 복사됨!" : "📋 MCP URL 복사"}
+              {copiedKey === "local_mcp" ? "✅ 복사됨!" : "📋 로컬 MCP URL 복사"}
             </Button>
           </div>
 
-          {/* Network & Binding Status */}
+          {/* Local Network & Binding Status */}
           <div
             style={{
               background: "var(--color-canvas)",
@@ -527,13 +533,9 @@ export function VaultManage() {
             }}
           >
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 6 }}>
-              바인딩 & 호스트 연결 정보
+              내 PC 수신 및 보안 정책
             </div>
             <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-              <div>
-                <span style={{ color: "var(--color-muted)" }}>활성 호스트:</span>{" "}
-                <strong>{getActiveHost().name}</strong> {getActiveHost().isLocal ? "(로컬)" : `(${getActiveHost().endpoint})`}
-              </div>
               <div>
                 <span style={{ color: "var(--color-muted)" }}>네트워크 수신:</span>{" "}
                 <span style={{ color: "var(--color-success-text)", fontWeight: 600 }}>0.0.0.0 (Tailscale & LAN 허용)</span>
@@ -542,9 +544,52 @@ export function VaultManage() {
                 <span style={{ color: "var(--color-muted)" }}>CORS 보안:</span>{" "}
                 <span style={{ color: "var(--color-success-text)", fontWeight: 600 }}>전면 허용 (RAVEN_ALLOW_ALL_CORS)</span>
               </div>
+              <div>
+                <span style={{ color: "var(--color-muted)" }}>표준 API 포트:</span>{" "}
+                <strong style={{ fontFamily: "monospace" }}>8765</strong>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* 2. 현재 선택된 활성 타겟 호스트 정보 (만약 원격 연결 중이라면) */}
+        {!getActiveHost().isLocal && (
+          <div
+            style={{
+              background: "var(--color-canvas)",
+              padding: 14,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-primary-soft)",
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase", marginBottom: 6 }}>
+              🌐 현재 열람 중인 원격 타겟 호스트 (Active Target Host)
+            </div>
+            <div style={{ fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <strong>{getActiveHost().name}</strong> ({getActiveHost().endpoint})
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopy(getActiveHostUrl(), "remote_api")}
+                  style={{ fontSize: 11 }}
+                >
+                  {copiedKey === "remote_api" ? "✅ 복사됨!" : "📋 원격 API URL 복사"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleCopy(`${getActiveHostUrl()}/mcp`, "remote_mcp")}
+                  style={{ fontSize: 11 }}
+                >
+                  {copiedKey === "remote_mcp" ? "✅ 복사됨!" : "📋 원격 MCP URL 복사"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── 데스크톱 전용 설정 및 업데이트 ── */}
