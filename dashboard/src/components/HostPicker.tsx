@@ -29,33 +29,48 @@ export function HostPicker() {
     setActiveId(getActiveHostId());
   }, []);
 
-  useEffect(() => {
-    async function checkActiveStatus() {
-      const activeHost = getActiveHost();
-      if (activeHost.isLocal) {
-        setActiveStatus("local");
-        setActiveError(null);
-        return;
-      }
-      setActiveStatus("checking");
+  const checkActiveStatus = async () => {
+    const activeHost = getActiveHost();
+    if (activeHost.isLocal) {
+      setActiveStatus("local");
       setActiveError(null);
-      try {
-        const res = await testHostConnection(activeHost.endpoint);
-        if (res.ok) {
-          setActiveStatus("online");
-        } else {
-          setActiveStatus("offline");
-          setActiveError(res.error || "연결 실패");
-        }
-      } catch (e: any) {
-        setActiveStatus("offline");
-        setActiveError(e.message || String(e));
-      }
+      return;
     }
+    setActiveStatus("checking");
+    setActiveError(null);
+    try {
+      const res = await testHostConnection(activeHost.endpoint);
+      if (res.ok) {
+        setActiveStatus((prev) => {
+          if (prev === "offline") {
+            window.location.reload();
+          }
+          return "online";
+        });
+      } else {
+        setActiveStatus("offline");
+        setActiveError(res.error || "연결 실패");
+      }
+    } catch (e: any) {
+      setActiveStatus("offline");
+      setActiveError(e.message || String(e));
+    }
+  };
+
+  useEffect(() => {
     if (hosts.length > 0) {
       checkActiveStatus();
     }
   }, [activeId, hosts]);
+
+  // 오프라인 상태일 때 5초 간격으로 백그라운드 자동 재연결 시도
+  useEffect(() => {
+    if (activeStatus !== "offline") return;
+    const interval = setInterval(() => {
+      checkActiveStatus();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeStatus]);
 
   function handleSelectHost(id: string) {
     setActiveHostId(id);
@@ -200,7 +215,7 @@ export function HostPicker() {
           </>
         )}
         {activeStatus === "online" && (
-          <>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
               className="status-dot online"
               style={{
@@ -222,10 +237,26 @@ export function HostPicker() {
             >
               정상 연결됨
             </span>
-          </>
+            <button
+              type="button"
+              onClick={checkActiveStatus}
+              style={{
+                fontSize: 11,
+                padding: "1px 4px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "var(--color-muted)",
+                cursor: "pointer",
+              }}
+              title="연결 상태 다시 확인"
+            >
+              🔄
+            </button>
+          </div>
         )}
         {activeStatus === "offline" && (
-          <>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span
               className="status-dot offline"
               style={{
@@ -247,7 +278,25 @@ export function HostPicker() {
             >
               연결 실패 {activeError ? `(${activeError})` : ""}
             </span>
-          </>
+            <button
+              type="button"
+              onClick={checkActiveStatus}
+              style={{
+                fontSize: 11,
+                padding: "1px 6px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-danger-text)",
+                background: "var(--color-surface-soft)",
+                color: "var(--color-danger-text)",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontFamily: "var(--font-display)",
+              }}
+              title="상대 PC 백엔드 연결 다시 확인"
+            >
+              🔄 재시도
+            </button>
+          </div>
         )}
         {activeStatus === "local" && (
           <>

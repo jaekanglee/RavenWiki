@@ -3,11 +3,16 @@
 ## 1. 개요
 
 - **작성일**: 2026-07-28
-- **주요 내용**: Makefile install venv 자동 복구 보강 및 Desktop Tauri 개발 모드(`debug_assertions`)에서 Python Core 인터프리터 감지 우선순위 개선
+- **주요 내용**: Dashboard 호스트 자동 재연결(Auto-Reconnect) 및 수동 재시도 버튼 추가, Makefile install venv 자동 복구, Desktop Tauri dev 모드 파이썬 탐지 보강
 
 ---
 
 ## 2. 주요 변경 사항
+
+- **Dashboard 호스트 픽서(`HostPicker.tsx`) 수동 재시도 버튼 및 5초 자동 재연결(Auto-Reconnect) 도입**:
+  - 상대 PC 또는 원격 백엔드가 끊긴 오프라인 상태(`offline`)일 때 5초 간격으로 백그라운드 헬스체크를 자동 수행하도록 보강.
+  - 상대 PC가 재부팅을 마치고 백엔드가 복구되면 내 쪽 화면에서 자동으로 `정상 연결됨` 상태로 복구되고 최신 보관소 데이터를 동기화하도록 구현.
+  - 연결 실패 문구 옆에 `[🔄 재시도]` 수동 재연결 버튼을 탑재하여 클릭 한 번으로 백엔드 연결 상태를 즉시 재확인할 수 있도록 개선.
 
 - **Makefile `install` 및 `venv-check` 타겟 안정화**:
   - `test -d scripts/.venv` 검사 방식의 허점(신규 PC/clone 환경에서 venv 생성이 꼬여 `scripts/.venv` 디렉토리만 남아있을 경우 `pip` 실행 파일 부재로 `No such file or directory`가 무한 발생하던 문제) 수정.
@@ -21,5 +26,6 @@
 
 ## 3. 검증
 
+- **Dashboard 빌드 및 TypeScript 체크**: `npm run build` 완료 (`built in 4.15s`, error 0개).
 - **Rust 유닛 테스트**: `desktop/src-tauri`에서 `cargo test` 실행 완료 (4 passed, 0 failed).
 - **Makefile install 테스트**: `make install` 갱신 동작 확인 완료.
