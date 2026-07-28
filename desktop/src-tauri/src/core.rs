@@ -142,6 +142,14 @@ fn resolve_python(resource_dir: Option<&Path>) -> (PathBuf, Option<PathBuf>) {
         return (PathBuf::from(p), None);
     }
 
+    // Dev mode (cargo run / desktop-dev): prefer local scripts/.venv over stale bundled resources
+    if cfg!(debug_assertions) {
+        let dev_venv = dev_workspace_root().join("scripts/.venv/bin/python");
+        if dev_venv.exists() {
+            return (dev_venv, None);
+        }
+    }
+
     // Bundled mode: Resources/resources/python/bin/python3 + Resources/resources/raven/
     if let Some(res) = resource_dir {
         let bundled_python = res
@@ -155,7 +163,7 @@ fn resolve_python(resource_dir: Option<&Path>) -> (PathBuf, Option<PathBuf>) {
         }
     }
 
-    // Dev mode: scripts/.venv/bin/python, raven importable from CWD
+    // Dev mode fallback: scripts/.venv/bin/python, raven importable from CWD
     (dev_workspace_root().join("scripts/.venv/bin/python"), None)
 }
 
