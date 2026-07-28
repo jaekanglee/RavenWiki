@@ -24,7 +24,7 @@ platform :android do
 
     firebase_app_distribution(
       app: "1:837738262401:android:2928e6c14480ba9e354280",
-      testers: "ksdy234@gmail.com",
+      testers: ENV["RAVEN_FASTLANE_TESTERS"],
       release_notes: "Dev build uploaded via Fastlane",
       apk_path: "androidApp/build/outputs/apk/dev/debug/androidApp-dev-debug.apk"
     )
@@ -41,7 +41,7 @@ platform :android do
 
     firebase_app_distribution(
       app: "1:837738262401:android:9e67a53d3548a992354280",
-      testers: "ksdy234@gmail.com",
+      testers: ENV["RAVEN_FASTLANE_TESTERS"],
       release_notes: "Prod build uploaded via Fastlane",
       apk_path: "androidApp/build/outputs/apk/prod/release/androidApp-prod-release-unsigned.apk"
     )
