@@ -18,9 +18,14 @@ sealed class MainIntent {
     object SyncDocuments : MainIntent()
 }
 
+enum class ConnectionStatus {
+    Idle, Connecting, Success, Error
+}
+
 data class MainState(
     val documents: List<Document> = emptyList(),
-    val isLoading: Boolean = false
+    val connectionStatus: ConnectionStatus = ConnectionStatus.Idle,
+    val errorMessage: String? = null
 )
 
 sealed class MainSideEffect {
@@ -56,13 +61,14 @@ class MainViewModel(
 
     private fun syncDocuments() {
         scope.launch {
-            _state.value = _state.value.copy(isLoading = true)
+            _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Connecting, errorMessage = null)
             try {
                 syncDocumentsUseCase()
+                _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Success)
             } catch (e: Exception) {
-                _sideEffect.emit(MainSideEffect.ShowError(e.message ?: "Unknown error"))
-            } finally {
-                _state.value = _state.value.copy(isLoading = false)
+                val errorMsg = e.message ?: "Unknown error"
+                _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Error, errorMessage = errorMsg)
+                _sideEffect.emit(MainSideEffect.ShowError(errorMsg))
             }
         }
     }

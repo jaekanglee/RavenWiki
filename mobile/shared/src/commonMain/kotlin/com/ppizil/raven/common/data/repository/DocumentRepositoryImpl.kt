@@ -30,38 +30,41 @@ class DocumentRepositoryImpl(
     }
 
     override suspend fun fetchDocument(id: String) {
-        val endpoint = settingsRepository.getEndpoint() ?: return
-        val apiKey = settingsRepository.getApiKey() ?: return
+        val endpoint = settingsRepository.getEndpoint()?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: "http://10.0.2.2:8765"
+        val apiKey = settingsRepository.getApiKey()
         
         try {
-            val response = httpClient.get("$endpoint/api/docs/$id") {
-                headers {
-                    append("Authorization", "Bearer $apiKey")
+            val requestBuilder: HttpRequestBuilder.() -> Unit = {
+                if (!apiKey.isNullOrBlank()) {
+                    headers {
+                        append("Authorization", "Bearer $apiKey")
+                    }
                 }
             }
-            val doc = response.body<DocumentDto>()
-            queries.insertDocument(doc.id, doc.title, doc.content, false, System.currentTimeMillis())
+            val response = httpClient.get("$endpoint/api/index.json", requestBuilder)
+            val docs = response.body<List<DocumentDto>>()
+            val doc = docs.find { it.slug == id } ?: return
+            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", false, System.currentTimeMillis())
         } catch (e: Exception) {
             println("Failed to fetch document: ${e.message}")
         }
     }
 
     override suspend fun syncAllDocuments() {
-        val endpoint = settingsRepository.getEndpoint() ?: return
-        val apiKey = settingsRepository.getApiKey() ?: return
+        val endpoint = settingsRepository.getEndpoint()?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: "http://10.0.2.2:8765"
+        val apiKey = settingsRepository.getApiKey()
 
-        try {
-            val response = httpClient.get("$endpoint/api/docs") {
+        val requestBuilder: HttpRequestBuilder.() -> Unit = {
+            if (!apiKey.isNullOrBlank()) {
                 headers {
                     append("Authorization", "Bearer $apiKey")
                 }
             }
-            val docs = response.body<List<DocumentDto>>()
-            docs.forEach { doc ->
-                queries.insertDocument(doc.id, doc.title, doc.content, false, System.currentTimeMillis())
-            }
-        } catch (e: Exception) {
-            println("Failed to sync documents: ${e.message}")
+        }
+        val response = httpClient.get("$endpoint/api/index.json", requestBuilder)
+        val docs = response.body<List<DocumentDto>>()
+        docs.forEach { doc ->
+            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", false, System.currentTimeMillis())
         }
     }
 }

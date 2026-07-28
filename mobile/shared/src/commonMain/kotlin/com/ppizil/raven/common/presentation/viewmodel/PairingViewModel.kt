@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 
 sealed class PairingIntent {
     object StartPairing : PairingIntent()
+    data class PairManual(val endpoint: String) : PairingIntent()
 }
 
 sealed class PairingState {
@@ -29,7 +30,8 @@ sealed class PairingSideEffect {
 }
 
 class PairingViewModel(
-    private val pairDeviceUseCase: PairDeviceUseCase
+    private val pairDeviceUseCase: PairDeviceUseCase,
+    private val settingsRepository: com.ppizil.raven.common.domain.repository.SettingsRepository
 ) : MviViewModel<PairingIntent, PairingState, PairingSideEffect> {
 
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -43,6 +45,7 @@ class PairingViewModel(
     override fun sendIntent(intent: PairingIntent) {
         when (intent) {
             is PairingIntent.StartPairing -> startPairing()
+            is PairingIntent.PairManual -> pairManual(intent.endpoint)
         }
     }
 
@@ -61,6 +64,32 @@ class PairingViewModel(
                     _state.value = PairingState.Idle
                 }
             }
+        }
+    }
+
+    private fun formatEndpoint(input: String): String {
+        var formatted = input.trim().trimEnd('/')
+        if (formatted.isBlank()) return formatted
+        
+        if (!formatted.startsWith("http://") && !formatted.startsWith("https://")) {
+            formatted = "http://$formatted"
+        }
+        
+        val withoutScheme = formatted.substringAfter("://")
+        val domainOrIp = withoutScheme.substringBefore("/")
+        if (!domainOrIp.contains(":")) {
+            formatted = formatted.replaceFirst(domainOrIp, "$domainOrIp:8765")
+        }
+        
+        return formatted
+    }
+
+    private fun pairManual(endpoint: String) {
+        scope.launch {
+            val formattedEndpoint = formatEndpoint(endpoint)
+            settingsRepository.saveEndpoint(formattedEndpoint)
+            _state.value = PairingState.Success
+            _sideEffect.emit(PairingSideEffect.NavigateToMain)
         }
     }
 }

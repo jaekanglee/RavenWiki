@@ -23,6 +23,9 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 implementation(project(":shared"))
+                implementation(libs.sqldelight.android)
+                implementation(libs.koin.android)
+                implementation(libs.koin.core)
             }
         }
     }

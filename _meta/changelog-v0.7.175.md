@@ -49,3 +49,11 @@ Raven Dashboard를 macOS Tauri 창으로 기동하고, 그 수명주기에 맞�
 - **보안/페어링**: QR 코드 스캐너 공통 인터페이스(`QrScanner`) 및 `PairingViewModel` 구현 (테스트 완료).
 - **UI/UX**: `MainViewModel` 및 실제 도메인 객체와 바인딩된 `SlidingPanelLayout` 적용 완료.
 - **패키지 명 변경**: Android, iOS 공통으로 패키지/번들 ID를 `com.ppizil.raven`으로 일괄 변경하고 `androidUnitTest` 등 19개 테스크 빌드 정상 동작 확인 완료.
+
+## 2026-07-28 Mobile App Connection & UX Improvements
+
+- **UX 개선 (Connection Status):** 모바일 앱(`MainViewModel`, `App.kt`)에서 연결 상태(로딩, 성공, 실패)를 시각적으로 명확히 분리하고, 네트워크 예외 발생 시 더 이상 조용히 실패하지 않고 명시적인 에러 메시지를 표시하도록 개선했습니다.
+- **스마트 포매팅 (Smart Endpoint):** 사용자가 IP만 입력(`100.x.x.x`)해도 자동으로 `http://`와 `:8765` 포트를 붙여주는 자동 완성 로직을 `PairingViewModel`에 추가했습니다.
+- **버그 픽스 (URL Trailing Slash):** `DocumentRepositoryImpl`에서 엔드포인트 URL 조합 시 끝에 슬래시(`/`)가 붙어 `//api/...` 형태로 잘못된 요청이 전송되는 현상을 방지했습니다.
+- **아이콘 리소스 적용 (Cute Raven):** 새로운 캐주얼 까마귀 아이콘 디자인을 생성하여 macOS 데스크톱(`desktop/src-tauri/icons/`) 및 안드로이드(`mipmap-*`) 환경에 맞게 리사이징 및 적용을 완료했습니다 (중복된 구형 `.webp` 및 `.xml` 에러 유발 파일 싹 정리).
+- **배포 (1.0.0-dev12):** `make deploy-dev` (Fastlane)를 통해 1.0.0-dev12 빌드를 Firebase App Distribution에 성공적으로 배포했습니다.

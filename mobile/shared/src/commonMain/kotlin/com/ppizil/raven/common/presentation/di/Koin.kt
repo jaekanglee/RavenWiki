@@ -52,6 +52,6 @@ val commonModule = module {
     factory { SyncDocumentsUseCase(get()) }
     
     // ViewModels
-    factory { PairingViewModel(get()) }
+    factory { PairingViewModel(get(), get()) }
     factory { MainViewModel(get(), get()) }
 }

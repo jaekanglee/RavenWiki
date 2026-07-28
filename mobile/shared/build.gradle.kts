@@ -35,6 +35,7 @@ kotlin {
                 implementation(libs.ktor.serialization.kotlinx.json)
                 
                 implementation(libs.koin.core)
+                implementation(libs.koin.compose)
                 
                 implementation(libs.sqldelight.coroutines)
                 implementation(libs.kotlinx.serialization.json)
