@@ -1,8 +1,14 @@
+import os
 import re
+import sys
 from pathlib import Path
 
 def main():
-    vault_root = Path("/Users/jaekanglee/Raven/raven-dev")
+    if len(sys.argv) > 1:
+        vault_root = Path(sys.argv[1])
+    else:
+        vaults_dir = Path(os.environ.get("RAVEN_VAULTS_DIR", Path.home() / "Raven"))
+        vault_root = vaults_dir / "raven-dev"
     content_dir = vault_root / "content"
     
     # 1. 스캔하여 basename -> full slug 맵 구축

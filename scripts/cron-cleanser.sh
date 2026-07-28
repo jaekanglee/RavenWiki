@@ -5,8 +5,8 @@
 
 set -e
 
-# 기본 경로 설정
-RAVEN_DIR="/Users/jaekanglee/Dev/Project/Raven"
+# 기본 경로 설정 — 이 스크립트가 위치한 repo를 기준으로 자동 감지 (머신마다 체크아웃 위치가 다를 수 있음)
+RAVEN_DIR="${RAVEN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 VAULT_NAME="${1:-default}"
 
 echo "[$(date)] Raven Cron Cleanser 시작 (Vault: ${VAULT_NAME})"
