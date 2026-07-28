@@ -35,7 +35,18 @@
 
 ---
 
+### 2.4 데스크톱 앱 부팅 경주 조건(Race Condition) 및 빈 화면(Blank Screen) 이슈 해결
+- **Rust `core_endpoint` / `mcp_endpoint` async 전환 (`desktop/src-tauri/src/lib.rs`)**:
+  - `lib.rs`의 `setup` 훅에서 Python Core 시작을 비동기 백그라운드 태스크로 구동함에 따라, 앱 기동 직후 웹뷰가 `core_endpoint` IPC 명령을 부르면 Python Core 준비 완료 전 `""`(빈 문자열)을 즉시 반환하여 프론트엔드가 loopback 백엔드 주소 대신 커스텀 프로토콜(`http://tauri.localhost/api/...`)로 API 요청을 보내 실패하고 빈 화면이 뜨던 경주 조건 해결.
+  - Rust `core_endpoint` 및 `mcp_endpoint` 명령을 async 함수로 변환하고 Python Core 준비 완료 시점까지 대기(지연 루프 대기)하도록 보강.
+- **프론트엔드 endpoint 획득 재시도 로직 보강 (`dashboard/src/main.tsx`)**:
+  - `initDesktopEndpoint()` 비동기 재시도 루프(최대 30회, 6초 타임아웃)를 도입하여 데스크톱 실행 시 Python Core 주소(`http://127.0.0.1:port`)를 안정적으로 받아 렌더링되도록 보충.
+
+---
+
 ## 3. 검증
 
-- **TypeScript 타입 체크**: `npx tsc -b` (dashboard) 실행 완료 — 오류 0건 pass.
-- **백엔드 라우팅 및 CORS 검증**: CORS regex 패턴 정의 및 `delete_vault` exception handling 안전 조치 적용 완료.
+- **TypeScript 타입 체크 & 빌드**: `npm run build` (dashboard) 실행 완료 — pass.
+- **Rust Tauri 유닛 테스트**: `cargo test` (desktop/src-tauri) 실행 완료 — 4 passed.
+- **Python 코어 & API 테스트**: `pytest tests/ -q` 실행 완료 — 704 passed.
+

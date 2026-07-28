@@ -31,26 +31,36 @@ impl CoreState {
     }
 }
 
-/// Exposes the managed Python Core endpoint to the webview.
+/// Exposes the managed Python Core endpoint to the webview (waits until ready).
 #[command]
-fn core_endpoint(state: State<'_, CoreState>) -> String {
-    state
-        .0
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().map(|core| core.endpoint.clone()))
-        .unwrap_or_default()
+async fn core_endpoint(state: State<'_, CoreState>) -> Result<String, String> {
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(15);
+    while start.elapsed() < timeout {
+        if let Ok(guard) = state.0.lock() {
+            if let Some(ref core) = *guard {
+                return Ok(core.endpoint.clone());
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Err("Python Core startup timed out".to_string())
 }
 
-/// Exposes the MCP HTTP endpoint to the webview (empty string if disabled).
+/// Exposes the MCP HTTP endpoint to the webview (waits until core is ready, empty string if disabled).
 #[command]
-fn mcp_endpoint(state: State<'_, CoreState>) -> String {
-    state
-        .0
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().and_then(|core| core.mcp_endpoint.clone()))
-        .unwrap_or_default()
+async fn mcp_endpoint(state: State<'_, CoreState>) -> Result<String, String> {
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(15);
+    while start.elapsed() < timeout {
+        if let Ok(guard) = state.0.lock() {
+            if let Some(ref core) = *guard {
+                return Ok(core.mcp_endpoint.clone().unwrap_or_default());
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Ok(String::new())
 }
 
 /// Exposes the desktop app version.

@@ -8,19 +8,31 @@ import { setApiBase } from "./lib/api-base";
 
 // Detect Tauri webview and fetch the Python Core endpoint.
 // Uses the internal invoke bridge (no @tauri-apps/api dependency needed).
-// Wrapped in a promise so React render waits for the endpoint without
-// requiring top-level await (vite default build target).
-const tauriInternals = (window as any).__TAURI_INTERNALS__;
-const endpointReady: Promise<void> = tauriInternals?.invoke
-  ? tauriInternals
-      .invoke("core_endpoint")
-      .then((endpoint: string) => {
-        if (endpoint) setApiBase(endpoint);
-      })
-      .catch(() => {
-        // fallback: relative URLs (browser-like behavior)
-      })
-  : Promise.resolve();
+// Retries with timeout to ensure Python Core readiness race condition is resolved.
+async function initDesktopEndpoint(): Promise<void> {
+  const tauriInternals = (window as any).__TAURI_INTERNALS__;
+  if (!tauriInternals?.invoke) return;
+
+  const maxAttempts = 30;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const endpoint = await tauriInternals.invoke("core_endpoint");
+      if (endpoint && typeof endpoint === "string" && endpoint.trim().length > 0) {
+        setApiBase(endpoint.trim());
+        return;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[Raven Desktop] Core endpoint query retry:", e);
+    }
+    await new Promise((res) => setTimeout(res, 200));
+  }
+}
+
+const endpointReady: Promise<void> = initDesktopEndpoint().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error("[Raven Desktop] Failed to obtain core endpoint:", err);
+});
 
 // v0.6.10 (P16): PWA registerType="prompt" handler.
 import { registerSW } from "virtual:pwa-register";

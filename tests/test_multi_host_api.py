@@ -13,25 +13,29 @@ client = TestClient(app)
 
 
 def test_register_vault_endpoint():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / "my-existing-vault"
-        tmp_path.mkdir(parents=True, exist_ok=True)
-        (tmp_path / "content").mkdir(exist_ok=True)
+    registry().remove("test-registered-vault")
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / "my-existing-vault"
+            tmp_path.mkdir(parents=True, exist_ok=True)
+            (tmp_path / "content").mkdir(exist_ok=True)
 
-        res = client.post(
-            "/api/vaults/register",
-            json={
-                "name": "test-registered-vault",
-                "path": str(tmp_path),
-                "mode": "personal",
-                "owner": "user",
-            },
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["ok"] is True
-        assert data["vault"]["name"] == "test-registered-vault"
-        assert registry().get("test-registered-vault") is not None
+            res = client.post(
+                "/api/vaults/register",
+                json={
+                    "name": "test-registered-vault",
+                    "path": str(tmp_path),
+                    "mode": "personal",
+                    "owner": "user",
+                },
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["ok"] is True
+            assert data["vault"]["name"] == "test-registered-vault"
+            assert registry().get("test-registered-vault") is not None
+    finally:
+        registry().remove("test-registered-vault")
 
 
 def test_register_vault_nonexistent_directory():

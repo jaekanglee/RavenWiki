@@ -73,7 +73,7 @@ _cors_origin_regex = (
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins if _allow_all_cors else ["*"], # fallback or wildcard for LAN/Tailscale when needed
+    allow_origins=["*"] if _allow_all_cors else _cors_origins,
     allow_origin_regex=None if _allow_all_cors else _cors_origin_regex,
     allow_methods=["*"],
     allow_headers=["*"],
