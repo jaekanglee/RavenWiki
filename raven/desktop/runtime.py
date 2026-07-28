@@ -73,7 +73,14 @@ def main() -> int:
 
     import uvicorn
 
-    bind_host = args.host
+    bind_host = os.environ.get("RAVEN_HOST", args.host)
+    if bind_host.lower() in ("tailscale", "auto-tailscale", "ts") or bind_host == "0.0.0.0":
+        from raven.api.main import get_tailscale_ip
+        ts_ip = get_tailscale_ip()
+        if ts_ip and bind_host.lower() in ("tailscale", "auto-tailscale", "ts"):
+            bind_host = ts_ip
+            print(f"🔒 [Desktop Core] Auto-bound to Tailscale IP: {ts_ip}", file=sys.stderr)
+
     api_port = _free_port(bind_host)
 
     # CORS: allow the Tauri webview origin (prod + dev) before app import.
