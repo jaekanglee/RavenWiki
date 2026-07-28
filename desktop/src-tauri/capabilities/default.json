@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "allow-core-endpoint",
-    "allow-mcp-endpoint"
+    "allow-mcp-endpoint",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

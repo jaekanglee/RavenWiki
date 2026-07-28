@@ -59,6 +59,8 @@ pub fn run() {
         .unwrap_or(false);
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(CoreState::default())
         .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
         .setup(move |app| {

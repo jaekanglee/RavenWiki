@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useMatch, Navigate } from "react-router-dom"
 import clsx from "clsx";
 import { Sidebar } from "./Sidebar";
 import { CommandPalette } from "./CommandPalette";
+import { UpdateChecker } from "./UpdateChecker";
 import { fetchRawList, fetchVaults, fetchTree, getActiveVault, setActiveVault, type RawItem } from "../lib/api";
 import { useEffect, useState } from "react";
 import type { TreeNode, VaultMeta } from "../types";
@@ -303,6 +304,7 @@ export function Layout() {
       </main>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} vault={vault} />
+      <UpdateChecker />
     </div>
   );
 }

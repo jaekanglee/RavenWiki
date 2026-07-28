@@ -160,12 +160,16 @@ desktop-dmg: desktop-build ## Build DMG installer from release binary
 	@bash scripts/make-dmg.sh
 	@echo "✅ DMG: desktop/src-tauri/target/release/bundle/dmg/Raven_0.1.0_aarch64.dmg"
 
-desktop-release: desktop-dmg ## Build DMG + upload to GitHub Release (requires gh CLI)
+desktop-release: desktop-dmg ## Build DMG + signed auto-update artifact, upload both to GitHub Release (requires gh CLI + TAURI_SIGNING_PRIVATE_KEY)
 	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0"); \
+	VERSION=$${TAG#v}; \
 	DMG="desktop/src-tauri/target/release/bundle/dmg/Raven_0.1.0_aarch64.dmg"; \
-	echo "📦 Uploading $$DMG to release $$TAG ..."; \
-	gh release upload "$$TAG" "$$DMG" --clobber; \
-	echo "✅ Release $$TAG updated"
+	bash scripts/sign-update.sh "$$VERSION" "jaekanglee/RavenWiki"; \
+	ARTIFACT="desktop/src-tauri/target/release/bundle/updater/Raven.app.tar.gz"; \
+	MANIFEST="desktop/src-tauri/target/release/bundle/updater/latest.json"; \
+	echo "📦 Uploading $$DMG + $$ARTIFACT + $$MANIFEST to release $$TAG ..."; \
+	gh release upload "$$TAG" "$$DMG" "$$ARTIFACT" "$$MANIFEST" --clobber; \
+	echo "✅ Release $$TAG updated (auto-update manifest included)"
 # ────────────────────────── mobile ──────────────────────────
 
 .PHONY: deploy-dev deploy-prod
