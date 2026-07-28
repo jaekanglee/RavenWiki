@@ -65,9 +65,16 @@ _cors_origins = ["*"] if _allow_all_cors else [
     "http://tauri.localhost",
     *_extra_cors,
 ]
+# Tailscale (100.64.0.0/10) & private network (192.168.x.x, 10.x.x.x, 172.16-31.x.x) CORS regex
+_cors_origin_regex = (
+    r"^https?://(localhost|127\.0\.0\.1|100\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$"
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=_cors_origins if _allow_all_cors else ["*"], # fallback or wildcard for LAN/Tailscale when needed
+    allow_origin_regex=None if _allow_all_cors else _cors_origin_regex,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1689,7 +1696,7 @@ def delete_vault(name: str, force: bool = False):
     if not meta:
         raise HTTPException(status_code=404, detail=f"vault {name!r} not found")
 
-    # 만약 디스크에서 디렉토리가 이미 유실되었다면, 바로 등록 해제 처리
+    # 만약 디스크에서 디렉토리가 이미 유실되었거나 읽을 수 없다면, 등록 해제 처리
     if not meta.path.exists():
         was_default = registry()._data.get("default") == name
         registry().remove(name)
@@ -1699,10 +1706,20 @@ def delete_vault(name: str, force: bool = False):
                 registry().set_default(remaining[0])
         return {"ok": True, "vault": name, "destructive": force, "note": "directory already missing"}
 
-    v = Vault.load(meta)
-    pages = list(v.content_root.rglob("*.md")) if v.content_root.exists() else []
-    log_path = v.root / "log.md"
-    has_log = log_path.exists() and log_path.stat().st_size > 0
+    try:
+        v = Vault.load(meta)
+        pages = list(v.content_root.rglob("*.md")) if v.content_root.exists() else []
+        log_path = v.root / "log.md"
+        has_log = log_path.exists() and log_path.stat().st_size > 0
+    except Exception as e:
+        # 경로 손상 또는 접근 불가 vault 등록 해제 허용
+        was_default = registry()._data.get("default") == name
+        registry().remove(name)
+        if was_default:
+            remaining = list(registry()._data.get("vaults", {}).keys())
+            if remaining:
+                registry().set_default(remaining[0])
+        return {"ok": True, "vault": name, "destructive": False, "note": f"unregistered broken vault ({e})"}
 
     if (pages or has_log) and not force:
         raise HTTPException(

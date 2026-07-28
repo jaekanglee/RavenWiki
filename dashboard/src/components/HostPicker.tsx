@@ -335,13 +335,53 @@ export function HostPicker() {
               </div>
             )}
 
+            {/* ── 등록된 원격 호스트 목록 및 관리 ── */}
+            {hosts.filter((h) => !h.isLocal).length > 0 && (
+              <div style={{ marginTop: 16, borderTop: "1px solid var(--color-hairline)", paddingTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-muted)", marginBottom: 8 }}>
+                  등록된 원격 호스트 목록
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 140, overflowY: "auto" }}>
+                  {hosts
+                    .filter((h) => !h.isLocal)
+                    .map((h) => (
+                      <div
+                        key={h.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 8px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--color-surface-soft)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ fontWeight: 600 }}>{h.name}</span>{" "}
+                          <span style={{ color: "var(--color-muted)", fontSize: 11 }}>({h.endpoint})</span>
+                        </div>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleRemove(h.id)}
+                          title="이 호스트 삭제"
+                        >
+                          삭제
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
               <Button variant="pill" onClick={handleTest} disabled={testing}>
                 {testing ? "테스트 중..." : "연결 테스트"}
               </Button>
               <div style={{ display: "flex", gap: 8 }}>
                 <Button variant="pill" onClick={() => setModalOpen(false)}>
-                  취소
+                  닫기
                 </Button>
                 <Button variant="pillPrimary" onClick={handleSave} disabled={submitting}>
                   추가 및 전환

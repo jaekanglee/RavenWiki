@@ -12,10 +12,14 @@ import sys
 import uvicorn
 
 
+import os
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="raven-api")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    default_host = os.environ.get("RAVEN_HOST", "0.0.0.0" if os.environ.get("RAVEN_ALLOW_ALL_CORS") else "127.0.0.1")
+    default_port = int(os.environ.get("RAVEN_PORT", os.environ.get("PORT_API", "8765")))
+    parser.add_argument("--host", default=default_host, help="Host to bind (default: RAVEN_HOST or 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=default_port, help="Port to bind (default: RAVEN_PORT or 8765)")
     parser.add_argument("--reload", action="store_true", help="dev: auto-reload")
     args = parser.parse_args(argv)
     uvicorn.run(

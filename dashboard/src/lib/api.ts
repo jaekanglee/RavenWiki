@@ -89,14 +89,29 @@ export function saveHosts(hosts: HostConnection[]): void {
   localStorage.setItem(HOSTS_STORE_KEY, JSON.stringify(hosts));
 }
 
-export function addHost(host: Omit<HostConnection, "id">): HostConnection {
-  const hosts = getHosts();
-  const id = `host_${Date.now()}`;
-  let endpoint = host.endpoint.trim();
-  if (endpoint && !endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+export function normalizeEndpoint(input: string): string {
+  let endpoint = input.trim();
+  if (!endpoint) return "";
+  if (!endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
     endpoint = `http://${endpoint}`;
   }
   endpoint = endpoint.replace(/\/+$/, "");
+  try {
+    const parsed = new URL(endpoint);
+    if (!parsed.port) {
+      parsed.port = "8765";
+      return parsed.toString().replace(/\/+$/, "");
+    }
+  } catch {
+    // fallback
+  }
+  return endpoint;
+}
+
+export function addHost(host: Omit<HostConnection, "id">): HostConnection {
+  const hosts = getHosts();
+  const id = `host_${Date.now()}`;
+  const endpoint = normalizeEndpoint(host.endpoint);
 
   const newHost: HostConnection = {
     id,
@@ -147,24 +162,49 @@ export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(fullUrl, init);
 }
 
-export async function testHostConnection(endpoint: string): Promise<{ ok: boolean; vaultsCount: number; error?: string }> {
-  let url = endpoint.trim();
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = `http://${url}`;
+export function formatApiError(err: unknown): string {
+  if (!err) return "알 수 없는 오류";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) {
+    if (err.message.includes("Failed to fetch") || err.name === "TypeError") {
+      return `${err.message} (네트워크/CORS 연결 실패: IP·포트 오타, 타겟 백엔드 미실행, 또는 CORS 블록 확인 필요)`;
+    }
+    return err.message;
   }
-  url = `${url.replace(/\/+$/, "")}/api/vaults`;
+  if (typeof err === "object") {
+    const obj = err as Record<string, any>;
+    if (obj.detail) {
+      if (typeof obj.detail === "string") return obj.detail;
+      if (typeof obj.detail === "object") {
+        return obj.detail.reason || obj.detail.hint || obj.detail.message || JSON.stringify(obj.detail);
+      }
+    }
+    if (obj.message) return String(obj.message);
+    if (obj.error) return String(obj.error);
+    return JSON.stringify(err);
+  }
+  return String(err);
+}
+
+export async function testHostConnection(endpoint: string): Promise<{ ok: boolean; vaultsCount: number; error?: string }> {
+  const normalized = normalizeEndpoint(endpoint);
+  const targetUrl = `${normalized}/api/vaults`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(url, { signal: controller.signal });
+    const r = await fetch(targetUrl, { signal: controller.signal });
     clearTimeout(timer);
     if (!r.ok) {
-      return { ok: false, vaultsCount: 0, error: `HTTP ${r.status}` };
+      const errJson = await r.json().catch(() => ({}));
+      return { ok: false, vaultsCount: 0, error: formatApiError(errJson) || `HTTP ${r.status}` };
     }
     const d = await r.json();
     return { ok: true, vaultsCount: d.vaults?.length || 0 };
-  } catch (e) {
-    return { ok: false, vaultsCount: 0, error: e instanceof Error ? e.message : String(e) };
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      return { ok: false, vaultsCount: 0, error: `요청 시간 초과 (5초) - ${targetUrl} 의 IP/네트워크 연결 상태를 확인하세요.` };
+    }
+    return { ok: false, vaultsCount: 0, error: formatApiError(e) };
   }
 }
 

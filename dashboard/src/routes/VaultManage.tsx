@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
   fetchLinkCheck, runExport, repairVault, cloneVault,
-  fetchLocks, releaseLock, apiFetch,
+  fetchLocks, releaseLock, apiFetch, formatApiError,
   type LinkCheckResult, type LockEntry,
 } from "../lib/api";
 
@@ -165,10 +165,13 @@ export function VaultManage() {
       if (r.status === 409 && window.confirm("문서가 남아 있습니다. vault 폴더까지 강제 삭제할까요?")) {
         r = await apiFetch(`/api/vaults/${encodeURIComponent(name)}?force=true`, { method: "DELETE" });
       }
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+      if (!r.ok) {
+        const errJson = await r.json().catch(() => ({}));
+        throw new Error(formatApiError(errJson) || `HTTP ${r.status}`);
+      }
       await loadVaults();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatApiError(e));
     } finally {
       setBusy(false);
     }

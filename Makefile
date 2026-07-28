@@ -146,7 +146,19 @@ restart-all: ## Full local restart: wipe caches (Vite/__pycache__/pytest/logs) +
 
 # ────────────────────────── desktop ──────────────────────────
 
-.PHONY: desktop-bundle desktop-build desktop-dmg desktop-release
+.PHONY: desktop-dev desktop-rebuild desktop-bundle desktop-build desktop-dmg desktop-release
+
+desktop-dev: desktop-bundle-check ## Run desktop app in dev mode with live reload
+	cd dashboard && npm run desktop:dev
+
+desktop-bundle-check: ## Ensure desktop bundle resources exist
+	@if [ ! -d desktop/src-tauri/resources/raven ] || [ ! -d desktop/src-tauri/resources/python ]; then \
+		echo "📦 번들 자원(desktop/src-tauri/resources)이 준비되어 있지 않아 prepare-bundle.sh를 먼저 실행합니다..."; \
+		$(MAKE) desktop-bundle; \
+	fi
+
+desktop-rebuild: desktop-build ## Rebuild desktop app (.app binary) from latest source
+	@echo "✅ Rebuilt desktop app: desktop/src-tauri/target/release/raven-desktop"
 
 desktop-bundle: ## Prepare bundled Python + Raven source for Tauri .app
 	@bash scripts/prepare-bundle.sh
