@@ -150,7 +150,15 @@ export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 .PHONY: desktop-check desktop-dev desktop-rebuild desktop-bundle desktop-build desktop-dmg desktop-release
 
-desktop-check: ## Check required tools (cargo, node, npm) for desktop app development and auto-install Rust if missing
+desktop-check: ## Check required tools (python venv, cargo, node, npm) for desktop app development and auto-install if missing
+	@if ! command -v python3 >/dev/null 2>&1; then \
+		echo "❌ Python3(python3)가 설치되어 있지 않습니다. Python 3.10 이상을 설치해 주세요."; \
+		exit 1; \
+	fi
+	@if [ ! -f scripts/.venv/bin/python ]; then \
+		echo "📦 개발용 파이썬 환경(scripts/.venv)이 없습니다. 'make install'을 자동으로 실행합니다..."; \
+		$(MAKE) install || exit 1; \
+	fi
 	@if ! command -v cargo >/dev/null 2>&1; then \
 		echo "🦀 Rust(cargo)가 설치되어 있지 않아 rustup을 통해 자동 설치를 진행합니다..."; \
 		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable || exit 1; \

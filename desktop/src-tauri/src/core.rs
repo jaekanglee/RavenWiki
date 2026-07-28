@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::env;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -63,7 +63,7 @@ impl ManagedCore {
         cmd.args(&spec.args)
             .current_dir(safe_workspace(spec.env.iter().any(|(k, _)| k == "PYTHONPATH")))
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::piped());
         for (key, value) in &spec.env {
             cmd.env(key, value);
         }
@@ -78,12 +78,32 @@ impl ManagedCore {
             .stdout
             .take()
             .ok_or_else(|| "Python Core readiness stream을 열 수 없습니다".to_string())?;
+        let stderr = child.stderr.take();
+
         let mut line = String::new();
         BufReader::new(stdout)
             .read_line(&mut line)
             .map_err(|error| format!("Python Core readiness 읽기 실패: {error}"))?;
-        let ready: ReadyMessage = serde_json::from_str(&line)
-            .map_err(|error| format!("Python Core readiness 형식 오류: {error}"))?;
+
+        let ready: ReadyMessage = match serde_json::from_str(&line) {
+            Ok(msg) => msg,
+            Err(error) => {
+                let mut err_msg = String::new();
+                if let Some(err_stream) = stderr {
+                    let mut stderr_reader = BufReader::new(err_stream);
+                    let _ = stderr_reader.read_to_string(&mut err_msg);
+                }
+                let err_msg_trimmed = err_msg.trim();
+                let detail = if err_msg_trimmed.is_empty() {
+                    "Python 프로세스가 응답 출력을 생성하지 않고 즉시 종료되었습니다.".to_string()
+                } else {
+                    format!("stderr: {err_msg_trimmed}")
+                };
+                return Err(format!(
+                    "Python Core readiness 형식 오류 ({error}). {detail} ('make install'로 파이썬 개발 환경을 재구축해 보세요)"
+                ));
+            }
+        };
 
         if ready.host != "127.0.0.1" || ready.port == 0 {
             return Err("Python Core가 유효한 loopback endpoint를 보고하지 않았습니다".to_string());

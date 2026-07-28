@@ -44,12 +44,13 @@
 
 ---
 
-### 2.5 데스크톱 필수 개발 환경 자동 설치/사전 점검 (`desktop-check`)
-- **`Makefile` 내 `desktop-check` 자동 설치 기능 보강**:
-  - `make desktop-dev` 및 `make desktop-build` 실행 시 Rust(`cargo`) 미설치 환경인 경우 `rustup`(`sh.rustup.rs`)을 통해 자동으로 비대화형(`-y`) 설치를 진행하도록 개선.
-  - `PATH`에 `$(HOME)/.cargo/bin`을 자동 포함하여 설치 직후 터미널 재시작 없이도 `cargo` 명령어가 즉시 인식되도록 설정.
+### 2.5 데스크톱 필수 개발 환경 자동 설치 및 Python Core 진단 개선 (`desktop-check` / `core.rs`)
+- **`Makefile` 내 `scripts/.venv` 파이썬 개발 환경 자동 구축**:
+  - `make desktop-dev` 및 `make desktop-build` 실행 시 `scripts/.venv/bin/python`이 없는 신규 PC 환경에서 `make install`을 자동으로 구동하여 파이썬 venv 생성 및 개발 패키지(fastapi, uvicorn 등)를 원스톱 설치하도록 보강.
+  - Rust(`cargo`) 미설치 환경인 경우 `rustup`(`sh.rustup.rs -y`)을 통해 자동 설치 진행 및 `PATH`에 `$(HOME)/.cargo/bin` 추가.
   - Node.js 미설치 환경이고 Homebrew가 존재할 경우 `brew install node`로 자동 설치 시도.
-  - `dashboard/node_modules` 미존재 시 `npm install` 자동 수행 유지.
+- **Rust `core.rs`의 Python Core readiness 진단 메시지 보강**:
+  - 파이썬 환경 미구축이나 모듈 누락으로 Python Core 프로세스가 예외를 내며 튕겼을 때 `stderr` 표준 에러 스트림을 수집하여 `EOF while parsing a value` 대신 실제 파이썬 예외 Traceback과 해결 가이드를 명확하게 안내하도록 개선.
 
 ---
 
