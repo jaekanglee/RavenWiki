@@ -28,11 +28,20 @@ LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_MCP_PORT = 8765
 
 
+DEFAULT_API_PORT = int(os.environ.get("PORT_API", "8765"))
+
+
 def _free_port(host: str = LOOPBACK_HOST) -> int:
-    """Bind to port 0 to let the OS assign a free port, then release."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((host, 0))
-        return s.getsockname()[1]
+    """Try preferred 8765 port first, fallback to OS assigned free port if occupied."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, DEFAULT_API_PORT))
+            return DEFAULT_API_PORT
+    except Exception:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, 0))
+            return s.getsockname()[1]
 
 
 def _build_mcp_app(mode: str):
