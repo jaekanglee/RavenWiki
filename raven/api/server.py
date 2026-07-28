@@ -60,6 +60,9 @@ _cors_origins = ["*"] if _allow_all_cors else [
     f"http://127.0.0.1:{_dashboard_port}",
     f"http://localhost:{_api_port}",         # built dashboard served by this API
     f"http://127.0.0.1:{_api_port}",
+    "tauri://localhost",
+    "https://tauri.localhost",
+    "http://tauri.localhost",
     *_extra_cors,
 ]
 app.add_middleware(

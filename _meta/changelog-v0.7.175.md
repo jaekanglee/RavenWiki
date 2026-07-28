@@ -64,3 +64,11 @@ Raven Dashboard를 macOS Tauri 창으로 기동하고, 그 수명주기에 맞�
 - **Host Switcher UI (`dashboard/src/components/HostPicker.tsx`):** 사이드바 상단에 호스트 선택 드롭다운 및 연결 추가/삭제 모달을 구현했습니다. 연결 전 `GET /api/vaults` 핑(Ping) 테스트로 원격 보관소 존재 및 헬스체크를 수행합니다.
 - **기존 폴더 등록 API (`POST /api/vaults/register`):** 기존 폴더를 보관소로 손쉽게 등록하는 API 엔드포인트를 백엔드(`raven/api/server.py`)에 추가하고 대시보드 마법사(`NewVaultWizard.tsx`)에 "기존 폴더 등록" 탭을 추가했습니다.
 - **CORS 설정 보강 (`raven/api/server.py`):** `RAVEN_ALLOW_ALL_CORS=1` 및 `RAVEN_EXTRA_CORS_ORIGIN="*"` 지원으로 외부 네트워크/원격 IP 기반 대시보드 연동 시 CORS 차단을 원천 방지하도록 개선했습니다.
+
+## 2026-07-28 Remote Host Connection Fix, CORS Bugfix & Manual Update UI
+
+- **Tauri macOS ATS(App Transport Security) 설정 추가 (`desktop/src-tauri/tauri.conf.json` & `desktop/src-tauri/Info.plist`):** Tauri 데스크톱 앱 내 웹뷰에서 원격 HTTP 주소(예: 100.121.237.40와 같은 Tailscale IP)로 HTTP fetch 요청을 보낼 때 macOS ATS에 의해 통신이 차단되는 문제를 해결하기 위해 `desktop/src-tauri/Info.plist`를 새로 생성하여 `NSAllowsArbitraryLoads: true` 설정을 주입하고 `tauri.conf.json`에서 이를 참조하도록 수정했습니다.
+- **Tauri 빌드 아이콘 포맷 수정 (`desktop/src-tauri/icons/`):** 최근 캐주얼 까마귀 아이콘 반영 시 RGBA 알파 채널이 누락되어 Tauri 빌드가 실패하던 버그를 수정하기 위해, macOS Native API를 사용한 Swift 변환 도구(`tmp/convert.swift`)를 작성하여 `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png` 파일들을 해상도 유실 없이 8-bit RGBA 포맷으로 일괄 교정 및 변환했습니다.
+- **FastAPI CORS Tauri Origin 추가 (`raven/api/server.py`):** Tauri 데스크톱 앱의 custom protocol인 `tauri://localhost`, `https://tauri.localhost`, `http://tauri.localhost`에서 발생하는 원격 API 요청이 CORS(Cross-Origin Resource Sharing)에 의해 차단되지 않도록 `_cors_origins`에 해당 origin들을 기본 허용 목록으로 추가했습니다.
+- **원격 호스트 상태 표시 UX 개선 (`dashboard/src/components/HostPicker.tsx`):** 사이드바의 호스트 선택기 영역에 현재 활성화된 호스트의 연결 상태를 비동기식으로 실시간 헬스체크하여 🟢(정상 연결됨), 🔴(연결 실패), 🟡(연결 확인 중...) 또는 💻(로컬 호스트) 상태를 나타내는 상태 표시등과 에러 메시지를 제공하도록 시각적 UX를 개선했습니다.
+- **수동 업데이트 확인 & 설정 UI 구현 (`dashboard/src/routes/VaultManage.tsx` & `desktop/src-tauri/src/lib.rs`):** 데스크톱 앱(Tauri) 환경에서 수동으로 업데이트를 체크하거나 확인할 수 있는 경로가 마땅히 제공되지 않던 문제를 해결하기 위해, "관리" 탭 페이지 하단에 "데스크톱 앱 정보 및 업데이트" 전용 섹션을 추가했습니다. Rust 단에 `app_version` Tauri command를 노출하여 현재 실행 중인 실제 빌드 버전을 동적으로 쿼리하여 표시하고, 사용자가 수동으로 신규 업데이트를 체크하여 설치 및 재실행을 트리거할 수 있는 버튼을 제공합니다.

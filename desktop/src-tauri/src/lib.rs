@@ -53,6 +53,12 @@ fn mcp_endpoint(state: State<'_, CoreState>) -> String {
         .unwrap_or_default()
 }
 
+/// Exposes the desktop app version.
+#[command]
+fn app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 pub fn run() {
     let mcp_enabled = std::env::var("RAVEN_DESKTOP_MCP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -62,7 +68,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(CoreState::default())
-        .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint])
+        .invoke_handler(tauri::generate_handler![core_endpoint, mcp_endpoint, app_version])
         .setup(move |app| {
             // Python Core는 setup 훅에서 동기적으로 기다리지 않고 별도 task로 기동한다.
             // setup 훅이 Err를 반환하면 Tauri 내부가 응답 불가능한 패닉(panic→abort, FFI 경계라

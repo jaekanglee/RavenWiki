@@ -21,11 +21,41 @@ export function HostPicker() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<"checking" | "online" | "offline" | "local">("checking");
+  const [activeError, setActiveError] = useState<string | null>(null);
 
   useEffect(() => {
     setHosts(getHosts());
     setActiveId(getActiveHostId());
   }, []);
+
+  useEffect(() => {
+    async function checkActiveStatus() {
+      const activeHost = getActiveHost();
+      if (activeHost.isLocal) {
+        setActiveStatus("local");
+        setActiveError(null);
+        return;
+      }
+      setActiveStatus("checking");
+      setActiveError(null);
+      try {
+        const res = await testHostConnection(activeHost.endpoint);
+        if (res.ok) {
+          setActiveStatus("online");
+        } else {
+          setActiveStatus("offline");
+          setActiveError(res.error || "연결 실패");
+        }
+      } catch (e: any) {
+        setActiveStatus("offline");
+        setActiveError(e.message || String(e));
+      }
+    }
+    if (hosts.length > 0) {
+      checkActiveStatus();
+    }
+  }, [activeId, hosts]);
 
   function handleSelectHost(id: string) {
     setActiveHostId(id);
@@ -148,6 +178,100 @@ export function HostPicker() {
           >
             🗑
           </button>
+        )}
+      </div>
+
+      <div style={{ marginTop: 6, paddingLeft: 4, display: "flex", alignItems: "center", gap: 6 }}>
+        {activeStatus === "checking" && (
+          <>
+            <span
+              className="status-dot checking"
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--color-muted-soft)",
+              }}
+            />
+            <span style={{ fontSize: 11, color: "var(--color-muted)", fontFamily: "var(--font-display)" }}>
+              연결 확인 중...
+            </span>
+          </>
+        )}
+        {activeStatus === "online" && (
+          <>
+            <span
+              className="status-dot online"
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--color-success-border)",
+                boxShadow: "0 0 4px var(--color-success-border)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: 11,
+                color: "var(--color-success-text)",
+                fontWeight: 600,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              정상 연결됨
+            </span>
+          </>
+        )}
+        {activeStatus === "offline" && (
+          <>
+            <span
+              className="status-dot offline"
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--color-danger-text)",
+                boxShadow: "0 0 4px var(--color-danger-text)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: 11,
+                color: "var(--color-danger-text)",
+                fontWeight: 600,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              연결 실패 {activeError ? `(${activeError})` : ""}
+            </span>
+          </>
+        )}
+        {activeStatus === "local" && (
+          <>
+            <span
+              className="status-dot local"
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--color-primary)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: 11,
+                color: "var(--color-primary)",
+                fontWeight: 600,
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              로컬 호스트
+            </span>
+          </>
         )}
       </div>
 

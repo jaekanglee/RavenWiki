@@ -7,6 +7,8 @@ import {
   type LinkCheckResult, type LockEntry,
 } from "../lib/api";
 
+const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+
 interface VaultMeta {
   name: string;
   path: string;
@@ -35,6 +37,63 @@ export function VaultManage() {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // ── 데스크톱 업데이트 상태 ──
+  const [appVersion, setAppVersion] = useState<string>("0.1.0");
+  const [updateChecked, setUpdateChecked] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
+  const [updateVersion, setUpdateVersion] = useState<string>("");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isTauri) {
+      const internals = (window as any).__TAURI_INTERNALS__;
+      if (internals?.invoke) {
+        internals.invoke("app_version")
+          .then((ver: string) => setAppVersion(ver))
+          .catch(() => {});
+      }
+    }
+  }, []);
+
+  async function checkManualUpdate() {
+    if (!isTauri) return;
+    setCheckingUpdate(true);
+    setUpdateError(null);
+    setUpdateChecked(true);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const result = await check();
+      if (result?.available) {
+        setUpdateAvailable(true);
+        setUpdateVersion(result.version);
+      } else {
+        setUpdateAvailable(false);
+      }
+    } catch (e: any) {
+      setUpdateError(e?.message || String(e));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
+
+  async function installManualUpdate() {
+    if (!isTauri) return;
+    setCheckingUpdate(true);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      const result = await check();
+      if (result?.available) {
+        await result.downloadAndInstall();
+        await relaunch();
+      }
+    } catch (e: any) {
+      setUpdateError(e?.message || String(e));
+      setCheckingUpdate(false);
+    }
+  }
 
   // ── P2 도구 상태 ──
   const [toolVault, setToolVault] = useState("");
@@ -365,6 +424,84 @@ export function VaultManage() {
                 <Button variant="secondary" size="sm" disabled={toolBusy || !cloneName.trim() || !clonePath.trim()} onClick={() => void runClone()}>클론</Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 데스크톱 전용 설정 및 업데이트 ── */}
+      {isTauri && (
+        <div style={{ marginTop: 32, borderTop: "2px solid var(--color-hairline)", paddingTop: 24 }}>
+          <h2 style={{ fontSize: 17, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>💻</span> 데스크톱 앱 정보 및 업데이트
+          </h2>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              background: "var(--color-surface-soft)",
+              padding: 16,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-hairline)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Raven Desktop</div>
+                <div style={{ fontSize: 12, color: "var(--color-muted)" }}>현재 버전: v{appVersion}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {updateChecked && !updateAvailable && !checkingUpdate && (
+                  <span style={{ fontSize: 12, color: "var(--color-success-text)", marginRight: 8 }}>
+                    최신 버전을 사용 중입니다.
+                  </span>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={checkingUpdate}
+                  onClick={() => void checkManualUpdate()}
+                >
+                  {checkingUpdate ? "확인 중..." : "업데이트 확인"}
+                </Button>
+              </div>
+            </div>
+
+            {updateError && (
+              <div style={{ fontSize: 12, color: "var(--color-danger-text)" }}>
+                ❌ 업데이트 확인 실패: {updateError}
+              </div>
+            )}
+
+            {updateAvailable && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: "1px solid var(--color-hairline)",
+                  paddingTop: 12,
+                  marginTop: 4,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "var(--color-primary)" }}>
+                    새로운 버전 사용 가능: v{updateVersion}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--color-muted)" }}>
+                    클릭하시면 즉시 업데이트를 다운로드하고 앱을 재실행합니다.
+                  </div>
+                </div>
+                <Button
+                  variant="pillPrimary"
+                  size="sm"
+                  disabled={checkingUpdate}
+                  onClick={() => void installManualUpdate()}
+                >
+                  지금 업데이트 및 재실행
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
