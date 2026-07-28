@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
   fetchLinkCheck, runExport, repairVault, cloneVault,
-  fetchLocks, releaseLock,
+  fetchLocks, releaseLock, apiFetch,
   type LinkCheckResult, type LockEntry,
 } from "../lib/api";
 
@@ -49,14 +49,14 @@ export function VaultManage() {
   const loadVaults = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/vaults");
+      const r = await apiFetch("/api/vaults");
       const d = await r.json();
       const items: VaultMeta[] = d.vaults || [];
       setVaults(items);
       const entries = await Promise.all(
         items.map(async (vault) => {
           try {
-            const response = await fetch(`/api/vaults/${encodeURIComponent(vault.name)}/stats`);
+            const response = await apiFetch(`/api/vaults/${encodeURIComponent(vault.name)}/stats`);
             const data = await response.json();
             return [vault.name, data.ok ? data as VaultStats : null] as const;
           } catch {
@@ -81,7 +81,7 @@ export function VaultManage() {
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(`/api/vaults/${encodeURIComponent(editingName)}`, {
+      const r = await apiFetch(`/api/vaults/${encodeURIComponent(editingName)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim() }),
@@ -102,9 +102,9 @@ export function VaultManage() {
     setBusy(true);
     setError(null);
     try {
-      let r = await fetch(`/api/vaults/${encodeURIComponent(name)}`, { method: "DELETE" });
+      let r = await apiFetch(`/api/vaults/${encodeURIComponent(name)}`, { method: "DELETE" });
       if (r.status === 409 && window.confirm("문서가 남아 있습니다. vault 폴더까지 강제 삭제할까요?")) {
-        r = await fetch(`/api/vaults/${encodeURIComponent(name)}?force=true`, { method: "DELETE" });
+        r = await apiFetch(`/api/vaults/${encodeURIComponent(name)}?force=true`, { method: "DELETE" });
       }
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
       await loadVaults();

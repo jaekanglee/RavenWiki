@@ -57,3 +57,10 @@ Raven Dashboard를 macOS Tauri 창으로 기동하고, 그 수명주기에 맞�
 - **버그 픽스 (URL Trailing Slash):** `DocumentRepositoryImpl`에서 엔드포인트 URL 조합 시 끝에 슬래시(`/`)가 붙어 `//api/...` 형태로 잘못된 요청이 전송되는 현상을 방지했습니다.
 - **아이콘 리소스 적용 (Cute Raven):** 새로운 캐주얼 까마귀 아이콘 디자인을 생성하여 macOS 데스크톱(`desktop/src-tauri/icons/`) 및 안드로이드(`mipmap-*`) 환경에 맞게 리사이징 및 적용을 완료했습니다 (중복된 구형 `.webp` 및 `.xml` 에러 유발 파일 싹 정리).
 - **배포 (1.0.0-dev12):** `make deploy-dev` (Fastlane)를 통해 1.0.0-dev12 빌드를 Firebase App Distribution에 성공적으로 배포했습니다.
+
+## 2026-07-28 Multi-Host Vault Repository & Desktop Register Support
+
+- **Multi-Host Thin Client (`dashboard/src/lib/api-base.ts` & `api.ts`):** `getActiveTargetBaseUrl()`을 통한 동적 API Dispatcher를 도입하여, 사용자가 로컬 또는 원격 IP/URL 호스트를 선택하는 즉시 대시보드 전체의 `/api/...` 통신 대상 서버가 해당 호스트의 `~/Raven/` 지식 루트로 스위칭되도록 구현했습니다.
+- **Host Switcher UI (`dashboard/src/components/HostPicker.tsx`):** 사이드바 상단에 호스트 선택 드롭다운 및 연결 추가/삭제 모달을 구현했습니다. 연결 전 `GET /api/vaults` 핑(Ping) 테스트로 원격 보관소 존재 및 헬스체크를 수행합니다.
+- **기존 폴더 등록 API (`POST /api/vaults/register`):** 기존 폴더를 보관소로 손쉽게 등록하는 API 엔드포인트를 백엔드(`raven/api/server.py`)에 추가하고 대시보드 마법사(`NewVaultWizard.tsx`)에 "기존 폴더 등록" 탭을 추가했습니다.
+- **CORS 설정 보강 (`raven/api/server.py`):** `RAVEN_ALLOW_ALL_CORS=1` 및 `RAVEN_EXTRA_CORS_ORIGIN="*"` 지원으로 외부 네트워크/원격 IP 기반 대시보드 연동 시 CORS 차단을 원천 방지하도록 개선했습니다.

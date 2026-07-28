@@ -51,6 +51,123 @@ export function setActiveVault(name: string): void {
   localStorage.setItem(ACTIVE_VAULT_KEY, name);
 }
 
+// ─── Host Connection Store (Multi-Host v0.8.0+) ─────────────────────
+export interface HostConnection {
+  id: string;
+  name: string;
+  endpoint: string; // e.g. "http://192.168.0.15:8765" or "" for local
+  isLocal: boolean;
+}
+
+export const HOSTS_STORE_KEY = "raven:hosts";
+export const ACTIVE_HOST_KEY = "raven:active_host";
+
+export const LOCAL_HOST: HostConnection = {
+  id: "local",
+  name: "로컬 (Localhost)",
+  endpoint: "",
+  isLocal: true,
+};
+
+export function getHosts(): HostConnection[] {
+  if (typeof window === "undefined") return [LOCAL_HOST];
+  try {
+    const raw = localStorage.getItem(HOSTS_STORE_KEY);
+    if (!raw) return [LOCAL_HOST];
+    const list: HostConnection[] = JSON.parse(raw);
+    if (!list.some((h) => h.id === "local")) {
+      list.unshift(LOCAL_HOST);
+    }
+    return list;
+  } catch {
+    return [LOCAL_HOST];
+  }
+}
+
+export function saveHosts(hosts: HostConnection[]): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HOSTS_STORE_KEY, JSON.stringify(hosts));
+}
+
+export function addHost(host: Omit<HostConnection, "id">): HostConnection {
+  const hosts = getHosts();
+  const id = `host_${Date.now()}`;
+  let endpoint = host.endpoint.trim();
+  if (endpoint && !endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+    endpoint = `http://${endpoint}`;
+  }
+  endpoint = endpoint.replace(/\/+$/, "");
+
+  const newHost: HostConnection = {
+    id,
+    name: host.name.trim() || endpoint,
+    endpoint,
+    isLocal: host.isLocal,
+  };
+  hosts.push(newHost);
+  saveHosts(hosts);
+  return newHost;
+}
+
+export function removeHost(id: string): void {
+  if (id === "local") return;
+  const hosts = getHosts().filter((h) => h.id !== id);
+  saveHosts(hosts);
+  if (getActiveHostId() === id) {
+    setActiveHostId("local");
+  }
+}
+
+export function getActiveHostId(): string {
+  if (typeof window === "undefined") return "local";
+  return localStorage.getItem(ACTIVE_HOST_KEY) || "local";
+}
+
+export function getActiveHost(): HostConnection {
+  const hosts = getHosts();
+  const activeId = getActiveHostId();
+  return hosts.find((h) => h.id === activeId) || hosts[0] || LOCAL_HOST;
+}
+
+export function setActiveHostId(id: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ACTIVE_HOST_KEY, id);
+  invalidateCache();
+}
+
+export function getActiveHostUrl(): string {
+  const host = getActiveHost();
+  if (!host || host.isLocal || !host.endpoint) return "";
+  return host.endpoint.replace(/\/+$/, "");
+}
+
+export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const baseUrl = getActiveHostUrl();
+  const fullUrl = baseUrl ? `${baseUrl}${path.startsWith("/") ? path : "/" + path}` : path;
+  return fetch(fullUrl, init);
+}
+
+export async function testHostConnection(endpoint: string): Promise<{ ok: boolean; vaultsCount: number; error?: string }> {
+  let url = endpoint.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = `http://${url}`;
+  }
+  url = `${url.replace(/\/+$/, "")}/api/vaults`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!r.ok) {
+      return { ok: false, vaultsCount: 0, error: `HTTP ${r.status}` };
+    }
+    const d = await r.json();
+    return { ok: true, vaultsCount: d.vaults?.length || 0 };
+  } catch (e) {
+    return { ok: false, vaultsCount: 0, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // ─── debug logger (Raven-Debug v0.6.10+) ─────────────────────
 // fetch throw / React error 등을 tmp/dashboard.log에 자동 기록.
 // 브라우저 console에서 못 봐도 사용자가 cat으로 직접 확인 가능.
@@ -118,7 +235,7 @@ export interface VaultInfo {
 
 export async function fetchVaults(): Promise<VaultInfo[]> {
   return cachedFetch("vaults", 30_000, async () => {
-    const r = await fetch("/api/vaults");
+    const r = await apiFetch("/api/vaults");
     if (!r.ok) return [];
     const d = await r.json();
     return d.vaults || [];
@@ -126,7 +243,7 @@ export async function fetchVaults(): Promise<VaultInfo[]> {
 }
 
 export async function fetchVaultInfo(name: string): Promise<any> {
-  const r = await fetch(`/api/vaults/${name}`);
+  const r = await apiFetch(`/api/vaults/${name}`);
   if (!r.ok) throw new Error(`vault ${name} not found`);
   const d = await r.json();
   return d.vault;
@@ -139,7 +256,7 @@ export async function fetchPages(vault: string, opts: { type?: string; tag?: str
   const qs = params.toString();
   const key = `pages:${vault}${qs ? ":" + qs : ""}`;
   return cachedFetch(key, 15_000, async () => {
-    const r = await fetch(`/api/vaults/${vault}/pages${qs ? "?" + qs : ""}`);
+    const r = await apiFetch(`/api/vaults/${vault}/pages${qs ? "?" + qs : ""}`);
     if (!r.ok) return [];
     const d = await r.json();
     return d.pages || [];
@@ -148,7 +265,7 @@ export async function fetchPages(vault: string, opts: { type?: string; tag?: str
 
 export async function fetchTree(vault: string): Promise<TreeNode | null> {
   return cachedFetch(`tree:${vault}`, 15_000, async () => {
-    const r = await fetch(`/api/vaults/${vault}/tree`);
+    const r = await apiFetch(`/api/vaults/${vault}/tree`);
     if (!r.ok) return null;
     const d = await r.json();
     return d.tree || null;
@@ -159,7 +276,7 @@ export async function createFolder(
   vault: string,
   payload: { path: string },
 ): Promise<{ ok: boolean; path: string; existed: boolean }> {
-  const r = await fetch(`/api/vaults/${vault}/folders`, {
+  const r = await apiFetch(`/api/vaults/${vault}/folders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -173,7 +290,7 @@ export async function createFolder(
 }
 
 export async function fetchPage(vault: string, slug: string) {
-  const r = await fetch(`/api/vaults/${vault}/pages/${slug}?_=${Date.now()}`);
+  const r = await apiFetch(`/api/vaults/${vault}/pages/${slug}?_=${Date.now()}`);
   if (!r.ok) throw new Error(`page ${slug} not found in vault ${vault}`);
   return r.json();
 }
@@ -182,7 +299,7 @@ export async function createPage(
   vault: string,
   payload: { slug: string; title: string; content: string; type: string; tags: string[]; extra_meta?: Record<string, any> },
 ) {
-  const r = await fetch(`/api/vaults/${vault}/pages`, {
+  const r = await apiFetch(`/api/vaults/${vault}/pages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -198,7 +315,7 @@ export async function updatePage(
   slug: string,
   payload: { content: string; title?: string; type?: string; tags?: string[]; extra_meta?: Record<string, any> }
 ) {
-  const r = await fetch(`/api/vaults/${vault}/pages/${slug}`, {
+  const r = await apiFetch(`/api/vaults/${vault}/pages/${slug}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -209,7 +326,7 @@ export async function updatePage(
 }
 
 export async function deletePage(vault: string, slug: string) {
-  const r = await fetch(`/api/vaults/${vault}/pages/${slug}`, { method: "DELETE" });
+  const r = await apiFetch(`/api/vaults/${vault}/pages/${slug}`, { method: "DELETE" });
   if (!r.ok) throw new Error(`delete failed: ${r.status}`);
   invalidateCache(`pages:${vault}`);
   invalidateCache(`tree:${vault}`);
@@ -244,14 +361,14 @@ export async function fetchLog(
   if (opts.action) params.set("action", opts.action);
   if (opts.raw) params.set("raw", "true");
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${vault}/log${qs ? "?" + qs : ""}`);
+  const r = await apiFetch(`/api/vaults/${vault}/log${qs ? "?" + qs : ""}`);
   if (!r.ok) return { total: 0, shown: 0, entries: [] };
   const d = await r.json();
   return { total: d.total || 0, shown: d.shown || 0, entries: d.entries || [], raw: d.raw };
 }
 
 export async function fetchLogStatus(vault: string): Promise<LogStatus | null> {
-  const r = await fetch(`/api/vaults/${vault}/log/status`);
+  const r = await apiFetch(`/api/vaults/${vault}/log/status`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -260,7 +377,7 @@ export async function appendLog(
   vault: string,
   payload: { action: string; subject: string; files?: string[]; note?: string },
 ) {
-  const r = await fetch(`/api/vaults/${vault}/log`, {
+  const r = await apiFetch(`/api/vaults/${vault}/log`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -274,7 +391,7 @@ export async function rotateLog(vault: string, opts: { year?: number; force?: bo
   if (opts.year !== undefined) params.set("year", String(opts.year));
   if (opts.force) params.set("force", "true");
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${vault}/log/rotate${qs ? "?" + qs : ""}`, { method: "POST" });
+  const r = await apiFetch(`/api/vaults/${vault}/log/rotate${qs ? "?" + qs : ""}`, { method: "POST" });
   if (!r.ok) throw new Error(`log rotate failed: ${r.status}`);
   return r.json();
 }
@@ -317,13 +434,13 @@ export async function fetchLint(
   if (opts.severity) params.set("severity", opts.severity);
   if (opts.write_log) params.set("write_log", "true");
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${vault}/lint${qs ? "?" + qs : ""}`);
+  const r = await apiFetch(`/api/vaults/${vault}/lint${qs ? "?" + qs : ""}`);
   if (!r.ok) return null;
   return r.json();
 }
 
 export async function fetchLintSummary(vault: string): Promise<LintSummary | null> {
-  const r = await fetch(`/api/vaults/${vault}/lint/summary`);
+  const r = await apiFetch(`/api/vaults/${vault}/lint/summary`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -342,7 +459,7 @@ export interface BuildResult {
 }
 
 export async function fetchBuild(vault: string): Promise<BuildResult | null> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/build`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/build`, {
     method: "POST",
   });
   if (!r.ok) return null;
@@ -382,7 +499,7 @@ export interface GardenResult {
 }
 
 export async function fetchGarden(vault: string): Promise<GardenResult | null> {
-  const r = await fetch(`/api/vaults/${vault}/garden`);
+  const r = await apiFetch(`/api/vaults/${vault}/garden`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -420,14 +537,14 @@ export interface RawContent {
 
 /** raw/ 트리 + 메타. vault에 raw/ 없으면 null (404 silent). */
 export async function fetchRawList(vault: string): Promise<RawList | null> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/raw`);
   if (!r.ok) return null;
   return r.json();
 }
 
 /** raw/ 파일 내용. 없으면 null. */
 export async function fetchRawContent(vault: string, relPath: string): Promise<RawContent | null> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -438,7 +555,7 @@ export async function writeRaw(
   relPath: string,
   content: string,
 ): Promise<{ ok: boolean; path: string; size: number | null; existed: boolean }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-Actor": "user" },
     body: JSON.stringify({ content }),
@@ -461,7 +578,7 @@ export async function deleteRaw(
   vault: string,
   relPath: string,
 ): Promise<{ ok: boolean; path: string; deleted: boolean }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/raw/${relPath}`, {
     method: "DELETE",
     headers: { "X-Actor": "user" },
   });
@@ -505,7 +622,7 @@ export interface GitDiffResult {
 }
 
 export async function fetchGitStatus(vault: string): Promise<GitStatusResult | null> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/git/status`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/git/status`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -514,7 +631,7 @@ export async function fetchGitDiff(vault: string, file?: string): Promise<GitDif
   const params = new URLSearchParams();
   if (file) params.set("file", file);
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/git/diff${qs ? "?" + qs : ""}`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/git/diff${qs ? "?" + qs : ""}`);
   if (!r.ok) return null;
   return r.json();
 }
@@ -523,7 +640,7 @@ export async function updateWorkspace(
   vault: string,
   payload: { workspace_path: string; unlink?: boolean }
 ): Promise<{ ok: boolean; workspace_path: string }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/workspace`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/workspace`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -568,7 +685,7 @@ export async function fetchWorkspaceTree(
   if (options.depth != null) params.set("depth", String(options.depth));
   if (options.hidden) params.set("hidden", "true");
   const qs = params.toString();
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/workspace/tree${qs ? "?" + qs : ""}`
   );
   if (!r.ok) return null;
@@ -589,7 +706,7 @@ export async function fetchWorkspaceFile(
   vault: string,
   path: string
 ): Promise<WorkspaceFileResult | null> {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/workspace/file?path=${encodeURIComponent(path)}`
   );
   if (!r.ok) return null;
@@ -601,7 +718,7 @@ export async function sendPageFeedback(
   slug: string,
   payload: { feedback: string; actor?: string }
 ) {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/feedback`,
     {
       method: "POST",
@@ -614,7 +731,7 @@ export async function sendPageFeedback(
 }
 
 export async function deletePageFeedback(vault: string, slug: string, index: number) {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
     { method: "DELETE" }
   );
@@ -628,7 +745,7 @@ export async function updatePageFeedback(
   index: number,
   payload: { feedback: string }
 ) {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
     {
       method: "PUT",
@@ -655,7 +772,7 @@ export async function fetchRecommendations(
   slug: string,
   limit: number = 5
 ) {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/recommendations?limit=${limit}`
   );
   if (!r.ok) throw new Error(`failed to fetch recommendations: ${r.status}`);
@@ -663,13 +780,13 @@ export async function fetchRecommendations(
 }
 
 export async function fetchAdvice(vault: string): Promise<Advice[]> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/advice`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/advice`);
   if (!r.ok) return [];
   return r.json();
 }
 
 export async function fetchAIAdvice(vault: string): Promise<Advice[]> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/ai-advice`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/ai-advice`);
   if (!r.ok) return [];
   return r.json();
 }
@@ -684,7 +801,7 @@ export interface RelationAddPayload {
 }
 
 export async function addRelation(vault: string, payload: RelationAddPayload): Promise<{ ok: boolean; message?: string; error?: string }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/relations`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/relations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -713,7 +830,7 @@ export async function fetchHybridSearch(
   limit: number = 20,
   opts: { signal?: AbortSignal } = {}
 ): Promise<HybridSearchResult[]> {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(query)}&limit=${limit}`,
     { signal: opts.signal }
   );
@@ -743,7 +860,7 @@ export async function fetchRAGQuery(
   vault: string,
   query: string
 ): Promise<RAGQueryResult | null> {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/rag/query?query=${encodeURIComponent(query)}`
   );
   if (!r.ok) return null;
@@ -754,7 +871,7 @@ export async function suggestTags(
   vault: string,
   payload: { content: string; title?: string }
 ): Promise<{ ok: boolean; tags: string[]; used_llm: boolean }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/suggest-tags`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/suggest-tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -783,7 +900,7 @@ export interface Contradiction {
 export async function fetchContradictions(
   vault: string
 ): Promise<{ ok: boolean; contradictions: Contradiction[]; used_llm: boolean }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions`);
   if (!r.ok) throw new Error(`fetch contradictions failed: ${r.status}`);
   return r.json();
 }
@@ -799,7 +916,7 @@ export async function resolveContradiction(
     reason?: string;
   }
 ): Promise<{ ok: boolean; message?: string }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions/resolve`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/lint/contradictions/resolve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -833,7 +950,7 @@ export interface DraftConflictResult {
 }
 
 export async function fetchDraftsList(vault: string): Promise<DraftListItem[]> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/drafts`);
   if (!r.ok) return [];
   const d = await r.json();
   return d.drafts || [];
@@ -843,7 +960,7 @@ export async function commitDraft(
   vault: string,
   payload: { draft_slug: string; content?: string; overwrite?: boolean }
 ): Promise<{ ok: boolean; slug: string; path: string; db_rebuild: any } | DraftConflictResult> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/drafts/commit`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/drafts/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -860,7 +977,7 @@ export async function deleteDraft(
   vault: string,
   draftName: string
 ): Promise<{ ok: boolean; deleted?: string }> {
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/drafts/${encodeURIComponent(draftName)}`,
     { method: "DELETE" }
   );
@@ -887,7 +1004,7 @@ export async function fetchArchive(
   const params = new URLSearchParams();
   if (olderThan > 0) params.set("older_than", String(olderThan));
   const qs = params.toString();
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/archive${qs ? `?${qs}` : ""}`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/archive${qs ? `?${qs}` : ""}`);
   if (!r.ok) throw new Error(`archive list failed: ${r.status}`);
   return r.json();
 }
@@ -897,7 +1014,7 @@ export async function restoreArchive(
   archivePath: string
 ): Promise<{ ok: boolean; original_slug: string; restored_to: string }> {
   const params = new URLSearchParams({ archive_path: archivePath });
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/archive/restore?${params}`,
     { method: "POST" }
   );
@@ -924,7 +1041,7 @@ export async function cleanArchive(
   errors: { path: string; error: string }[];
 }> {
   const params = new URLSearchParams({ older_than: String(olderThan), apply: String(apply) });
-  const r = await fetch(
+  const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/archive/clean?${params}`,
     { method: "POST" }
   );
@@ -945,20 +1062,20 @@ export interface LinkCheckResult {
 
 export async function fetchLinkCheck(vault: string, slug?: string): Promise<LinkCheckResult> {
   const qs = slug ? `?slug=${encodeURIComponent(slug)}` : "";
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/link-check${qs}`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/link-check${qs}`);
   if (!r.ok) throw new Error(`link-check failed: ${r.status}`);
   return r.json();
 }
 
 export async function runExport(vault: string, outDir?: string): Promise<{ ok: boolean; export: Record<string, unknown> }> {
   const qs = outDir ? `?out_dir=${encodeURIComponent(outDir)}` : "";
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/export${qs}`, { method: "POST" });
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/export${qs}`, { method: "POST" });
   if (!r.ok) throw new Error(`export failed: ${r.status}`);
   return r.json();
 }
 
 export async function repairVault(vault: string, path: string): Promise<{ ok: boolean; vault: string; path: string }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/repair`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/repair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -974,7 +1091,7 @@ export async function repairVault(vault: string, path: string): Promise<{ ok: bo
 export async function cloneVault(payload: {
   src: string; name: string; path: string; mode?: string; owner?: string; copy_meta?: boolean;
 }): Promise<{ ok: boolean; vault: string; path: string }> {
-  const r = await fetch("/api/vaults/clone", {
+  const r = await apiFetch("/api/vaults/clone", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -994,13 +1111,13 @@ export interface LockEntry {
 }
 
 export async function fetchLocks(vault: string): Promise<{ ok: boolean; vault: string; locks: Record<string, LockEntry> }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/locks`);
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/locks`);
   if (!r.ok) throw new Error(`locks failed: ${r.status}`);
   return r.json();
 }
 
 export async function releaseLock(vault: string, slug: string): Promise<{ ok: boolean }> {
-  const r = await fetch(`/api/vaults/${encodeURIComponent(vault)}/locks`, {
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/locks`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slug }),

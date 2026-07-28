@@ -7,8 +7,10 @@
  * Tauri desktop mode: set to the Python Core endpoint
  * (e.g. http://127.0.0.1:54321) before React renders.
  *
- * The fetch/sendBeacon wrappers below prepend apiBase to every /api/...
- * request so the ~30 existing call sites need zero changes.
+ * Multi-host mode (v0.8.0+): if an active remote host is selected,
+ * the fetch/sendBeacon wrappers below dynamically prepend the active host's
+ * endpoint to every /api/... request so the whole dashboard smoothly
+ * switches target server context.
  */
 
 let apiBase = "";
@@ -21,13 +23,30 @@ export function getApiBase(): string {
   return apiBase;
 }
 
+export function getActiveTargetBaseUrl(): string {
+  if (typeof window === "undefined") return apiBase;
+  try {
+    const activeId = localStorage.getItem("raven:active_host") || "local";
+    if (activeId === "local") return apiBase;
+    const raw = localStorage.getItem("raven:hosts");
+    if (!raw) return apiBase;
+    const hosts = JSON.parse(raw);
+    const found = hosts.find((h: any) => h.id === activeId);
+    if (found && found.endpoint && !found.isLocal) {
+      return found.endpoint.replace(/\/+$/, "");
+    }
+  } catch {}
+  return apiBase;
+}
+
 // ─── install wrappers (module-load time, before any component mounts) ───
 
 if (typeof window !== "undefined") {
   const origFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    if (apiBase && typeof input === "string" && input.startsWith("/api/")) {
-      return origFetch(apiBase + input, init);
+    const targetBase = getActiveTargetBaseUrl();
+    if (targetBase && typeof input === "string" && input.startsWith("/api/")) {
+      return origFetch(targetBase + input, init);
     }
     return origFetch(input, init);
   };
@@ -35,8 +54,9 @@ if (typeof window !== "undefined") {
   const origBeacon = navigator.sendBeacon?.bind(navigator);
   if (origBeacon) {
     navigator.sendBeacon = (url: string | URL, data?: BodyInit | null) => {
-      if (apiBase && typeof url === "string" && url.startsWith("/api/")) {
-        return origBeacon(apiBase + url, data);
+      const targetBase = getActiveTargetBaseUrl();
+      if (targetBase && typeof url === "string" && url.startsWith("/api/")) {
+        return origBeacon(targetBase + url, data);
       }
       return origBeacon(url, data);
     };

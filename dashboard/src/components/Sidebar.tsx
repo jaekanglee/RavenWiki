@@ -6,6 +6,7 @@ import { NewIssueButton } from "./NewIssueButton";
 import { nodeColor, typeLabel } from "./GraphCanvas";
 import { RawTree } from "./RawTree";
 import { SearchBar } from "./SearchBar";
+import { HostPicker } from "./HostPicker";
 import { fetchDraftsList, type DraftListItem } from "../lib/api";
 import type { TreeNode as TNode, VaultMeta } from "../types";
 
@@ -382,6 +383,9 @@ export function Sidebar({
           }}
         />
       )}
+
+      {/* Host selector */}
+      <HostPicker />
 
       {/* Vault selector */}
       {vaults.length > 0 && (

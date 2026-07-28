@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { GraphCanvas, typeLabel, type GraphLayoutMode } from "../components/GraphCanvas";
@@ -160,7 +161,7 @@ export function GraphPage() {
     setLoading(true);
     setLoadError(false);
     // v0.7.144+: ?scope= 쿼리 제거 — current만 사용.
-    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
+    apiFetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
       .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
       .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .catch(() => {
@@ -279,7 +280,7 @@ export function GraphPage() {
       }));
       void Promise.allSettled(
         entries.map(([targetVault, pos]) =>
-          fetch(`/api/vaults/${encodeURIComponent(targetVault)}/graph/positions`, {
+          apiFetch(`/api/vaults/${encodeURIComponent(targetVault)}/graph/positions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ positions: pos }),
@@ -295,7 +296,7 @@ export function GraphPage() {
   const resetLayout = useCallback(() => {
     if (!vault) return;
     if (!window.confirm("드래그로 옮긴 모든 노드 위치를 버리고 원래 배치로 되돌릴까요?")) return;
-    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph/positions`, { method: "DELETE" })
+    apiFetch(`/api/vaults/${encodeURIComponent(vault)}/graph/positions`, { method: "DELETE" })
       .catch(() => {})
       .finally(() => loadGraph());
   }, [vault]);

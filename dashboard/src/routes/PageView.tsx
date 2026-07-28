@@ -9,7 +9,7 @@ import { PageMetaRow } from "../components/PageMetaRow";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { EmptyIcon } from "../lib/emptyIcons";
-import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations, commitDraft, deleteDraft } from "../lib/api";
+import { deletePage, fetchPage, getActiveVault, sendPageFeedback, updatePage, deletePageFeedback, updatePageFeedback, fetchRecommendations, commitDraft, deleteDraft , apiFetch} from "../lib/api";
 import { PropertiesPanel } from "../components/PropertiesPanel";
 import type { Graph, Page, Recommendation } from "../types";
 
@@ -307,7 +307,7 @@ export function PageView() {
 
   useEffect(() => {
     if (!vault) return;
-    fetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
+    apiFetch(`/api/vaults/${encodeURIComponent(vault)}/graph`)
       .then((r) => (r.ok ? r.json() : { nodes: [], edges: [] }))
       .then((d) => setGraph({ nodes: d.nodes ?? [], edges: d.edges ?? [] }))
       .catch(() => setGraph({ nodes: [], edges: [] }));

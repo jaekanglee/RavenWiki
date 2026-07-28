@@ -51,15 +51,20 @@ _extra_cors = [
     for o in os.environ.get("RAVEN_EXTRA_CORS_ORIGIN", "").split(",")
     if o.strip()
 ]
+_allow_all_cors = (
+    os.environ.get("RAVEN_ALLOW_ALL_CORS", "").strip().lower() in ("1", "true", "yes")
+    or "*" in _extra_cors
+)
+_cors_origins = ["*"] if _allow_all_cors else [
+    f"http://localhost:{_dashboard_port}",   # vite dev server
+    f"http://127.0.0.1:{_dashboard_port}",
+    f"http://localhost:{_api_port}",         # built dashboard served by this API
+    f"http://127.0.0.1:{_api_port}",
+    *_extra_cors,
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        f"http://localhost:{_dashboard_port}",   # vite dev server
-        f"http://127.0.0.1:{_dashboard_port}",
-        f"http://localhost:{_api_port}",         # built dashboard served by this API
-        f"http://127.0.0.1:{_api_port}",
-        *_extra_cors,
-    ],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 interface VaultMeta {
   name: string;
@@ -34,7 +35,7 @@ export function VaultPicker({
   // ─── load vaults ────────────────────────────────────────
   function loadVaults() {
     setLoading(true);
-    fetch("/api/vaults")
+    apiFetch("/api/vaults")
       .then((r) => (r.ok ? r.json() : { vaults: [] }))
       .then((d) => {
         setVaults(d.vaults || []);
@@ -84,13 +85,13 @@ export function VaultPicker({
     localStorage.setItem(ACTIVE_KEY, name);
     setOpen(false);
     try {
-      await fetch(`/api/vaults/${name}/select`, { method: "POST" });
+      await apiFetch(`/api/vaults/${name}/select`, { method: "POST" });
     } catch (e) {
       console.error("Failed to select vault on backend", e);
     }
 
     try {
-      const r = await fetch(
+      const r = await apiFetch(
         `/api/vaults/${encodeURIComponent(name)}/pages?top_k=1`
       );
       const d = await r.json();

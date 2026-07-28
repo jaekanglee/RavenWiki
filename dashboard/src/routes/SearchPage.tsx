@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api";
 import { useState, useEffect } from "react";
 import { useOutletContext, Link } from "react-router-dom";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -39,7 +40,7 @@ export function SearchPage() {
     setHasSearched(true);
 
     // FTS5 대신 신규 hybrid-search 엔드포인트 연동
-    fetch(`/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(debouncedQ)}&limit=20`, {
+    apiFetch(`/api/vaults/${encodeURIComponent(vault)}/hybrid-search?query=${encodeURIComponent(debouncedQ)}&limit=20`, {
       signal: ctrl.signal,
     })
       .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -59,7 +60,7 @@ export function SearchPage() {
     setRagCitations([]);
 
     try {
-      const resp = await fetch(`/api/vaults/${encodeURIComponent(vault)}/rag/query?query=${encodeURIComponent(q)}`);
+      const resp = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/rag/query?query=${encodeURIComponent(q)}`);
       if (resp.ok) {
         const data = await resp.json();
         setRagAnswer(data.answer || "답변을 생성할 수 없습니다.");
