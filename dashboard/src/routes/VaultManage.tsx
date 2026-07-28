@@ -638,7 +638,7 @@ export function VaultManage() {
             marginBottom: 16,
           }}
         >
-          {/* Local API Endpoint Card */}
+          {/* Local / Primary API Endpoint Card */}
           <div
             style={{
               background: "var(--color-canvas)",
@@ -652,23 +652,23 @@ export function VaultManage() {
           >
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 4 }}>
-                내 로컬 REST API 엔드포인트
+                내 PC REST API 엔드포인트 {sysInfo?.tailscale_ip ? "(🔒 Tailscale 감지)" : "(127.0.0.1)"}
               </div>
-              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
-                http://127.0.0.1:8765
+              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: sysInfo?.tailscale_ip ? "var(--color-primary)" : "var(--color-ink)" }}>
+                {sysInfo?.tailscale_api || "http://127.0.0.1:8765"}
               </div>
             </div>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => handleCopy("http://127.0.0.1:8765", "local_api")}
+              onClick={() => handleCopy(sysInfo?.tailscale_api || "http://127.0.0.1:8765", "local_api")}
               style={{ fontSize: 11, alignSelf: "flex-start" }}
             >
-              {copiedKey === "local_api" ? "✅ 복사됨!" : "📋 로컬 API URL 복사"}
+              {copiedKey === "local_api" ? "✅ 복사됨!" : "📋 API URL 복사"}
             </Button>
           </div>
 
-          {/* Local MCP Endpoint Card */}
+          {/* Local / Primary MCP Endpoint Card */}
           <div
             style={{
               background: "var(--color-canvas)",
@@ -682,19 +682,19 @@ export function VaultManage() {
           >
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase", marginBottom: 4 }}>
-                내 로컬 MCP (LLM 에이전트) 엔드포인트
+                내 PC MCP (LLM 에이전트) 엔드포인트 {sysInfo?.tailscale_ip ? "(🔒 Tailscale 감지)" : "(127.0.0.1)"}
               </div>
-              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-ink)" }}>
-                http://127.0.0.1:8765/mcp
+              <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-primary)" }}>
+                {sysInfo?.tailscale_mcp || "http://127.0.0.1:8765/mcp"}
               </div>
             </div>
             <Button
-              variant="secondary"
+              variant="pillPrimary"
               size="sm"
-              onClick={() => handleCopy("http://127.0.0.1:8765/mcp", "local_mcp")}
+              onClick={() => handleCopy(sysInfo?.tailscale_mcp || "http://127.0.0.1:8765/mcp", "local_mcp")}
               style={{ fontSize: 11, alignSelf: "flex-start" }}
             >
-              {copiedKey === "local_mcp" ? "✅ 복사됨!" : "📋 로컬 MCP URL 복사"}
+              {copiedKey === "local_mcp" ? "✅ 복사됨!" : "📋 MCP URL 복사"}
             </Button>
           </div>
 
