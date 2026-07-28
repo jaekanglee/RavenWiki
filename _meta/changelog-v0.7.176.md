@@ -44,11 +44,12 @@
 
 ---
 
-### 2.5 데스크톱 필수 개발 환경 사전 점검 (`desktop-check`)
-- **`Makefile` 내 `desktop-check` 사전 점검 타겟 추가**:
-  - `make desktop-dev` 및 `make desktop-build` 실행 시 필수 환경 도구(`node`, `npm`, `cargo`) 미설치 여부를 자동 점검.
-  - Rust(`cargo`) 또는 Node.js 미설치 환경에서 명확한 원인 메시지와 설치 가이드 명령(`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)을 출력하도록 개선.
-  - `dashboard/node_modules` 미존재 시 `npm install`을 자동 수행하도록 보충.
+### 2.5 데스크톱 필수 개발 환경 자동 설치/사전 점검 (`desktop-check`)
+- **`Makefile` 내 `desktop-check` 자동 설치 기능 보강**:
+  - `make desktop-dev` 및 `make desktop-build` 실행 시 Rust(`cargo`) 미설치 환경인 경우 `rustup`(`sh.rustup.rs`)을 통해 자동으로 비대화형(`-y`) 설치를 진행하도록 개선.
+  - `PATH`에 `$(HOME)/.cargo/bin`을 자동 포함하여 설치 직후 터미널 재시작 없이도 `cargo` 명령어가 즉시 인식되도록 설정.
+  - Node.js 미설치 환경이고 Homebrew가 존재할 경우 `brew install node`로 자동 설치 시도.
+  - `dashboard/node_modules` 미존재 시 `npm install` 자동 수행 유지.
 
 ---
 

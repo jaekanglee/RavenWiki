@@ -144,27 +144,37 @@ rebuild: docker-build docker-restart ## Rebuild Docker images and restart Docker
 restart-all: ## Full local restart: wipe caches (Vite/__pycache__/pytest/logs) + restart
 	@bash scripts/restart-all.sh
 
+export PATH := $(HOME)/.cargo/bin:$(PATH)
+
 # ────────────────────────── desktop ──────────────────────────
 
 .PHONY: desktop-check desktop-dev desktop-rebuild desktop-bundle desktop-build desktop-dmg desktop-release
 
-desktop-check: ## Check required tools (cargo, node, npm) for desktop app development
-	@command -v node >/dev/null 2>&1 || ( \
-		echo "❌ Node.js(node)가 설치되어 있지 않습니다."; \
-		echo "   👉 https://nodejs.org 에서 Node.js를 설치해 주세요."; \
+desktop-check: ## Check required tools (cargo, node, npm) for desktop app development and auto-install Rust if missing
+	@if ! command -v cargo >/dev/null 2>&1; then \
+		echo "🦀 Rust(cargo)가 설치되어 있지 않아 rustup을 통해 자동 설치를 진행합니다..."; \
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable || exit 1; \
+		if [ -f "$$HOME/.cargo/env" ]; then \
+			source "$$HOME/.cargo/env"; \
+		fi; \
+	fi
+	@if ! command -v cargo >/dev/null 2>&1 && [ ! -f "$$HOME/.cargo/bin/cargo" ]; then \
+		echo "❌ Rust(cargo) 설치 실패 또는 PATH 등록 문제 발생."; \
 		exit 1; \
-	)
-	@command -v npm >/dev/null 2>&1 || ( \
+	fi
+	@if ! command -v node >/dev/null 2>&1; then \
+		if command -v brew >/dev/null 2>&1; then \
+			echo "📦 Node.js가 설치되어 있지 않아 Homebrew로 자동 설치합니다..."; \
+			brew install node || exit 1; \
+		else \
+			echo "❌ Node.js(node)가 설치되어 있지 않습니다. https://nodejs.org 에서 설치해 주세요."; \
+			exit 1; \
+		fi; \
+	fi
+	@if ! command -v npm >/dev/null 2>&1; then \
 		echo "❌ npm이 설치되어 있지 않습니다."; \
 		exit 1; \
-	)
-	@command -v cargo >/dev/null 2>&1 || ( \
-		echo "❌ Rust(cargo)가 설치되어 있지 않거나 PATH에 등록되지 않았습니다."; \
-		echo "   👉 아래 명령어로 Rust를 설치해 주세요:"; \
-		echo "      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"; \
-		echo "      source \"\$$HOME/.cargo/env\""; \
-		exit 1; \
-	)
+	fi
 	@if [ ! -d dashboard/node_modules ]; then \
 		echo "📦 dashboard/node_modules가 없습니다. 'npm install'을 실행합니다..."; \
 		cd dashboard && npm install; \
