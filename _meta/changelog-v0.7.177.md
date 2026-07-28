@@ -9,10 +9,9 @@
 
 ## 2. 주요 변경 사항
 
-- **Dashboard 관리/설정 페이지(`VaultManage.tsx`) 내 PC 로컬 엔진 & 원격 타겟 호스트 명확 분리**:
-  - 기존에 원격 호스트 연결 시 대시보드 관리 카드에 원격 호스트 URL이 표시되어 내 로컬 PC의 환경 정보와 헷갈리던 UX 결함 보강.
-  - **내 PC (Local Machine) 전용 API (`http://127.0.0.1:8765`) 및 MCP (`http://127.0.0.1:8765/mcp`) 카드를 고정 표시**하여 언제든 내 로컬 주소를 한눈에 확인하고 복사할 수 있도록 분리.
-  - 원격 호스트 열람 중일 경우 하단에 `🌐 현재 열람 중인 원격 타겟 호스트` 카드를 별도로 구분 노출하도록 개선.
+- **Tailscale IP 자동 감지 기반 API & MCP 엔드포인트 연동 (`GET /api/system/info` / `VaultManage.tsx`)**:
+  - 백엔드에 `GET /api/system/info` 시스템 정보 엔드포인트를 추가하여 내 PC의 자동 감지된 Tailscale IP(`100.x.y.z`), Tailscale API URL (`http://100.x.y.z:8765`), Tailscale MCP URL (`http://100.x.y.z:8765/mcp`)을 자동으로 응답하도록 구동.
+  - 대시보드 관리/설정 페이지에서 Tailscale IP 감지 시 **🔒 Tailscale 네트워크 기반 MCP & API 카드가 최상단에 자동 표시**되며, Claude Code / Cursor / 외부 에이전트 설정용 `[📋 Tailscale API URL 복사]`, `[📋 Tailscale MCP URL 복사]` 버튼을 전면 제공하도록 보강.
   - 기존 데스크톱 앱 실행 시 파이썬 백엔드가 무작위 임의 포트(예: 58196 등) 및 `127.0.0.1`로 구동되어, 외부 PC에서 표준 포트 `8765`로 원격 접속할 시 소켓 거절(Load failed)이 발생하던 결정적 버그 완벽 수정.
   - `runtime.py`에서 무작위 포트 할당 대신 **표준 API 포트 `8765`를 1순위로 선점 바인딩**하도록 보강하고, `0.0.0.0` 바인딩 시 `RAVEN_ALLOW_ALL_CORS=1`을 자동 적용하여 원격 기기 및 Tailscale 망에서 `http://상대IP:8765`로의 접속이 막힘없이 100% 한 방에 성공하도록 개선.
 

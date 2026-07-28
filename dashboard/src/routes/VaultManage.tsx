@@ -4,7 +4,7 @@ import { Button } from "../components/ui/Button";
 import {
   fetchLinkCheck, runExport, repairVault, cloneVault,
   fetchLocks, releaseLock, apiFetch, formatApiError,
-  getActiveHost, getActiveHostUrl,
+  getActiveHost, getActiveHostUrl, fetchSystemInfo, type SystemInfo,
   type LinkCheckResult, type LockEntry,
 } from "../lib/api";
 
@@ -41,6 +41,13 @@ export function VaultManage() {
 
   // ── 복사 피드백 상태 ──
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
+
+  useEffect(() => {
+    fetchSystemInfo().then((info) => {
+      if (info) setSysInfo(info);
+    });
+  }, []);
 
   function handleCopy(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -446,6 +453,90 @@ export function VaultManage() {
         <h2 style={{ fontSize: 17, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
           <span>⚙️</span> 내 PC 및 서버 API / MCP 환경 정보
         </h2>
+
+        {/* Tailscale IP 기반 MCP / API 정보 (자동 감지 시 최상단 전면 노출) */}
+        {sysInfo?.tailscale_ip && (
+          <div
+            style={{
+              background: "var(--color-surface-soft)",
+              padding: 18,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-primary-soft)",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-primary)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>🔒</span> Tailscale 네트워크 기반 MCP & API 주소 (감지된 IP: {sysInfo.tailscale_ip})
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 16,
+              }}
+            >
+              {/* Tailscale API Card */}
+              <div
+                style={{
+                  background: "var(--color-canvas)",
+                  padding: 14,
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-hairline)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-muted)", textTransform: "uppercase", marginBottom: 4 }}>
+                    Tailscale REST API 엔드포인트
+                  </div>
+                  <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-primary)" }}>
+                    {sysInfo.tailscale_api}
+                  </div>
+                </div>
+                <Button
+                  variant="pillPrimary"
+                  size="sm"
+                  onClick={() => handleCopy(sysInfo.tailscale_api!, "ts_api")}
+                  style={{ fontSize: 11, alignSelf: "flex-start" }}
+                >
+                  {copiedKey === "ts_api" ? "✅ 복사됨!" : "📋 Tailscale API URL 복사"}
+                </Button>
+              </div>
+
+              {/* Tailscale MCP Card */}
+              <div
+                style={{
+                  background: "var(--color-canvas)",
+                  padding: 14,
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-hairline)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-primary)", textTransform: "uppercase", marginBottom: 4 }}>
+                    Tailscale MCP (LLM 에이전트) 엔드포인트
+                  </div>
+                  <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, wordBreak: "break-all", marginBottom: 12, color: "var(--color-primary)" }}>
+                    {sysInfo.tailscale_mcp}
+                  </div>
+                </div>
+                <Button
+                  variant="pillPrimary"
+                  size="sm"
+                  onClick={() => handleCopy(sysInfo.tailscale_mcp!, "ts_mcp")}
+                  style={{ fontSize: 11, alignSelf: "flex-start" }}
+                >
+                  {copiedKey === "ts_mcp" ? "✅ 복사됨!" : "📋 Tailscale MCP URL 복사"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* 1. 내 로컬 PC 백엔드 정보 (Local Engine) */}
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-muted)", marginBottom: 8 }}>

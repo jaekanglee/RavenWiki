@@ -208,6 +208,28 @@ export async function testHostConnection(endpoint: string): Promise<{ ok: boolea
   }
 }
 
+export interface SystemInfo {
+  ok: boolean;
+  tailscale_ip: string | null;
+  local_api: string;
+  local_mcp: string;
+  tailscale_api: string | null;
+  tailscale_mcp: string | null;
+  bind_host: string;
+  allow_all_cors: boolean;
+  port: number;
+}
+
+export async function fetchSystemInfo(): Promise<SystemInfo | null> {
+  try {
+    const r = await apiFetch("/api/system/info");
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
 // ─── debug logger (Raven-Debug v0.6.10+) ─────────────────────
 // fetch throw / React error 등을 tmp/dashboard.log에 자동 기록.
 // 브라우저 console에서 못 봐도 사용자가 cat으로 직접 확인 가능.

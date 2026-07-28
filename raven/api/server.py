@@ -160,6 +160,34 @@ class RelationAddPayload(BaseModel):
     actor: Optional[str] = "user"
 
 
+# ────────────────────────── system info ──────────────────────────
+
+
+@app.get("/api/system/info")
+def system_info():
+    """Returns backend system info including auto-detected Tailscale IP and MCP endpoints."""
+    from raven.api.main import get_tailscale_ip
+    ts_ip = get_tailscale_ip()
+    port = int(os.environ.get("PORT_API", "8765"))
+    local_api = f"http://127.0.0.1:{port}"
+    local_mcp = f"http://127.0.0.1:{port}/mcp"
+    
+    ts_api = f"http://{ts_ip}:{port}" if ts_ip else None
+    ts_mcp = f"http://{ts_ip}:{port}/mcp" if ts_ip else None
+
+    return {
+        "ok": True,
+        "tailscale_ip": ts_ip,
+        "local_api": local_api,
+        "local_mcp": local_mcp,
+        "tailscale_api": ts_api,
+        "tailscale_mcp": ts_mcp,
+        "bind_host": os.environ.get("RAVEN_HOST", "0.0.0.0"),
+        "allow_all_cors": True,
+        "port": port,
+    }
+
+
 # ────────────────────────── vault endpoints ──────────────────────────
 
 
