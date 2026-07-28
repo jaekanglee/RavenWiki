@@ -9,9 +9,9 @@
 
 ## 2. 주요 변경 사항
 
-- **Tailscale IP 자동 감지 기반 API & MCP 엔드포인트 연동 (`GET /api/system/info` / `VaultManage.tsx`)**:
-  - 백엔드에 `GET /api/system/info` 시스템 정보 엔드포인트를 추가하여 내 PC의 자동 감지된 Tailscale IP(`100.x.y.z`), Tailscale API URL (`http://100.x.y.z:8765`), Tailscale MCP URL (`http://100.x.y.z:8765/mcp`)을 자동으로 응답하도록 구동.
-  - 대시보드 관리/설정 페이지에서 Tailscale IP 감지 시 **🔒 Tailscale 네트워크 기반 MCP & API 카드가 최상단에 자동 표시**되며, Claude Code / Cursor / 외부 에이전트 설정용 `[📋 Tailscale API URL 복사]`, `[📋 Tailscale MCP URL 복사]` 버튼을 전면 제공하도록 보강.
+- **Dashboard 관리/설정 페이지(`VaultManage.tsx`) 단독 Tailscale IP, 포트 및 원격 등록 주소 요약 바 신설**:
+  - 다른 PC의 호스트 등록창(HostPicker "+ 추가")에 즉시 복사하여 등록할 수 있도록 **내 Tailscale IP (`100.x.y.z`)**, **포트 (`8765`)**, **원격 등록 주소 (`100.x.y.z:8765`)** 단독 요약 바 섹션 탑재.
+  - `[📋 IP 복사]`, `[📋 포트 복사]`, `[📋 호스트주소 복사]` 원클릭 피드백 버튼 제공.
   - 기존 데스크톱 앱 실행 시 파이썬 백엔드가 무작위 임의 포트(예: 58196 등) 및 `127.0.0.1`로 구동되어, 외부 PC에서 표준 포트 `8765`로 원격 접속할 시 소켓 거절(Load failed)이 발생하던 결정적 버그 완벽 수정.
   - `runtime.py`에서 무작위 포트 할당 대신 **표준 API 포트 `8765`를 1순위로 선점 바인딩**하도록 보강하고, `0.0.0.0` 바인딩 시 `RAVEN_ALLOW_ALL_CORS=1`을 자동 적용하여 원격 기기 및 Tailscale 망에서 `http://상대IP:8765`로의 접속이 막힘없이 100% 한 방에 성공하도록 개선.
 

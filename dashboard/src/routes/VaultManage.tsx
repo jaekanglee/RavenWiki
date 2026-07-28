@@ -466,7 +466,91 @@ export function VaultManage() {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-primary)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>🔒</span> Tailscale 네트워크 기반 MCP & API 주소 (감지된 IP: {sysInfo.tailscale_ip})
+              <span>🔒</span> 내 Tailscale 접속 정보 (감지된 IP: {sysInfo.tailscale_ip})
+            </div>
+
+            {/* 단독 IP & 포트 요약 바 */}
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 14,
+                padding: "10px 14px",
+                background: "var(--color-canvas)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-hairline)",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: 12 }}>
+                <span style={{ color: "var(--color-muted)", marginRight: 4 }}>내 Tailscale IP:</span>
+                <strong style={{ fontFamily: "monospace", fontSize: 13, color: "var(--color-primary)" }}>{sysInfo.tailscale_ip}</strong>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(sysInfo.tailscale_ip!, "ts_ip_only")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    color: "var(--color-primary)",
+                    marginLeft: 6,
+                    fontWeight: 600,
+                  }}
+                  title="Tailscale IP만 복사"
+                >
+                  {copiedKey === "ts_ip_only" ? "✅ 복사됨!" : "📋 IP 복사"}
+                </button>
+              </div>
+
+              <div style={{ borderLeft: "1px solid var(--color-hairline)", height: 16 }} />
+
+              <div style={{ fontSize: 12 }}>
+                <span style={{ color: "var(--color-muted)", marginRight: 4 }}>포트:</span>
+                <strong style={{ fontFamily: "monospace", fontSize: 13 }}>{sysInfo.port || 8765}</strong>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(String(sysInfo.port || 8765), "ts_port_only")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    color: "var(--color-primary)",
+                    marginLeft: 6,
+                    fontWeight: 600,
+                  }}
+                  title="포트 번호 복사"
+                >
+                  {copiedKey === "ts_port_only" ? "✅ 복사됨!" : "📋 포트 복사"}
+                </button>
+              </div>
+
+              <div style={{ borderLeft: "1px solid var(--color-hairline)", height: 16 }} />
+
+              <div style={{ fontSize: 12 }}>
+                <span style={{ color: "var(--color-muted)", marginRight: 4 }}>원격 등록 주소 (IP:Port):</span>
+                <strong style={{ fontFamily: "monospace", fontSize: 13, color: "var(--color-ink)" }}>
+                  {sysInfo.tailscale_ip}:{sysInfo.port || 8765}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(`${sysInfo.tailscale_ip}:${sysInfo.port || 8765}`, "ts_host_only")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    color: "var(--color-primary)",
+                    marginLeft: 6,
+                    fontWeight: 600,
+                  }}
+                  title="호스트 등록 주소 복사 (다른 PC HostPicker 등록용)"
+                >
+                  {copiedKey === "ts_host_only" ? "✅ 복사됨!" : "📋 호스트주소 복사"}
+                </button>
+              </div>
             </div>
             <div
               style={{
