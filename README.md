@@ -134,6 +134,53 @@ Makefile 단축: `make docker-build`, `make docker-up`, `make docker-down`, `mak
 
 ---
 
+## 데스크톱 앱 (Raven.app, macOS)
+
+Tauri 셸 + 번들된 Python 인터프리터로 API/MCP Core를 관리하는 네이티브 macOS 앱. 소스: `desktop/src-tauri/` (Rust), 아키텍처 배경은 [`_meta/decisions/adr-2026-07-23-raven-desktop-runtime-architecture.md`](_meta/decisions/adr-2026-07-23-raven-desktop-runtime-architecture.md), 트레이 아이콘은 [`adr-2026-07-26-desktop-system-tray.md`](_meta/decisions/adr-2026-07-26-desktop-system-tray.md) 참고.
+
+### 빌드 + 설치 (권장)
+
+```bash
+make desktop-install   # = scripts/install-desktop.sh
+```
+
+현재 체크아웃된 소스 그대로 빌드해서 `/Applications/Raven.app`에 설치합니다 (git clone/pull은 하지 않음 — 저장소 최신화는 직접 관리). 처음 실행 시 없는 빌드 도구는 자동으로 설치합니다:
+
+- **cargo/rustc** 없으면 → `rustup`으로 stable 툴체인 설치
+- **npm/node** 없으면 → Homebrew로 설치
+- **Xcode Command Line Tools** 없으면 → 안내 후 중단 (`xcode-select --install`은 대화형이라 자동화 불가, 직접 실행 필요)
+
+이후: 실행 중인 Raven 종료 → `make desktop-dmg` 빌드 → `/Applications/Raven.app` 교체.
+
+### 개별 빌드 단계 (디버깅용)
+
+```bash
+make desktop-bundle    # 번들용 Python(python-build-standalone) 다운로드 + raven 소스 복사 → desktop/src-tauri/resources/
+make desktop-build     # Dashboard 빌드 + cargo build --release
+make desktop-dmg       # .app 조립 + 코드사인 + .dmg 생성 (desktop-build 포함)
+make desktop-release   # .dmg를 현재 git tag의 GitHub Release에 업로드 (requires gh CLI)
+```
+
+`desktop-dmg` (`scripts/make-dmg.sh`)는 `.app` 조립 후 번들된 실행파일/`.dylib`/`.so`들을 ad-hoc 서명합니다 — macOS의 provenance 정책상 부모 앱과 자식 프로세스(번들된 python3) 모두 유효한 서명이 있어야 하기 때문입니다.
+
+### 동작 방식 요약
+
+- `desktop/src-tauri/src/core.rs`: 번들 모드에서는 `Contents/Resources/resources/python/bin/python3`를, 개발 모드에서는 `scripts/.venv/bin/python`을 찾아 `raven.desktop.runtime`을 자식 프로세스로 기동하고 stdout의 첫 JSON 라인(`{"host", "port", "mcp_port"}`)으로 준비 완료를 확인합니다.
+- `desktop/src-tauri/src/lib.rs`: Python Core 기동은 `tauri::async_runtime::spawn`으로 `.setup()` 훅 밖에서 비동기 실행됩니다 — `.setup()` 안에서 실패를 `Err`로 반환하면 Tauri 내부가 복구 불가능한 패닉(FFI 경계라 unwind 불가 → SIGABRT)을 내기 때문에, 실패 시 여기서 직접 흡수해 `osascript` 네이티브 다이얼로그를 띄우고 종료합니다.
+- 메뉴바 트레이 아이콘에서 Open Dashboard / Restart Backend / Quit 가능. 창 닫기(X)는 종료가 아니라 숨김 — 완전 종료는 트레이의 Quit만.
+
+### 트러블슈팅
+
+앱 실행 시 다이얼로그 없이 바로 죽는다면 (드물게, 서명/빌드가 깨진 경우) 터미널에서 직접 실행해 패닉 메시지를 확인하세요:
+
+```bash
+/Applications/Raven.app/Contents/MacOS/raven-desktop
+```
+
+`Python Core 시작 실패 (...): No such file or directory (os error 2)`가 뜨면 번들된 python3 바이너리 자체보다는 (이미 서명/경로 문제는 아님을 확인함) macOS 앱 launch 타이밍과 관련된 `posix_spawn` 실패일 가능성이 높습니다 — 위 `lib.rs`의 비동기 처리 덕분에 크래시 대신 다이얼로그로 안내됩니다.
+
+---
+
 ## 환경 변수 (선택)
 
 | 변수 | 기본 | 효과 |

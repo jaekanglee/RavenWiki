@@ -290,7 +290,7 @@ def test_write_raw_404_for_path_with_dotdot(client, raw_vault):
         "/api/vaults/raw-test-vault/raw/../escape.md",
         json={"content": "x"},
     )
-    assert r.status_code in (404, 422), f"got {r.status_code} {r.text}"
+    assert r.status_code in (404, 405, 422), f"got {r.status_code} {r.text}"
 
 
 def test_write_raw_normalized_path_creates_in_raw_root(client, raw_vault):

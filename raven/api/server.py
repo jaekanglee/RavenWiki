@@ -538,6 +538,14 @@ def git_diff(name: str, file: Optional[str] = Query(None, description="relative 
     }
 
 
+class VaultRegister(BaseModel):
+    name: str = Field(..., description="vault name")
+    path: str = Field(..., description="absolute path to existing vault directory")
+    mode: str = Field("personal", description="vault mode")
+    owner: str = Field("user", description="vault owner")
+    workspace: str = Field("", description="associated workspace path")
+
+
 class VaultCreate(BaseModel):
     name: str = Field(..., description="vault name (lowercase kebab-case 권장)")
     path: str = Field(..., description="absolute path to vault directory")
@@ -600,9 +608,40 @@ def create_vault(payload: VaultCreate):
             "default": v.meta.name == registry()._data.get("default", ""),
         },
     }
+@app.post("/api/vaults/register")
+def register_vault(payload: VaultRegister):
+    """Register an existing folder as a vault (no file changes)."""
+    from raven.core.registry import VaultMeta
+    p = Path(payload.path).expanduser().resolve()
+    if not p.exists() or not p.is_dir():
+        raise HTTPException(status_code=400, detail=f"not a directory: {p}")
+        
+    if registry().get(payload.name):
+        raise HTTPException(status_code=409, detail=f"vault {payload.name!r} already exists")
+
+    meta = VaultMeta(
+        name=payload.name, 
+        path=p, 
+        mode=payload.mode, 
+        owner=payload.owner, 
+        workspace_path=payload.workspace
+    )
+    registry().add(meta)
+    
+    return {
+        "ok": True,
+        "vault": {
+            "name": meta.name,
+            "path": str(meta.path),
+            "mode": meta.mode,
+            "owner": meta.owner,
+            "default": meta.name == registry()._data.get("default", ""),
+        }
+    }
 
 
 # ────────────────────────── page endpoints ──────────────────────────
+
 
 # v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.
 # _meta/, _archive/, _deprecated/ 같은 Raven 시스템 폴더는 sidebar에서 제외한다.

@@ -175,3 +175,6 @@ deploy-dev: ## Deploy mobile Dev build via Fastlane
 
 deploy-prod: ## Deploy mobile Prod build via Fastlane
 	cd mobile && bundle exec fastlane distribute_prod
+
+desktop-install: ## Rebuild from current source and (re)install Raven.app to /Applications (no clone/pull)
+	@bash scripts/install-desktop.sh

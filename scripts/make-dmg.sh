@@ -62,6 +62,23 @@ fi
 
 echo "  App size: $(du -sh "$APP_DIR" | cut -f1)"
 
+# --- Code signing ---
+# macOS's provenance/Gatekeeper policy refuses to spawn unsigned child processes
+# from an app process (posix_spawn fails, surfaced as ENOENT) — the bundled
+# python3 interpreter must carry its own valid signature, not just inherit the
+# app's. Clear stale xattrs from the python-build-standalone tarball extraction,
+# then sign inside-out: nested binaries/dylibs first, then the app bundle itself.
+echo "=== Code-signing bundle ==="
+xattr -cr "$APP_DIR"
+find "$APP_DIR/Contents/Resources/resources" -type f -perm -111 -print0 \
+  | while IFS= read -r -d '' f; do
+      if file -b "$f" | grep -q "Mach-O"; then
+        codesign --force --sign - --timestamp=none "$f" 2>/dev/null
+      fi
+    done
+codesign --force --deep --sign - --timestamp=none "$APP_DIR"
+codesign -dv "$APP_DIR" 2>&1 | head -5
+
 # --- DMG ---
 echo "=== Building DMG ==="
 mkdir -p "$DMG_DIR"
