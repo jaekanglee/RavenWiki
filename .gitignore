@@ -49,3 +49,6 @@ desktop/src-tauri/gen/
 desktop/src-tauri/target/
 desktop/src-tauri/resources/
 .cache/
+
+# Deployment scripts (Personal/Private)
+scripts/deploy-qc.sh

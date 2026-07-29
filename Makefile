@@ -228,7 +228,10 @@ desktop-release: desktop-dmg ## Build DMG + signed auto-update artifact, upload 
 	echo "✅ Release $$TAG updated (auto-update manifest included)"
 # ────────────────────────── mobile ──────────────────────────
 
-.PHONY: deploy-dev deploy-prod
+.PHONY: deploy-dev deploy-prod deploy-qc
+
+deploy-qc: ## Deploy mobile QC build via Fastlane (auto-increments .devX version)
+	@bash scripts/deploy-qc.sh
 
 deploy-dev: ## Deploy mobile Dev build via Fastlane
 	cd mobile && bundle exec fastlane distribute_dev

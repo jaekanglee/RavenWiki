@@ -7,4 +7,6 @@ interface DocumentRepository {
     fun getAllDocuments(): Flow<List<Document>>
     suspend fun fetchDocument(id: String)
     suspend fun syncAllDocuments()
+    suspend fun saveDocument(document: Document)
+    suspend fun deleteDocument(id: String)
 }

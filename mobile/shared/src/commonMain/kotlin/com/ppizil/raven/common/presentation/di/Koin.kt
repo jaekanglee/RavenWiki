@@ -14,6 +14,8 @@ import com.ppizil.raven.common.data.repository.DocumentRepositoryImpl
 import com.ppizil.raven.common.domain.usecase.PairDeviceUseCase
 import com.ppizil.raven.common.domain.usecase.GetDocumentsUseCase
 import com.ppizil.raven.common.domain.usecase.SyncDocumentsUseCase
+import com.ppizil.raven.common.domain.usecase.SaveDocumentUseCase
+import com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
 import com.ppizil.raven.common.framework.qr.QrScanner
 import com.ppizil.raven.common.framework.qr.FakeQrScanner
 import com.ppizil.raven.common.presentation.viewmodel.PairingViewModel
@@ -50,8 +52,10 @@ val commonModule = module {
     factory { PairDeviceUseCase(get(), get()) }
     factory { GetDocumentsUseCase(get()) }
     factory { SyncDocumentsUseCase(get()) }
+    factory { SaveDocumentUseCase(get()) }
+    factory { DeleteDocumentUseCase(get()) }
     
     // ViewModels
     factory { PairingViewModel(get(), get()) }
-    factory { MainViewModel(get(), get()) }
+    factory { MainViewModel(get(), get(), get(), get()) }
 }

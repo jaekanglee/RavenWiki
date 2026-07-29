@@ -5,6 +5,10 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.unit.dp
 import com.ppizil.raven.common.presentation.viewmodel.PairingIntent
 import com.ppizil.raven.common.presentation.viewmodel.PairingSideEffect
@@ -38,6 +42,8 @@ fun PairingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .imePadding()
                 .padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
@@ -55,7 +61,19 @@ fun PairingScreen(
                 onValueChange = { manualEndpoint = it },
                 label = { Text("Tailscale IP / Endpoint") },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g. http://100.x.y.z:8765") }
+                placeholder = { Text("e.g. http://100.x.y.z:8765") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (manualEndpoint.isNotBlank() && state != PairingState.Scanning) {
+                            viewModel.sendIntent(PairingIntent.PairManual(manualEndpoint))
+                        }
+                    }
+                ),
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -44,7 +44,7 @@ class DocumentRepositoryImpl(
             val response = httpClient.get("$endpoint/api/index.json", requestBuilder)
             val docs = response.body<List<DocumentDto>>()
             val doc = docs.find { it.slug == id } ?: return
-            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", false, System.currentTimeMillis())
+            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", doc.path, false, io.ktor.util.date.getTimeMillis())
         } catch (e: Exception) {
             println("Failed to fetch document: ${e.message}")
         }
@@ -64,7 +64,41 @@ class DocumentRepositoryImpl(
         val response = httpClient.get("$endpoint/api/index.json", requestBuilder)
         val docs = response.body<List<DocumentDto>>()
         docs.forEach { doc ->
-            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", false, System.currentTimeMillis())
+            queries.insertDocument(doc.slug, doc.title, doc.type ?: "", doc.path, false, io.ktor.util.date.getTimeMillis())
         }
+    }
+
+    override suspend fun saveDocument(document: Document) {
+        // 1. Save locally
+        queries.insertDocument(
+            id = document.id,
+            title = document.title,
+            content = document.content,
+            path = document.path,
+            isFavorite = document.isFavorite,
+            lastUpdated = document.lastUpdated
+        )
+
+        // 2. Sync to remote (optional / stub)
+        // val endpoint = settingsRepository.getEndpoint()?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: "http://10.0.2.2:8765"
+        // val apiKey = settingsRepository.getApiKey()
+        // try {
+        //     httpClient.post("$endpoint/api/documents") { /* ... */ }
+        // } catch (e: Exception) {
+        //     println("Failed to sync document remotely: ${e.message}")
+        // }
+    }
+
+    override suspend fun deleteDocument(id: String) {
+        queries.deleteDocument(id)
+        
+        // 2. Sync deletion to remote (optional / stub)
+        // val endpoint = settingsRepository.getEndpoint()?.takeIf { it.isNotBlank() }?.trimEnd('/') ?: "http://10.0.2.2:8765"
+        // val apiKey = settingsRepository.getApiKey()
+        // try {
+        //     httpClient.delete("$endpoint/api/documents/$id") { /* ... */ }
+        // } catch (e: Exception) {
+        //     println("Failed to delete document remotely: ${e.message}")
+        // }
     }
 }

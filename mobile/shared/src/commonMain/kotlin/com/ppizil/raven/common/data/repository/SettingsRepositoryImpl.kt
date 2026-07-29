@@ -21,4 +21,13 @@ class SettingsRepositoryImpl(database: RavenDatabase) : SettingsRepository {
     override fun getEndpoint(): String? {
         return queries.getSetting("endpoint").executeAsOneOrNull()
     }
+
+    override fun setDarkMode(isDark: Boolean) {
+        queries.setSetting("dark_mode", isDark.toString())
+    }
+
+    override fun isDarkMode(): Boolean {
+        // Default to true (Forced Dark Mode First as per ADR) if not set
+        return queries.getSetting("dark_mode").executeAsOneOrNull()?.toBoolean() ?: true
+    }
 }
