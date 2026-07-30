@@ -2011,6 +2011,36 @@ mark {
   color: var(--color-ink);
   font-weight: 600;
 }
+/* 더보기 드롭 — 운영 도구(로그/린트/워크스페이스/관리)를 레일 밖으로 내린다. */
+.section-nav-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  z-index: 60;
+}
+.section-nav-more-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-ink);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.section-nav-more-item:hover {
+  background: var(--color-surface-soft);
+}
 
 /* v0.7.97.4.2+: sidebar resize 중 transition 무력화 (drag 버벅임 해결).
    body에 .sidebar-resizing class 부착 시 사이드바 내부 모든 transition/transform 끔.

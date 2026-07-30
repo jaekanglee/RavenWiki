@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  fetchPages,
   fetchVaults,
   getActiveVault,
   setActiveVault as setActiveVaultLS,
@@ -12,7 +13,10 @@ import { Button } from "../components/ui/Button";
 import { PageHeader } from "../components/ui/PageHeader";
 
 /**
- * HomePage — v0.6.10 (P16): 종합 홈 (vault 미선택).
+ * HomePage — v0.7.181+: 오늘의 작업대 (최근 문서 · 손볼 문서 · 건간 삼단).
+ *   보감소 목록은 맨 아래로 내리고, test/tmp 스크래치 vault는 기본 숨김.
+ *
+ * 이전(v0.6.10 P16): 종합 홈 (vault 미선택).
  *
  * 이전: HomePage가 useOutletContext<{vault}>로 활성 vault를 받아 그 vault
  *   한 곳의 페이지/통계만 표시 = "vault 운영 콘솔"로 동작.
@@ -134,11 +138,47 @@ interface NewPageAction {
 
 const MOBILE_MQ = "(max-width: 744px)";
 
+export interface HomePageSummary {
+  slug: string;
+  title?: string;
+  type?: string;
+  status?: string;
+  updated?: string;
+}
+
+const SCRATCH_NAME = /(^|[-_])(test|tests|tmp|temp|scratch|fixture|sample)([-_]|\d|$)/i;
+const SCRATCH_PATH = /^(\/tmp\/|\/private\/tmp\/|\/var\/folders\/)/;
+
+// 사람용 목록과 테스트/임시 생성물을 섞지 않기 위한 식별 신호 (이름 + 임시 디렉토리 경로).
+export function isScratchVault(meta: { name: string; path?: string }): boolean {
+  return SCRATCH_NAME.test(meta.name) || SCRATCH_PATH.test(meta.path ?? "");
+}
+
+export function pickRecentPages<T extends HomePageSummary>(pages: T[], limit = 6): T[] {
+  return [...pages]
+    .sort((a, b) => {
+      const diff = (b.updated ?? "").trim().localeCompare((a.updated ?? "").trim());
+      return diff !== 0 ? diff : (a.title ?? a.slug).localeCompare(b.title ?? b.slug);
+    })
+    .slice(0, limit);
+}
+
+// SCHEMA.md status 4종 중 사람이 손봐야 하는 것은 stale/contested — archived는 거리지 않는다.
+export function pickUnfinishedPages<T extends HomePageSummary>(pages: T[], limit = 6): T[] {
+  return pickRecentPages(
+    pages.filter((p) => p.status === "stale" || p.status === "contested"),
+    limit,
+  );
+}
+
 export function HomePage() {
   const [vaults, setVaults] = useState<VaultWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeVault, setActiveVault] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [pages, setPages] = useState<HomePageSummary[]>([]);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [showScratch, setShowScratch] = useState(false);
   // Plan v1 묶음 B (Tasks 5-7): 인라인 폼 트리거.
   const [showNewPageForm, setShowNewPageForm] = useState(false);
   const navigate = useNavigate();
@@ -214,6 +254,40 @@ export function HomePage() {
     [vaults]
   );
 
+  useEffect(() => {
+    if (!activeVault) {
+      setPages([]);
+      return;
+    }
+    let cancelled = false;
+    setPagesLoading(true);
+    fetchPages(activeVault)
+      .then((rows: HomePageSummary[]) => {
+        if (!cancelled) setPages(rows ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPages([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeVault]);
+
+  const recentPages = useMemo(() => pickRecentPages(pages), [pages]);
+  const unfinishedPages = useMemo(() => pickUnfinishedPages(pages), [pages]);
+  const activeStats = useMemo(
+    () => vaults.find((v) => v.meta.name === activeVault)?.stats ?? null,
+    [vaults, activeVault]
+  );
+  const scratchVaults = useMemo(() => sorted.filter((v) => isScratchVault(v.meta)), [sorted]);
+  const visibleVaults = useMemo(
+    () => (showScratch ? sorted : sorted.filter((v) => !isScratchVault(v.meta))),
+    [sorted, showScratch]
+  );
+
   return (
     <div style={{ maxWidth: 1120 }}>
       {/* ─── Hero ──────────────────────────────────────────── */}
@@ -224,17 +298,17 @@ export function HomePage() {
         }}
       >
         <PageHeader
-          title="🐦 Raven"
+          title="오늘의 작업대"
           titleSize={isMobile ? 22 : 30}
           bottomSpacing={0}
           subtitle={
             loading
-              ? "vault 목록을 불러오는 중…"
+              ? "보감소를 불러오는 중…"
               : vaults.length === 0
-              ? "아직 등록된 vault가 없습니다. 새 vault를 만들어 시작하세요."
+              ? "아직 등록된 보감소가 없습니다. 새 vault를 만들어 시작하세요."
               : activeVault
-              ? `vault를 선택하거나 새로 만드세요. 현재 활성: ${activeVault}`
-              : "vault를 선택하거나 새로 만드세요."
+              ? `${activeVault} · 바로 이어서 쓰거나 손볼 문서를 고르세요.`
+              : "보감소를 선택하면 오늘 쓸 문서가 여기 오릅니다."
           }
         />
       </section>
@@ -299,6 +373,53 @@ export function HomePage() {
         />
       )}
 
+      {activeVault && (
+        <section style={{ paddingBottom: isMobile ? 24 : 40 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: 12,
+            }}
+          >
+            <PageQueue
+              heading="최근 문서"
+              emptyText={pagesLoading ? "불러오는 중…" : "아직 문서가 없습니다."}
+              vault={activeVault}
+              pages={recentPages}
+            />
+            <PageQueue
+              heading="손볼 문서"
+              emptyText={pagesLoading ? "불러오는 중…" : "stale·contested 문서가 없습니다."}
+              vault={activeVault}
+              pages={unfinishedPages}
+              showStatus
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 8,
+              marginTop: 12,
+            }}
+          >
+            <Stat label="페이지" value={activeStats ? activeStats.pages : "—"} />
+            <Stat
+              label="깨진 링크"
+              value={activeStats ? activeStats.broken_links : "—"}
+              tone={activeStats && activeStats.broken_links > 0 ? "warn" : "default"}
+            />
+            <Stat
+              label="손볼 문서"
+              value={pagesLoading ? "—" : unfinishedPages.length}
+              tone={unfinishedPages.length > 0 ? "warn" : "default"}
+            />
+          </div>
+        </section>
+      )}
+
       {/* ─── Vaults ────────────────────────────────────────── */}
       <section style={{ paddingBottom: 64 }}>
         <div
@@ -308,28 +429,39 @@ export function HomePage() {
             justifyContent: "space-between",
             marginBottom: 16,
           }}
-        >
-          <h2 style={{ fontSize: 18 }}>
+        >          <h2 style={{ fontSize: 18 }}>
             보관소{" "}
             <span
               className="text-muted"
               style={{ fontSize: 13, fontWeight: 400 }}
             >
-              ({sorted.length})
+              ({visibleVaults.length})
             </span>
           </h2>
-          <Link
-            to="/vault/manage"
-            className="link-muted"
-            style={{ fontSize: 13 }}
-          >
-            vault 관리 →
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {scratchVaults.length > 0 && (
+              <Button
+                variant="pill"
+                onClick={() => setShowScratch((v) => !v)}
+                aria-pressed={showScratch}
+                style={{ fontSize: 12 }}
+              >
+                {showScratch ? "스크래치 숨기기" : `스크래치 ${scratchVaults.length}개 보기`}
+              </Button>
+            )}
+            <Link
+              to="/vault/manage"
+              className="link-muted"
+              style={{ fontSize: 13 }}
+            >
+              vault 관리 →
+            </Link>
+          </div>
         </div>
 
         {loading ? (
           <p className="text-muted">불러오는 중…</p>
-        ) : sorted.length === 0 ? (
+        ) : visibleVaults.length === 0 ? (
           <div className="card-flat" style={{ padding: 24, borderRadius: 8 }}>
             <p className="text-muted" style={{ marginBottom: 12 }}>
               등록된 vault가 없습니다.
@@ -352,7 +484,7 @@ export function HomePage() {
               gap: 12,
             }}
           >
-            {sorted.map((v) => (
+            {visibleVaults.map((v) => (
               <VaultCard
                 key={v.meta.name}
                 v={v}
@@ -388,6 +520,71 @@ export function HomePage() {
 }
 
 // ────────────────────────── sub-components ────────────────────────
+
+function PageQueue({
+  heading,
+  emptyText,
+  vault,
+  pages,
+  showStatus = false,
+}: {
+  heading: string;
+  emptyText: string;
+  vault: string;
+  pages: HomePageSummary[];
+  showStatus?: boolean;
+}) {
+  return (
+    <section className="card-flat" style={{ padding: 16, borderRadius: 8 }} aria-label={heading}>
+      <h2 style={{ fontSize: 15, marginBottom: 10 }}>{heading}</h2>
+      {pages.length === 0 ? (
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          {emptyText}
+        </p>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+          {pages.map((page) => (
+            <li key={page.slug}>
+              <Link
+                to={`/page/${encodeURIComponent(vault)}/${page.slug}`}
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 8,
+                  color: "var(--color-ink)",
+                  textDecoration: "none",
+                  fontSize: 14,
+                }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {page.title || page.slug}
+                </span>
+                {showStatus && page.status && (
+                  <span
+                    className="chip"
+                    style={{
+                      fontSize: 10,
+                      background: "var(--color-warning-bg)",
+                      color: "var(--color-warning-text)",
+                    }}
+                  >
+                    {page.status}
+                  </span>
+                )}
+                {page.updated && (
+                  <span className="text-muted" style={{ fontSize: 11, marginLeft: "auto", flexShrink: 0 }}>
+                    {page.updated}
+                  </span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 
 function ActionCard({
   action,

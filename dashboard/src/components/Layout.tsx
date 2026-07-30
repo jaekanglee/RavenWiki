@@ -9,17 +9,51 @@ import type { TreeNode, VaultMeta } from "../types";
 
 // v0.7.97.3+: 헤더에서 sub-nav 레일로 분리. 전역 섹션 nav (앱 내 페이지 전환).
 // 탭 레일은 헤더 아래 별도 1줄 좌정렬. PKM "탐색 / 섹션 / 콘텐츠" 3단 분리.
-const GLOBAL_NAV = [
-  { to: "/", label: "홈", icon: "🏠", match: (p: string) => p === "/" },
-  { to: "/graph", label: "그래프", icon: "🕸", match: (p: string) => p.startsWith("/graph") },
-  { to: "/search", label: "검색", icon: "🔍", match: (p: string) => p.startsWith("/search") },
+export interface SectionNavEntry {
+  to: string;
+  label: string;
+  icon: string;
+  match: (pathname: string) => boolean;
+}
 
-  { to: "/log", label: "로그", icon: "📋", match: (p: string) => p.startsWith("/log") },
-  { to: "/lint", label: "린트", icon: "🛠", match: (p: string) => p.startsWith("/lint") },
-  { to: "/garden", label: "정원", icon: "🌱", match: (p: string) => p.startsWith("/garden") },
-  { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p: string) => p.startsWith("/workspace") },
-  { to: "/vault/manage", label: "관리", icon: "⚙", match: (p: string) => p.startsWith("/vault/manage") },
+// 레일에 놓이는 항목 수 상한. 390px에서 가로로 잘리던 원인이 8개 동일 위계였다.
+export const SECTION_NAV_MAX = 5;
+
+export const PRIMARY_NAV: SectionNavEntry[] = [
+  { to: "/", label: "홈", icon: "🏠", match: (p) => p === "/" },
+  { to: "/search", label: "검색", icon: "🔍", match: (p) => p.startsWith("/search") },
+  { to: "/graph", label: "그래프", icon: "🕸", match: (p) => p.startsWith("/graph") },
+  { to: "/garden", label: "정원", icon: "🌱", match: (p) => p.startsWith("/garden") },
 ];
+
+// 운영 도구는 매일 쓰는 탐색이 아니다 → 더보기 메뉴 하위로.
+export const MORE_NAV: SectionNavEntry[] = [
+  { to: "/log", label: "로그", icon: "📋", match: (p) => p.startsWith("/log") },
+  { to: "/lint", label: "린트", icon: "🛠", match: (p) => p.startsWith("/lint") },
+  { to: "/workspace", label: "워크스페이스", icon: "💻", match: (p) => p.startsWith("/workspace") },
+  { to: "/vault/manage", label: "관리", icon: "⚙", match: (p) => p.startsWith("/vault/manage") },
+];
+
+export interface SectionNavPlan {
+  primary: SectionNavEntry[];
+  more: SectionNavEntry[];
+  /** 320/390에서는 활성 탭만 라벨을 남긴다 — 레일이 가로로 잘리지 않게. */
+  compact: boolean;
+  railItems: number;
+}
+
+export function planSectionNav(width: number): SectionNavPlan {
+  return {
+    primary: PRIMARY_NAV,
+    more: MORE_NAV,
+    compact: width <= 390,
+    railItems: PRIMARY_NAV.length + 1,
+  };
+}
+
+export function isMoreNavActive(pathname: string): boolean {
+  return MORE_NAV.some((entry) => entry.match(pathname));
+}
 
 export function chooseLayoutVault(vaults: VaultMeta[], current: string, stored: string): string {
   if (current && vaults.some((v) => v.name === current)) return current;
@@ -36,6 +70,10 @@ export function Layout() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === "undefined" ? 1440 : window.innerWidth,
+  );
   const location = useLocation();
 
   // v0.7.99+: 현재 path에서 page slug 추출. /page/:vault/* 패턴에 매치될 때만.
@@ -117,6 +155,21 @@ export function Layout() {
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileNavOpen]);
 
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => setMoreOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [moreOpen]);
+
   // Cmd+K / Ctrl+K — 커맨드 팔레트 (P0-2)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -134,6 +187,8 @@ export function Layout() {
   }
 
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
+  const navPlan = planSectionNav(viewportWidth);
+  const moreActive = isMoreNavActive(location.pathname);
 
   return (
     <div className="flex h-screen" style={{ background: "var(--color-canvas)" }}>
@@ -246,8 +301,8 @@ export function Layout() {
           </div>
         </header>
 
-        {/* v0.7.97.3+: Global section nav 레일 — 헤더 바로 아래 1줄 좌정렬 가로 탭.
-            8개가 좁아도 가로 스크롤. vault tree 탐색과 섹션 전환의 위계 분리. */}
+        {/* Global section nav 레일 — 헤더 바로 아래 1줄 좌정렬.
+            상시 노출은 탐색 4개 + 더보기 1개(운영 도구). 390px에서도 안 잘린다. */}
         <nav
           className="global-section-nav"
           aria-label="주요 섹션"
@@ -267,21 +322,57 @@ export function Layout() {
             zIndex: 49,
           }}
         >
-          {GLOBAL_NAV.map((t) => {
+          {navPlan.primary.map((t) => {
             const isActive = t.match(location.pathname);
+            const showLabel = !navPlan.compact || isActive;
             return (
               <Link
                 key={t.to}
                 to={t.to}
                 className={clsx("section-nav-tab", isActive && "section-nav-tab-active")}
                 aria-current={isActive ? "page" : undefined}
+                aria-label={showLabel ? undefined : t.label}
+                title={showLabel ? undefined : t.label}
                 style={{ flexShrink: 0 }}
               >
                 <span aria-hidden style={{ fontSize: 14 }}>{t.icon}</span>
-                <span>{t.label}</span>
+                {showLabel && <span>{t.label}</span>}
               </Link>
             );
           })}
+
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              type="button"
+              className={clsx("section-nav-tab", moreActive && "section-nav-tab-active")}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              <span aria-hidden style={{ fontSize: 14 }}>⋯</span>
+              <span>더보기</span>
+            </button>
+            {moreOpen && (
+              <div className="section-nav-more-panel" role="menu" aria-label="운영 도구">
+                {navPlan.more.map((t) => {
+                  const isActive = t.match(location.pathname);
+                  return (
+                    <Link
+                      key={t.to}
+                      to={t.to}
+                      role="menuitem"
+                      className={clsx("section-nav-more-item", isActive && "section-nav-tab-active")}
+                      aria-current={isActive ? "page" : undefined}
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      <span aria-hidden style={{ fontSize: 14 }}>{t.icon}</span>
+                      <span>{t.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div
