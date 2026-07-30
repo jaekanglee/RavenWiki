@@ -33,7 +33,7 @@ class PairingViewModelTest {
         val settingsRepository = SettingsRepositoryImpl(database)
         val qrScanner = FakeQrScanner()
         val pairDeviceUseCase = PairDeviceUseCase(qrScanner, settingsRepository)
-        viewModel = PairingViewModel(pairDeviceUseCase)
+        viewModel = PairingViewModel(pairDeviceUseCase, settingsRepository)
     }
 
     @After

@@ -8,10 +8,10 @@ CREATE TABLE Document (
 );
 
 selectAll:
-SELECT * FROM Document;
+SELECT id, title, content, path, isFavorite, lastUpdated FROM Document;
 
 selectById:
-SELECT * FROM Document WHERE id = ?;
+SELECT id, title, content, path, isFavorite, lastUpdated FROM Document WHERE id = ?;
 
 insertDocument:
 INSERT OR REPLACE INTO Document(id, title, content, path, isFavorite, lastUpdated)
