@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => ({
   fullscreenModal: vi.fn(),
 }));
 
-vi.mock("../src/lib/api", () => ({
+// v0.7.180: 모듈 전체를 대체하면 PageView가 쓰는 apiFetch(그래프 fetch)가 빠져
+// 렌더 자체가 죽는다. 실제 apiFetch를 남겨 stub된 global fetch를 타게 하고,
+// 단언 대상인 fetchPage/fetchRecommendations만 교체한다.
+vi.mock("../src/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/api")>()),
   fetchPage: mocks.fetchPage,
   fetchRecommendations: mocks.fetchRecommendations,
   getActiveVault: () => "fallback-vault",

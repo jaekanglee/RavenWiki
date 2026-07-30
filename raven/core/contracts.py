@@ -38,6 +38,7 @@ Scope (deliberately limited)
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -83,16 +84,20 @@ class WriteResult:
 
 
 def precondition_for_path(fp: Path) -> str:
-    """Token describing a markdown file's current on-disk state ("" when absent).
+    """Token describing a markdown file's current content ("" when absent).
 
-    Derived from `(st_mtime_ns, st_size)`: two writes inside the same mtime tick
-    that also produce the same byte count are indistinguishable.
+    v0.7.180: derived from the file bytes (sha256). The v0.7.178 token was
+    `(st_mtime_ns, st_size)`, which could not tell apart a concurrent write that
+    landed inside the same mtime tick with the same byte count — that write was
+    silently overwritten. Hashing content answers the question the caller
+    actually asks ("did what I read change?") and makes an identical rewrite a
+    no-op rather than a conflict.
     """
     try:
-        st = fp.stat()
+        data = fp.read_bytes()
     except OSError:
         return ""
-    return f"{st.st_mtime_ns}-{st.st_size}"
+    return f"sha256-{hashlib.sha256(data).hexdigest()[:32]}"
 
 
 def page_precondition(vault: Vault, slug: str, *, normalize: bool = True) -> str:

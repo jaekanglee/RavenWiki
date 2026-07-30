@@ -3,13 +3,14 @@
 `FileLock`은 write 순간만 직렬화하므로, read-modify-write 사이에 남이 저장하면
 그 편집이 조용히 사라진다. `write_page(precondition=...)`가 이를 거부한다.
 
-토큰은 `(st_mtime_ns, size)` 파생 문자열이다. 같은 mtime tick 안에서 크기까지
-같은 두 write는 원리상 구분되지 않으므로, 아래 테스트는 sleep 대신 **길이가
-다른** 중간 write로 stale 상태를 결정론적으로 만든다.
+토큰은 파일 **내용** 파생 문자열이다 (v0.7.180 sha256; v0.7.178에서는
+`(st_mtime_ns, size)`였고 같은 tick + 같은 크기 충돌을 놓쳤다 —
+`tests/test_v0_7_180_precondition_collision.py`가 그 구멍을 닫는다). 아래 테스트는
+sleep 없이 **내용이 다른** 중간 write로 stale 상태를 결정론적으로 만든다.
 """
 from __future__ import annotations
 
-import os
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -26,9 +27,10 @@ def vault(tmp_path: Path) -> Vault:
     return Vault.load(meta)
 
 
-def stat_token(vault: Vault, rel: str) -> str:
-    st = os.stat(vault.root / f"{rel}.md")
-    return f"{st.st_mtime_ns}-{st.st_size}"
+def content_token(vault: Vault, rel: str) -> str:
+    """구현을 호출하지 않고 파일 바이트에서 토큰을 독립적으로 재구성한다."""
+    data = (vault.root / f"{rel}.md").read_bytes()
+    return f"sha256-{hashlib.sha256(data).hexdigest()[:32]}"
 
 
 def test_write_without_precondition_still_overwrites(vault: Vault) -> None:
@@ -40,16 +42,16 @@ def test_write_without_precondition_still_overwrites(vault: Vault) -> None:
     assert "v2-longer-body" in (vault.root / "content" / "hello.md").read_text()
 
 
-def test_helper_token_matches_stat_derived_token(vault: Vault) -> None:
-    """공개 헬퍼가 실제 (mtime_ns, size)와 같은 값을 내야 검사가 의미를 가진다."""
+def test_helper_token_matches_content_derived_token(vault: Vault) -> None:
+    """공개 헬퍼가 실제 파일 내용과 같은 값을 내야 검사가 의미를 가진다."""
     write_page(vault, "hello", "base", title="Hello")
-    assert page_precondition(vault, "content/hello") == stat_token(vault, "content/hello")
+    assert page_precondition(vault, "content/hello") == content_token(vault, "content/hello")
 
 
 def test_stale_precondition_is_rejected_and_first_edit_survives(vault: Vault) -> None:
     """A가 읽은 뒤 B가 저장하면, A의 저장은 거부되고 B의 내용이 남는다."""
     write_page(vault, "hello", "base", title="Hello")
-    token_a = stat_token(vault, "content/hello")
+    token_a = content_token(vault, "content/hello")
 
     r_b = write_page(vault, "hello", "B wrote a distinctly longer body", title="Hello")
     assert r_b.ok is True
@@ -71,7 +73,7 @@ def test_fresh_precondition_is_accepted(vault: Vault) -> None:
         "hello",
         "updated body",
         title="Hello",
-        precondition=stat_token(vault, "content/hello"),
+        precondition=content_token(vault, "content/hello"),
     )
     assert result.ok is True
     assert "updated body" in (vault.root / "content" / "hello.md").read_text()

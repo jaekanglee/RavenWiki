@@ -1,3 +1,5 @@
+import { beforeEach } from "vitest";
+
 // v0.7.102: vitest global setup — jsdom 기본 한계 보완.
 //
 // 1. window.matchMedia stub — jsdom은 matchMedia 미제공. Sidebar/Layout 등
@@ -6,6 +8,12 @@
 //
 // 2. window.scrollTo stub — jsdom 미구현. 일부 component가 호출 시 console.error.
 //    no-op으로 처리.
+//
+// 3. localStorage stub (v0.7.180) — jsdom 25.0.1은 직접 쓰면 localStorage를
+//    주지만 vitest 2.1.9의 jsdom environment는 노출하지 않는다 (직접 JSDOM
+//    probe로 확인). api.ts의 getActiveVault/getActiveHostId가 이걸 무조건
+//    호출하므로 stub 없이는 api를 import하는 suite가 죄다 깨진다. 테스트 간
+//    누수를 막기 위해 beforeEach에서 비운다.
 
 if (typeof window !== "undefined") {
   // matchMedia stub — v0.7.97 §6 (Folder-hover-menu 회귀 가드 회복).
@@ -30,4 +38,28 @@ if (typeof window !== "undefined") {
   if (typeof window.scrollTo !== "function") {
     window.scrollTo = () => {};
   }
+}
+
+if (typeof globalThis !== "undefined" && typeof (globalThis as any).localStorage === "undefined") {
+  const store = new Map<string, string>();
+  const storage: Storage = {
+    get length() {
+      return store.size;
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    setItem: (key: string, value: string) => void store.set(key, String(value)),
+    removeItem: (key: string) => void store.delete(key),
+    clear: () => store.clear(),
+  };
+  for (const target of [globalThis, typeof window !== "undefined" ? window : undefined]) {
+    if (target) {
+      Object.defineProperty(target, "localStorage", {
+        writable: true,
+        configurable: true,
+        value: storage,
+      });
+    }
+  }
+  beforeEach(() => storage.clear());
 }
