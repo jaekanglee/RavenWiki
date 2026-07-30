@@ -5,6 +5,8 @@ interface SettingsRepository {
     fun getApiKey(): String?
     fun saveEndpoint(endpoint: String)
     fun getEndpoint(): String?
+    fun saveVault(vault: String)
+    fun getVault(): String?
     fun setDarkMode(isDark: Boolean)
     fun isDarkMode(): Boolean
 }

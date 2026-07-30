@@ -22,6 +22,14 @@ class SettingsRepositoryImpl(database: RavenDatabase) : SettingsRepository {
         return queries.getSetting("endpoint").executeAsOneOrNull()
     }
 
+    override fun saveVault(vault: String) {
+        queries.setSetting("vault", vault)
+    }
+
+    override fun getVault(): String? {
+        return queries.getSetting("vault").executeAsOneOrNull()
+    }
+
     override fun setDarkMode(isDark: Boolean) {
         queries.setSetting("dark_mode", isDark.toString())
     }

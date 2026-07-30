@@ -23,6 +23,34 @@ UPDATE Document SET isFavorite = 1 - isFavorite WHERE id = ?;
 deleteDocument:
 DELETE FROM Document WHERE id = ?;
 
+CREATE TABLE PendingWrite (
+    slug TEXT NOT NULL PRIMARY KEY,
+    operation TEXT NOT NULL,
+    payload TEXT,
+    attemptCount INTEGER NOT NULL DEFAULT 0,
+    lastError TEXT,
+    failureKind TEXT
+);
+
+selectPendingWrites:
+SELECT slug, operation, payload, attemptCount, lastError, failureKind
+FROM PendingWrite
+ORDER BY rowid;
+
+enqueuePendingWrite:
+INSERT OR REPLACE INTO PendingWrite(slug, operation, payload, attemptCount, lastError, failureKind)
+VALUES (?, ?, ?, 0, NULL, NULL);
+
+recordPendingWriteFailure:
+UPDATE PendingWrite
+SET attemptCount = attemptCount + 1,
+    lastError = ?,
+    failureKind = ?
+WHERE slug = ?;
+
+removePendingWrite:
+DELETE FROM PendingWrite WHERE slug = ?;
+
 CREATE TABLE Settings (
     key TEXT NOT NULL PRIMARY KEY,
     value TEXT NOT NULL

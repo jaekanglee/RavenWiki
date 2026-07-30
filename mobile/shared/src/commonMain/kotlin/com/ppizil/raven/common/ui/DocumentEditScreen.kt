@@ -5,6 +5,7 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.ppizil.raven.common.data.repository.canonicalPageSlug
 import com.ppizil.raven.common.domain.model.Document
 
 @Composable
@@ -42,14 +43,16 @@ fun DocumentEditScreen(
                     title = title,
                     content = content,
                     lastUpdated = io.ktor.util.date.getTimeMillis()
-                ) ?: Document(
-                    id = "doc_${kotlin.random.Random.nextInt(100000)}",
-                    title = title,
-                    content = content,
-                    path = null,
-                    isFavorite = false,
-                    lastUpdated = io.ktor.util.date.getTimeMillis()
-                )
+                ) ?: canonicalPageSlug(title, null).let { slug ->
+                    Document(
+                        id = slug,
+                        title = title,
+                        content = content,
+                        path = "$slug.md",
+                        isFavorite = false,
+                        lastUpdated = io.ktor.util.date.getTimeMillis()
+                    )
+                }
                 onSave(newDoc)
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
