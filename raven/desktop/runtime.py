@@ -104,6 +104,9 @@ def main() -> int:
         else "http://tauri.localhost,http://localhost:5173"
     )
 
+    os.environ["RAVEN_BOUND_HOST"] = bind_host
+    os.environ["RAVEN_BOUND_PORT"] = str(api_port)
+
     api_config = uvicorn.Config(
         "raven.api:app",
         host=bind_host,

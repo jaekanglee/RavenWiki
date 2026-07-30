@@ -112,6 +112,9 @@
    onSaved?: () => void;
    /** 삭제 후 콜백 (백엔드 deletePage + navigate). */
    onDeleted?: () => void;
+   /** 이 본부를 읽은 시점의 on-disk 상태 토큰 (v0.7.178).
+    *  전달하면 저장 시 그 상태가 아지 유효한지 서버가 검사해 lost update를 막는다. */
+   precondition?: string;
    metaRow?: React.ReactNode;
    filePathRow?: React.ReactNode;
  }
@@ -124,6 +127,7 @@
    viewContent,
    onSaved,
    onDeleted,
+   precondition,
    metaRow,
    filePathRow,
  }: InlineMarkdownEditorProps) {
@@ -195,7 +199,7 @@
      setBusy(true);
      setToast(null);
      try {
-       await updatePage(vault, slug, { content: draft, title: titleVal });
+       await updatePage(vault, slug, { content: draft, title: titleVal, precondition });
        setToast("✅ 저장 완료");
       setToastType("success");
        setTimeout(() => {

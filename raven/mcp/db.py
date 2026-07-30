@@ -121,6 +121,15 @@ def get_page(
                 (slug,),
             ).fetchall()
         )
+        # v0.7.178: token an agent passes back as `wiki_update(precondition=...)`.
+        # Derived from the markdown file, never from this DB — wiki.db is a
+        # regenerable cache and may lag the file, but the precondition must
+        # answer "did the actual file move since I read it?".
+        from raven.core.contracts import precondition_for_path
+
+        page["precondition"] = precondition_for_path(
+            _resolve_vault(vault) / f"{slug}.md"
+        )
         return page
     finally:
         conn.close()

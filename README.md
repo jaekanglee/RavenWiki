@@ -21,12 +21,15 @@ raven는 **사람 1차 Zettelkasten-inspired 마크다운 PKM 도구**. Obsidian
 | **Vault** (데이터) | 마크다운 폴더 (Obsidian식 자유 계층) | `~/Raven/<name>/` (v0.6.3+) |
 | **Index** (쿼리) | SQLite (FTS5 + backlinks view) | `<vault>/wiki.db` |
 | **Engine** (Python) | raven.core (db/lint/export/link) | `raven/core/` |
-| **CLI** (사람/자동화) | Typer 6 top-level commands + 12 subcommand groups | `raven/cli/` |
-| **API** (HTTP) | FastAPI 26 endpoints | `raven/api/` |
+| **CLI** (사람/자동화) | Typer 6 top-level commands + 11 subcommand groups | `raven/cli/` |
+| **API** (HTTP) | FastAPI 65 endpoints | `raven/api/` |
 | **GUI** (웹) | React 19 + Vite + PWA | `dashboard/` |
-| **MCP** (LLM 표준) | FastMCP 9 tools + 5 resources | `raven/mcp/` |
+| **MCP** (LLM 표준) | FastMCP 23 tools + 4 resources | `raven/mcp/` |
 
 **SoT = 마크다운**. DB/API/GUI/MCP는 **모두 재생성 가능**한 파생 산출물.
+
+> **LLM 의존 기능 = Layer 2 (옵션)** — AI 조언(`/ai-advice`), RAG(`/rag/query`), 태그 추천(`/suggest-tags`), 초안 생성(`/drafts/generate`), 그리고 의미 검색의 **벡터 절반**은 외부 API 키 또는 `sentence-transformers` 설치가 있어야 제대로 동작한다. 없으면 규칙 기반 fallback으로 축소되고, 검색/RAG 응답의 `embedding.degraded`가 그 사실을 알린다.
+> **Layer 1(사람용 PKM: 페이지 CRUD, wikilink/backlink, BM25 검색, lint, 그래프)은 이 중 아무것도 없이 완전히 동작한다.**
 
 ---
 
@@ -196,7 +199,7 @@ WIKI_VAULT=agent-output raven page ls
 
 ---
 
-## 핵심 명령 (CLI — 6 top-level + 12 서브커맨드 그룹)
+## 핵심 명령 (CLI — 6 top-level + 11 서브커맨드 그룹)
 
 ```bash
 raven where                                 # 환경 표시
@@ -225,9 +228,9 @@ raven meta sync [--vault N]                     # Lite bootstrap 문서 최신�
 
 raven archive list|clean|restore [--vault N]    # 삭제된 페이지 조회/정리/복원
 
-raven log list|show|append|rotate|status [--vault N]   # log.md 조회/회전 (사람 수동; 자동 append는 5개 진입점 모두 raven.core.log.append)
+raven log list|show|append|rotate|status [--vault N]   # log.md 조회/회전 (사람 수동; 자동 append는 4개 진입점 모두 raven.core.log.append)
 
-raven lint run|summary|check [--vault N]        # lint 14개 실행/요약/체크
+raven lint run|summary|check [--vault N]        # lint 22개 실행/요약/체크
 
 raven migrate plan|apply|categories [--vault N] # 스키마/구조 마이그레이션 (dry-run 기본)
 
@@ -243,7 +246,7 @@ raven docs show <topic>                         # Tier 1 문서 조회 (OPERATIO
 
 ---
 
-## HTTP API (26 endpoints)
+## HTTP API (65 endpoints)
 
 ```bash
 # vault 관리
@@ -301,7 +304,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode rea
 
 ```bash
 # 3단계: 표준 흐름
-# - tools/list → 9개 도구 schema 자동 discovery
+# - tools/list → 23개 도구 schema 자동 discovery
 # - wiki_search(vault="<basename>", query="...", top_k=10)
 ```
 
@@ -341,7 +344,7 @@ python -m raven.mcp.cli --transport http --host 127.0.0.1 --port 8766 --mode rea
 
 ### 자세한 안내
 
-- vault 진입 가이드 (외부 에이전트가 받는 문서): `_meta/agents/PROJECT-WORKFLOW.md` §1.5
+- vault 진입 가이드 (외부 에이전트가 받는 문서): `_meta/agents/SCHEMA.md` (데이터 계약) + `_meta/agents/TOOLS.md` (도구 surface)
 - 정책: AGENTS.md §5.5 "MCP = 에이전트 표준 프로토콜"
 - 다이어그램: `_meta/diagrams/three-flows.png`
 
@@ -386,7 +389,7 @@ Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다
 | **Tier 2** (사용자 vault) | `<vault>/_meta/agents/` | vault 직접 read | vault 데이터 운영 규칙 |
 
 - `vault clone` 기본 = **content only** (Tier 1 leak 방지)
-- Tier 2 Lite = **2종 + log.md 고정** (`SCHEMA.md` / `PROJECT-WORKFLOW.md` / `log.md`)
+- Tier 2 Lite = **2종 고정** (`SCHEMA.md` / `TOOLS.md`) — `log.md`는 vault owner 선택
 - Tier 1 ↔ Tier 2 혼동 시 `raven vault verify <name>`로 진단
 
 ---
@@ -396,7 +399,7 @@ Raven은 vault 데이터에 들어가는 문서를 두 계층으로 나눕니다
 ```yaml
 ---
 title: 페이지 제목
-type: concept | person | comparison | project | tool | rule | query | journal
+type: concept | person | comparison | project | tool | rule | query | journal | issue
 tags: [core-tag, custom-tag]
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
@@ -469,7 +472,7 @@ raven build && raven link check
 │   │   ├── export.py                ← GUI 정적 JSON
 │   │   └── link.py                  ← wikilink 파싱/감사
 │   ├── cli/
-│   │   └── __main__.py              ← Typer 6 top-level + 12 서브커맨드 그룹
+│   │   └── __main__.py              ← Typer 6 top-level + 11 서브커맨드 그룹
 │   └── api/
 │       ├── server.py                ← FastAPI app
 │       ├── main.py                  ← uvicorn entry
@@ -546,7 +549,7 @@ cd dashboard && npm install
 
 - `AGENTS.md` — AI 에이전트 운영 규칙 (이 Raven 코드베이스를 다룰 때)
 - `~/Raven/<vault>/_meta/agents/SCHEMA.md` — vault 데이터 계약 (Lite bootstrap 자동 복사)
-- `~/Raven/<vault>/_meta/agents/PROJECT-WORKFLOW.md` — 프로젝트 에이전트 공통 작업 지시 템플릿 (Lite bootstrap 자동 복사)
+- `~/Raven/<vault>/_meta/agents/TOOLS.md` — MCP 도구 surface (Lite bootstrap 자동 복사)
 - `docs/vault-patterns.md` — **Karpathy LLM Wiki +α 가이드** (v0.7.0+) — raw/ log.md _meta/agents/ opt-in 패턴, 사용자 자유
 - `_meta/decisions/adr-2026-06-30-llm-wiki-plus-alpha.md` — **+α 결정 ADR** (v0.7.0+)
 - `_meta/changelog-v0.5*.md` — 변경 이력
@@ -559,6 +562,8 @@ cd dashboard && npm install
 ---
 
 ## 진입점 추가 / 변경 의사결정
+
+> **진입점(entry point) vs 클라이언트(client)** — 진입점은 `raven.core`의 write/read contract를 **직접** 호출하는 표면이다(CLI / HTTP API / Dashboard / MCP, 4개 고정). 데스크톱 앱(Tauri)과 모바일 앱(CMP)은 위 HTTP API를 **소비하는 클라이언트**이며 자체 contract 경로가 없으므로 진입점이 아니다. 즉 "5번째 진입점 금지"는 새 표면이 core를 직접 호출하기 시작할 때 걸리는 규칙이다.
 
 진입점 구조 변경은 **큰 결정**. 다음 절차 따르세요:
 
@@ -574,7 +579,9 @@ cd dashboard && npm install
 
 ## 라이선스 / 상태
 
-- v0.7.65 (Lite bootstrap 2종+log.md, agent-only: SCHEMA/PROJECT-WORKFLOW/log.md)
-- 단일 사용자 가정 (auth 없음, 127.0.0.1 기본 바인딩)
+- v0.7.178 (동시 편집 precondition + 열화 정직화 + 선언-실제 재정합)
+- **전제 = 신뢰된 단일 사용자 네트워크(localhost 또는 본인 tailnet)**. auth/ACL은 여전히 non-goal이므로, 이 API에 도달할 수 있는 사람은 vault를 읽고 쓰고 지울 수 있다 — tailnet을 남과 공유하지 말 것.
+- v0.7.175+ 데스크톱/원격 기본값은 `0.0.0.0` 바인딩 + Tailscale·사설망 CORS 허용이다 (`raven/desktop/runtime.py`). 실제 태세는 `GET /api/system/info`의 `bind_host` / `allow_all_cors`로 확인.
+- 동시 편집은 precondition 토큰으로 lost update를 거부한다 (v0.7.178). 자동 merge는 non-goal.
 - 멀티 에이전트 write는 **experimental** (scope 명시 + 동시성 사용자 책임)
-- Not production-ready for multi-tenant (CORS open, no auth)
+- Not production-ready for multi-tenant (no auth, no ACL)

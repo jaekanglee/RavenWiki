@@ -50,7 +50,7 @@ flowchart TB
     subgraph Layer1 [Layer 1: Vault Data Layer (진실의 원천 - SoT)]
         direction LR
         MD[content/*.md<br/>마크다운 파일]
-        SysDoc[_meta/agents/<br/>SCHEMA/PROJECT-WORKFLOW<br/>+ _meta/system/ 운영자]
+        SysDoc[_meta/agents/<br/>SCHEMA/TOOLS<br/>+ _meta/system/ 운영자]
         SQL[wiki.db<br/>SQLite Index Cache]
         LogMD[log.md<br/>작업 감사 로그]
         RegistryJson[.registry.json<br/>중앙 레지스트리]

@@ -326,6 +326,7 @@ def wiki_update(
     idempotency_key: Optional[str] = None,
     summary: Optional[str] = None,
     reason: Optional[str] = None,
+    precondition: Optional[str] = None,
 ) -> dict:
     """Update (or create) a markdown page by slug.
 
@@ -507,6 +508,7 @@ def wiki_update(
         normalize=False,          # MCP semantics: explicit paths, top-level 허용
         extra_meta=updates_meta,
         append_log=False,         # _finalize_write가 idempotency 인지 로그를 담당
+        precondition=precondition,
     )
     if not result.ok:
         return {
@@ -960,6 +962,7 @@ def wiki_relation_add(
     ctx: Optional[VaultContext] = None,
     actor: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    precondition: Optional[str] = None,
 ) -> dict:
     """Add or update a semantic relation in a page's frontmatter.
 
@@ -1209,6 +1212,7 @@ def wiki_relation_add(
         normalize=False,
         extra_meta=meta,
         append_log=False,
+        precondition=precondition,
     )
     if not result.ok:
         return {
@@ -1251,6 +1255,7 @@ def wiki_relation_remove(
     ctx: Optional[VaultContext] = None,
     actor: Optional[str] = None,
     idempotency_key: Optional[str] = None,
+    precondition: Optional[str] = None,
 ) -> dict:
     """Remove a semantic relation from a page's frontmatter.
 
@@ -1397,6 +1402,7 @@ def wiki_relation_remove(
         normalize=False,
         extra_meta=meta,
         append_log=False,
+        precondition=precondition,
     )
     if not result.ok:
         return {

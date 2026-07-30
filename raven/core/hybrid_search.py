@@ -64,6 +64,26 @@ class LocalEmbeddingEngine:
             return [x / norm for x in mock_emb] if norm > 0.0 else mock_emb
 
 
+def embedding_health() -> Dict[str, Any]:
+    """Whether vector search runs on a real model or the sha256 mock.
+
+    The mock keeps `hybrid_search` returning ranked rows, so without this flag the
+    semantic half of the ranking is meaningless while still looking successful.
+    """
+    engine = LocalEmbeddingEngine()
+    engine._lazy_init()
+    if engine.model is not None:
+        return {"degraded": False, "model": engine.model_name, "reason": ""}
+    return {
+        "degraded": True,
+        "model": None,
+        "reason": (
+            "'sentence-transformers' 미설치 — 의미(벡터) 검색이 해시 기반 mock 벡터로 대체됩니다. "
+            "상위 결과의 의미 유사도는 신뢰할 수 없으며, BM25(키워드) 점수만 유효합니다."
+        ),
+    }
+
+
 def load_vector_extension(conn: sqlite3.Connection) -> bool:
     """sqlite-vec 확장을 데이터베이스 커넥션에 로드합니다."""
     try:

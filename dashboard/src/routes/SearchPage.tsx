@@ -4,6 +4,7 @@ import { useOutletContext, Link } from "react-router-dom";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PageHeader } from "../components/ui/PageHeader";
 import { SearchResultItem } from "../components/SearchResultItem";
+import { DegradedNotice } from "../components/ui/DegradedNotice";
 import { useDebounced } from "../lib/useDebounced";
 import { EmptyIcon } from "../lib/emptyIcons";
 
@@ -18,6 +19,7 @@ export function SearchPage() {
   const [ragAnswer, setRagAnswer] = useState<string | null>(null);
   const [ragLoading, setRagLoading] = useState(false);
   const [ragCitations, setRagCitations] = useState<any[]>([]);
+  const [embedding, setEmbedding] = useState<{ degraded?: boolean; reason?: string } | null>(null);
 
   // Debounced fetch with AbortController (v0.7.69+): useDebounced hook으로 통일.
   const debouncedQ = useDebounced(q, 220);
@@ -44,7 +46,10 @@ export function SearchPage() {
       signal: ctrl.signal,
     })
       .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then((d) => setResults(d.results || []))
+      .then((d) => {
+        setResults(d.results || []);
+        setEmbedding(d.embedding || null);
+      })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
 
@@ -65,6 +70,7 @@ export function SearchPage() {
         const data = await resp.json();
         setRagAnswer(data.answer || "답변을 생성할 수 없습니다.");
         setRagCitations(data.citations || []);
+        if (data.embedding) setEmbedding(data.embedding);
       } else {
         setRagAnswer("⚠️ AI 답변 요청 중 오류가 발생했습니다.");
       }
@@ -126,6 +132,10 @@ export function SearchPage() {
 
       {q && (
         <>
+          {embedding?.degraded ? (
+            <DegradedNotice title="의미 검색 열화 — 벡터 순위를 신뢰하지 마세요" reason={embedding.reason} />
+          ) : null}
+
           {/* AI Q&A (RAG) 블록 */}
           <div
             style={{
@@ -179,7 +189,7 @@ export function SearchPage() {
               )}
             </div>
 
-            {ragLoading && (
+{ragLoading && (
               <div
                 style={{
                   display: "flex",

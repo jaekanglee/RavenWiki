@@ -82,6 +82,33 @@ class WriteResult:
 # ────────────────────────── write contract ──────────────────────────
 
 
+def precondition_for_path(fp: Path) -> str:
+    """Token describing a markdown file's current on-disk state ("" when absent).
+
+    Derived from `(st_mtime_ns, st_size)`: two writes inside the same mtime tick
+    that also produce the same byte count are indistinguishable.
+    """
+    try:
+        st = fp.stat()
+    except OSError:
+        return ""
+    return f"{st.st_mtime_ns}-{st.st_size}"
+
+
+def page_precondition(vault: Vault, slug: str, *, normalize: bool = True) -> str:
+    """`precondition_for_path` resolved through slug validation.
+
+    Callers that read-modify-write pass this back as `write_page(precondition=...)`
+    so a concurrent write in between is rejected instead of silently overwritten.
+    """
+    raw_slug = slug if not normalize else slug_module.normalize_prefix(slug)
+    try:
+        fp = slug_module.validate(raw_slug, vault_root=vault.root).with_suffix(".md")
+    except slug_module.SlugError:
+        return ""
+    return precondition_for_path(fp)
+
+
 def write_page(
     vault: Vault,
     slug: str,
@@ -97,6 +124,7 @@ def write_page(
     enforce_protected_paths: bool = False,
     extra_meta: Optional[dict] = None,
     append_log: bool = True,
+    precondition: Optional[str] = None,
 ) -> WriteResult:
     """Create or overwrite a markdown page through the shared write contract.
 
@@ -137,6 +165,12 @@ def write_page(
         append_log: If False, skip the log.md append (callers like MCP
             keep their own richer provenance logging — avoids double
             entries).
+        precondition: Optional `page_precondition()` token captured when the
+            caller read the page. When given and the page's current token
+            differs, nothing is written and `error="stale_precondition"` is
+            returned — this is what stops a lost update. `""` asserts the page
+            does not exist yet. `None` (default) skips the check entirely, so
+            existing callers are unaffected.
 
     Returns:
         WriteResult — `ok=True` on success, `ok=False` + `error` on
@@ -180,6 +214,21 @@ def write_page(
             # ── 2. existence check
             if fp.exists() and not overwrite:
                 return WriteResult(ok=False, slug=raw_slug, error="exists")
+
+            # ── 2b. precondition (v0.7.178): reject a write whose base state moved.
+            # Inside the lock so the compared token cannot change under us.
+            if precondition is not None:
+                current = precondition_for_path(fp)
+                if current != precondition:
+                    return WriteResult(
+                        ok=False,
+                        slug=raw_slug,
+                        error="stale_precondition",
+                        message=(
+                            "페이지가 이 편집을 시작한 뒤 다른 곳에서 변경됐습니다. "
+                            "최신 내용을 다시 불러온 뒤 편집을 옮겨 주세요."
+                        ),
+                    )
 
             # ── 3. parse existing frontmatter (preserve `created`, `agents`)
             existing_meta: dict = {}
@@ -439,5 +488,5 @@ def validate_gardening_schema(vault, slug: str, content: str, meta: dict) -> lis
         return missing
 
     # Human-first contract: keep write-time validation minimal.
-    # Richer writing guidance is advisory in PROJECT-WORKFLOW and lint info.
+    # Richer writing guidance is advisory in agent/SCHEMA.md and lint info.
     return missing

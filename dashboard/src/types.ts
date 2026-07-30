@@ -23,6 +23,8 @@ export interface Page {
   backlinks?: { source_slug: string; source_title: string }[];
   issueStatus?: string;
   relations?: Relation[];
+  /** GET /pages/{slug}가 준 on-disk 상태 토큰 (v0.7.178). 저장 시 되돌려 보내 lost update를 막는다. */
+  precondition?: string;
 }
 
 // v0.6.16+: 폴더는 1차 시민. OS 파일시스템을 SOT로 한다.

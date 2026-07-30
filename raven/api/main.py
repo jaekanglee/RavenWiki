@@ -57,6 +57,10 @@ def main(argv=None) -> int:
             print("⚠️  [Tailscale Auto-Detect] Tailscale IP not found, falling back to 0.0.0.0")
             bind_host = "0.0.0.0"
 
+    # v0.7.178: 실제 바인드된 호스트를 app에 전달 — /api/system/info가 추정값이 아닌 실제값을 보고하게 한다.
+    os.environ["RAVEN_BOUND_HOST"] = bind_host
+    os.environ["RAVEN_BOUND_PORT"] = str(args.port)
+
     uvicorn.run(
         "raven.api:app",
         host=bind_host,

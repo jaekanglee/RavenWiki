@@ -12,7 +12,7 @@ confidence: high
 
 > 코드베이스 자기 자신의 카탈로그. Raven은 사람 1차 local-first
 > Zettelkasten-inspired Markdown PKM이며, vault는 기본적으로 `~/Raven/<name>/`에 둔다.
-> 마지막 업데이트: 2026-07-10 (Semantic Relation Inference Plan 완료 상태 반영)
+> 마지막 업데이트: 2026-07-30 (의미 관계 계약/검증/분석 완료 상태 반영)
 
 ---
 
@@ -54,7 +54,7 @@ confidence: high
 - [[dr-runbook]] — 재해 복구 Runbook (RPO 1h / RTO 30m)
 - [[setup-guide]] — 클린 설치 & 언인스톨 가이드
 - [[ai-roadmap]] — AI 활용 로드맵 (M3-M6) ✅ **완료** — 역사 기록용, 후속 그래프 분석 작업은 별도 계획서에서 관리
-- [[docs/superpowers/plans/semantic-relation-inference-plan]] — ✅ **완료된 SoT** — Semantic Relation Inference Engine 단계별 MVP 및 Post-MVP Analytics 종결 기록
+- [[docs/superpowers/plans/semantic-relation-inference-plan]] — ✅ **완료된 SoT** — 의미 관계 **계약(frontmatter relations 5종) + lint #23 검증 + analytics/recommend/contradiction** 단계별 완료 기록. 자동 추론 엔진(infer)은 미구현
 
 ### 최신 changelog
 - [[changelog-v0.7.163]] — Phase 10: AI 기반 관계 근거 확장, AI 진단 어드바이스 생성 및 도메인 뷰 대표 레이블 자동화

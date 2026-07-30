@@ -50,7 +50,7 @@ def raw_vault(monkeypatch):
     (v_root / "_meta" / "system" / "SCHEMA.md").write_text("# schema", encoding="utf-8")
     (v_root / "_meta" / "system" / "RULES.md").write_text("# rules", encoding="utf-8")
     (v_root / "_meta" / "system" / "README.md").write_text("# readme", encoding="utf-8")
-    (v_root / "_meta" / "system" / "PROJECT-WORKFLOW.md").write_text("# workflow", encoding="utf-8")
+    (v_root / "_meta" / "system" / "OPERATIONS.md").write_text("# operations", encoding="utf-8")
     (v_root / "_meta" / "system" / "log.md").write_text("# log", encoding="utf-8")
     (v_root / ".vault.json").write_text(json.dumps({
         "name": "raw-test-vault",
@@ -104,7 +104,7 @@ def test_list_raw_404_when_no_raw_folder(client, monkeypatch):
     (v_root / "_meta" / "system" / "SCHEMA.md").write_text("# schema")
     (v_root / "_meta" / "system" / "RULES.md").write_text("# rules")
     (v_root / "_meta" / "system" / "README.md").write_text("# readme")
-    (v_root / "_meta" / "system" / "PROJECT-WORKFLOW.md").write_text("# workflow")
+    (v_root / "_meta" / "system" / "OPERATIONS.md").write_text("# operations")
     (v_root / "_meta" / "system" / "log.md").write_text("# log")
     (v_root / ".vault.json").write_text(json.dumps({
         "name": "no-raw-vault", "path": str(v_root), "mode": "personal", "owner": "user",

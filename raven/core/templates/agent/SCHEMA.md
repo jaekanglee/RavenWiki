@@ -35,7 +35,7 @@ confidence: high
 ├── _meta/
 │   └── agents/
 │       ├── SCHEMA.md            # 이 문서
-│       └── PROJECT-WORKFLOW.md  # 운영 사실
+│       └── TOOLS.md  # MCP 도구 surface
 ├── _archive/           # retired 페이지
 └── wiki.db             # SQLite Query Index (gitignore)
 ```

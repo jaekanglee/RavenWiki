@@ -97,6 +97,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
       type: pageType,
       tags: tagArray,
       extra_meta: { aliases: aliasArray },
+      precondition: page.precondition,
     });
     onSaved();
   }, [vault, page, type, tags, aliases, onSaved]);
@@ -155,6 +156,7 @@ export function PropertiesPanel({ vault, page, onSaved }: Props) {
         target_slug: target.slug,
         relation_type: relType,
         actor: "user",
+        precondition: page.precondition,
       });
       setRelToast(`✅ ${target.title} 연결됨`);
       setTimeout(() => setRelToast(null), 2400);

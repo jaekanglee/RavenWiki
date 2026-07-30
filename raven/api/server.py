@@ -29,6 +29,7 @@ from raven.core import contracts
 from raven.core.vault import Vault
 
 # v0.7.61+ workspace tree (read-only) — WorkspacePage OS 파일 트리 노출.
+from raven import __version__ as raven_version
 from raven.api.workspace_tree import (
     list_workspace_dir,
     read_workspace_file,
@@ -37,7 +38,25 @@ from raven.api.workspace_tree import (
 )
 
 
-app = FastAPI(title="raven API", version="0.2.0")
+app = FastAPI(title="raven API", version=raven_version)
+# v0.7.178: 실제로 바인드된 주소를 /api/system/info가 보고하게 한다.
+# 요청 시점에 env를 읽는 이유: `raven/api/__init__.py`가 `from .server import app`을 하므로
+# 이 모듈은 main()이 RAVEN_BOUND_* 를 set하기 *전에* import된다 — import 시점 스냅샷은
+# 항상 기동 값을 놓친다(QA에서 :8799 구동 중 8765를 보고한 원인).
+def bound_host() -> str:
+    return (
+        os.environ.get("RAVEN_BOUND_HOST")
+        or os.environ.get("RAVEN_HOST")
+        or "127.0.0.1"
+    )
+
+
+def bound_port() -> int:
+    return int(
+        os.environ.get("RAVEN_BOUND_PORT")
+        or os.environ.get("PORT_API")
+        or 8765
+    )
 # v0.7.67 (평가 A#5): `allow_origins=["*"]` + 무인증 조합은 127.0.0.1 바인딩을
 # 무력화한다 — 원격 접속은 못 막아도, 브라우저에 열린 *임의의 웹페이지*가
 # cross-origin으로 이 API를 호출할 수 있었다(예: DELETE /api/vaults/{name}
@@ -117,6 +136,26 @@ def _safe_slug_or_400(slug: str, v: Vault) -> Path:
         raise HTTPException(status_code=400, detail=f"invalid slug: {e}")
 
 
+def _with_lock_holder(response: dict, v: Vault, slug: str) -> dict:
+    """Attach an active advisory lock holder under the same key MCP writes use.
+
+    MCP surfaces `_lock_holder` / `_advisory_conflict` (mcp/tools/write.py) while
+    REST returned nothing, so the Dashboard could not tell that an agent was
+    mid-edit. F4 stays advisory: the write already succeeded, we only report.
+    Any holder is foreign here — REST callers are humans, not lock actors.
+    """
+    try:
+        from raven.mcp.tools import check_lock
+
+        holder = check_lock(v.root, slug)
+    except Exception:
+        return response
+    if holder:
+        response["_lock_holder"] = holder
+        response["_advisory_conflict"] = True
+    return response
+
+
 # ────────────────────────── models ──────────────────────────
 
 
@@ -135,11 +174,13 @@ class PageUpdate(BaseModel):
     type: Optional[str] = None
     tags: Optional[list[str]] = None
     extra_meta: Optional[dict[str, Any]] = None
+    precondition: Optional[str] = None
 
 
 class FeedbackPayload(BaseModel):
     feedback: str
     actor: str = "user"
+    precondition: Optional[str] = None
 
 
 class LogAppend(BaseModel):
@@ -158,6 +199,7 @@ class RelationAddPayload(BaseModel):
     confidence: Optional[Any] = None
     verified_by: Optional[Any] = None
     actor: Optional[str] = "user"
+    precondition: Optional[str] = None
 
 
 # ────────────────────────── system info ──────────────────────────
@@ -168,7 +210,7 @@ def system_info():
     """Returns backend system info including auto-detected Tailscale IP and MCP endpoints."""
     from raven.api.main import get_tailscale_ip
     ts_ip = get_tailscale_ip()
-    port = int(os.environ.get("PORT_API", "8765"))
+    port = bound_port()
     local_api = f"http://127.0.0.1:{port}"
     local_mcp = f"http://127.0.0.1:{port}/mcp"
     
@@ -182,8 +224,8 @@ def system_info():
         "local_mcp": local_mcp,
         "tailscale_api": ts_api,
         "tailscale_mcp": ts_mcp,
-        "bind_host": os.environ.get("RAVEN_HOST", "0.0.0.0"),
-        "allow_all_cors": True,
+        "bind_host": bound_host(),
+        "allow_all_cors": _allow_all_cors,
         "port": port,
     }
 
@@ -1476,6 +1518,7 @@ def get_page(name: str, slug: str):
         "vault": name,
         "slug": slug,
         "file_path": path_str,
+        "precondition": contracts.precondition_for_path(fp),
         "frontmatter": meta,
         "content": body,
         "backlinks": backlinks,
@@ -1834,9 +1877,12 @@ def add_relation(name: str, payload: RelationAddPayload):
             verified_by=payload.verified_by,
             ctx=ctx,
             actor=payload.actor,
+            precondition=payload.precondition,
         )
         if not result.get("ok"):
             err_code = result.get("error")
+            if err_code == "stale_precondition":
+                raise HTTPException(status_code=409, detail=result.get("message", "stale_precondition"))
             if err_code == "lock_conflict":
                 raise HTTPException(status_code=409, detail=result.get("message", "Lock conflict"))
             elif err_code == "page_not_found":
@@ -1884,17 +1930,26 @@ def update_page(name: str, slug: str, payload: PageUpdate):
         extra_meta=payload.extra_meta,
         overwrite=True,
         enforce_protected_paths=True,
+        precondition=payload.precondition,
     )
     if not result.ok:
         if result.error == "permission_denied":
             raise HTTPException(status_code=403, detail=result.message or result.error)
+        # v0.7.178: lost update 방지 — 내가 읽은 상태가 이미 밀렸으니 409.
+        if result.error == "stale_precondition":
+            raise HTTPException(status_code=409, detail=result.message or result.error)
         raise HTTPException(status_code=400, detail=result.error)
-    return {
-        "ok": True,
-        "vault": name,
-        "slug": result.slug,
-        "created": result.created_date,
-    }
+    return _with_lock_holder(
+        {
+            "ok": True,
+            "vault": name,
+            "slug": result.slug,
+            "created": result.created_date,
+            "precondition": contracts.page_precondition(v, result.slug),
+        },
+        v,
+        result.slug,
+    )
 
 
 @app.post("/api/vaults/{name}/pages/{slug:path}/feedback")
@@ -1976,11 +2031,14 @@ def add_page_feedback(name: str, slug: str, payload: FeedbackPayload):
         extra_meta=extra,
         overwrite=True,
         enforce_protected_paths=True,
+        precondition=payload.precondition,
     )
 
     if not result.ok:
         if result.error == "permission_denied":
             raise HTTPException(status_code=403, detail=result.message or result.error)
+        if result.error == "stale_precondition":
+            raise HTTPException(status_code=409, detail=result.message or result.error)
         raise HTTPException(status_code=400, detail=result.error)
 
     return {
@@ -1993,10 +2051,11 @@ def add_page_feedback(name: str, slug: str, payload: FeedbackPayload):
 
 class FeedbackUpdatePayload(BaseModel):
     feedback: str
+    precondition: Optional[str] = None
 
 
 @app.delete("/api/vaults/{name}/feedback/{index}")
-def delete_page_feedback(name: str, slug: str, index: int):
+def delete_page_feedback(name: str, slug: str, index: int, precondition: Optional[str] = None):
     import re
     v = _vault_or_404(name)
     _safe_slug_or_400(slug, v)
@@ -2056,8 +2115,11 @@ def delete_page_feedback(name: str, slug: str, index: int):
         extra_meta=meta,
         overwrite=True,
         enforce_protected_paths=True,
+        precondition=precondition,
     )
     if not result.ok:
+        if result.error == "stale_precondition":
+            raise HTTPException(status_code=409, detail=result.message or result.error)
         raise HTTPException(status_code=500, detail="Failed to delete feedback")
     return {"ok": True}
 
@@ -2127,8 +2189,11 @@ def update_page_feedback(name: str, slug: str, index: int, payload: FeedbackUpda
         extra_meta=meta,
         overwrite=True,
         enforce_protected_paths=True,
+        precondition=payload.precondition,
     )
     if not result.ok:
+        if result.error == "stale_precondition":
+            raise HTTPException(status_code=409, detail=result.message or result.error)
         raise HTTPException(status_code=500, detail="Failed to update feedback")
     return {"ok": True}
 
@@ -2250,16 +2315,29 @@ def restore_archive(name: str, archive_path: str = Query(..., description="vault
 @app.get("/api/vaults/{name}/hybrid-search")
 def hybrid_search_api(name: str, query: str = Query(..., min_length=1), limit: int = 10):
     v = _vault_or_404(name)
-    from raven.core.hybrid_search import hybrid_search as core_hybrid_search
+    from raven.core.hybrid_search import (
+        embedding_health,
+        hybrid_search as core_hybrid_search,
+    )
     results = core_hybrid_search(v, query, limit=limit)
-    return {"ok": True, "vault": name, "query": query, "results": results}
+    return {
+        "ok": True,
+        "vault": name,
+        "query": query,
+        "results": results,
+        "embedding": embedding_health(),
+    }
 
 
 @app.get("/api/vaults/{name}/rag/query")
 def rag_query_api(name: str, query: str = Query(..., min_length=1)):
     v = _vault_or_404(name)
+    from raven.core.hybrid_search import embedding_health
     from raven.core.rag import query_rag
-    return query_rag(v, query)
+    result = query_rag(v, query)
+    # RAG는 hybrid_search 위에 서 있으니 같은 열화를 그대로 받는다.
+    result["embedding"] = embedding_health()
+    return result
 
 
 class SuggestTagsPayload(BaseModel):

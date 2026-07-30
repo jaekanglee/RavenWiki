@@ -45,7 +45,7 @@ updated: 2026-07-06
 ├── _meta/              # vault 운영 문서 (frontmatter 권장, type: rule)
 │   ├── agents/         # Lite bootstrap 2-file (Tier 2, agent-only)
 │   │   ├── SCHEMA.md
-│   │   └── PROJECT-WORKFLOW.md
+│   │   └── TOOLS.md
 │   └── system/         # Tier 1 확장 (사용자 vault 운영, .gitignore 가능)
 ├── raw/                # v0.7.50+ 불변 1차 소스 (사람 1차 운영, 에이전트 read-only)
 ├── _archive/           # retired 페이지
@@ -326,7 +326,7 @@ SELECT * FROM pages WHERE slug = ? OR ? IN (
 ## 관련
 
 - `RULES` — 운영 정책 (M1)
-- `agent/PROJECT-WORKFLOW` (Lite bootstrap Tier 2) — vault 에이전트 운영 사실
+- `agent/TOOLS` (Lite bootstrap Tier 2) — MCP 도구 surface
 - `docs/vault-patterns.md` — Karpathy LLM Wiki +α 패턴 opt-in 가이드
 - `adr-2026-07-04-schemasys-index-correction` — SCHEMA 9종 + system area 격리 결정
 

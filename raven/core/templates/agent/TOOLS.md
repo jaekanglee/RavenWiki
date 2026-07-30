@@ -34,13 +34,13 @@ Raven MCP 서버는 권한 모드(`--mode read/write/admin`)에 따라 아래 �
 
 ### 2.1 Read 툴 (기본 제공)
 * **`wiki_search(query: str, top_k: int = 10)`**: Vault 내 페이지를 FTS5 BM25로 전체 검색합니다.
-* **`wiki_get_page(slug: str)`**: 특정 페이지의 내용, frontmatter, backlinks, outbound links를 조회합니다.
+* **`wiki_get_page(slug: str)`**: 특정 페이지의 내용, frontmatter, backlinks, outbound links, 그리고 `precondition`(현재 파일 상태 토큰)을 조회합니다. 이 문서를 고쳐 쓸 계획이면 이 토큰을 `wiki_update`에 되돌려 보내세요 — 그 사이 남이 저장했으면 write가 거부됩니다(lost update 방지).
 * **`wiki_lint()`**: 현재 active vault의 14가지 린트 오류 및 이슈 목록을 반환합니다.
 * **`wiki_graph(project: Optional[str] = None)`**: Vault 내 페이지 간 링크 그래프 데이터를 반환합니다.
 * **`wiki_log(tail_n: int = 20)`**: `log.md` 파일의 최근 N개 이력을 구조화된 JSON으로 반환합니다.
 
 ### 2.2 Write 툴 (MCP `--mode write` 이상 활성화 시 제공)
-* **`wiki_update(slug: str, content: str, frontmatter: Optional[dict] = None, actor: Optional[str] = None, idempotency_key: Optional[str] = None)`**
+* **`wiki_update(slug: str, content: str, frontmatter: Optional[dict] = None, actor: Optional[str] = None, idempotency_key: Optional[str] = None, precondition: Optional[str] = None)`**
   * 마크다운 페이지를 생성하거나 덮어씁니다.
   * `frontmatter`를 지정해 YAML 메타데이터를 함께 기록할 수 있습니다.
   * M4/F1 규약에 따라 `actor`와 `idempotency_key`를 포함해야 안전한 재시도가 가능합니다.

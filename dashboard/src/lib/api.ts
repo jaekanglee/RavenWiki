@@ -375,14 +375,19 @@ export async function createPage(
 export async function updatePage(
   vault: string,
   slug: string,
-  payload: { content: string; title?: string; type?: string; tags?: string[]; extra_meta?: Record<string, any> }
+  payload: { content: string; title?: string; type?: string; tags?: string[]; extra_meta?: Record<string, any>; precondition?: string }
 ) {
   const r = await apiFetch(`/api/vaults/${vault}/pages/${slug}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) throw new Error(`update failed: ${r.status}`);
+  if (!r.ok) {
+    // 409 = stale precondition (v0.7.178): 사람이 읽을 문장이 detail에 담게다
+    // — 상태코드만 던지면 누가 썼는지를 사용자가 알 수 없다.
+    const detail = (await r.json().catch(() => ({}))).detail;
+    throw new Error(detail ? String(detail) : `update failed: ${r.status}`);
+  }
   invalidateCache(`pages:${vault}`);
   return r.json();
 }
@@ -778,7 +783,7 @@ export async function fetchWorkspaceFile(
 export async function sendPageFeedback(
   vault: string,
   slug: string,
-  payload: { feedback: string; actor?: string }
+  payload: { feedback: string; actor?: string; precondition?: string }
 ) {
   const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/pages/${encodeURIComponent(slug)}/feedback`,
@@ -788,16 +793,28 @@ export async function sendPageFeedback(
       body: JSON.stringify(payload),
     }
   );
-  if (!r.ok) throw new Error(`send feedback failed: ${r.status}`);
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail;
+    throw new Error(detail ? String(detail) : `send feedback failed: ${r.status}`);
+  }
   return r.json();
 }
 
-export async function deletePageFeedback(vault: string, slug: string, index: number) {
+export async function deletePageFeedback(
+  vault: string,
+  slug: string,
+  index: number,
+  precondition?: string,
+) {
+  const q = precondition ? `&precondition=${encodeURIComponent(precondition)}` : "";
   const r = await apiFetch(
-    `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
+    `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}${q}`,
     { method: "DELETE" }
   );
-  if (!r.ok) throw new Error(`delete feedback failed: ${r.status}`);
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail;
+    throw new Error(detail ? String(detail) : `delete feedback failed: ${r.status}`);
+  }
   return r.json();
 }
 
@@ -805,7 +822,7 @@ export async function updatePageFeedback(
   vault: string,
   slug: string,
   index: number,
-  payload: { feedback: string }
+  payload: { feedback: string; precondition?: string }
 ) {
   const r = await apiFetch(
     `/api/vaults/${encodeURIComponent(vault)}/feedback/${index}?slug=${encodeURIComponent(slug)}`,
@@ -815,7 +832,10 @@ export async function updatePageFeedback(
       body: JSON.stringify(payload),
     }
   );
-  if (!r.ok) throw new Error(`update feedback failed: ${r.status}`);
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail;
+    throw new Error(detail ? String(detail) : `update feedback failed: ${r.status}`);
+  }
   return r.json();
 }
 
@@ -860,6 +880,7 @@ export interface RelationAddPayload {
   evidence?: string | string[];
   reason?: string;
   actor?: string;
+  precondition?: string;
 }
 
 export async function addRelation(vault: string, payload: RelationAddPayload): Promise<{ ok: boolean; message?: string; error?: string }> {

@@ -44,7 +44,7 @@ flowchart TB
     subgraph Layer1 [Layer 1: Vault Data Layer (진실의 원천 - SoT)]
         direction LR
         MD[content/*.md<br/>마크다운 파일]
-        SysDoc[_meta/agents/<br/>SCHEMA/PROJECT-WORKFLOW]
+        SysDoc[_meta/agents/<br/>SCHEMA/TOOLS]
         SQL[wiki.db<br/>SQLite Index Cache]
         LogMD[log.md<br/>작업 감사 로그]
         RegistryJson[.registry.json<br/>중앙 레지스트리]
@@ -216,4 +216,4 @@ sequenceDiagram
   * atlas 밀도 튠업: 실사용 vault(hub-control-room, 평균 degree 6.8) 기준으로 mass의 degree cap을 6→12로 올리고(진짜 허브가 이웃을 더 세게 밀어내게), repulsion을 평균 degree에 비례해 올렸다. 처음엔 이 두 값만 올렸다가 오히려 살짝 더 뭉쳤는데(측정: nearest-neighbor 평균 138.0→129.4px) — 원인은 iterations 예산(500)이 그대로라 강해진 힘이 다 수렴하지 못한 것. iterations를 늘리는 방향은 O(n²)이라 n=300에서 20s, n=600에서 82s로 폭증해 기각하고, 대신 초기 최대 이동폭(`max_step0`)을 28→50으로 올려 같은 iterations 예산 안에서 수렴 속도를 개선 — 최종적으로 nearest-neighbor 평균 139.6→145.2px, 최솟값 84.5→124.9px, 10th percentile 91.9→129.6px로 실측 개선 (레이턴시 영향 없음, 0.2s).
   * 한계: 위키링크 자체가 촘촘하면(이 vault 평균 degree 6.8) force-directed도 완전히 안 뭉치게는 못 만든다 — 이건 알고리즘이 아니라 순수 데이터 밀도 문제라 어떤 레이아웃을 써도 100% 해결 안 됨.
 * **Lite Bootstrap & Tier Boundary Policy (v0.7.1+)**
-  * 코어 도구 문서(Tier 1: `OPERATIONS.md`, `agent/*`)가 사용자 지식 vault(Tier 2) 내부로 유출/복사되지 않도록 철저히 차단하며, 새 vault 생성 시에는 최소한의 사용자용 가이드(SCHEMA, RULES, AGENTS, PROJECT-WORKFLOW, log.md) 5종만 scaffold 형태로 제공합니다. (Profile `--profile basic` 선택 시 단 1장의 WELCOME.md만 복사).
+  * 코어 도구 문서(Tier 1: `OPERATIONS.md`, `agent/*`)가 사용자 지식 vault(Tier 2) 내부로 유출/복사되지 않도록 철저히 차단하며, 새 vault 생성 시에는 최소한의 에이전트용 계약 문서(SCHEMA, TOOLS) 2종만 scaffold 형태로 제공합니다. (Profile `--profile basic` 선택 시 단 1장의 WELCOME.md만 복사).

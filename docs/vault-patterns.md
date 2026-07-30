@@ -223,7 +223,7 @@ vault/
 raven vault create my-vault ~/Raven/my-vault --profile llm-wiki
 # → Lite bootstrap 5종 자동 복사 (v0.7.3+ profile)
 # → log.md는 raven이 자동 관리
-# → _meta/agents/PROJECT-WORKFLOW.md는 프로젝트 작업 에이전트 공통 지시 템플릿
+# → _meta/agents/TOOLS.md는 MCP 도구 surface (도구 목록 + 입출력 schema)
 ```
 
 ### 시나리오 C — 고급 사용자 (custom)

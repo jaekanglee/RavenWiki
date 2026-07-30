@@ -213,7 +213,7 @@ export function PageView() {
   const handleDeleteFeedback = async (idx: number) => {
     if (!window.confirm("이 피드백을 삭제하시겠습니까?")) return;
     try {
-      await deletePageFeedback(vault, slug!, idx);
+      await deletePageFeedback(vault, slug!, idx, page?.precondition);
       setReloadKey((k) => k + 1);
       ctx?.refresh?.();
     } catch (err: any) {
@@ -224,7 +224,10 @@ export function PageView() {
   const handleSaveFeedback = async (idx: number) => {
     if (!editingFeedbackText.trim()) return;
     try {
-      await updatePageFeedback(vault, slug!, idx, { feedback: editingFeedbackText.trim() });
+      await updatePageFeedback(vault, slug!, idx, {
+        feedback: editingFeedbackText.trim(),
+        precondition: page?.precondition,
+      });
       setEditingFeedbackIdx(null);
       setReloadKey((k) => k + 1);
       ctx?.refresh?.();
@@ -239,7 +242,11 @@ export function PageView() {
     setIsSubmittingFeedback(true);
     setFeedbackErr(null);
     try {
-      await sendPageFeedback(vault, slug, { feedback: feedbackText.trim(), actor: "user" });
+      await sendPageFeedback(vault, slug, {
+        feedback: feedbackText.trim(),
+        actor: "user",
+        precondition: page?.precondition,
+      });
       setFeedbackText("");
       setReloadKey((k) => k + 1);
       ctx?.refresh?.();
@@ -285,6 +292,7 @@ export function PageView() {
           backlinks: d.backlinks || [],
           issueStatus: fm.issue_status || "",
           relations: fm.relations || [],
+          precondition: d.precondition || "",
         });
         console.log("[Raven-Debug] setPage done");
 
@@ -463,6 +471,7 @@ export function PageView() {
           title={page.title}
           content={page.content}
           viewContent={parsedData.body}
+          precondition={page.precondition}
           onSaved={() => {
             setReloadKey((k) => k + 1);
             ctx?.refresh?.();
@@ -579,6 +588,7 @@ export function PageView() {
                     type: page.type,
                     tags: tagArray,
                     extra_meta: { issue_status: newStatus },
+                    precondition: page.precondition,
                   });
                   setReloadKey((k) => k + 1);
                   ctx?.refresh?.();

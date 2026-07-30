@@ -153,6 +153,7 @@ export function GardenPage() {
       // 3. 업데이트 요청
       await updatePage(vault, targetSlug, {
         content: newContent,
+        precondition: pageData.precondition,
       });
 
       showToast(`✅ '${targetSlug}' 문서에 [[${orphanSlug}]] 링크 연결 완료`);
