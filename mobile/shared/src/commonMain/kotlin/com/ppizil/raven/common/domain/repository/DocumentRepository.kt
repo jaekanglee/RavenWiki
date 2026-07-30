@@ -3,6 +3,7 @@ package com.ppizil.raven.common.domain.repository
 import com.ppizil.raven.common.domain.model.Document
 import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
+import com.ppizil.raven.common.domain.model.WriteOutcome
 import kotlinx.coroutines.flow.Flow
 
 interface DocumentRepository {
@@ -22,6 +23,6 @@ interface DocumentRepository {
     suspend fun searchDocuments(vault: String, query: String): List<SearchHit>
 
     suspend fun flushPendingWrites()
-    suspend fun saveDocument(document: Document)
+    suspend fun saveDocument(document: Document): WriteOutcome
     suspend fun deleteDocument(vault: String, id: String)
 }

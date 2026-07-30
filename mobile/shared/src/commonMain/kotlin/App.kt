@@ -94,6 +94,7 @@ fun App() {
             viewModel.sideEffect.collectLatest { effect ->
                 when (effect) {
                     is MainSideEffect.ShowError -> snackbarHostState.showSnackbar(effect.message)
+                    is MainSideEffect.ShowNotice -> snackbarHostState.showSnackbar(effect.message)
                 }
             }
         }

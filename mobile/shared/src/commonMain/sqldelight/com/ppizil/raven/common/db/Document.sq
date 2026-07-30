@@ -7,38 +7,46 @@ CREATE TABLE Document (
     path TEXT,
     isFavorite INTEGER AS kotlin.Boolean DEFAULT 0,
     lastUpdated INTEGER NOT NULL,
+    precondition TEXT,
     PRIMARY KEY (vault, id)
 );
 
 selectByVault:
-SELECT vault, id, title, content, type, path, isFavorite, lastUpdated
+SELECT vault, id, title, content, type, path, isFavorite, lastUpdated, precondition
 FROM Document
 WHERE vault = ?
 ORDER BY lastUpdated DESC, id;
 
 selectById:
-SELECT vault, id, title, content, type, path, isFavorite, lastUpdated
+SELECT vault, id, title, content, type, path, isFavorite, lastUpdated, precondition
 FROM Document
 WHERE vault = ? AND id = ?;
 
 insertDocument:
-INSERT OR REPLACE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated, precondition)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- 목록 API에는 본문이 없다. 두 문장으로 나눠 이미 받아둔 본문을 보존한다.
 insertDocumentMetaIfAbsent:
-INSERT OR IGNORE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated)
-VALUES (?, ?, ?, '', ?, ?, 0, ?);
+INSERT OR IGNORE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated, precondition)
+VALUES (?, ?, ?, '', ?, ?, 0, ?, NULL);
 
 updateDocumentMeta:
 UPDATE Document
 SET title = ?, type = ?, path = ?, lastUpdated = ?
 WHERE vault = ? AND id = ?;
 
+-- 본문과 그 본문을 읽은 시점의 서버 상태 토큰은 항상 함께 움직인다.
 updateDocumentContent:
 UPDATE Document
-SET content = ?, lastUpdated = ?
+SET content = ?, precondition = ?, lastUpdated = ?
 WHERE vault = ? AND id = ?;
+
+updateDocumentPrecondition:
+UPDATE Document SET precondition = ? WHERE vault = ? AND id = ?;
+
+selectPrecondition:
+SELECT precondition FROM Document WHERE vault = ? AND id = ?;
 
 toggleFavorite:
 UPDATE Document SET isFavorite = 1 - isFavorite WHERE vault = ? AND id = ?;
@@ -54,17 +62,18 @@ CREATE TABLE PendingWrite (
     attemptCount INTEGER NOT NULL DEFAULT 0,
     lastError TEXT,
     failureKind TEXT,
+    basePrecondition TEXT,
     PRIMARY KEY (vault, slug)
 );
 
 selectPendingWrites:
-SELECT vault, slug, operation, payload, attemptCount, lastError, failureKind
+SELECT vault, slug, operation, payload, attemptCount, lastError, failureKind, basePrecondition
 FROM PendingWrite
 ORDER BY rowid;
 
 enqueuePendingWrite:
-INSERT OR REPLACE INTO PendingWrite(vault, slug, operation, payload, attemptCount, lastError, failureKind)
-VALUES (?, ?, ?, ?, 0, NULL, NULL);
+INSERT OR REPLACE INTO PendingWrite(vault, slug, operation, payload, attemptCount, lastError, failureKind, basePrecondition)
+VALUES (?, ?, ?, ?, 0, NULL, NULL, ?);
 
 recordPendingWriteFailure:
 UPDATE PendingWrite

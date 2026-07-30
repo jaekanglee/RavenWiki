@@ -3,6 +3,7 @@ package com.ppizil.raven.common.presentation.viewmodel
 import com.ppizil.raven.common.domain.model.Document
 import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
+import com.ppizil.raven.common.domain.model.WriteOutcome
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
 import com.ppizil.raven.common.domain.usecase.FetchDocumentUseCase
@@ -54,6 +55,7 @@ data class MainState(
 
 sealed class MainSideEffect {
     data class ShowError(val message: String) : MainSideEffect()
+    data class ShowNotice(val message: String) : MainSideEffect()
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -198,6 +200,21 @@ class MainViewModel(
     private fun saveDocument(document: Document) {
         scope.launch {
             runCatching { saveDocumentUseCase(document) }
+                .onSuccess { outcome ->
+                    when (outcome) {
+                        WriteOutcome.Synced -> Unit
+                        WriteOutcome.Queued -> _sideEffect.emit(
+                            MainSideEffect.ShowNotice(
+                                "지금 PC에 닿지 않아 기기에만 저장했습니다. 재연결 후 당겼 내리면 올라가요.",
+                            ),
+                        )
+                        WriteOutcome.Conflict -> _sideEffect.emit(
+                            MainSideEffect.ShowError(
+                                "PC에서 이 문서가 먼지 바뀌어 서버에 반영하지 않았습니다. 문서를 다시 받아 합치세요.",
+                            ),
+                        )
+                    }
+                }
                 .onFailure { failure -> report(failure, "Failed to save document") }
         }
     }

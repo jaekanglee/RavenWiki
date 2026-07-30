@@ -14,6 +14,7 @@ fun DbDocument.toDomainModel(): Document = Document(
     path = this.path,
     isFavorite = this.isFavorite ?: false,
     lastUpdated = this.lastUpdated,
+    precondition = this.precondition,
 )
 
 fun VaultDto.toDomainModel(): VaultSummary = VaultSummary(

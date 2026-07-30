@@ -5,6 +5,7 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.ppizil.raven.common.data.mapper.toDomainModel
 import com.ppizil.raven.common.data.remote.model.PageDetailResponse
 import com.ppizil.raven.common.data.remote.model.PageListResponse
+import com.ppizil.raven.common.data.remote.model.PageWriteResponse
 import com.ppizil.raven.common.data.remote.model.SearchHitDto
 import com.ppizil.raven.common.data.remote.model.SearchResponse
 import com.ppizil.raven.common.data.remote.model.VaultListResponse
@@ -12,6 +13,7 @@ import com.ppizil.raven.common.db.RavenDatabase
 import com.ppizil.raven.common.domain.model.Document
 import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
+import com.ppizil.raven.common.domain.model.WriteOutcome
 import com.ppizil.raven.common.domain.repository.DocumentRepository
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import io.ktor.client.HttpClient
@@ -39,11 +41,11 @@ private const val NETWORK_FAILURE = "NETWORK"
 private const val REMOTE_FAILURE = "REMOTE"
 
 @Serializable
-private data class PageWriteBody(val content: String)
+private data class PageWriteBody(val content: String, val precondition: String? = null)
 
 private val MARKUP = Regex("<[^>]+>")
 
-// 서버 snippet은 <mark> 하이라이트 + html 이슬로 오기 때문에 평백 텍스트로 되돌린다.
+// 서버 snippet은 <mark> 하이라이트 + html 이스케이프가 섞여 오므로 평문으로 되돌린다.
 private fun String.asPlainSnippet(): String = MARKUP.replace(this, "")
     .replace("&lt;", "<")
     .replace("&gt;", ">")
@@ -59,6 +61,7 @@ data class PendingWriteEntry(
     val attemptCount: Int,
     val lastError: String?,
     val failureKind: String?,
+    val basePrecondition: String?,
 )
 
 fun canonicalPageSlug(title: String, path: String?): String {
@@ -136,6 +139,7 @@ class DocumentRepositoryImpl(
         val detail = response.body<PageDetailResponse>()
         queries.updateDocumentContent(
             content = detail.content,
+            precondition = detail.precondition,
             lastUpdated = io.ktor.util.date.getTimeMillis(),
             vault = vault,
             id = id,
@@ -192,8 +196,13 @@ class DocumentRepositoryImpl(
         }
     }
 
-    override suspend fun saveDocument(document: Document) {
+    override suspend fun saveDocument(document: Document): WriteOutcome {
         database.transaction {
+            // OR REPLACE로 덮기 전에 읽는다 — 이 편집이 출발한 지점이 base다.
+            val base = document.precondition
+                ?: queries.selectPrecondition(document.vault, document.id)
+                    .executeAsOneOrNull()
+                    ?.precondition
             queries.insertDocument(
                 vault = document.vault,
                 id = document.id,
@@ -203,21 +212,24 @@ class DocumentRepositoryImpl(
                 path = document.path,
                 isFavorite = document.isFavorite,
                 lastUpdated = document.lastUpdated,
+                precondition = base,
             )
             queries.enqueuePendingWrite(
                 document.vault,
                 document.id,
                 PUT_OPERATION,
                 document.content,
+                base,
             )
         }
-        flushPendingWrite(document.vault, document.id)
+        return flushPendingWrite(document.vault, document.id)
     }
 
     override suspend fun deleteDocument(vault: String, id: String) {
         database.transaction {
+            val base = queries.selectPrecondition(vault, id).executeAsOneOrNull()?.precondition
             queries.deleteDocument(vault, id)
-            queries.enqueuePendingWrite(vault, id, DELETE_OPERATION, null)
+            queries.enqueuePendingWrite(vault, id, DELETE_OPERATION, null, base)
         }
         flushPendingWrite(vault, id)
     }
@@ -236,24 +248,38 @@ class DocumentRepositoryImpl(
                 attemptCount = pending.attemptCount.toInt(),
                 lastError = pending.lastError,
                 failureKind = pending.failureKind,
+                basePrecondition = pending.basePrecondition,
             )
         }
 
-    private suspend fun flushPendingWrite(vault: String, slug: String) {
-        val pending = pendingWrites().firstOrNull { it.vault == vault && it.slug == slug } ?: return
+    private suspend fun flushPendingWrite(vault: String, slug: String): WriteOutcome {
+        val pending = pendingWrites().firstOrNull { it.vault == vault && it.slug == slug }
+            ?: return WriteOutcome.Synced
         try {
             val url = "${endpoint()}/api/vaults/$vault/pages/${pending.slug}"
             val response = when (pending.operation) {
                 PUT_OPERATION -> httpClient.put(url) {
                     authorize()
                     contentType(ContentType.Application.Json)
-                    setBody(PageWriteBody(pending.payload.orEmpty()))
+                    setBody(
+                        PageWriteBody(
+                            content = pending.payload.orEmpty(),
+                            precondition = pending.basePrecondition,
+                        ),
+                    )
                 }
                 DELETE_OPERATION -> httpClient.delete(url) { authorize() }
                 else -> error("Unsupported outbox operation: ${pending.operation}")
             }
             if (response.status.isSuccess()) {
                 queries.removePendingWrite(vault, pending.slug)
+                if (pending.operation == PUT_OPERATION) {
+                    // 새 토큰이 다음 편집의 base다. 안 갱신하면 연속 수정이 방금 자기가 쓴 글과 추돌한다.
+                    runCatching { response.body<PageWriteResponse>().precondition }
+                        .getOrNull()
+                        ?.let { queries.updateDocumentPrecondition(it, vault, pending.slug) }
+                }
+                return WriteOutcome.Synced
             } else {
                 val kind = if (response.status == HttpStatusCode.Conflict ||
                     response.status == HttpStatusCode.PreconditionFailed
@@ -264,6 +290,7 @@ class DocumentRepositoryImpl(
                     kind,
                     "HTTP ${response.status.value} ${response.status.description}",
                 )
+                return if (kind == CONFLICT_FAILURE) WriteOutcome.Conflict else WriteOutcome.Queued
             }
         } catch (exception: Exception) {
             val message = generateSequence<Throwable>(exception) { it.cause }
@@ -271,6 +298,7 @@ class DocumentRepositoryImpl(
                 .joinToString(": ")
                 .ifBlank { exception::class.simpleName.orEmpty() }
             recordFailure(vault, pending.slug, NETWORK_FAILURE, message)
+            return WriteOutcome.Queued
         }
     }
 

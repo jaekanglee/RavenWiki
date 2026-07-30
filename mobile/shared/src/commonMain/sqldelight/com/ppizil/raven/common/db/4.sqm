@@ -1,0 +1,8 @@
+-- 서버가 준 상태 토큰을 보관한다. 이게 없으면 PUT에 precondition을 실을 수 없고,
+-- 서버는 토큰 없는 PUT의 lost update 검사를 건너뛰므로 남의 편집을 조용히 덮는다.
+-- Document.precondition = 내가 읽은 시점의 서버 상태.
+-- PendingWrite.basePrecondition = 큐에 넣을 때의 base (전송 시점 값이 아니라 편집의 출발점).
+
+ALTER TABLE Document ADD COLUMN precondition TEXT;
+
+ALTER TABLE PendingWrite ADD COLUMN basePrecondition TEXT;

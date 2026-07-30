@@ -7,6 +7,7 @@ import com.ppizil.raven.common.data.remote.ravenJson
 import com.ppizil.raven.common.data.repository.canonicalPageSlug
 import com.ppizil.raven.common.db.RavenDatabase
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.WriteOutcome
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -238,6 +239,146 @@ class DocumentRepositoryTest {
         val document = repository.getDocuments(VAULT).first().single()
         assertEquals("PC에서 방금 만든 문서", document.title)
         assertEquals("동기화 전 본문", document.content)
+    }
+
+    @Test
+    fun fetchDocumentStoresServerPrecondition() = runTest {
+        val repository = repositoryRouting { request ->
+            if (request.url.encodedPath.endsWith("/pages")) {
+                jsonOk(pagesBody(VAULT))
+            } else {
+                jsonOk(
+                    """{"ok":true,"vault":"$VAULT","slug":"content/index",""" +
+                        """"precondition":"sha256:abc123","content":"사람이 읽은 본문"}""",
+                )
+            }
+        }
+
+        repository.syncDocuments(VAULT)
+        repository.fetchDocument(VAULT, "content/index")
+
+        assertEquals(
+            "sha256:abc123",
+            database.documentQueries.selectById(VAULT, "content/index").executeAsOne().precondition,
+        )
+    }
+
+    @Test
+    fun putSendsPreconditionReadFromServer() = runTest {
+        var sentBody = ""
+        val repository = repositoryRouting { request ->
+            when {
+                request.method == HttpMethod.Put -> {
+                    sentBody = request.body.toByteArray().decodeToString()
+                    jsonOk("""{"ok":true,"vault":"$VAULT","slug":"content/index","precondition":"sha256:new"}""")
+                }
+                request.url.encodedPath.endsWith("/pages") -> jsonOk(pagesBody(VAULT))
+                else -> jsonOk(
+                    """{"ok":true,"vault":"$VAULT","slug":"content/index",""" +
+                        """"precondition":"sha256:base","content":"원본"}""",
+                )
+            }
+        }
+        repository.syncDocuments(VAULT)
+        repository.fetchDocument(VAULT, "content/index")
+        val stored = repository.getDocuments(VAULT).first().single()
+
+        repository.saveDocument(stored.copy(content = "모바일에서 고침"))
+
+        assertTrue(sentBody.contains("\"precondition\":\"sha256:base\""), "PUT body: $sentBody")
+        assertTrue(repository.pendingWrites().isEmpty())
+        assertEquals(
+            "sha256:new",
+            database.documentQueries.selectById(VAULT, "content/index").executeAsOne().precondition,
+        )
+    }
+
+    @Test
+    fun queuedWriteKeepsBasePreconditionUntilFlush() = runTest {
+        val offline = repositoryWithEngine(MockEngine { throw IOException("offline") })
+        database.documentQueries.insertDocument(
+            vault = VAULT,
+            id = "notes/test-page",
+            title = "Test Page",
+            content = "원본",
+            type = "concept",
+            path = "notes/test-page.md",
+            isFavorite = false,
+            lastUpdated = 1L,
+            precondition = "sha256:base",
+        )
+
+        offline.saveDocument(document(content = "버스에서 쓴 글"))
+
+        assertEquals("sha256:base", offline.pendingWrites().single().basePrecondition)
+
+        var sentBody = ""
+        val online = repositoryRouting { request ->
+            sentBody = request.body.toByteArray().decodeToString()
+            jsonOk("""{"ok":true,"vault":"$VAULT","slug":"notes/test-page","precondition":"sha256:after"}""")
+        }
+        online.flushPendingWrites()
+
+        assertTrue(sentBody.contains("\"precondition\":\"sha256:base\""), "PUT body: $sentBody")
+    }
+
+    @Test
+    fun stalePreconditionIsReportedAsConflictAndKeepsQueueEntry() = runTest {
+        val repository = repositoryWithEngine(
+            MockEngine { respond("stale_precondition", HttpStatusCode.Conflict) },
+        )
+        database.documentQueries.insertDocument(
+            vault = VAULT,
+            id = "notes/test-page",
+            title = "Test Page",
+            content = "원본",
+            type = "concept",
+            path = "notes/test-page.md",
+            isFavorite = false,
+            lastUpdated = 1L,
+            precondition = "sha256:stale",
+        )
+
+        repository.saveDocument(document(content = "내가 고칬 글"))
+
+        val pending = repository.pendingWrites().single()
+        assertEquals("CONFLICT", pending.failureKind)
+        assertEquals("sha256:stale", pending.basePrecondition)
+        assertTrue(pending.lastError!!.contains("409"))
+        assertEquals("내가 고칬 글", pending.payload)
+    }
+
+    @Test
+    fun documentWithoutKnownPreconditionOmitsTheField() = runTest {
+        var sentBody = ""
+        val repository = repositoryRouting { request ->
+            sentBody = request.body.toByteArray().decodeToString()
+            respond("", HttpStatusCode.NoContent)
+        }
+
+        repository.saveDocument(document(content = "토큰 없이 쓴 글"))
+
+        assertTrue(!sentBody.contains("precondition"), "PUT body: $sentBody")
+    }
+
+    @Test
+    fun saveOutcomeTellsSyncedQueuedAndConflictApart() = runTest {
+        val synced = repositoryRouting { respond("", HttpStatusCode.NoContent) }
+        assertEquals(WriteOutcome.Synced, synced.saveDocument(document(content = "서버까지 감")))
+
+        val offline = repositoryWithEngine(MockEngine { throw IOException("offline") })
+        assertEquals(
+            WriteOutcome.Queued,
+            offline.saveDocument(document(content = "큰에 남음").copy(id = "notes/queued")),
+        )
+
+        val conflicting = repositoryWithEngine(
+            MockEngine { respond("stale_precondition", HttpStatusCode.Conflict) },
+        )
+        assertEquals(
+            WriteOutcome.Conflict,
+            conflicting.saveDocument(document(content = "부딬음").copy(id = "notes/clash")),
+        )
     }
 
     @Test

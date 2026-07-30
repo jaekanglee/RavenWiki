@@ -48,5 +48,14 @@ data class PageDetailResponse(
     val slug: String = "",
     @SerialName("file_path") val filePath: String? = null,
     val content: String = "",
+    val precondition: String? = null,
     val frontmatter: JsonElement? = null,
+)
+
+// PUT 응답은 이번 write 지난 뒤의 새 상토큰을 주다 — 다음 편집의 base가 된다.
+@Serializable
+data class PageWriteResponse(
+    val ok: Boolean = true,
+    val slug: String = "",
+    val precondition: String? = null,
 )
