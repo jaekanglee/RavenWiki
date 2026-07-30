@@ -59,6 +59,7 @@ interface QuickAction {
   description: string;
   icon: React.ReactNode;
   primary?: boolean;
+  primaryWithoutVault?: boolean;
   requiresVault?: boolean;
 }
 
@@ -111,7 +112,7 @@ const ACTIONS: QuickAction[] = [
     label: "새 vault",
     description: "지금 만드는 새 vault",
     icon: <ActionIcon.Plus />,
-    primary: true,
+    primaryWithoutVault: true,
   },
   {
     to: "/graph",
@@ -150,6 +151,17 @@ export function HomePage() {
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
   }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "n") return;
+      if (!activeVault) return;
+      e.preventDefault();
+      setShowNewPageForm(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [activeVault]);
 
   // ─── data fetch: vaults + per-vault stats ─────────────
   useEffect(() => {
@@ -250,21 +262,24 @@ export function HomePage() {
             gap: 12,
           }}
         >
+          <NewPageCard
+            isMobile={isMobile}
+            disabled={!activeVault}
+            active={showNewPageForm}
+            primary={Boolean(activeVault)}
+            onToggle={() => setShowNewPageForm((v) => !v)}
+          />
           {ACTIONS.map((a) => (
             <ActionCard
               key={a.to}
               action={a}
               isMobile={isMobile}
               disabled={Boolean(a.requiresVault) && !activeVault}
+              primary={
+                a.primaryWithoutVault ? !activeVault : Boolean(a.primary)
+              }
             />
           ))}
-          {/* 묶음 B: "새 페이지" 카드 — 클릭 시 인라인 폼 토글. */}
-          <NewPageCard
-            isMobile={isMobile}
-            disabled={!activeVault}
-            active={showNewPageForm}
-            onToggle={() => setShowNewPageForm((v) => !v)}
-          />
         </div>
         {!activeVault && vaults.length > 0 && (
           <p
@@ -378,10 +393,12 @@ function ActionCard({
   action,
   isMobile,
   disabled,
+  primary,
 }: {
   action: QuickAction;
   isMobile: boolean;
   disabled: boolean;
+  primary: boolean;
 }) {
   const base: CSSProperties = {
     display: "flex",
@@ -401,14 +418,15 @@ function ActionCard({
     opacity: disabled ? 0.45 : 1,
     pointerEvents: disabled ? "none" : "auto",
   };
-  if (action.primary) {
-    base.borderColor = "var(--color-primary)";
+  if (primary) {
+    base.border = "1.5px solid var(--color-primary)";
     base.background = "var(--color-primary-bg)";
   }
   return (
     <Link
       to={action.to}
       style={base}
+      data-primary={primary || undefined}
       aria-disabled={disabled || undefined}
       onClick={(e) => {
         if (disabled) e.preventDefault();
@@ -663,11 +681,13 @@ function NewPageCard({
   isMobile,
   disabled,
   active,
+  primary,
   onToggle,
 }: {
   isMobile: boolean;
   disabled: boolean;
   active: boolean;
+  primary: boolean;
   onToggle: () => void;
 }) {
   const base: CSSProperties = {
@@ -676,10 +696,10 @@ function NewPageCard({
     alignItems: "flex-start",
     textAlign: "left",
     padding: isMobile ? 16 : 20,
-    background: active
+    background: active || primary
       ? "var(--color-primary-bg)"
       : "var(--color-canvas)",
-    border: active
+    border: active || primary
       ? "1.5px solid var(--color-primary)"
       : "1px solid var(--color-hairline)",
     borderRadius: 8,
@@ -698,6 +718,7 @@ function NewPageCard({
     <button
       type="button"
       style={base}
+      data-primary={primary || undefined}
       aria-disabled={disabled || undefined}
       aria-pressed={active}
       onClick={() => {
