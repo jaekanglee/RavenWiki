@@ -1,22 +1,34 @@
 package com.ppizil.raven.common.presentation.viewmodel
 
-import com.ppizil.raven.common.presentation.mvi.MviViewModel
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.VaultSummary
+import com.ppizil.raven.common.domain.repository.SettingsRepository
+import com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
+import com.ppizil.raven.common.domain.usecase.FetchDocumentUseCase
+import com.ppizil.raven.common.domain.usecase.FetchVaultsUseCase
 import com.ppizil.raven.common.domain.usecase.GetDocumentsUseCase
+import com.ppizil.raven.common.domain.usecase.SaveDocumentUseCase
 import com.ppizil.raven.common.domain.usecase.SyncDocumentsUseCase
+import com.ppizil.raven.common.presentation.mvi.MviViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 sealed class MainIntent {
+    object LoadVaults : MainIntent()
+    data class SelectVault(val vault: String) : MainIntent()
     object SyncDocuments : MainIntent()
-    data class SaveDocument(val document: com.ppizil.raven.common.domain.model.Document) : MainIntent()
+    data class OpenDocument(val id: String) : MainIntent()
+    data class SaveDocument(val document: Document) : MainIntent()
     data class DeleteDocument(val id: String) : MainIntent()
 }
 
@@ -25,79 +37,135 @@ enum class ConnectionStatus {
 }
 
 data class MainState(
+    val vaults: List<VaultSummary> = emptyList(),
+    val selectedVault: String? = null,
     val documents: List<Document> = emptyList(),
     val connectionStatus: ConnectionStatus = ConnectionStatus.Idle,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 )
 
 sealed class MainSideEffect {
     data class ShowError(val message: String) : MainSideEffect()
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val getDocumentsUseCase: GetDocumentsUseCase,
     private val syncDocumentsUseCase: SyncDocumentsUseCase,
-    private val saveDocumentUseCase: com.ppizil.raven.common.domain.usecase.SaveDocumentUseCase,
-    private val deleteDocumentUseCase: com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
+    private val saveDocumentUseCase: SaveDocumentUseCase,
+    private val deleteDocumentUseCase: DeleteDocumentUseCase,
+    private val fetchVaultsUseCase: FetchVaultsUseCase,
+    private val fetchDocumentUseCase: FetchDocumentUseCase,
+    private val settingsRepository: SettingsRepository,
 ) : MviViewModel<MainIntent, MainState, MainSideEffect> {
 
     private val scope = CoroutineScope(Dispatchers.Main)
-    
-    private val _state = MutableStateFlow(MainState())
+
+    private val _state = MutableStateFlow(
+        MainState(selectedVault = settingsRepository.getVault()?.takeIf { it.isNotBlank() }),
+    )
     override val state: StateFlow<MainState> = _state.asStateFlow()
 
     private val _sideEffect = MutableSharedFlow<MainSideEffect>()
     override val sideEffect: SharedFlow<MainSideEffect> = _sideEffect.asSharedFlow()
 
+    private val activeVault = MutableStateFlow(_state.value.selectedVault)
+
     init {
         scope.launch {
-            getDocumentsUseCase().collect { docs ->
-                _state.value = _state.value.copy(documents = docs)
-            }
+            activeVault
+                .flatMapLatest { vault ->
+                    if (vault.isNullOrBlank()) flowOf(emptyList()) else getDocumentsUseCase(vault)
+                }
+                .collect { documents ->
+                    _state.value = _state.value.copy(documents = documents)
+                }
         }
     }
 
     override fun sendIntent(intent: MainIntent) {
         when (intent) {
+            is MainIntent.LoadVaults -> loadVaults()
+            is MainIntent.SelectVault -> selectVault(intent.vault)
             is MainIntent.SyncDocuments -> syncDocuments()
+            is MainIntent.OpenDocument -> openDocument(intent.id)
             is MainIntent.SaveDocument -> saveDocument(intent.document)
             is MainIntent.DeleteDocument -> deleteDocument(intent.id)
         }
     }
 
-    private fun deleteDocument(id: String) {
+    private fun loadVaults() {
         scope.launch {
-            try {
-                deleteDocumentUseCase(id)
-            } catch (e: Exception) {
-                val errorMsg = e.message ?: "Failed to delete document"
-                _sideEffect.emit(MainSideEffect.ShowError(errorMsg))
-            }
+            _state.value = _state.value.copy(
+                connectionStatus = ConnectionStatus.Connecting,
+                errorMessage = null,
+            )
+            runCatching { fetchVaultsUseCase() }
+                .onSuccess { vaults ->
+                    _state.value = _state.value.copy(
+                        vaults = vaults,
+                        connectionStatus = ConnectionStatus.Success,
+                    )
+                }
+                .onFailure { failure -> report(failure, "Failed to load vaults") }
         }
     }
 
-    private fun saveDocument(document: com.ppizil.raven.common.domain.model.Document) {
-        scope.launch {
-            try {
-                saveDocumentUseCase(document)
-            } catch (e: Exception) {
-                val errorMsg = e.message ?: "Failed to save document"
-                _sideEffect.emit(MainSideEffect.ShowError(errorMsg))
-            }
-        }
+    private fun selectVault(vault: String) {
+        settingsRepository.saveVault(vault)
+        _state.value = _state.value.copy(selectedVault = vault, documents = emptyList())
+        activeVault.value = vault
+        syncDocuments()
     }
 
     private fun syncDocuments() {
-        scope.launch {
-            _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Connecting, errorMessage = null)
-            try {
-                syncDocumentsUseCase()
-                _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Success)
-            } catch (e: Exception) {
-                val errorMsg = e.message ?: "Unknown error"
-                _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Error, errorMessage = errorMsg)
-                _sideEffect.emit(MainSideEffect.ShowError(errorMsg))
-            }
+        val vault = _state.value.selectedVault
+        if (vault.isNullOrBlank()) {
+            loadVaults()
+            return
         }
+        scope.launch {
+            _state.value = _state.value.copy(
+                connectionStatus = ConnectionStatus.Connecting,
+                errorMessage = null,
+            )
+            runCatching { syncDocumentsUseCase(vault) }
+                .onSuccess {
+                    _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Success)
+                }
+                .onFailure { failure -> report(failure, "Failed to sync documents") }
+        }
+    }
+
+    private fun openDocument(id: String) {
+        val vault = _state.value.selectedVault ?: return
+        scope.launch {
+            runCatching { fetchDocumentUseCase(vault, id) }
+                .onFailure { failure -> report(failure, "Failed to open document") }
+        }
+    }
+
+    private fun saveDocument(document: Document) {
+        scope.launch {
+            runCatching { saveDocumentUseCase(document) }
+                .onFailure { failure -> report(failure, "Failed to save document") }
+        }
+    }
+
+    private fun deleteDocument(id: String) {
+        val vault = _state.value.selectedVault ?: return
+        scope.launch {
+            runCatching { deleteDocumentUseCase(vault, id) }
+                .onFailure { failure -> report(failure, "Failed to delete document") }
+        }
+    }
+
+    private suspend fun report(failure: Throwable, fallback: String) {
+        val message = failure.message ?: fallback
+        _state.value = _state.value.copy(
+            connectionStatus = ConnectionStatus.Error,
+            errorMessage = message,
+        )
+        _sideEffect.emit(MainSideEffect.ShowError(message))
     }
 }

@@ -1,0 +1,57 @@
+-- vault 차원 도입. 같은 slug가 vault마다 존재하므로(예: 여러 vault의 content/index)
+-- 단일 PK로는 서로를 덮어쓴다. SQLite는 PK를 ALTER 할 수 없어 테이블을 재생성한다.
+-- 기존 행은 사용자가 설정해둔 vault로 귀속시킨다 (없으면 default).
+
+ALTER TABLE Document RENAME TO Document_pre3;
+
+CREATE TABLE Document (
+    vault TEXT NOT NULL,
+    id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    type TEXT,
+    path TEXT,
+    isFavorite INTEGER DEFAULT 0,
+    lastUpdated INTEGER NOT NULL,
+    PRIMARY KEY (vault, id)
+);
+
+INSERT INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated)
+SELECT
+    COALESCE((SELECT value FROM Settings WHERE key = 'vault'), 'default'),
+    id,
+    title,
+    content,
+    NULL,
+    path,
+    COALESCE(isFavorite, 0),
+    lastUpdated
+FROM Document_pre3;
+
+DROP TABLE Document_pre3;
+
+ALTER TABLE PendingWrite RENAME TO PendingWrite_pre3;
+
+CREATE TABLE PendingWrite (
+    vault TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    payload TEXT,
+    attemptCount INTEGER NOT NULL DEFAULT 0,
+    lastError TEXT,
+    failureKind TEXT,
+    PRIMARY KEY (vault, slug)
+);
+
+INSERT INTO PendingWrite(vault, slug, operation, payload, attemptCount, lastError, failureKind)
+SELECT
+    COALESCE((SELECT value FROM Settings WHERE key = 'vault'), 'default'),
+    slug,
+    operation,
+    payload,
+    attemptCount,
+    lastError,
+    failureKind
+FROM PendingWrite_pre3;
+
+DROP TABLE PendingWrite_pre3;

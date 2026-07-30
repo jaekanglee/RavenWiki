@@ -1,55 +1,80 @@
 CREATE TABLE Document (
-    id TEXT NOT NULL PRIMARY KEY,
+    vault TEXT NOT NULL,
+    id TEXT NOT NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
+    type TEXT,
     path TEXT,
     isFavorite INTEGER AS kotlin.Boolean DEFAULT 0,
-    lastUpdated INTEGER NOT NULL
+    lastUpdated INTEGER NOT NULL,
+    PRIMARY KEY (vault, id)
 );
 
-selectAll:
-SELECT id, title, content, path, isFavorite, lastUpdated FROM Document;
+selectByVault:
+SELECT vault, id, title, content, type, path, isFavorite, lastUpdated
+FROM Document
+WHERE vault = ?
+ORDER BY lastUpdated DESC, id;
 
 selectById:
-SELECT id, title, content, path, isFavorite, lastUpdated FROM Document WHERE id = ?;
+SELECT vault, id, title, content, type, path, isFavorite, lastUpdated
+FROM Document
+WHERE vault = ? AND id = ?;
 
 insertDocument:
-INSERT OR REPLACE INTO Document(id, title, content, path, isFavorite, lastUpdated)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- 목록 API에는 본문이 없다. 두 문장으로 나눠 이미 받아둔 본문을 보존한다.
+insertDocumentMetaIfAbsent:
+INSERT OR IGNORE INTO Document(vault, id, title, content, type, path, isFavorite, lastUpdated)
+VALUES (?, ?, ?, '', ?, ?, 0, ?);
+
+updateDocumentMeta:
+UPDATE Document
+SET title = ?, type = ?, path = ?, lastUpdated = ?
+WHERE vault = ? AND id = ?;
+
+updateDocumentContent:
+UPDATE Document
+SET content = ?, lastUpdated = ?
+WHERE vault = ? AND id = ?;
 
 toggleFavorite:
-UPDATE Document SET isFavorite = 1 - isFavorite WHERE id = ?;
+UPDATE Document SET isFavorite = 1 - isFavorite WHERE vault = ? AND id = ?;
 
 deleteDocument:
-DELETE FROM Document WHERE id = ?;
+DELETE FROM Document WHERE vault = ? AND id = ?;
 
 CREATE TABLE PendingWrite (
-    slug TEXT NOT NULL PRIMARY KEY,
+    vault TEXT NOT NULL,
+    slug TEXT NOT NULL,
     operation TEXT NOT NULL,
     payload TEXT,
     attemptCount INTEGER NOT NULL DEFAULT 0,
     lastError TEXT,
-    failureKind TEXT
+    failureKind TEXT,
+    PRIMARY KEY (vault, slug)
 );
 
 selectPendingWrites:
-SELECT slug, operation, payload, attemptCount, lastError, failureKind
+SELECT vault, slug, operation, payload, attemptCount, lastError, failureKind
 FROM PendingWrite
 ORDER BY rowid;
 
 enqueuePendingWrite:
-INSERT OR REPLACE INTO PendingWrite(slug, operation, payload, attemptCount, lastError, failureKind)
-VALUES (?, ?, ?, 0, NULL, NULL);
+INSERT OR REPLACE INTO PendingWrite(vault, slug, operation, payload, attemptCount, lastError, failureKind)
+VALUES (?, ?, ?, ?, 0, NULL, NULL);
 
 recordPendingWriteFailure:
 UPDATE PendingWrite
 SET attemptCount = attemptCount + 1,
     lastError = ?,
     failureKind = ?
-WHERE slug = ?;
+WHERE vault = ? AND slug = ?;
 
 removePendingWrite:
-DELETE FROM PendingWrite WHERE slug = ?;
+DELETE FROM PendingWrite WHERE vault = ? AND slug = ?;
 
 CREATE TABLE Settings (
     key TEXT NOT NULL PRIMARY KEY,

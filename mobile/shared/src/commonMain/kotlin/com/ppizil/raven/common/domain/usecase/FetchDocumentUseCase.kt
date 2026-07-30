@@ -2,8 +2,9 @@ package com.ppizil.raven.common.domain.usecase
 
 import com.ppizil.raven.common.domain.repository.DocumentRepository
 
-class SyncDocumentsUseCase(
+class FetchDocumentUseCase(
     private val documentRepository: DocumentRepository
 ) {
-    suspend operator fun invoke(vault: String) = documentRepository.syncDocuments(vault)
+    suspend operator fun invoke(vault: String, id: String) =
+        documentRepository.fetchDocument(vault, id)
 }

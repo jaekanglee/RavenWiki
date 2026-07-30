@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.Flow
 class GetDocumentsUseCase(
     private val documentRepository: DocumentRepository
 ) {
-    operator fun invoke(): Flow<List<Document>> {
-        return documentRepository.getAllDocuments()
-    }
+    operator fun invoke(vault: String): Flow<List<Document>> =
+        documentRepository.getDocuments(vault)
 }

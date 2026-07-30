@@ -1,16 +1,25 @@
 package com.ppizil.raven.common.repository
 
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.ppizil.raven.common.data.repository.DocumentRepositoryImpl
 import com.ppizil.raven.common.data.repository.SettingsRepositoryImpl
+import com.ppizil.raven.common.data.remote.ravenJson
 import com.ppizil.raven.common.data.repository.canonicalPageSlug
-import com.ppizil.raven.common.domain.model.Document
 import com.ppizil.raven.common.db.RavenDatabase
-import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
-import io.ktor.client.*
-import io.ktor.client.engine.mock.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import com.ppizil.raven.common.domain.model.Document
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -20,8 +29,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+private const val VAULT = "test-vault"
+
 class DocumentRepositoryTest {
-    private lateinit var repository: DocumentRepositoryImpl
     private lateinit var settingsRepository: SettingsRepositoryImpl
     private lateinit var database: RavenDatabase
 
@@ -33,39 +43,129 @@ class DocumentRepositoryTest {
         settingsRepository = SettingsRepositoryImpl(database)
         settingsRepository.saveEndpoint("http://localhost:8080")
         settingsRepository.saveApiKey("test-key")
+        settingsRepository.saveVault(VAULT)
+    }
 
-        val mockEngine = MockEngine { request ->
-            respond(
-                content = """[{"slug": "content/doc1", "title": "Test", "type": "concept", "path": "content/doc1.md"}]""",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, "application/json")
+    private fun MockRequestHandleScope.jsonOk(body: String) =
+        respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+
+    private fun repositoryWithEngine(engine: MockEngine) = DocumentRepositoryImpl(
+        HttpClient(engine) { install(ContentNegotiation) { json(ravenJson) } },
+        database,
+        settingsRepository,
+    )
+
+    private fun repositoryRouting(
+        route: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ) = repositoryWithEngine(MockEngine { request -> route(request) })
+
+    private fun pagesBody(vault: String) =
+        """{"ok":true,"vault":"$vault","pages":[{"slug":"content/index","title":"$vault home",""" +
+            """"type":"concept","collection":"content","status":"current","updated":"2026-07-30"}]}"""
+
+    private fun document(content: String = "body") = Document(
+        vault = VAULT,
+        id = "notes/test-page",
+        title = "Test Page",
+        content = content,
+        type = "concept",
+        path = "notes/test-page.md",
+        isFavorite = false,
+        lastUpdated = 1L,
+    )
+
+    @Test
+    fun fetchVaultsReturnsHostVaultNames() = runTest {
+        val repository = repositoryRouting {
+            jsonOk(
+                """{"ok":true,"vaults":[""" +
+                    """{"name":"babymoa","path":"/v/babymoa","mode":"agent","owner":"u","default":true},""" +
+                    """{"name":"hermes-infra","path":"/v/h","mode":"agent","owner":"u","default":false}],""" +
+                    """"vaults_root":"/v"}""",
             )
         }
-        val httpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json()
-            }
-        }
-        repository = DocumentRepositoryImpl(httpClient, database, settingsRepository)
+
+        val vaults = repository.fetchVaults()
+
+        assertEquals(listOf("babymoa", "hermes-infra"), vaults.map { it.name })
+        assertEquals(listOf(true, false), vaults.map { it.isDefault })
+        assertEquals("/v/babymoa", vaults.first().path)
     }
 
     @Test
-    fun testSyncAllDocuments() = runTest {
-        repository.syncAllDocuments()
-        val docs = repository.getAllDocuments().first()
-        assertEquals(1, docs.size)
-        assertEquals("content/doc1", docs[0].id)
+    fun documentsAreScopedPerVault() = runTest {
+        val repository = repositoryRouting { request ->
+            val segments = request.url.encodedPath.trim('/').split('/')
+            jsonOk(pagesBody(segments[segments.indexOf("vaults") + 1]))
+        }
+
+        repository.syncDocuments("babymoa")
+        repository.syncDocuments("hermes-infra")
+
+        val babymoa = repository.getDocuments("babymoa").first()
+        val hermes = repository.getDocuments("hermes-infra").first()
+        assertEquals(listOf("babymoa home"), babymoa.map { it.title })
+        assertEquals(listOf("hermes-infra home"), hermes.map { it.title })
+        assertEquals("content/index", babymoa.single().id)
+        assertEquals("content/index", hermes.single().id)
+    }
+
+    @Test
+    fun openingDocumentStoresServerContentNotType() = runTest {
+        val repository = repositoryRouting { request ->
+            if (request.url.encodedPath.endsWith("/pages")) {
+                jsonOk(pagesBody("babymoa"))
+            } else {
+                jsonOk(
+                    """{"ok":true,"vault":"babymoa","slug":"content/index",""" +
+                        """"file_path":"/v/babymoa/content/index.md","frontmatter":{"type":"concept"},""" +
+                        """"content":"# babymoa\n\n실제 본문 문장","backlinks":[]}""",
+                )
+            }
+        }
+
+        repository.syncDocuments("babymoa")
+        repository.fetchDocument("babymoa", "content/index")
+
+        val document = repository.getDocuments("babymoa").first().single()
+        assertTrue(document.content.contains("실제 본문 문장"), "본문: ${document.content}")
+        assertEquals("concept", document.type)
+    }
+
+    @Test
+    fun syncKeepsAlreadyFetchedContent() = runTest {
+        val repository = repositoryRouting { request ->
+            if (request.url.encodedPath.endsWith("/pages")) {
+                jsonOk(pagesBody("babymoa"))
+            } else {
+                jsonOk(
+                    """{"ok":true,"vault":"babymoa","slug":"content/index",""" +
+                        """"content":"보존되어야 하는 본문"}""",
+                )
+            }
+        }
+
+        repository.syncDocuments("babymoa")
+        repository.fetchDocument("babymoa", "content/index")
+        repository.syncDocuments("babymoa")
+
+        assertEquals(
+            "보존되어야 하는 본문",
+            repository.getDocuments("babymoa").first().single().content,
+        )
     }
 
     @Test
     fun offlineSaveKeepsContentAndPendingWrite() = runTest {
-        val offlineRepository = repositoryWithEngine(MockEngine { throw IOException("offline") })
+        val repository = repositoryWithEngine(MockEngine { throw IOException("offline") })
         val document = document(content = "content written offline")
 
-        offlineRepository.saveDocument(document)
+        repository.saveDocument(document)
 
-        assertEquals("content written offline", database.documentQueries.selectById(document.id).executeAsOne().content)
-        val pending = offlineRepository.pendingWrites().single()
+        val stored = database.documentQueries.selectById(VAULT, document.id).executeAsOne()
+        assertEquals("content written offline", stored.content)
+        val pending = repository.pendingWrites().single()
+        assertEquals(VAULT, pending.vault)
         assertEquals(document.id, pending.slug)
         assertEquals("PUT", pending.operation)
         assertEquals("content written offline", pending.payload)
@@ -78,12 +178,12 @@ class DocumentRepositoryTest {
         repositoryWithEngine(MockEngine { throw IOException("offline") })
             .saveDocument(document(content = "queued body"))
         var sentBody = ""
-        val onlineRepository = repositoryWithEngine(MockEngine { request ->
+        val onlineRepository = repositoryRouting { request ->
             assertEquals(HttpMethod.Put, request.method)
-            assertEquals("/api/vaults/test-vault/pages/notes/test-page", request.url.encodedPath)
+            assertEquals("/api/vaults/$VAULT/pages/notes/test-page", request.url.encodedPath)
             sentBody = request.body.toByteArray().decodeToString()
             respond("", HttpStatusCode.NoContent)
-        })
+        }
 
         onlineRepository.flushPendingWrites()
 
@@ -92,10 +192,27 @@ class DocumentRepositoryTest {
     }
 
     @Test
+    fun pendingWritesOfDifferentVaultsDoNotCollide() = runTest {
+        val repository = repositoryWithEngine(MockEngine { throw IOException("offline") })
+
+        repository.saveDocument(document(content = "from test-vault"))
+        repository.saveDocument(
+            document(content = "from other-vault").copy(vault = "other-vault"),
+        )
+
+        val pending = repository.pendingWrites()
+        assertEquals(2, pending.size)
+        assertEquals(
+            listOf("from other-vault", "from test-vault"),
+            pending.mapNotNull { it.payload }.sorted(),
+        )
+    }
+
+    @Test
     fun failedRemoteWriteRecordsErrorAndConflictKind() = runTest {
-        val conflictRepository = repositoryWithEngine(MockEngine {
-            respond("stale version", HttpStatusCode.PreconditionFailed)
-        })
+        val conflictRepository = repositoryWithEngine(
+            MockEngine { respond("stale version", HttpStatusCode.PreconditionFailed) },
+        )
 
         conflictRepository.saveDocument(document())
 
@@ -124,7 +241,7 @@ class DocumentRepositoryTest {
     }
 
     @Test
-    fun migratesLegacyDocumentsWithoutLosingData() {
+    fun migratesVersionOneInstallWithoutLosingData() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(
             null,
@@ -144,38 +261,76 @@ class DocumentRepositoryTest {
             "CREATE TABLE Settings (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL)",
             0,
         )
-        driver.execute(
-            null,
-            "INSERT INTO Document VALUES ('legacy-doc', 'Legacy', 'Body', 0, 1)",
-            0,
-        )
+        driver.execute(null, "INSERT INTO Document VALUES ('legacy-doc', 'Legacy', 'Body', 0, 1)", 0)
+        driver.execute(null, "INSERT INTO Settings VALUES ('vault', 'legacy-vault')", 0)
 
         RavenDatabase.Schema.migrate(driver, 1, RavenDatabase.Schema.version)
 
-        val document = RavenDatabase(driver).documentQueries.selectById("legacy-doc").executeAsOne()
-        assertEquals("Legacy", document.title)
-        assertNull(document.path)
+        val migrated = RavenDatabase(driver).documentQueries
+            .selectById("legacy-vault", "legacy-doc")
+            .executeAsOne()
+        assertEquals("Legacy", migrated.title)
+        assertEquals("Body", migrated.content)
+        assertEquals("legacy-vault", migrated.vault)
+        assertNull(migrated.path)
     }
 
-    private fun repositoryWithEngine(engine: MockEngine): DocumentRepositoryImpl {
-        settingsRepository.saveEndpoint("http://localhost:8080")
-        settingsRepository.saveApiKey("test-key")
-        settingsRepository.saveVault("test-vault")
-        return DocumentRepositoryImpl(
-            HttpClient(engine) {
-                install(ContentNegotiation) { json() }
-            },
-            database,
-            settingsRepository,
+    @Test
+    fun migratesVersionThreeInstallKeepingPendingWrites() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(
+            null,
+            """
+            CREATE TABLE Document (
+                id TEXT NOT NULL PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                path TEXT,
+                isFavorite INTEGER DEFAULT 0,
+                lastUpdated INTEGER NOT NULL
+            )
+            """.trimIndent(),
+            0,
         )
-    }
+        driver.execute(
+            null,
+            """
+            CREATE TABLE PendingWrite (
+                slug TEXT NOT NULL PRIMARY KEY,
+                operation TEXT NOT NULL,
+                payload TEXT,
+                attemptCount INTEGER NOT NULL DEFAULT 0,
+                lastError TEXT,
+                failureKind TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            "CREATE TABLE Settings (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL)",
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO Document VALUES ('notes/queued', 'Queued', 'Offline body', 'notes/queued.md', 0, 7)",
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO PendingWrite VALUES ('notes/queued', 'PUT', 'Offline body', 2, 'boom', 'NETWORK')",
+            0,
+        )
 
-    private fun document(content: String = "body") = Document(
-        id = "notes/test-page",
-        title = "Test Page",
-        content = content,
-        path = "notes/test-page.md",
-        isFavorite = false,
-        lastUpdated = 1L,
-    )
+        RavenDatabase.Schema.migrate(driver, 3, RavenDatabase.Schema.version)
+
+        val queries = RavenDatabase(driver).documentQueries
+        val migrated = queries.selectById("default", "notes/queued").executeAsOne()
+        assertEquals("Offline body", migrated.content)
+        val pending = queries.selectPendingWrites().executeAsList().single()
+        assertEquals("default", pending.vault)
+        assertEquals("notes/queued", pending.slug)
+        assertEquals("Offline body", pending.payload)
+        assertEquals(2L, pending.attemptCount)
+    }
 }

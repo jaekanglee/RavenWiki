@@ -3,9 +3,12 @@ package com.ppizil.raven.common.data.repository
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import com.ppizil.raven.common.data.mapper.toDomainModel
-import com.ppizil.raven.common.data.remote.model.DocumentDto
+import com.ppizil.raven.common.data.remote.model.PageDetailResponse
+import com.ppizil.raven.common.data.remote.model.PageListResponse
+import com.ppizil.raven.common.data.remote.model.VaultListResponse
 import com.ppizil.raven.common.db.RavenDatabase
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.VaultSummary
 import com.ppizil.raven.common.domain.repository.DocumentRepository
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import io.ktor.client.HttpClient
@@ -35,6 +38,7 @@ private const val REMOTE_FAILURE = "REMOTE"
 private data class PageWriteBody(val content: String)
 
 data class PendingWriteEntry(
+    val vault: String,
     val slug: String,
     val operation: String,
     val payload: String?,
@@ -71,75 +75,97 @@ class DocumentRepositoryImpl(
 ) : DocumentRepository {
     private val queries = database.documentQueries
 
-    override fun getAllDocuments(): Flow<List<Document>> =
-        queries.selectAll().asFlow().mapToList(Dispatchers.Default).map { documents ->
+    override suspend fun fetchVaults(): List<VaultSummary> {
+        val response = httpClient.get("${endpoint()}/api/vaults") { authorize() }
+        ensureSuccess(response)
+        return response.body<VaultListResponse>().vaults.map { it.toDomainModel() }
+    }
+
+    override fun getDocuments(vault: String): Flow<List<Document>> =
+        queries.selectByVault(vault).asFlow().mapToList(Dispatchers.Default).map { documents ->
             documents.map { it.toDomainModel() }
         }
 
-    override suspend fun fetchDocument(id: String) {
-        try {
-            val response = httpClient.get("${endpoint()}/api/index.json") { authorize() }
-            ensureSuccess(response)
-            val document = response.body<List<DocumentDto>>().find { it.slug == id } ?: return
-            queries.insertDocument(
-                document.slug,
-                document.title,
-                document.type ?: "",
-                document.path,
-                false,
-                io.ktor.util.date.getTimeMillis(),
-            )
-        } catch (exception: Exception) {
-            println("Failed to fetch document: ${exception.message}")
+    override suspend fun syncDocuments(vault: String) {
+        flushPendingWrites()
+        val response = httpClient.get("${endpoint()}/api/vaults/$vault/pages") { authorize() }
+        ensureSuccess(response)
+        val pages = response.body<PageListResponse>().pages
+        val now = io.ktor.util.date.getTimeMillis()
+        database.transaction {
+            pages.forEach { page ->
+                val path = page.slug.takeIf { it.isNotBlank() }?.let { "$it.md" }
+                // 목록 API에는 본문이 없다. insert+update로 나눠 이미 받아둔 본문을 보존한다.
+                queries.insertDocumentMetaIfAbsent(
+                    vault = vault,
+                    id = page.slug,
+                    title = page.title,
+                    type = page.type,
+                    path = path,
+                    lastUpdated = now,
+                )
+                queries.updateDocumentMeta(
+                    title = page.title,
+                    type = page.type,
+                    path = path,
+                    lastUpdated = now,
+                    vault = vault,
+                    id = page.slug,
+                )
+            }
         }
     }
 
-    override suspend fun syncAllDocuments() {
-        flushPendingWrites()
-        val response = httpClient.get("${endpoint()}/api/index.json") { authorize() }
+    override suspend fun fetchDocument(vault: String, id: String) {
+        val response = httpClient.get("${endpoint()}/api/vaults/$vault/pages/$id") { authorize() }
         ensureSuccess(response)
-        response.body<List<DocumentDto>>().forEach { document ->
-            queries.insertDocument(
-                document.slug,
-                document.title,
-                document.type ?: "",
-                document.path,
-                false,
-                io.ktor.util.date.getTimeMillis(),
-            )
-        }
+        val detail = response.body<PageDetailResponse>()
+        queries.updateDocumentContent(
+            content = detail.content,
+            lastUpdated = io.ktor.util.date.getTimeMillis(),
+            vault = vault,
+            id = id,
+        )
     }
 
     override suspend fun saveDocument(document: Document) {
         database.transaction {
             queries.insertDocument(
+                vault = document.vault,
                 id = document.id,
                 title = document.title,
                 content = document.content,
+                type = document.type,
                 path = document.path,
                 isFavorite = document.isFavorite,
                 lastUpdated = document.lastUpdated,
             )
-            queries.enqueuePendingWrite(document.id, PUT_OPERATION, document.content)
+            queries.enqueuePendingWrite(
+                document.vault,
+                document.id,
+                PUT_OPERATION,
+                document.content,
+            )
         }
-        flushPendingWrite(document.id)
+        flushPendingWrite(document.vault, document.id)
     }
 
-    override suspend fun deleteDocument(id: String) {
+    override suspend fun deleteDocument(vault: String, id: String) {
         database.transaction {
-            queries.deleteDocument(id)
-            queries.enqueuePendingWrite(id, DELETE_OPERATION, null)
+            queries.deleteDocument(vault, id)
+            queries.enqueuePendingWrite(vault, id, DELETE_OPERATION, null)
         }
-        flushPendingWrite(id)
+        flushPendingWrite(vault, id)
     }
 
     override suspend fun flushPendingWrites() {
-        pendingWrites().forEach { pending -> flushPendingWrite(pending.slug) }
+        pendingWrites().forEach { pending -> flushPendingWrite(pending.vault, pending.slug) }
     }
 
     fun pendingWrites(): List<PendingWriteEntry> =
         queries.selectPendingWrites().executeAsList().map { pending ->
             PendingWriteEntry(
+                vault = pending.vault,
                 slug = pending.slug,
                 operation = pending.operation,
                 payload = pending.payload,
@@ -149,10 +175,10 @@ class DocumentRepositoryImpl(
             )
         }
 
-    private suspend fun flushPendingWrite(slug: String) {
-        val pending = pendingWrites().firstOrNull { it.slug == slug } ?: return
+    private suspend fun flushPendingWrite(vault: String, slug: String) {
+        val pending = pendingWrites().firstOrNull { it.vault == vault && it.slug == slug } ?: return
         try {
-            val url = "${endpoint()}/api/vaults/${vault()}/pages/${pending.slug}"
+            val url = "${endpoint()}/api/vaults/$vault/pages/${pending.slug}"
             val response = when (pending.operation) {
                 PUT_OPERATION -> httpClient.put(url) {
                     authorize()
@@ -163,31 +189,34 @@ class DocumentRepositoryImpl(
                 else -> error("Unsupported outbox operation: ${pending.operation}")
             }
             if (response.status.isSuccess()) {
-                queries.removePendingWrite(pending.slug)
+                queries.removePendingWrite(vault, pending.slug)
             } else {
                 val kind = if (response.status == HttpStatusCode.Conflict ||
                     response.status == HttpStatusCode.PreconditionFailed
                 ) CONFLICT_FAILURE else REMOTE_FAILURE
-                recordFailure(pending.slug, kind, "HTTP ${response.status.value} ${response.status.description}")
+                recordFailure(
+                    vault,
+                    pending.slug,
+                    kind,
+                    "HTTP ${response.status.value} ${response.status.description}",
+                )
             }
         } catch (exception: Exception) {
             val message = generateSequence<Throwable>(exception) { it.cause }
                 .mapNotNull { it.message }
                 .joinToString(": ")
                 .ifBlank { exception::class.simpleName.orEmpty() }
-            recordFailure(pending.slug, NETWORK_FAILURE, message)
+            recordFailure(vault, pending.slug, NETWORK_FAILURE, message)
         }
     }
 
-    private fun recordFailure(slug: String, kind: String, message: String) {
-        queries.recordPendingWriteFailure(message, kind, slug)
+    private fun recordFailure(vault: String, slug: String, kind: String, message: String) {
+        queries.recordPendingWriteFailure(message, kind, vault, slug)
     }
 
     private fun endpoint(): String =
         settingsRepository.getEndpoint()?.takeIf { it.isNotBlank() }?.trimEnd('/')
             ?: "http://10.0.2.2:8765"
-
-    private fun vault(): String = settingsRepository.getVault()?.takeIf { it.isNotBlank() } ?: "default"
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorize() {
         settingsRepository.getApiKey()?.takeIf { it.isNotBlank() }?.let { apiKey ->
@@ -196,8 +225,8 @@ class DocumentRepositoryImpl(
     }
 
     private fun ensureSuccess(response: HttpResponse) {
-        check(response.status.isSuccess()) {
-            "HTTP ${response.status.value} ${response.status.description}"
+        if (!response.status.isSuccess()) {
+            error("HTTP ${response.status.value} ${response.status.description}")
         }
     }
 }
