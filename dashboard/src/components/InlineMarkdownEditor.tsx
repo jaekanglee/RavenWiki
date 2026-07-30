@@ -140,6 +140,9 @@
    const [toast, setToast] = useState<string | null>(null);
    const [toastType, setToastType] = useState<"success" | "error">("success");
    const [showPreview, setShowPreview] = useState<boolean>(true);
+   const draftKey = `raven:draft:${vault}:${slug}`;
+   const [recoverableDraft, setRecoverableDraft] = useState<string | null>(null);
+   const savedDraftRef = useRef<string | null>(null);
    const [colorMode, setColorMode] = useState<"light" | "dark">(() => {
      if (typeof document === "undefined") return "light";
      return document.documentElement.classList.contains("dark") ? "dark" : "light";
@@ -188,6 +191,57 @@
 
    const dirty = draft !== content || titleVal !== title;
 
+   useEffect(() => {
+     savedDraftRef.current = null;
+     let stored: string | null = null;
+     try {
+       stored = localStorage.getItem(draftKey);
+     } catch {
+       stored = null;
+     }
+     setRecoverableDraft(stored !== null && stored !== content ? stored : null);
+   }, [draftKey, content]);
+
+   useEffect(() => {
+     if (mode !== "edit") return;
+     if (draft === savedDraftRef.current) return;
+     try {
+       if (dirty) localStorage.setItem(draftKey, draft);
+       else localStorage.removeItem(draftKey);
+     } catch {
+       setRecoverableDraft(null);
+     }
+   }, [mode, draft, dirty, draftKey]);
+
+   useEffect(() => {
+     if (!dirty) return;
+     const warn = (e: BeforeUnloadEvent) => {
+       e.preventDefault();
+       e.returnValue = "";
+     };
+     window.addEventListener("beforeunload", warn);
+     return () => window.removeEventListener("beforeunload", warn);
+   }, [dirty]);
+
+   const recoverDraft = useCallback(() => {
+     setRecoverableDraft((pending) => {
+       if (pending !== null) {
+         setDraft(pending);
+         setMode("edit");
+       }
+       return null;
+     });
+   }, []);
+
+   const discardDraft = useCallback(() => {
+     try {
+       localStorage.removeItem(draftKey);
+     } catch {
+       setRecoverableDraft(null);
+     }
+     setRecoverableDraft(null);
+   }, [draftKey]);
+
    const cancel = useCallback(() => {
      setDraft(content);
      setTitleVal(title);
@@ -200,6 +254,13 @@
      setToast(null);
      try {
        await updatePage(vault, slug, { content: draft, title: titleVal, precondition });
+      savedDraftRef.current = draft;
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        setRecoverableDraft(null);
+      }
+      setRecoverableDraft(null);
        setToast("✅ 저장 완료");
       setToastType("success");
        setTimeout(() => {
@@ -425,6 +486,33 @@
 
      {/* Toast */}
      <Toast open={Boolean(toast)} message={toast ?? ""} type={toastType} />
+
+    {recoverableDraft !== null && mode === "view" && (
+      <div
+        role="status"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          padding: "10px 14px",
+          marginBottom: 16,
+          border: "1px solid var(--color-hairline)",
+          borderRadius: "var(--radius-md)",
+          background: "var(--color-surface)",
+          color: "var(--color-body)",
+          fontSize: 14,
+        }}
+      >
+        <span>저장하지 않은 초안이 남아 있습니다.</span>
+        <Button type="button" variant="primary" size="sm" onClick={recoverDraft} aria-label="초안 복구">
+          초안 복구
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={discardDraft} aria-label="초안 버리기">
+          버리기
+        </Button>
+      </div>
+    )}
 
     {/* Body: view vs edit */}
     <div className="inline-md-body">
