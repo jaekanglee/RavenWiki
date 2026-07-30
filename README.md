@@ -579,6 +579,7 @@ cd dashboard && npm install
 
 ## 라이선스 / 상태
 
+- v0.7.182 (모바일 저장이 PC 편집을 덮지 않게 precondition 전속 + 충돌 사용자 알림)
 - v0.7.181 (모바일 보관소 전체 검색 + 대시보드 전역 탭 5칸 + 홈 작업대 전환)
 - v0.7.180 (precondition 토큰 내용 해시화 + 테스트 baseline 전면 green)
 - v0.7.179 (REST 관례 정리 + 에러 envelope 분류 + link 스캔 중복 제거)
