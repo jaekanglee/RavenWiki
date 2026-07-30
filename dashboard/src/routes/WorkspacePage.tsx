@@ -6,6 +6,7 @@ import {
   updateWorkspace,
   fetchWorkspaceTree,
   fetchWorkspaceFile,
+  formatApiError,
   type GitChange,
   type GitStatusResult,
   type WorkspaceTreeNode,
@@ -119,11 +120,13 @@ export function WorkspacePage() {
     try {
       const res = await fetchGitStatus(vault);
       setStatus(res);
+      setSetupError("");
       if (res?.has_workspace && res.workspace_path) {
         setWorkspaceInput(res.workspace_path);
       }
-    } catch {
+    } catch (err) {
       setStatus(null);
+      setSetupError(formatApiError(err));
     } finally {
       setLoading(false);
     }

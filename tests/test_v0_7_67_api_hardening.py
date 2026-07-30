@@ -66,13 +66,22 @@ def temp_vault_registered(tmp_path, monkeypatch):
 
 
 def test_log_rotate_endpoint_actually_runs(client, temp_vault_registered):
-    """평가 A#7 회귀 가드: 응답이 더 이상 null이 아니라 실제 rotate 판단을 담는다."""
+    """평가 A#7 회귀 가드: 응답이 더 이상 null이 아니라 실제 rotate 판단을 담는다.
+
+    v0.7.179: 500 entries 미만 거부가 200 + ok:false → **409**로 바뀌었다
+    (docs/issues/server-전역-에러-envelope-불일치.md). 이 가드의 원래 의도는
+    "본문이 docstring뿐이라 항상 null"이던 데드코드 회귀를 막는 것이므로,
+    거부/성공 어느 쪽이든 **실제 판단이 담긴 응답**인지를 계속 확인한다.
+    """
     resp = client.post(f"/api/vaults/{temp_vault_registered.meta.name}/log/rotate")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data is not None
-    assert "ok" in data
-    assert "current" in data or "rotated_to" in data
+    assert resp.status_code == 409
+    assert "500" in str(resp.json()["detail"])
+
+    forced = client.post(
+        f"/api/vaults/{temp_vault_registered.meta.name}/log/rotate?force=true"
+    )
+    assert forced.status_code == 200
+    assert forced.json()["rotated_to"]
 
 
 def test_debug_log_endpoint_still_works(client):

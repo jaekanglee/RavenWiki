@@ -1,8 +1,10 @@
 ---
 title: link_module의 자체 rglob 3회 — lint 캐싱 범위 밖 잔여
 type: issue
-status: open
+status: resolved
 created: 2026-07-05
+resolved: 2026-07-30
+resolved_in: v0.7.179
 tags: [performance, lint, core]
 source: docs/evaluations/2026-07-04-raven-architecture-evaluation.md (B#8)
 related_pr: v0.7.68 (changelog-v0.7.67.md 남은 백로그 #3 — lint run_all 스캔 캐싱)
@@ -48,3 +50,9 @@ vault를 rglob(~11회)하고 frontmatter를 재파싱(~6회)하던 중복 I/O를
 추가하고, `lint._legacy_link_issues()`가 `_ScanCache`에 채워둔 목록을
 넘겨주는 방식이 시그니처 하위호환(기존 호출자는 `None` = 기존 동작)을
 유지하면서 남은 3회 중복도 없앨 수 있는 가장 낮은 리스크의 경로로 보인다.
+
+## 해결 (v0.7.179)
+
+find_* 3종에 `pages` 주입 파라미터 추가. content glob 4회 → 1회.
+
+검증: `tests/test_v0_7_179_rest_convention.py`, `tests/test_v0_7_179_link_scan_injection.py`, `dashboard/tests/Workspace.git-error.test.ts`.

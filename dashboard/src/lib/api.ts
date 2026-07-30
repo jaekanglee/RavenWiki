@@ -688,8 +688,14 @@ export interface GitDiffResult {
   error?: string;
 }
 
+async function gitFailure(r: Response, label: string): Promise<never> {
+  const detail = (await r.json().catch(() => ({}))).detail;
+  throw new Error(detail ? String(detail) : `${label} failed: ${r.status}`);
+}
+
 export async function fetchGitStatus(vault: string): Promise<GitStatusResult | null> {
   const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/git/status`);
+  if (r.status >= 500) await gitFailure(r, "git status");
   if (!r.ok) return null;
   return r.json();
 }
@@ -699,6 +705,7 @@ export async function fetchGitDiff(vault: string, file?: string): Promise<GitDif
   if (file) params.set("file", file);
   const qs = params.toString();
   const r = await apiFetch(`/api/vaults/${encodeURIComponent(vault)}/git/diff${qs ? "?" + qs : ""}`);
+  if (r.status >= 500) await gitFailure(r, "git diff");
   if (!r.ok) return null;
   return r.json();
 }
@@ -1174,10 +1181,11 @@ export async function repairVault(vault: string, path: string): Promise<{ ok: bo
 export async function cloneVault(payload: {
   src: string; name: string; path: string; mode?: string; owner?: string; copy_meta?: boolean;
 }): Promise<{ ok: boolean; vault: string; path: string }> {
-  const r = await apiFetch("/api/vaults/clone", {
+  const { src, ...body } = payload;
+  const r = await apiFetch(`/api/vaults/${encodeURIComponent(src)}/clone`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!r.ok) {
     const detail = (await r.json().catch(() => ({}))).detail || `clone failed: ${r.status}`;

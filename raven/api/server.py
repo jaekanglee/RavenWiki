@@ -121,10 +121,6 @@ def _vault_or_404(name: str) -> Vault:
         )
 
 
-def _err(e: Exception) -> dict:
-    return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-
-
 def _safe_slug_or_400(slug: str, v: Vault) -> Path:
     """Validate slug and return absolute Path (without .md suffix).
 
@@ -547,7 +543,9 @@ def git_status(name: str):
 
     success, status_out = _run_git(str(p), ["status", "--porcelain"])
     if not success:
-        return {"ok": False, "error": f"Failed to get git status: {status_out}"}
+        raise HTTPException(
+            status_code=502, detail=f"Failed to get git status: {status_out}"
+        )
 
     changes = []
     for line in status_out.splitlines():
@@ -613,7 +611,9 @@ def git_diff(name: str, file: Optional[str] = Query(None, description="relative 
 
     success, diff_content = _run_git(str(p), args)
     if not success and not diff_content:
-        return {"ok": False, "error": f"Failed to get git diff: {diff_content}"}
+        raise HTTPException(
+            status_code=502, detail=f"Failed to get git diff: {diff_content}"
+        )
 
     return {
         "ok": True,
@@ -2218,7 +2218,6 @@ def delete_page(name: str, slug: str):
 
 
 class VaultClone(BaseModel):
-    src: str = Field(..., description="source vault name")
     name: str = Field(..., description="new vault name")
     path: str = Field(..., description="absolute path for new vault directory")
     mode: Optional[str] = Field(None, description="override mode (default: copy from src)")
@@ -2226,15 +2225,20 @@ class VaultClone(BaseModel):
     copy_meta: bool = Field(True, description="copy _meta/ from src")
 
 
-@app.post("/api/vaults/clone")
-def clone_vault(payload: VaultClone):
-    """Clone an existing vault (content + _meta) to a new vault.
+@app.post("/api/vaults/{name}/clone")
+def clone_vault(name: str, payload: VaultClone):
+    """Clone the vault named in the path (content + _meta) to a new vault.
 
     Skips _archive/ and wiki.db. The new vault is registered automatically.
+
+    v0.7.179: the source vault moved from a body field to the path segment
+    (`POST /api/vaults/clone` → `POST /api/vaults/{name}/clone`), matching the
+    v0.7.68 `POST /api/vaults/create` → `POST /api/vaults` correction — an
+    action must not be a path segment.
     """
-    src_meta = registry().get(payload.src)
+    src_meta = registry().get(name)
     if src_meta is None:
-        raise HTTPException(status_code=404, detail=f"source vault {payload.src!r} not found")
+        raise HTTPException(status_code=404, detail=f"source vault {name!r} not found")
     if registry().get(payload.name) is not None:
         raise HTTPException(status_code=409, detail=f"name {payload.name!r} already registered")
     src_v = Vault.load(src_meta)
@@ -2258,7 +2262,7 @@ def clone_vault(payload: VaultClone):
             "path": str(new_v.root),
             "mode": new_v.meta.mode,
             "owner": new_v.meta.owner,
-            "src": payload.src,
+            "src": name,
             "copy_meta": payload.copy_meta,
         },
     }
@@ -2703,11 +2707,10 @@ def post_log_rotate(name: str, year: Optional[int] = None, force: bool = False):
     v = _vault_or_404(name)
     total = log_module.count(v)
     if total < 500 and not force:
-        return {
-            "ok": False,
-            "error": f"{total} entries (500 미만) — 강제 rotate는 ?force=true",
-            "current": total,
-        }
+        raise HTTPException(
+            status_code=409,
+            detail=f"{total} entries (500 미만) — 강제 rotate는 ?force=true",
+        )
     target = log_module.rotate(v, year=year)
     return {
         "ok": True,

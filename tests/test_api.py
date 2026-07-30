@@ -286,8 +286,8 @@ def test_api_clone_vault_copies_content(client, isolated_env):
     (src / "content").mkdir(parents=True, exist_ok=True)  # bootstrap=False didn't create it
     (src / "content" / "hello.md").write_text("# Hi\n")
     dst = isolated_env["target_root"] / "cdst"
-    resp = client.post("/api/vaults/clone", json={
-        "src": "csrc", "name": "cdst", "path": str(dst),
+    resp = client.post("/api/vaults/csrc/clone", json={
+        "name": "cdst", "path": str(dst),
     })
     assert resp.status_code == 200, resp.text
     assert (dst / "content" / "hello.md").is_file()
@@ -298,14 +298,14 @@ def test_api_clone_vault_duplicate_name_rejected(client, isolated_env):
     dst = isolated_env["target_root"] / "cdst2"
     client.post("/api/vaults", json={"name": "csrc2", "path": str(src), "bootstrap": False})
     client.post("/api/vaults", json={"name": "cdst2", "path": str(dst), "bootstrap": False})
-    resp = client.post("/api/vaults/clone", json={"src": "csrc2", "name": "cdst2", "path": str(dst)})
+    resp = client.post("/api/vaults/csrc2/clone", json={"name": "cdst2", "path": str(dst)})
     assert resp.status_code == 409
 
 
 def test_api_clone_unknown_src_rejected(client, isolated_env):
     dst = isolated_env["target_root"] / "cdst3"
-    resp = client.post("/api/vaults/clone", json={
-        "src": "nonexistent", "name": "cdst3", "path": str(dst),
+    resp = client.post("/api/vaults/nonexistent/clone", json={
+        "name": "cdst3", "path": str(dst),
     })
     assert resp.status_code == 404
 

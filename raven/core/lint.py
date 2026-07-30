@@ -173,6 +173,8 @@ class _ScanCache:
         self.pages: Optional[list[Path]] = None
         self.text: dict[Path, str] = {}
         self.frontmatter: dict[Path, dict] = {}
+        self.link_pages: Optional[list[tuple[str, str]]] = None
+        self.content_files: Optional[list[Path]] = None
 
 
 _scan_local = threading.local()
@@ -192,12 +194,28 @@ def _is_archived_page(vault: Vault, fp: Path) -> bool:
     return "_archive" in rel.parts
 
 
+def _content_files(vault: Vault) -> list[Path]:
+    """`content_root` 아래 모든 .md (필터 없음) — run_all() 동안 1회만 rglob.
+
+    v0.7.179: `_all_pages()`(=`_archive` 제외 + `_meta` 포함)와 link 체크
+    (=`content_root` 원본)는 스코프가 달라 결과 목록을 공유할 수 없다. 대신
+    **원본 glob 1회**를 여기서 캐시하고 각자 필요한 스코프를 파생시킨다.
+    """
+    cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
+    if cache is not None and cache.content_files is not None:
+        return cache.content_files
+    files = list(vault.content_root.rglob("*.md"))
+    if cache is not None:
+        cache.content_files = files
+    return files
+
+
 def _all_pages(vault: Vault) -> list[Path]:
     """vault 안 active .md 페이지 (content/ + _meta/), excluding `_archive/`."""
     cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
     if cache is not None and cache.pages is not None:
         return cache.pages
-    out = [fp for fp in vault.content_root.rglob("*.md") if not _is_archived_page(vault, fp)]
+    out = [fp for fp in _content_files(vault) if not _is_archived_page(vault, fp)]
     meta_dir = vault.meta_root
     if meta_dir.exists():
         out.extend(fp for fp in meta_dir.rglob("*.md") if not _is_archived_page(vault, fp))
@@ -1098,10 +1116,32 @@ def _extract_wikilink_targets(body: str) -> list[str]:
 # ────────────────────────── 합쳐서 run ──────────────────────────
 
 
+def _link_scan_pages(vault: Vault) -> list[tuple[str, str]]:
+    """link 체크 3종이 공유하는 (slug, text) 목록.
+
+    v0.7.179 (docs/issues/link-module-rglob-3회-잔여.md): `_all_pages()`와 스코프가
+    다르다 — link 체크는 `content_root` 전체를 보고 `_meta/`를 보지 않으며
+    `_archive/`도 제외하지 않는다. 그래서 `cache.pages`를 재사용하면 성능 개선이
+    아니라 lint #1-#3 결과 변경이 된다. 본문 텍스트만 `_read_text()`로 공유해
+    다른 체크가 이미 읽은 파일을 다시 읽지 않는다.
+    """
+    cache: Optional[_ScanCache] = getattr(_scan_local, "cache", None)
+    if cache is not None and cache.link_pages is not None:
+        return cache.link_pages
+    pages = [
+        (str(fp.relative_to(vault.root))[:-3], _read_text(fp))
+        for fp in _content_files(vault)
+    ]
+    if cache is not None:
+        cache.link_pages = pages
+    return pages
+
+
 def _legacy_link_issues(vault: Vault) -> list[dict]:
     """#1-3 (link_module 결과를 lint issue 형식으로 변환)."""
+    pages = _link_scan_pages(vault)
     out: list[dict] = []
-    for b in link_module.find_broken(vault):
+    for b in link_module.find_broken(vault, pages=pages):
         # [[x]]인데 target 없음 → critical
         out.append({
             "id": "#1",
@@ -1111,7 +1151,7 @@ def _legacy_link_issues(vault: Vault) -> list[dict]:
             "target": b["target"],
         })
     # #2: [[x]]! 인데 target 존재 → critical (v0.5.1+)
-    for b in link_module.find_broken_intent(vault):
+    for b in link_module.find_broken_intent(vault, pages=pages):
         out.append({
             "id": "#2",
             "severity": "critical",
@@ -1119,7 +1159,7 @@ def _legacy_link_issues(vault: Vault) -> list[dict]:
             "message": f"broken-intent false positive: [[{b['target']}]]! 인데 target 존재 — intent 잘못",
             "target": b["target"],
         })
-    for m in link_module.find_missing(vault):
+    for m in link_module.find_missing(vault, pages=pages):
         # [[x]]? 인데 target 없음 → info (의도적 placeholder)
         out.append({
             "id": "#3",

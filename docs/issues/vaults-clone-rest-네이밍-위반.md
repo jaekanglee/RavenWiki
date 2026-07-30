@@ -1,8 +1,10 @@
 ---
 title: "POST /api/vaults/clone — vaults/create와 동일한 REST 네이밍 위반"
 type: issue
-status: open
+status: resolved
 created: 2026-07-05
+resolved: 2026-07-30
+resolved_in: v0.7.179
 tags: [rest, api, dashboard]
 source: docs/evaluations/2026-07-04-raven-architecture-evaluation.md (B#17)
 related_pr: v0.7.68 (changelog-v0.7.67.md 남은 백로그 #4 — REST 관례 정리)
@@ -42,3 +44,9 @@ v0.7.68에서 `POST /api/vaults/create` → `POST /api/vaults`로 리네임하�
 최소한 `POST /api/vaults:clone`류 관례로 정리. 프론트 clone 액션 호출부
 동시 수정 필수. `/vaults/create`를 고칠 때 썼던 것과 동일한 패턴
 (테스트 sed 치환 + 프론트 fetch URL 갱신)을 재사용 가능.
+
+## 해결 (v0.7.179)
+
+POST /api/vaults/{name}/clone 으로 이동 (소스 vault = 경로 파라미터).
+
+검증: `tests/test_v0_7_179_rest_convention.py`, `tests/test_v0_7_179_link_scan_injection.py`, `dashboard/tests/Workspace.git-error.test.ts`.

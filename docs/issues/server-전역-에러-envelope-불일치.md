@@ -1,8 +1,10 @@
 ---
 title: server.py 전역 에러 응답 envelope 불일치 (3종 혼재)
 type: issue
-status: open
+status: resolved
 created: 2026-07-05
+resolved: 2026-07-30
+resolved_in: v0.7.179
 tags: [rest, api, dashboard]
 source: docs/evaluations/2026-07-04-raven-architecture-evaluation.md (B#17)
 related_pr: v0.7.68 (changelog-v0.7.67.md 남은 백로그 #4 — REST 관례 정리)
@@ -55,3 +57,9 @@ aliases: [server-error-envelope-unification]
    먼저 만들어 각 컴포넌트의 제각각인 `data?.detail || data?.error` 류
    코드를 단일화한 뒤, 백엔드 전환을 단계적으로 진행하면 "동시 변경"
    리스크를 줄일 수 있다.
+
+## 해결 (v0.7.179)
+
+7개 사이트를 전환/보존으로 분류. git status·diff·log rotate 전환, dead `_err()` 제거.
+
+검증: `tests/test_v0_7_179_rest_convention.py`, `tests/test_v0_7_179_link_scan_injection.py`, `dashboard/tests/Workspace.git-error.test.ts`.
