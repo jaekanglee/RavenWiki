@@ -303,10 +303,14 @@ fun App() {
                         )
 
                         BottomTab.Search -> SearchScreen(
-                            documents = state.documents,
-                            onDocumentClick = { document ->
-                                selectedId = document.id
-                                viewModel.sendIntent(MainIntent.OpenDocument(document.id))
+                            query = state.searchQuery,
+                            results = state.searchResults,
+                            isSearching = state.isSearching,
+                            errorMessage = state.searchError,
+                            onQueryChange = { viewModel.sendIntent(MainIntent.Search(it)) },
+                            onHitClick = { hit ->
+                                selectedId = hit.slug
+                                viewModel.sendIntent(MainIntent.OpenDocument(hit.slug))
                             },
                             modifier = Modifier.fillMaxSize(),
                         )

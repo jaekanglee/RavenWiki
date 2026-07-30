@@ -5,9 +5,12 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.ppizil.raven.common.data.mapper.toDomainModel
 import com.ppizil.raven.common.data.remote.model.PageDetailResponse
 import com.ppizil.raven.common.data.remote.model.PageListResponse
+import com.ppizil.raven.common.data.remote.model.SearchHitDto
+import com.ppizil.raven.common.data.remote.model.SearchResponse
 import com.ppizil.raven.common.data.remote.model.VaultListResponse
 import com.ppizil.raven.common.db.RavenDatabase
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
 import com.ppizil.raven.common.domain.repository.DocumentRepository
 import com.ppizil.raven.common.domain.repository.SettingsRepository
@@ -16,6 +19,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
+import io.ktor.client.request.parameter
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -36,6 +40,16 @@ private const val REMOTE_FAILURE = "REMOTE"
 
 @Serializable
 private data class PageWriteBody(val content: String)
+
+private val MARKUP = Regex("<[^>]+>")
+
+// 서버 snippet은 <mark> 하이라이트 + html 이슬로 오기 때문에 평백 텍스트로 되돌린다.
+private fun String.asPlainSnippet(): String = MARKUP.replace(this, "")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
+    .replace("&quot;", "\"")
+    .replace("&#x27;", "'")
+    .replace("&amp;", "&")
 
 data class PendingWriteEntry(
     val vault: String,
@@ -126,6 +140,56 @@ class DocumentRepositoryImpl(
             vault = vault,
             id = id,
         )
+    }
+
+    override suspend fun searchDocuments(vault: String, query: String): List<SearchHit> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val hits = searchHits("${endpoint()}/api/vaults/$vault/hybrid-search", "query", trimmed)
+            .ifEmpty {
+                // hybrid는 wiki.db 인덱스에 없는 문서를 못 보므로 BM25-lite 파이프로 뒤및는다.
+                searchHits("${endpoint()}/api/vaults/$vault/search", "q", trimmed)
+            }
+        cacheSearchMeta(vault, hits)
+        return hits.map { hit ->
+            SearchHit(
+                vault = vault,
+                slug = hit.slug,
+                title = hit.title.ifBlank { hit.slug },
+                type = hit.type,
+                snippet = hit.snippet?.asPlainSnippet(),
+                score = hit.score,
+            )
+        }
+    }
+
+    private suspend fun searchHits(url: String, parameterName: String, query: String) =
+        runCatching {
+            val response = httpClient.get(url) {
+                authorize()
+                parameter(parameterName, query)
+            }
+            ensureSuccess(response)
+            response.body<SearchResponse>().results
+        }.getOrElse { failure ->
+            if (parameterName == "q") throw failure else emptyList()
+        }
+
+    private fun cacheSearchMeta(vault: String, hits: List<SearchHitDto>) {
+        if (hits.isEmpty()) return
+        val now = io.ktor.util.date.getTimeMillis()
+        database.transaction {
+            hits.forEach { hit ->
+                queries.insertDocumentMetaIfAbsent(
+                    vault = vault,
+                    id = hit.slug,
+                    title = hit.title.ifBlank { hit.slug },
+                    type = hit.type,
+                    path = "${hit.slug}.md",
+                    lastUpdated = now,
+                )
+            }
+        }
     }
 
     override suspend fun saveDocument(document: Document) {

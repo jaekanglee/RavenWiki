@@ -1,6 +1,7 @@
 package com.ppizil.raven.common.presentation.viewmodel
 
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
@@ -8,11 +9,13 @@ import com.ppizil.raven.common.domain.usecase.FetchDocumentUseCase
 import com.ppizil.raven.common.domain.usecase.FetchVaultsUseCase
 import com.ppizil.raven.common.domain.usecase.GetDocumentsUseCase
 import com.ppizil.raven.common.domain.usecase.SaveDocumentUseCase
+import com.ppizil.raven.common.domain.usecase.SearchDocumentsUseCase
 import com.ppizil.raven.common.domain.usecase.SyncDocumentsUseCase
 import com.ppizil.raven.common.presentation.mvi.MviViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -28,6 +31,7 @@ sealed class MainIntent {
     data class SelectVault(val vault: String) : MainIntent()
     object SyncDocuments : MainIntent()
     data class OpenDocument(val id: String) : MainIntent()
+    data class Search(val query: String) : MainIntent()
     data class SaveDocument(val document: Document) : MainIntent()
     data class DeleteDocument(val id: String) : MainIntent()
 }
@@ -40,6 +44,10 @@ data class MainState(
     val vaults: List<VaultSummary> = emptyList(),
     val selectedVault: String? = null,
     val documents: List<Document> = emptyList(),
+    val searchQuery: String = "",
+    val searchResults: List<SearchHit> = emptyList(),
+    val isSearching: Boolean = false,
+    val searchError: String? = null,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
 )
@@ -53,6 +61,7 @@ class MainViewModel(
     private val getDocumentsUseCase: GetDocumentsUseCase,
     private val syncDocumentsUseCase: SyncDocumentsUseCase,
     private val saveDocumentUseCase: SaveDocumentUseCase,
+    private val searchDocumentsUseCase: SearchDocumentsUseCase,
     private val deleteDocumentUseCase: DeleteDocumentUseCase,
     private val fetchVaultsUseCase: FetchVaultsUseCase,
     private val fetchDocumentUseCase: FetchDocumentUseCase,
@@ -70,6 +79,7 @@ class MainViewModel(
     override val sideEffect: SharedFlow<MainSideEffect> = _sideEffect.asSharedFlow()
 
     private val activeVault = MutableStateFlow(_state.value.selectedVault)
+    private var searchJob: Job? = null
 
     init {
         scope.launch {
@@ -89,6 +99,7 @@ class MainViewModel(
             is MainIntent.SelectVault -> selectVault(intent.vault)
             is MainIntent.SyncDocuments -> syncDocuments()
             is MainIntent.OpenDocument -> openDocument(intent.id)
+            is MainIntent.Search -> search(intent.query)
             is MainIntent.SaveDocument -> saveDocument(intent.document)
             is MainIntent.DeleteDocument -> deleteDocument(intent.id)
         }
@@ -113,7 +124,14 @@ class MainViewModel(
 
     private fun selectVault(vault: String) {
         settingsRepository.saveVault(vault)
-        _state.value = _state.value.copy(selectedVault = vault, documents = emptyList())
+        _state.value = _state.value.copy(
+            selectedVault = vault,
+            documents = emptyList(),
+            searchQuery = "",
+            searchResults = emptyList(),
+            isSearching = false,
+            searchError = null,
+        )
         activeVault.value = vault
         syncDocuments()
     }
@@ -134,6 +152,38 @@ class MainViewModel(
                     _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Success)
                 }
                 .onFailure { failure -> report(failure, "Failed to sync documents") }
+        }
+    }
+
+    private fun search(query: String) {
+        val vault = _state.value.selectedVault
+        searchJob?.cancel()
+        if (vault.isNullOrBlank() || query.isBlank()) {
+            _state.value = _state.value.copy(
+                searchQuery = query,
+                searchResults = emptyList(),
+                isSearching = false,
+                searchError = null,
+            )
+            return
+        }
+        _state.value = _state.value.copy(
+            searchQuery = query,
+            isSearching = true,
+            searchError = null,
+        )
+        searchJob = scope.launch {
+            runCatching { searchDocumentsUseCase(vault, query) }
+                .onSuccess { hits ->
+                    _state.value = _state.value.copy(searchResults = hits, isSearching = false)
+                }
+                .onFailure { failure ->
+                    _state.value = _state.value.copy(
+                        searchResults = emptyList(),
+                        isSearching = false,
+                        searchError = failure.message ?: "검색을 마치지 못했습니다",
+                    )
+                }
         }
     }
 

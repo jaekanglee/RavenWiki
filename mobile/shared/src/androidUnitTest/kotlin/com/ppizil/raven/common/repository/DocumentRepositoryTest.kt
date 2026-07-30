@@ -156,6 +156,91 @@ class DocumentRepositoryTest {
     }
 
     @Test
+    fun searchFindsDocumentWhoseBodyIsNotCached() = runTest {
+        val repository = repositoryRouting { request ->
+            when {
+                request.url.encodedPath.endsWith("/pages") -> jsonOk(pagesBody(VAULT))
+                request.url.encodedPath.endsWith("/hybrid-search") -> jsonOk(
+                    """{"ok":true,"vault":"$VAULT","query":"생소한단어","results":[""" +
+                        """{"slug":"content/never-opened","title":"열어보지 않은 문서","type":"concept","score":1.5}]}""",
+                )
+                else -> jsonOk("""{"ok":true,"vault":"$VAULT","results":[]}""")
+            }
+        }
+        repository.syncDocuments(VAULT)
+        val cached = repository.getDocuments(VAULT).first()
+        assertTrue(cached.all { it.content.isBlank() }, "캐시 본문이 이뭐 차 있으면 RED 전제가 깨진다")
+
+        val hits = repository.searchDocuments(VAULT, "생소한단어")
+
+        assertEquals(listOf("content/never-opened"), hits.map { it.slug })
+        assertEquals("열어보지 않은 문서", hits.single().title)
+        assertEquals(VAULT, hits.single().vault)
+    }
+
+    @Test
+    fun searchIsScopedToRequestedVaultAndSkipsBlankQuery() = runTest {
+        val requested = mutableListOf<String>()
+        val repository = repositoryRouting { request ->
+            requested += request.url.encodedPath + "?" + request.url.encodedQuery
+            jsonOk("""{"ok":true,"vault":"babymoa","results":[]}""")
+        }
+
+        assertTrue(repository.searchDocuments("babymoa", "   ").isEmpty())
+        assertTrue(requested.isEmpty(), "번 쿼리로 서버를 도되면 안 된다: $requested")
+
+        repository.searchDocuments("babymoa", "ollama")
+
+        assertTrue(
+            requested.first().startsWith("/api/vaults/babymoa/hybrid-search?"),
+            "검색 요칭: $requested",
+        )
+        assertTrue(requested.first().contains("query=ollama"), "검색 요칭: $requested")
+    }
+
+    @Test
+    fun searchFallsBackToSnippetEndpointWhenHybridHasNoHits() = runTest {
+        val repository = repositoryRouting { request ->
+            if (request.url.encodedPath.endsWith("/hybrid-search")) {
+                jsonOk("""{"ok":true,"vault":"$VAULT","results":[]}""")
+            } else {
+                jsonOk(
+                    """{"ok":true,"vault":"$VAULT","query":"outbox","results":[""" +
+                        """{"slug":"content/journal/2026-07-30","title":"오늘 기록","type":"journal",""" +
+                        """"snippet":"…<mark>outbox</mark> 재전속 동기화…","score":3.0}]}""",
+                )
+            }
+        }
+
+        val hits = repository.searchDocuments(VAULT, "outbox")
+
+        assertEquals(listOf("content/journal/2026-07-30"), hits.map { it.slug })
+        assertEquals("…outbox 재전속 동기화…", hits.single().snippet)
+    }
+
+    @Test
+    fun searchHitOutsideCacheBecomesOpenable() = runTest {
+        val repository = repositoryRouting { request ->
+            when {
+                request.url.encodedPath.endsWith("/hybrid-search") -> jsonOk(
+                    """{"ok":true,"vault":"$VAULT","results":[""" +
+                        """{"slug":"content/fresh-on-pc","title":"PC에서 방금 만든 문서","type":"note","score":1.0}]}""",
+                )
+                else -> jsonOk(
+                    """{"ok":true,"vault":"$VAULT","slug":"content/fresh-on-pc","content":"동기화 전 본문"}""",
+                )
+            }
+        }
+
+        repository.searchDocuments(VAULT, "방금")
+        repository.fetchDocument(VAULT, "content/fresh-on-pc")
+
+        val document = repository.getDocuments(VAULT).first().single()
+        assertEquals("PC에서 방금 만든 문서", document.title)
+        assertEquals("동기화 전 본문", document.content)
+    }
+
+    @Test
     fun offlineSaveKeepsContentAndPendingWrite() = runTest {
         val repository = repositoryWithEngine(MockEngine { throw IOException("offline") })
         val document = document(content = "content written offline")

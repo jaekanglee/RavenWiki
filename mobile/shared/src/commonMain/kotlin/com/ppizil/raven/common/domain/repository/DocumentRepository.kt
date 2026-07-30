@@ -1,6 +1,7 @@
 package com.ppizil.raven.common.domain.repository
 
 import com.ppizil.raven.common.domain.model.Document
+import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
 import kotlinx.coroutines.flow.Flow
 
@@ -16,6 +17,9 @@ interface DocumentRepository {
 
     /** 문서 본문을 서버에서 받아 채운다. */
     suspend fun fetchDocument(vault: String, id: String)
+
+    /** 캐시에 본문이 없는 문서까지 닿기 위해 서버 검색을 경유한다. */
+    suspend fun searchDocuments(vault: String, query: String): List<SearchHit>
 
     suspend fun flushPendingWrites()
     suspend fun saveDocument(document: Document)
