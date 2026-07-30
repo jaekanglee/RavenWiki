@@ -579,6 +579,7 @@ cd dashboard && npm install
 
 ## 라이선스 / 상태
 
+- v0.7.181 (모바일 보관소 전체 검색 + 대시보드 전역 탭 5칸 + 홈 작업대 전환)
 - v0.7.180 (precondition 토큰 내용 해시화 + 테스트 baseline 전면 green)
 - v0.7.179 (REST 관례 정리 + 에러 envelope 분류 + link 스캔 중복 제거)
 - v0.7.178 (동시 편집 precondition + 열화 정직화 + 선언-실제 재정합)
