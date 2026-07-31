@@ -497,6 +497,94 @@ def test_api_vault_graph_default_iterations_is_500():
     )
 
 
+def test_api_vault_graph_rebuilds_legacy_wiki_db_schema(client, isolated_env):
+    """구형 wiki.db도 canonical DB 경로로 읽어 analytics 필드를 반환한다."""
+    import sqlite3
+
+    from raven.api import server
+
+    target = isolated_env["target_root"] / "gv_legacy_db"
+    client.post("/api/vaults", json={"name": "gv_legacy_db", "path": str(target), "bootstrap": False})
+    client.post("/api/vaults/gv_legacy_db/pages", json={"slug": "content/a", "title": "A"})
+
+    db = sqlite3.connect(target / "wiki.db")
+    try:
+        db.executescript(
+            """
+            CREATE TABLE pages (
+                slug TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                type TEXT NOT NULL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE links (
+                source_slug TEXT NOT NULL,
+                target_slug TEXT NOT NULL,
+                context TEXT,
+                intent TEXT DEFAULT 'auto'
+            );
+            CREATE TABLE tags (page_slug TEXT NOT NULL, tag TEXT NOT NULL);
+            CREATE VIRTUAL TABLE pages_fts USING fts5(slug, title, content);
+            """
+        )
+        db.execute(
+            "INSERT INTO pages (slug, title, type, created, updated) VALUES (?, ?, ?, ?, ?)",
+            ("content/a", "A", "concept", "2026-01-01", "2026-01-01"),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    server._GRAPH_RESPONSE_CACHE.clear()
+    resp = client.get("/api/vaults/gv_legacy_db/graph")
+
+    assert resp.status_code == 200, resp.text
+    node = next(node for node in resp.json()["nodes"] if node["id"] == "content/a")
+    assert "centrality" in node, f"legacy DB silently fell back to rglob: {node}"
+
+
+def test_api_vault_graph_fingerprint_skips_markdown_scan_when_db_exists(
+    client, isolated_env, monkeypatch
+):
+    """wiki.db 기반 캐시 지문은 vault root의 Markdown을 다시 순회하지 않는다."""
+    from raven.api import server
+    from raven.core import db_module
+
+    target = isolated_env["target_root"] / "gv_cache_db_fingerprint"
+    client.post(
+        "/api/vaults",
+        json={"name": "gv_cache_db_fingerprint", "path": str(target), "bootstrap": False},
+    )
+    client.post(
+        "/api/vaults/gv_cache_db_fingerprint/pages",
+        json={"slug": "content/a", "title": "A"},
+    )
+    vault = Vault.load(registry().get("gv_cache_db_fingerprint"))
+    build = db_module.build_db(vault, run_lint=False)
+    assert build["ok"] is True, build
+
+    server._GRAPH_RESPONSE_CACHE.clear()
+    first = client.get("/api/vaults/gv_cache_db_fingerprint/graph")
+    assert first.status_code == 200, first.text
+
+    root_rglob_calls = 0
+    original_rglob = Path.rglob
+
+    def track_root_rglob(path, pattern):
+        nonlocal root_rglob_calls
+        if path.resolve() == target.resolve() and pattern == "*.md":
+            root_rglob_calls += 1
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(type(target), "rglob", track_root_rglob)
+    second = client.get("/api/vaults/gv_cache_db_fingerprint/graph")
+
+    assert second.status_code == 200, second.text
+    assert second.json() == first.json()
+    assert root_rglob_calls == 0
+
+
 def test_api_vault_graph_reuses_unchanged_response_cache(client, isolated_env, monkeypatch):
     """같은 graph 입력은 ForceAtlas를 다시 계산하지 않고 이전 응답을 재사용한다."""
     from raven.api import server

@@ -78,3 +78,11 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 | 모바일 검색 오프라인 fallback | P2 | v0.7.181에서 이월 |
 | 대시보드 스크린샷 회귀 | P2 | Playwright 도입 승인 필요 |
 | Crashlytics 도입 여부 | 사용자 결정 | 미통합 상태 유지 |
+
+## 9. 그래프 성능·탐색 UX 개선
+
+그래프 렌더링에서 프레임마다 반복되던 라벨 측정, 링크 스타일 조립, 커뮤니티·타임라인 계산을 데이터 변경 시 1회 계산으로 이동했다. 라벨 충돌 회피와 뷰포트 컬링을 추가하고, 그래프 타입 색을 CSS 토큰으로 통합했다. 선택 하이라이트는 그래프 데이터를 재설정하지 않고 ref 기반 repaint만 수행하며, 이웃 깊이 조절과 선택 노드 줌을 제공한다.
+
+구형 `wiki.db`의 `collection` 컬럼 누락 시 조용한 Markdown fallback으로 열화되던 그래프 경로도 canonical DB 연결·리빌드 경로를 사용하도록 수정했다. WebGL/3D 렌더러 전환은 별도 이슈로 보류했다.
+
+검증: `scripts/.venv/bin/python -m pytest tests/` — 771 passed, 1 skipped; Dashboard Vitest — 224 passed, 1 skipped; `npx tsc -b`; `npm run build`; Chrome `/graph` 실기 QA — `/tmp/ulw-graph-qa-final6/`.

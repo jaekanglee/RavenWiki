@@ -150,6 +150,32 @@
   --graph-vault-halo-5: #eab308; /* amber */
   --graph-vault-halo-6: #ec4899; /* pink */
 
+  /* ── 그래프 노드 색 — SCHEMA 9종 문서 타입 (AGENTS.md §13.2 토큰화).
+   *    GraphCanvas가 컨테이너 computed style에서 읽어 팔레트를 만들고, 변수가
+   *    없는 환경(jsdom 테스트 등)에서는 render.ts의 TYPE_COLOR_FALLBACK을 쓴다. */
+  --graph-type-concept: #22c55e;
+  --graph-type-person: #ec4899;
+  --graph-type-tool: #6b7280;
+  --graph-type-comparison: #ef4444;
+  --graph-type-project: #f97316;
+  --graph-type-rule: #6366f1;
+  --graph-type-query: #eab308;
+  --graph-type-journal: #06b6d4;
+  --graph-type-issue: #a855f7;
+  /* ── Louvain community 구획 색 (구조적 다양성 팔레트, §13.2 예외).
+   *    GraphCanvas COMMUNITY_COLOR_FALLBACK과 1:1 대응 — domain 뷰의 구획 원과
+   *    대표 라벨에 community id % 10으로 매핑된다. */
+  --graph-community-0: #3b82f6;
+  --graph-community-1: #ef4444;
+  --graph-community-2: #a855f7;
+  --graph-community-3: #10b981;
+  --graph-community-4: #f59e0b;
+  --graph-community-5: #ec4899;
+  --graph-community-6: #14b8a6;
+  --graph-community-7: #6366f1;
+  --graph-community-8: #8b5cf6;
+  --graph-community-9: #f97316;
+
   /* ── <mark> — search-result highlight (commit 7c98738 이후 API 응답에 포함).
    *    Soft BMW Blue background + dark ink text — readable, on-brand,
    *    doesn't disrupt search snippet flow. */
@@ -369,6 +395,16 @@ body {
   --graph-node-outline-hover: rgba(125, 211, 252, 0.6);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: #ffffff;
+  /* 다크 배경(#0a0e1a)에서 대비를 확보하려 노드 색을 한 톤 밝게 재정의한다. */
+  --graph-type-concept: #4ade80;
+  --graph-type-person: #f472b6;
+  --graph-type-tool: #9ca3af;
+  --graph-type-comparison: #f87171;
+  --graph-type-project: #fb923c;
+  --graph-type-rule: #818cf8;
+  --graph-type-query: #facc15;
+  --graph-type-journal: #22d3ee;
+  --graph-type-issue: #c084fc;
   --graph-label-shadow: none;
   --graph-edge: rgba(226, 232, 240, 0.34);
   --graph-edge-highlight: rgba(221, 214, 254, 0.96);
@@ -509,6 +545,16 @@ body {
   --graph-node-outline-hover: rgba(226, 232, 240, 0.72);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: #ffffff;
+  /* 다크 배경(#0a0e1a)에서 대비를 확보하려 노드 색을 한 톤 밝게 재정의한다. */
+  --graph-type-concept: #4ade80;
+  --graph-type-person: #f472b6;
+  --graph-type-tool: #9ca3af;
+  --graph-type-comparison: #f87171;
+  --graph-type-project: #fb923c;
+  --graph-type-rule: #818cf8;
+  --graph-type-query: #facc15;
+  --graph-type-journal: #22d3ee;
+  --graph-type-issue: #c084fc;
   --graph-label-shadow: none;
   --graph-edge: rgba(226, 232, 240, 0.34);
   --graph-edge-highlight: rgba(221, 214, 254, 0.96);
@@ -589,6 +635,16 @@ html.dark {
   --graph-node-outline-hover: rgba(226, 232, 240, 0.72);
   --graph-node-glow: 0 0 0 1px rgba(226, 232, 240, 0.75), 0 0 10px rgba(226, 232, 240, 0.24);
   --graph-label-color: #ffffff;
+  /* 다크 배경(#0a0e1a)에서 대비를 확보하려 노드 색을 한 톤 밝게 재정의한다. */
+  --graph-type-concept: #4ade80;
+  --graph-type-person: #f472b6;
+  --graph-type-tool: #9ca3af;
+  --graph-type-comparison: #f87171;
+  --graph-type-project: #fb923c;
+  --graph-type-rule: #818cf8;
+  --graph-type-query: #facc15;
+  --graph-type-journal: #22d3ee;
+  --graph-type-issue: #c084fc;
   --graph-label-shadow: none;
   --graph-edge: rgba(226, 232, 240, 0.34);
   --graph-edge-highlight: rgba(221, 214, 254, 0.96);
@@ -2810,4 +2866,39 @@ a:focus-visible {
 }
 .raw-panel-viewer-textarea:focus {
   background: var(--color-canvas);
+}
+
+/* B3 — 이웃 깊이 슬라이더 (그래프 탐색 컨트롤). 색/폰트는 CSS 토큰만 사용. */
+.graph-page-depth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.graph-page-depth-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.graph-page-depth-head > strong {
+  font-weight: 600;
+}
+
+.graph-page-depth-head > span {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+.graph-page-depth-field > input[type="range"] {
+  width: 100%;
+  accent-color: var(--graph-edge-highlight);
+}
+
+.graph-page-depth-helper {
+  font-size: 12px;
+  color: var(--color-muted);
 }

@@ -891,8 +891,9 @@ from raven.core.node_meta import aliases_from_json, collection_for_slug, normali
 
 
 # 그래프는 Markdown·wiki.db·사용자 좌표에서 결정되는 읽기 전용 파생물이다.
-# 모든 입력 파일의 mtime/size를 key로 삼아 직접 수정도 놓치지 않고, 같은 상태의
-# 페이지 재진입에서는 비용이 큰 Louvain/ForceAtlas 계산을 건너뛴다.
+# wiki.db가 있으면 connect()의 stale 검사가 Markdown 변경을 DB stamp에 반영한다.
+# DB가 없는 fallback만 Markdown별 mtime/size를 key로 삼고, 같은 상태의 페이지
+# 재진입에서는 비용이 큰 Louvain/ForceAtlas 계산을 건너뛴다.
 _GRAPH_RESPONSE_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
 _GRAPH_RESPONSE_CACHE_MAX_ENTRIES = 16
 
@@ -905,17 +906,19 @@ def _graph_source_fingerprint(v: Vault, iterations: int, community: str) -> tupl
             return None
         return (stat.st_mtime_ns, stat.st_size)
 
+    wiki_db_stamp = stamp(v.root / "wiki.db")
     markdown_stamps: list[tuple[str, int, int]] = []
-    for path in v.root.rglob("*.md"):
-        path_stamp = stamp(path)
-        if path_stamp is not None:
-            markdown_stamps.append((str(path.relative_to(v.root)), *path_stamp))
+    if wiki_db_stamp is None:
+        for path in v.root.rglob("*.md"):
+            path_stamp = stamp(path)
+            if path_stamp is not None:
+                markdown_stamps.append((str(path.relative_to(v.root)), *path_stamp))
     markdown = tuple(sorted(markdown_stamps))
     return (
         str(v.root.resolve()),
         iterations,
         community,
-        stamp(v.root / "wiki.db"),
+        wiki_db_stamp,
         stamp(v.root / GRAPH_POSITIONS_FILENAME),
         markdown,
     )
@@ -958,18 +961,20 @@ def vault_graph(
     """
     # v0.7.144+: scope=all 분기 제거 — current 단일 vault만 지원.
     v = _vault_or_404(name)
-    cache_key = _graph_source_fingerprint(v, iterations, community)
-    cached = _GRAPH_RESPONSE_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
 
     # 1) wiki.db가 있으면 DB 사용 (정확)
     wiki_db = v.root / "wiki.db"
     if wiki_db.exists():
         try:
             import sqlite3
-            db = sqlite3.connect(str(wiki_db))
+            db = db_module.connect(v)
             db.row_factory = sqlite3.Row
+            cache_key = _graph_source_fingerprint(v, iterations, community)
+            cached = _GRAPH_RESPONSE_CACHE.get(cache_key)
+            if cached is not None:
+                db.close()
+                return cached
+
             pages = db.execute(
                 "SELECT slug, title, type, collection, status, aliases, "
                 "importance, centrality, community, layer, freshness, created, updated FROM pages"
@@ -1156,6 +1161,11 @@ def vault_graph(
             pass  # fallback to rglob
 
     # 2) wiki.db 없거나 실패 시 — rglob fallback (구 vault)
+    cache_key = _graph_source_fingerprint(v, iterations, community)
+    cached = _GRAPH_RESPONSE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     nodes = []
     seen = set()
     for fp in v.content_root.rglob("*.md"):

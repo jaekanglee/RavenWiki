@@ -1,7 +1,14 @@
 import { apiFetch } from "../lib/api";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { GraphCanvas, typeLabel, type GraphLayoutMode } from "../components/GraphCanvas";
+import {
+  DEFAULT_FOCUS_DEPTH,
+  GraphCanvas,
+  MAX_FOCUS_DEPTH,
+  MIN_FOCUS_DEPTH,
+  typeLabel,
+  type GraphLayoutMode,
+} from "../components/GraphCanvas";
 import { FullscreenGraphModal } from "../components/FullscreenGraphModal";
 import type { Graph, GraphNode } from "../types";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -130,6 +137,8 @@ export function GraphPage() {
   const [showFullGraph, setShowFullGraph] = useState(false);
   const [activeTab, setActiveTab] = useState<"inbound" | "outbound" | "neighbors">("inbound");
   const [layoutMode, setLayoutMode] = useState<GraphLayoutMode>("force");
+  // B3: 선택 노드로부터 몇 촌까지 강조할지. 이전에는 3촌 하드코딩이었다.
+  const [focusDepth, setFocusDepth] = useState<number>(DEFAULT_FOCUS_DEPTH);
   const navigate = useNavigate();
   const { vault } = useOutletContext<{ vault: string }>();
 
@@ -138,6 +147,7 @@ export function GraphPage() {
   const resetGraphFilters = () => {
     dispatchFilters({ type: "reset" });
     setLayoutMode("force");
+    setFocusDepth(DEFAULT_FOCUS_DEPTH);
   };
 
   useEffect(() => {
@@ -224,7 +234,8 @@ export function GraphPage() {
     query.trim().length > 0 ||
     selectedType !== "all" ||
     !hideOrphans ||
-    !isDefaultRelations;
+    !isDefaultRelations ||
+    focusDepth !== DEFAULT_FOCUS_DEPTH;
 
   const graphNodeMap = useMemo(
     () => new Map(graph.nodes.map((node) => [node.id, node])),
@@ -321,6 +332,25 @@ export function GraphPage() {
           ]}
           helper="동심원은 선택 중심 거리, Layered는 계산된 논리 layer 깊이입니다."
         />
+        <div className="graph-page-depth-field">
+          <label className="graph-page-depth-head" htmlFor="graph-focus-depth">
+            <strong>이웃 깊이</strong>
+            <span>{focusDepth}촌</span>
+          </label>
+          <input
+            id="graph-focus-depth"
+            type="range"
+            min={MIN_FOCUS_DEPTH}
+            max={MAX_FOCUS_DEPTH}
+            step={1}
+            value={focusDepth}
+            onChange={(e) => setFocusDepth(Number(e.target.value))}
+            aria-describedby="graph-focus-depth-helper"
+          />
+          <span className="graph-page-depth-helper" id="graph-focus-depth-helper">
+            문서를 선택하면 이 촌수까지 밝게 남기고 나머지는 뒤로 물립니다.
+          </span>
+        </div>
         <TextField
           label="문서 검색"
           value={query}
@@ -493,6 +523,7 @@ export function GraphPage() {
             externalHighlightNodeId={hoveredInsightNodeId ?? selectedNodeId}
             externalHighlightType={hoveredInsightType}
             density="normal"
+            focusDepthLimit={focusDepth}
             onFullscreen={() => setShowFullGraph(true)}
             onPositionsChange={persistPositions}
             onResetLayout={resetLayout}

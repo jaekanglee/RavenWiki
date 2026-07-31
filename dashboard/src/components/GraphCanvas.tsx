@@ -1,6 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph from "force-graph";
 import type { GraphNode, GraphEdge } from "../types";
+import {
+  buildLinkStyle,
+  computeCommunityLabels,
+  computeLayeredAxis,
+  computeTimelineGrid,
+  computeTimelineLayout,
+  createLabelMetricsCache,
+  createLabelOccupancyGrid,
+  isWithinViewport,
+  resolveDisplayLabel,
+  resolveTypePalette,
+  TIMELINE_TYPE_LANES,
+  TYPE_COLOR_FALLBACK,
+  withAlpha,
+  type LabelMetricsCache,
+  type LabelOccupancyGrid,
+  type LinkStyle,
+  type TimelineGridPoint,
+  type ViewportBounds,
+} from "../lib/graph/render";
 
 interface Props {
   nodes: GraphNode[];
@@ -34,27 +54,28 @@ interface Props {
   variant?: "default" | "minimap";
   /** 그래프 시각화 레이아웃 모드 (기본 force-directed) */
   layoutMode?: GraphLayoutMode;
+  /** B3: 선택 노드로부터 몇 촌까지 강조/유지할지. 기본 3촌. */
+  focusDepthLimit?: number;
 }
 
 export type GraphLayoutMode = "force" | "concentric" | "domain" | "timeline" | "layered";
 
 // SCHEMA 9종(v0.7.44+) — type별 노드 색상. 미분류/미인식 → default gray.
-const TYPE_COLORS: Record<string, string> = {
-  concept: "#22c55e",
-  person: "#ec4899",
-  tool: "#6b7280",
-  comparison: "#ef4444",
-  project: "#f97316",
-  rule: "#6366f1",
-  query: "#eab308",
-  journal: "#06b6d4",
-  issue: "#a855f7",
-};
+// AGENTS.md §13.2: 색은 CSS 변수(--graph-type-<type>)를 1차 소스로 쓰고, 변수가
+// 정의되지 않은 환경(jsdom 테스트, 구 테마)에서만 TYPE_COLOR_FALLBACK으로 떨어진다.
+// 모듈 스코프 변수인 이유: nodeColor()를 Sidebar.tsx가 직접 import해 쓰고 있어
+// 호출 계약(type -> color 문자열)을 바꾸지 않고 토큰화하려면 공유 상태가 필요하다.
+let activeTypePalette: Record<string, string> = { ...TYPE_COLOR_FALLBACK };
 const DEFAULT_COLOR = "#9ca3af";
+
+/** 테마가 확정된 뒤(컨테이너 computed style) 타입 팔레트를 CSS 변수로 갱신한다. */
+export function syncTypePalette(read: (name: string) => string): void {
+  activeTypePalette = resolveTypePalette(read);
+}
 
 export function nodeColor(type: string | undefined): string {
   if (!type) return DEFAULT_COLOR;
-  return TYPE_COLORS[type] ?? DEFAULT_COLOR;
+  return activeTypePalette[type] ?? DEFAULT_COLOR;
 }
 
 /**
@@ -97,33 +118,9 @@ const TYPE_LABELS: Record<string, string> = {
   issue: "이슈",
 };
 
-const RELATION_COLORS: Record<string, string> = {
-  uses: "#3b82f6",         // blue
-  depends_on: "#ef4444",   // red
-  implements: "#a855f7",   // purple
-  implemented_by: "#d946ef", // fuchsia
-  related: "#14b8a6",      // teal
-};
-
-// Returns `color` with its alpha channel set to `alpha` (0-1). Handles both
-// "#rrggbb" and "rgba(r, g, b, a)" inputs — string-concatenating a hex alpha
-// suffix onto an rgba() string (the previous approach) produces an invalid
-// CSS color, which canvas silently ignores by keeping the last valid
-// strokeStyle, making faded edges render in whatever color was drawn before
-// them instead of actually fading.
-function withAlpha(color: string, alpha: number): string {
-  const rgbaMatch = color.match(/^rgba?\(([^)]+)\)$/i);
-  if (rgbaMatch) {
-    const [r, g, b] = rgbaMatch[1].split(",").map((p) => p.trim());
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  const hexMatch = color.match(/^#([0-9a-fA-F]{6})$/);
-  if (hexMatch) {
-    const a = Math.round(alpha * 255).toString(16).padStart(2, "0");
-    return `${color}${a}`;
-  }
-  return color;
-}
+// 관계별 색(RELATION_COLOR_FALLBACK)과 withAlpha는 lib/graph/render.ts로 옮겼다 —
+// 링크 스타일을 데이터 변경 시 1회 조립(buildLinkStyle)하면서 페인트 루프에서
+// 정규식/문자열 조립이 사라졌다.
 
 const RELATION_DASHES: Record<string, number[]> = {
   uses: [],
@@ -152,11 +149,16 @@ export function nodeOpacity(freshness: number | null | undefined): number {
   return 0.32 + normalized * 0.68;
 }
 
+/** B3: 이웃 깊이 슬라이더의 기본값/범위 — GraphPage가 같은 상수를 쓴다. */
+export const DEFAULT_FOCUS_DEPTH = 3;
+export const MIN_FOCUS_DEPTH = 1;
+export const MAX_FOCUS_DEPTH = 6;
+
 export function computeFocusDepthMap(
   nodes: GraphNode[],
   edges: GraphEdge[],
   focusNodeId?: string | null,
-  maxDepth = 3
+  maxDepth = DEFAULT_FOCUS_DEPTH
 ): Map<string, number> {
   const focusId = focusNodeId?.trim();
   if (!focusId) return new Map();
@@ -366,36 +368,26 @@ function hexToRgba(hex: string, alpha: number): string {
 
 
 
+// Louvain community id별 구획 색 — 구조적 다양성 팔레트(AGENTS.md §13.2 예외).
+// GraphCanvas onRenderFramePre의 domain 뷰 구획(원)과 대표 라벨에 쓰인다.
+// CSS 변수 --graph-community-0..9가 있으면 그 값이 우선한다.
+const COMMUNITY_COLOR_FALLBACK = [
+  "#3b82f6", "#ef4444", "#a855f7", "#10b981", "#f59e0b",
+  "#ec4899", "#14b8a6", "#6366f1", "#8b5cf6", "#f97316",
+];
 const GRAPH_LABEL_FONT = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const HUD_LABEL_FONT = GRAPH_LABEL_FONT;
 const HUD_LABEL_BASE_SIZE = 17; // 더 크게 (14 -> 17)
 const NODE_LABEL_BASE_SIZE = 11.4;
 
+// 라벨 충돌 격자 한 칸의 크기(캔버스 좌표). 작을수록 촘촘하게 허용한다.
+const LABEL_GRID_CELL_PX = 8;
+
 const NODE_LABEL_MAX_WIDTH_PX = 90; // 화면 픽셀 기준 — fontSize와 동일하게 scale로 나눠 apparent 크기 고정.
 
-// 캔버스 라벨이 너무 길면 자르고 말줄임표(…)를 붙인다. ctx.font가 이미 설정된
-// 상태에서 호출해야 measureText가 올바른 폭을 반환한다.
-export function truncateLabel(ctx: CanvasRenderingContext2D, label: string, maxWidth: number): string {
-  if (ctx.measureText(label).width <= maxWidth) return label;
-  const ellipsis = "…";
-  // Guard: if the ellipsis alone exceeds maxWidth, return empty string
-  // to ensure the result never exceeds maxWidth.
-  if (ctx.measureText(ellipsis).width > maxWidth) {
-    return "";
-  }
-  let lo = 0;
-  let hi = label.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    const candidate = label.slice(0, mid) + ellipsis;
-    if (ctx.measureText(candidate).width <= maxWidth) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return label.slice(0, lo) + ellipsis;
-}
+// 라벨 절단 로직은 lib/graph/render.ts로 옮겼다 (프레임 캐시와 한 곳에 두기 위함).
+// 기존 import 경로(components/GraphCanvas)를 쓰는 호출부/테스트를 위해 re-export.
+export { truncateLabel } from "../lib/graph/render";
 
 export function GraphCanvas({
   nodes,
@@ -414,6 +406,7 @@ export function GraphCanvas({
   onBackgroundClick,
   variant = "default",
   layoutMode = "force",
+  focusDepthLimit = DEFAULT_FOCUS_DEPTH,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphInstanceRef = useRef<any>(null);
@@ -423,6 +416,10 @@ export function GraphCanvas({
   // 사용자의 pan/zoom 위치가 reset되지 않는다.
   const prevIsDenseRef = useRef<boolean | null>(null);
   const prevNodeCountRef = useRef<number>(0);
+  // 첫 데이터 로드의 지연 zoomToFit이 사용자의 첫 클릭 뒤에 실행되면
+  // detail 패널 리사이즈와 겹쳐 카메라를 다시 맞춘다. 예약 timer를 취소한다.
+  const initialFitTimerRef = useRef<number | null>(null);
+  const initialFitCancelledRef = useRef(false);
   const graphNodesRef = useRef<any[]>([]);
   const pressStartRef = useRef<{ point: CanvasPoint; pointerType: "mouse" | "touch" } | null>(null);
   const pendingClickRef = useRef<{ nodeId: string; timeoutId: number; startedAt: number } | null>(null);
@@ -445,15 +442,46 @@ export function GraphCanvas({
     setHoveredNodeState(node);
   };
 
+  // A4: 페인트 루프가 읽는 사전 계산 결과 — 데이터/레이아웃 변경 시 1회 갱신.
+  const labelMetricsCacheRef = useRef<LabelMetricsCache>(createLabelMetricsCache());
+  const labelGridRef = useRef<LabelOccupancyGrid>(createLabelOccupancyGrid(LABEL_GRID_CELL_PX));
+  const viewportRef = useRef<ViewportBounds | null>(null);
+  const communityLabelsRef = useRef<Map<number, string>>(new Map());
+  const communityPaletteRef = useRef<string[]>(COMMUNITY_COLOR_FALLBACK);
+  const timelineGridRef = useRef<TimelineGridPoint[]>([]);
+  const layeredAxisRef = useRef<number[]>([]);
+  // A3: 하이라이트 3종은 ref로 읽는다 — 클릭/호버가 데이터 동기화 effect를
+  // 재실행하지 않게 해서 graphData() 재설정과 d3 리히트를 막는다.
+  // 포커스 깊이 맵도 ref로 읽는다 — 깊이 슬라이더(B3)와 선택 변경이 데이터
+  // 동기화 effect를 재실행하지 않고도 즉시 반영되어야 한다.
+  const focusDepthMapRef = useRef<Map<string, number>>(new Map());
+  const externalHighlightIdRef = useRef<string | null | undefined>(externalHighlightNodeId);
+  const persistentHighlightIdRef = useRef<string | null | undefined>(persistentHighlightNodeId);
+  const externalHighlightTypeRef = useRef<string | null | undefined>(externalHighlightType);
+
+  /** 데이터를 다시 넣지 않고 다음 프레임만 다시 그리도록 force-graph에 알린다. */
+  const requestRepaint = () => {
+    const graph = graphInstanceRef.current;
+    if (!graph || typeof graph.nodeRelSize !== "function") return;
+    graph.nodeRelSize(graph.nodeRelSize());
+  };
+
   const resolvedLabelColorRef = useRef<string>("rgba(148, 163, 184, 0.7)");
   const resolvedBgColorRef = useRef<string>("#0f172a");
   const resolvedNodeOutlineRef = useRef<string>("rgba(226, 232, 240, 0.28)");
   const resolvedEdgeColorRef = useRef<string>("rgba(148, 163, 184, 0.38)");
   const resolvedEdgeHighlightRef = useRef<string>("rgba(196, 181, 253, 0.94)");
+  const resolvedEdgeFadedRef = useRef<string>("rgba(148, 163, 184, 0.04)");
   const focusDepthMap = useMemo(
-    () => computeFocusDepthMap(nodes, edges, focusNodeId),
-    [nodes, edges, focusNodeId]
+    () => computeFocusDepthMap(nodes, edges, focusNodeId, focusDepthLimit),
+    [nodes, edges, focusNodeId, focusDepthLimit]
   );
+
+  // concentric 뷰에서만 선택 노드가 좌표 재산출을 유발한다 (A3 deps 참조).
+  const concentricCenterDep =
+    layoutMode === "concentric"
+      ? (externalHighlightNodeId ?? persistentHighlightNodeId ?? null)
+      : null;
 
   // DOM Container 변경 및 테마 변경 시 Computed Style 캐싱
   useEffect(() => {
@@ -465,6 +493,15 @@ export function GraphCanvas({
       resolvedNodeOutlineRef.current = style.getPropertyValue("--graph-node-outline").trim() || "rgba(226, 232, 240, 0.28)";
       resolvedEdgeColorRef.current = style.getPropertyValue("--graph-edge").trim() || "rgba(148, 163, 184, 0.38)";
       resolvedEdgeHighlightRef.current = style.getPropertyValue("--graph-edge-highlight").trim() || "rgba(196, 181, 253, 0.94)";
+      // 포커스 중 물러나는 엣지 색도 1회 조립 — 이전에는 링크마다 매 프레임
+      // withAlpha(정규식)를 호출했다.
+      resolvedEdgeFadedRef.current = withAlpha(resolvedEdgeColorRef.current, 0.1);
+      // B2: 문서 타입 색과 커뮤니티 구획 색을 CSS 변수에서 해석 (없으면 fallback).
+      const readVar = (name: string) => style.getPropertyValue(name);
+      syncTypePalette(readVar);
+      communityPaletteRef.current = COMMUNITY_COLOR_FALLBACK.map(
+        (fallback, index) => readVar(`--graph-community-${index}`).trim() || fallback
+      );
     } catch (e) {
       // fallback
     }
@@ -489,6 +526,10 @@ export function GraphCanvas({
 
   // v0.7.144+: all-scope 제거 — vault centroids + 최상단 y ref 모두 불필요.
   // (참조하던 코드: vaultCentroidsRef, vaultTopYRef, drawVaultLabel)
+
+  /** 포커스(선택/호버/타입 강조)가 걸린 상태인지 — 페인트 루프에서 ref로만 읽는다. */
+  const isFocusActive = (): boolean =>
+    !!(externalHighlightIdRef.current || externalHighlightTypeRef.current);
 
   const recomputeHighlights = (hover: any, extId: string | null | undefined, edgeList: typeof edges) => {
     const nodeSet = new Set<string>();
@@ -515,6 +556,28 @@ export function GraphCanvas({
     highlightNodesRef.current = nodeSet;
     highlightLinksRef.current = linkSet;
   };
+
+  /**
+   * A3: 하이라이트 전용 동기화. 노드 클릭/사이드바 호버는 여기서 ref와 하이라이트
+   * 집합만 갱신하고 캔버스 재페인트를 요청한다 — 데이터 동기화 effect(graphData
+   * 재설정 + d3 리히트 + accessor 재바인딩)를 건드리지 않는다.
+   *
+   * nodeRelSize를 현재 값으로 다시 넣는 것이 force-graph의 공식 재페인트 신호다
+   * (해당 prop은 triggerUpdate:false + onChange:notifyRedraw로 선언돼 있어 데이터
+   * 갱신 없이 다음 프레임만 다시 그린다).
+   */
+  useEffect(() => {
+    focusDepthMapRef.current = focusDepthMap;
+    requestRepaint();
+  }, [focusDepthMap]);
+
+  useEffect(() => {
+    externalHighlightIdRef.current = externalHighlightNodeId;
+    persistentHighlightIdRef.current = persistentHighlightNodeId;
+    externalHighlightTypeRef.current = externalHighlightType;
+    recomputeHighlights(hoveredNodeRef.current, externalHighlightNodeId, edges);
+    requestRepaint();
+  }, [externalHighlightNodeId, persistentHighlightNodeId, externalHighlightType, edges]);
 
   // (v0.7.139+: 이동 모드 토글 제거 — force-graph native pan/zoom이 항상 동작한다.
   // Space 단축키 핸들러도 함께 제거됨. dense 모드에서도 노드 탭 → 인사이트,
@@ -553,7 +616,14 @@ export function GraphCanvas({
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
+          // Opening the detail panel changes the canvas width. Preserve the user's
+          // camera when force-graph reconfigures its viewport; otherwise selection
+          // unexpectedly zooms out and recenters the graph.
+          const cameraCenter = graph.centerAt();
+          const cameraZoom = graph.zoom();
           graph.width(width).height(height);
+          graph.centerAt(cameraCenter.x, cameraCenter.y, 0);
+          graph.zoom(cameraZoom, 0);
         }
       }
     });
@@ -581,30 +651,14 @@ export function GraphCanvas({
         const hasPos = typeof n.x === "number" && typeof n.y === "number";
         const scaledX = hasPos ? (n.x as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
         const scaledY = hasPos ? (n.y as number) * GRAPH_SCALE_MULTIPLIER : (Math.random() - 0.5) * 16;
-        const focusDepth = focusDepthMap.get(n.id);
-        const depthRank = typeof focusDepth === "number" ? focusDepth : Number.POSITIVE_INFINITY;
         return {
           ...n,
           x: scaledX,
           y: scaledY,
           fx: hasPos ? scaledX : undefined,
           fy: hasPos ? scaledY : undefined,
-          __focusDepth: focusDepth,
-          __focusDepthRank: depthRank,
         };
       });
-      if (focusDepthMap.size > 0) {
-        formattedNodes.sort((a: any, b: any) => {
-          const depthA = typeof a.__focusDepthRank === "number" ? a.__focusDepthRank : Number.POSITIVE_INFINITY;
-          const depthB = typeof b.__focusDepthRank === "number" ? b.__focusDepthRank : Number.POSITIVE_INFINITY;
-          if (depthA !== depthB) return depthB - depthA;
-          const importanceDiff = (b.importance ?? 0) - (a.importance ?? 0);
-          if (importanceDiff !== 0) return importanceDiff;
-          const weightDiff = (b.weight ?? 0) - (a.weight ?? 0);
-          if (weightDiff !== 0) return weightDiff;
-          return String(a.id).localeCompare(String(b.id));
-        });
-      }
     } else if (layoutMode === "concentric") {
       // 1) Concentric View: 특정 노드(또는 중요도가 가장 높은 노드)를 중심으로 N촌 동심원 배치
       const centerId =
@@ -759,97 +813,10 @@ export function GraphCanvas({
         };
       });
     } else if (layoutMode === "timeline") {
-      // 3) Timeline View: 작성일/수정일 기준 가로 축 정렬 배치 (Adaptive Scale 보정 적용)
-      const parseDate = (dateStr: string | undefined): number => {
-        if (!dateStr) return 0;
-        try {
-          const clean = dateStr.trim().substring(0, 10);
-          return Date.parse(clean) || 0;
-        } catch {
-          return 0;
-        }
-      };
-
-      const nowTime = Date.now();
-      const nodeTimes = nodes.map((n) => {
-        let t = parseDate(n.created) || parseDate(n.updated) || nowTime;
-        return { id: n.id, time: t };
-      });
-
-      const times = nodeTimes.map((nt) => nt.time);
-      const minTime = times.length > 0 ? Math.min(...times) : nowTime;
-      const maxTime = times.length > 0 ? Math.max(...times) : nowTime;
-      const timeDiff = maxTime - minTime || 1;
-
-      const xStart = -450;
-      const xEnd = 450;
-
-      // 일(Day) 단위 격자/밀집도 분석
-      const isShortRange = timeDiff <= 24 * 60 * 60 * 1000;
-      const getGroupKey = (t: number): string => {
-        const d = new Date(t);
-        if (isShortRange) {
-          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()} H${d.getHours()}`;
-        } else {
-          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        }
-      };
-
-      // 그룹별 노드 매핑
-      const groups: Record<string, string[]> = {};
-      nodes.forEach((n) => {
-        const nt = nodeTimes.find((x) => x.id === n.id);
-        const t = nt ? nt.time : nowTime;
-        const key = getGroupKey(t);
-        groups[key] = groups[key] || [];
-        groups[key].push(n.id);
-      });
-
-      const nodeCoords: Record<string, { x: number; y: number }> = {};
-      const typeYOffsets: Record<string, number> = {
-        concept: 150,
-        project: 75,
-        rule: 0,
-        journal: -75,
-        issue: -150,
-      };
-
-      const typeIndices: Record<string, number> = {};
-
-      nodes.forEach((n) => {
-        const nt = nodeTimes.find((x) => x.id === n.id);
-        const time = nt ? nt.time : nowTime;
-        
-        // 1차 선형 X 좌표
-        const baseX = xStart + ((time - minTime) / timeDiff) * (xEnd - xStart);
-
-        // 2차 그룹 내 오프셋 (동일 시간대/날짜 밀집 노드 펼치기)
-        const key = getGroupKey(time);
-        const group = groups[key] || [];
-        const groupIndex = group.indexOf(n.id);
-        const groupCount = group.length;
-
-        let adaptiveOffsetX = 0;
-        if (groupCount > 1) {
-          // 밀집 보정 필터: 그룹 내 노드 수에 따라 좌우로 유연하게 분산 (최대 120px 너비 내에서 분산)
-          const spacing = Math.max(12, Math.min(35, 120 / groupCount));
-          adaptiveOffsetX = (groupIndex - (groupCount - 1) / 2) * spacing;
-        }
-
-        const x = baseX + adaptiveOffsetX;
-
-        const type = n.type || "other";
-        typeIndices[type] ??= 0;
-        const index = typeIndices[type]++;
-
-        const baseY = typeYOffsets[type] !== undefined ? typeYOffsets[type] : -220;
-        const offsetSign = index % 2 === 0 ? 1 : -1;
-        const yOffset = offsetSign * (15 + (index % 3) * 10);
-        const y = baseY + yOffset;
-
-        nodeCoords[n.id] = { x, y };
-      });
-
+      // 3) Timeline View: 작성일/수정일 기준 가로 축 정렬 배치.
+      // 좌표 산출은 lib/graph/render.ts의 computeTimelineLayout으로 옮겼다 —
+      // 이전 구현은 nodes.forEach 안에서 nodeTimes.find()를 돌려 O(n^2)였다.
+      const nodeCoords = computeTimelineLayout(nodes);
       formattedNodes = nodes.map((n) => {
         const coord = nodeCoords[n.id] || { x: 0, y: 0 };
         return {
@@ -877,14 +844,36 @@ export function GraphCanvas({
       });
     }
 
-    const formattedLinks = edges.map((e, idx) => ({
-      id: `e${idx}`,
-      source: e.source,
-      target: e.target,
-    }));
+    // 링크 스타일(색 3종/점선/화살표 길이)은 여기서 1회 조립해 링크 객체에 붙인다.
+    // force-graph의 accessor는 매 프레임 링크마다 호출되므로, 여기서 미리 만들어
+    // 두지 않으면 정규식과 문자열 조립이 프레임당 E번 반복된다.
+    const formattedLinks = edges.map((e, idx) => {
+      const relationType = e.relation_type;
+      const arrowRelation =
+        relationType === "uses" ||
+        relationType === "depends_on" ||
+        relationType === "implements" ||
+        relationType === "implemented_by";
+      return {
+        ...e,
+        id: `e${idx}`,
+        source: e.source,
+        target: e.target,
+        __style: buildLinkStyle(e as never),
+        __dash: relationType ? RELATION_DASHES[relationType] ?? [] : [],
+        __arrowLength: arrowRelation ? 5.5 : 0,
+      };
+    });
 
     graph.graphData({ nodes: formattedNodes, links: formattedLinks });
     graphNodesRef.current = formattedNodes;
+
+    // A4: 페인트 루프가 프레임마다 다시 계산하던 것들을 여기서 1회 계산한다.
+    communityLabelsRef.current = layoutMode === "domain" ? computeCommunityLabels(nodes) : new Map();
+    timelineGridRef.current = layoutMode === "timeline" ? computeTimelineGrid(nodes) : [];
+    layeredAxisRef.current = layoutMode === "layered" ? computeLayeredAxis(nodes) : [];
+    // 라벨 문자열 캐시는 노드 집합이 바뀌면 버린다 (제목 변경 반영).
+    labelMetricsCacheRef.current = createLabelMetricsCache();
 
     // v0.7.144+: all-scope 제거 — vault별 최상단 y 계산 불필요.
 
@@ -912,6 +901,9 @@ export function GraphCanvas({
         } else {
           setHoveredNode(null);
         }
+        // 호버 인접 노드/링크 강조는 ref 기반이라 여기서 직접 갱신해야 한다.
+        recomputeHighlights(node ?? null, externalHighlightIdRef.current, edges);
+        requestRepaint();
       })
       .onNodeDragEnd((node: any) => {
         if (layoutMode !== "force") return;
@@ -931,6 +923,12 @@ export function GraphCanvas({
       });
 
     const queueResolvedNodeClick = (nodeId: string) => {
+      if (initialFitTimerRef.current !== null) {
+        window.clearTimeout(initialFitTimerRef.current);
+        initialFitTimerRef.current = null;
+      }
+      initialFitCancelledRef.current = true;
+
       const pending = pendingClickRef.current;
       const now = window.performance?.now?.() ?? Date.now();
       if (pending && pending.nodeId === nodeId) {
@@ -1063,23 +1061,19 @@ export function GraphCanvas({
 
     graph
       .linkColor((link: any) => {
-        if (link.broken_dependency) {
-          return "#ef4444"; // red-500
-        }
+        // 색 문자열은 formattedLinks 생성 시 buildLinkStyle로 미리 조립해둔다
+        // (이전 구현은 링크마다 매 프레임 정규식 매칭 + 문자열 조립을 했다).
+        const style = link.__style as LinkStyle | undefined;
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        const relType = link.relation_type;
-        const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
-        
-        if (relType && RELATION_COLORS[relType]) {
-          const baseColor = RELATION_COLORS[relType];
-          if (hasFocusActive) {
-            return isHighlighted ? baseColor : withAlpha(baseColor, 0.13); // faded
-          }
-          return isHighlighted ? baseColor : withAlpha(baseColor, 0.6); // normal
+        const hasFocusActive = isFocusActive() || !!hoveredNodeRef.current;
+
+        if (style?.base) {
+          if (isHighlighted) return style.base;
+          return hasFocusActive ? style.faded : style.normal;
         }
 
         if (isHighlighted) return resolvedEdgeHighlightRef.current;
-        return hasFocusActive ? withAlpha(resolvedEdgeColorRef.current, 0.1) : resolvedEdgeColorRef.current;
+        return hasFocusActive ? resolvedEdgeFadedRef.current : resolvedEdgeColorRef.current;
       })
       .linkWidth((link: any) => {
         const isHighlighted = highlightLinksRef.current.has(link.id) || link.broken_dependency;
@@ -1087,33 +1081,16 @@ export function GraphCanvas({
         const baseWidth = isSemantic ? 1.5 : 1.05;
         return isHighlighted ? baseWidth + 1.15 : baseWidth;
       })
-      .linkLineDash((link: any) => {
-        const relType = link.relation_type;
-        if (relType && RELATION_DASHES[relType]) {
-          return RELATION_DASHES[relType];
-        }
-        return [];
-      })
-      .linkDirectionalArrowLength((link: any) => {
-        const hasArrow = link.relation_type && ['uses', 'depends_on', 'implements', 'implemented_by'].includes(link.relation_type);
-        return hasArrow ? 5.5 : 0;
-      })
+      .linkLineDash((link: any) => link.__dash ?? [])
+      .linkDirectionalArrowLength((link: any) => link.__arrowLength ?? 0)
       .linkDirectionalArrowRelPos(1.0)
       .linkDirectionalArrowColor((link: any) => {
-        if (link.broken_dependency) {
-          return "#ef4444";
-        }
+        const style = link.__style as LinkStyle | undefined;
+        if (!style?.base) return resolvedEdgeHighlightRef.current;
         const isHighlighted = highlightLinksRef.current.has(link.id);
-        const relType = link.relation_type;
-        if (relType && RELATION_COLORS[relType]) {
-          const baseColor = RELATION_COLORS[relType];
-          const hasFocusActive = externalHighlightNodeId || hoveredNodeRef.current || externalHighlightType;
-          if (hasFocusActive) {
-            return isHighlighted ? baseColor : withAlpha(baseColor, 0.13);
-          }
-          return isHighlighted ? baseColor : withAlpha(baseColor, 0.6);
-        }
-        return resolvedEdgeHighlightRef.current;
+        if (isHighlighted) return style.base;
+        const hasFocusActive = isFocusActive() || !!hoveredNodeRef.current;
+        return hasFocusActive ? style.faded : style.normal;
       })
       .linkCurvature(0.035)
       // Remove animated particles: they made selected paths feel busy/tacky rather than clean.
@@ -1199,22 +1176,28 @@ export function GraphCanvas({
       if (!node || node.x === undefined || node.y === undefined) return;
       const scale = globalScale || 1;
       const size = nodeSize(node.weight, isDense ? "dense" : "normal", node.importance, nodes.length);
-      const focusDepth =
-        typeof node.__focusDepth === "number"
-          ? node.__focusDepth
-          : focusDepthMap.get(node.id);
+      // B3: 깊이 맵은 ref에서 읽는다. formattedNodes에 박아둔 __focusDepth를 쓰면
+      // 깊이 슬라이더를 움직여도 다음 데이터 갱신까지 옛 값이 남는다.
+      const depthMap = focusDepthMapRef.current;
+      const focusDepth = depthMap.get(node.id);
       const depthMultiplier =
         typeof focusDepth === "number"
           ? Math.max(0.68, 1 - focusDepth * 0.12)
-          : (focusDepthMap.size > 0 ? 0.88 : 1);
+          : (depthMap.size > 0 ? 0.88 : 1);
       const renderedSize = size * depthMultiplier;
+      // B1 뷰포트 컬링: 화면 밖 노드는 페인트하지 않는다. 라벨이 화면 안으로
+      // 흘러 들어올 수 있으므로 여유를 둔다. (히트 판정은 shadow canvas와
+      // findClosestNodeHit이 별도로 담당하므로 영향 없다.)
+      const viewport = viewportRef.current;
+      if (viewport && !isWithinViewport(node.x, node.y, renderedSize + 80, viewport)) return;
       // v0.7.139+: ref로 최신 hover state를 매 paint call에서 읽는다 (effect 재실행 없음).
       const currentHover = hoveredNodeRef.current;
       const isHovered = currentHover && currentHover.id === node.id;
       const isHighlighted = highlightNodesRef.current.has(node.id);
-      const isPersistent = persistentHighlightNodeId === node.id;
+      // A3: props 대신 ref로 읽는다 — 하이라이트가 바뀌어도 이 effect가 재실행되지 않는다.
+      const isPersistent = persistentHighlightIdRef.current === node.id;
       const isFocused =
-        isHovered || isPersistent || externalHighlightNodeId === node.id;
+        isHovered || isPersistent || externalHighlightIdRef.current === node.id;
       const fillOpacity = nodeOpacity(node.freshness);
 
       // 1. 노드 본체 (원) — zoom 보정 없이 픽셀 그대로 그린다.
@@ -1224,13 +1207,13 @@ export function GraphCanvas({
       ctx.arc(node.x, node.y, renderedSize, 0, 2 * Math.PI, false);
 
       // 흐릿한 비포커스 처리
-      const hasFocusActive = externalHighlightNodeId || currentHover || externalHighlightType;
+      const hasFocusActive = isFocusActive() || currentHover;
       const baseAlpha = hasFocusActive && !isFocused && !isHighlighted
         ? fillOpacity * 0.28
         : fillOpacity;
       const depthAlpha = typeof focusDepth === "number"
         ? Math.max(0.28, 1 - focusDepth * 0.18)
-        : (focusDepthMap.size > 0 ? 0.72 : 1);
+        : (depthMap.size > 0 ? 0.72 : 1);
       ctx.fillStyle = hexToRgba(nodeColor(node.type), baseAlpha);
       ctx.globalAlpha = depthAlpha;
       ctx.fill();
@@ -1300,28 +1283,46 @@ export function GraphCanvas({
 
         // v0.7.201+: 긴 제목이 안 잘려서 다른 노드/UI와 겹치던 문제 — 잘라서
         // 표시하고, 호버/포커스 중인 노드만 배경 박스와 함께 전체 제목을 보여준다.
+        // 절단 결과는 (폰트, 폭, 라벨) 키로 캐시되어 프레임마다 measureText를
+        // 다시 이진탐색하지 않는다.
         const maxLabelWidth = NODE_LABEL_MAX_WIDTH_PX / scale;
-        const displayLabel = isFocused ? label : truncateLabel(ctx, label, maxLabelWidth);
+        const displayLabel = isFocused
+          ? label
+          : resolveDisplayLabel(ctx, labelMetricsCacheRef.current, label, maxLabelWidth);
 
-        if (isFocused) {
-          const textWidth = ctx.measureText(displayLabel).width;
-          const padX = 4 / scale;
-          const padY = 2 / scale;
-          ctx.fillStyle = "rgba(15, 15, 20, 0.82)";
-          ctx.fillRect(
-            labelX - textWidth / 2 - padX,
-            labelY - padY,
-            textWidth + padX * 2,
-            fontSize + padY * 2
+        // 라벨 충돌 회피: 포커스/하이라이트 라벨은 항상 그리고, 나머지는 이미
+        // 라벨이 놓인 자리와 겹치면 이번 프레임에 포기한다.
+        const measuredWidth = ctx.measureText(displayLabel).width;
+        const labelClaimed =
+          isFocused ||
+          isHighlighted ||
+          labelGridRef.current.tryOccupy(
+            labelX - measuredWidth / 2,
+            labelY,
+            measuredWidth,
+            fontSize
           );
-        }
 
-        // No text outline: small canvas labels became fat/blurry with halo strokes.
-        // Rely on theme-resolved high-contrast label color instead.
-        ctx.fillStyle = isFocused
-          ? resolvedEdgeHighlightRef.current
-          : resolvedLabelColorRef.current;
-        ctx.fillText(displayLabel, labelX, labelY);
+        if (labelClaimed) {
+          if (isFocused) {
+            const padX = 4 / scale;
+            const padY = 2 / scale;
+            ctx.fillStyle = "rgba(15, 15, 20, 0.82)";
+            ctx.fillRect(
+              labelX - measuredWidth / 2 - padX,
+              labelY - padY,
+              measuredWidth + padX * 2,
+              fontSize + padY * 2
+            );
+          }
+
+          // No text outline: small canvas labels became fat/blurry with halo strokes.
+          // Rely on theme-resolved high-contrast label color instead.
+          ctx.fillStyle = isFocused
+            ? resolvedEdgeHighlightRef.current
+            : resolvedLabelColorRef.current;
+          ctx.fillText(displayLabel, labelX, labelY);
+        }
         ctx.restore();
       }
       // v0.7.144+: vault 라벨 코드 제거 (all-scope 모드 들어냄)
@@ -1329,11 +1330,12 @@ export function GraphCanvas({
       .nodePointerAreaPaint((node: any, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
         if (!node || node.x === undefined || node.y === undefined) return;
         const scale = globalScale || 1;
-        const focusDepth = focusDepthMap.get(node.id);
+        const depthMap = focusDepthMapRef.current;
+        const focusDepth = depthMap.get(node.id);
         const depthMultiplier =
           typeof focusDepth === "number"
             ? Math.max(0.68, 1 - focusDepth * 0.12)
-            : (focusDepthMap.size > 0 ? 0.88 : 1);
+            : (depthMap.size > 0 ? 0.88 : 1);
         const hitRadius = Math.max(
           nodeSize(node.weight, isDense ? "dense" : "normal") * depthMultiplier * DIRECT_HIT_NODE_RADIUS_MULTIPLIER,
           DIRECT_MOUSE_HIT_RADIUS_PX / scale
@@ -1347,25 +1349,47 @@ export function GraphCanvas({
     // v0.7.144+: vault ring도 제거 — single vault에서는 모든 노드가 같은 vault이라 무의미.
 
     // 줌 아웃 시점에만 단순 텍스트로 폴더 라벨 투사 (LOD HUD)
+    // 프레임 시작 시점: 뷰포트 경계와 라벨 점유 격자를 갱신한다.
+    // nodeCanvasObject가 이 두 값을 읽어 화면 밖 노드를 건너뛰고(B1 컬링),
+    // 이미 라벨이 놓인 자리와 겹치는 라벨을 포기한다(B1 충돌 회피).
     graph.onRenderFramePre((ctx: CanvasRenderingContext2D, globalScale: number) => {
       const scale = globalScale || 1;
-      
-      // 1. Domain View일 때 커뮤니티별 반투명 구획(Onion bound) 그리기
+
+      const toGraphCoords = (sx: number, sy: number) =>
+        typeof graph.screen2canvasCoords === "function"
+          ? graph.screen2canvasCoords(sx, sy)
+          : graph.screen2GraphCoords(sx, sy);
+      const width = graph.width?.() ?? 0;
+      const height = graph.height?.() ?? 0;
+      if (width > 0 && height > 0) {
+        const topLeft = toGraphCoords(0, 0);
+        const bottomRight = toGraphCoords(width, height);
+        if (topLeft && bottomRight) {
+          viewportRef.current = {
+            x0: Math.min(topLeft.x, bottomRight.x),
+            y0: Math.min(topLeft.y, bottomRight.y),
+            x1: Math.max(topLeft.x, bottomRight.x),
+            y1: Math.max(topLeft.y, bottomRight.y),
+          };
+        }
+      }
+      labelGridRef.current.reset();
+
+      // 1. Domain View일 때 커뮤니티별 반투명 구획(Onion bound) 그리기.
+      // 커뮤니티 대표 라벨은 데이터 변경 시 1회 계산해둔 communityLabelsRef를 읽는다
+      // (이전 구현은 매 프레임 전 노드 제목을 정규식 토크나이즈 + 빈도 정렬했다).
       if (layoutMode === "domain") {
         const groupStats: Record<number, { xSum: number; ySum: number; count: number; xMin: number; xMax: number; yMin: number; yMax: number }> = {};
-        const groupNodes: Record<number, any[]> = {};
         const currentNodes = graph.graphData().nodes;
-        
+
         currentNodes.forEach((node: any) => {
           const c = node.community ?? 0;
           if (!groupStats[c]) {
             groupStats[c] = { xSum: 0, ySum: 0, count: 0, xMin: 99999, xMax: -99999, yMin: 99999, yMax: -99999 };
-            groupNodes[c] = [];
           }
           groupStats[c].xSum += node.x;
           groupStats[c].ySum += node.y;
           groupStats[c].count += 1;
-          groupNodes[c].push(node);
           if (node.x < groupStats[c].xMin) groupStats[c].xMin = node.x;
           if (node.x > groupStats[c].xMax) groupStats[c].xMax = node.x;
           if (node.y < groupStats[c].yMin) groupStats[c].yMin = node.y;
@@ -1373,92 +1397,45 @@ export function GraphCanvas({
         });
 
         ctx.save();
-        const COMMUNITY_COLORS = ["#3b82f6", "#ef4444", "#a855f7", "#10b981", "#f59e0b", "#ec4899", "#14b8a6", "#6366f1", "#8b5cf6", "#f97316"];
         for (const cidStr in groupStats) {
           const cid = Number(cidStr);
           const stat = groupStats[cid];
           if (stat.count === 0) continue;
           const cx = stat.xSum / stat.count;
           const cy = stat.ySum / stat.count;
-          
+
           const dx = stat.xMax - stat.xMin;
           const dy = stat.yMax - stat.yMin;
           const radius = Math.max(38, Math.hypot(dx, dy) / 2 + 35);
-          
+
           ctx.beginPath();
           ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-          const color = COMMUNITY_COLORS[cid % COMMUNITY_COLORS.length];
-          
+          const color = communityPaletteRef.current[cid % communityPaletteRef.current.length];
+
           // LOD 줌 연동: 줌 레벨에 따라 채우기 및 테두리 투명도 보정
           const bgOpacity = Math.max(0.01, Math.min(0.06, (0.85 - scale) * 0.08));
           const borderOpacity = Math.max(0.05, Math.min(0.24, (0.85 - scale) * 0.3));
-          
+
           ctx.fillStyle = hexToRgba(color, bgOpacity);
           ctx.fill();
           ctx.lineWidth = 0.8 / scale;
           ctx.strokeStyle = hexToRgba(color, borderOpacity);
           ctx.stroke();
 
-          // LOD 줌 연동: 축소 수준이 높을 때(scale < 0.85)만 대표 도메인 레이블이 크고 선명하게 투사되도록 스타일 제어
+          // 축소 수준이 높을 때(scale < 0.85)만 대표 도메인 레이블을 투사한다.
           if (scale < 0.85) {
-            // 자동 의미론적 레이블 계산
-            const cNodes = groupNodes[cid] || [];
-            let labelSuffix = "";
-            if (cNodes.length > 0) {
-              // 최상위 중요 노드
-              let topNode = cNodes[0];
-              for (const n of cNodes) {
-                if ((n.importance ?? 0) > (topNode.importance ?? 0)) {
-                  topNode = n;
-                }
-              }
-              
-              // 제목 기반 키워드 빈도 추출
-              const stopwords = new Set([
-                "and", "the", "with", "for", "from", "main", "core", "impl", "test", "helper", "util", "utils", "config",
-                "이", "그", "저", "및", "등", "을", "를", "의", "에", "과", "와", "한", "로", "으로", "에서"
-              ]);
-              const wordCounts: Record<string, number> = {};
-              cNodes.forEach(n => {
-                const wList = (n.title || "").toLowerCase().match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
-                wList.forEach((w: string) => {
-                  if (!stopwords.has(w)) {
-                    wordCounts[w] = (wordCounts[w] || 0) + 1;
-                  }
-                });
-              });
-              const sortedWords = Object.entries(wordCounts)
-                .sort((a, b) => b[1] - a[1])
-                .map(entry => entry[0]);
-              
-              if (topNode) {
-                const topWords = (topNode.title || "").match(/[a-zA-Z가-힣0-9]{2,20}/g) || [];
-                const mainTopWord = topWords.find((w: string) => !stopwords.has(w.toLowerCase())) || topNode.title;
-                const secondWord = sortedWords.find((w: string) => w.toLowerCase() !== mainTopWord.toLowerCase());
-                const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-                if (secondWord) {
-                  labelSuffix = ` (${cap(mainTopWord)} & ${cap(secondWord)})`;
-                } else {
-                  labelSuffix = ` (${cap(mainTopWord)})`;
-                }
-              }
-            }
-
-            // 줌 아웃이 많이 될수록 레이블을 더 선명하고 돋보이게 처리 (LOD HUD 디자인 시스템 최적화)
+            const labelText = communityLabelsRef.current.get(cid) ?? `Community ${cid}`;
             const textOpacity = Math.min(0.75, (0.85 - scale) * 1.15);
-            const fontSize = Math.max(10, Math.min(14, 14 - scale * 4)); // 줌아웃 수준에 맞춤형
-            
+            const fontSize = Math.max(10, Math.min(14, 14 - scale * 4));
+
             ctx.save();
             ctx.font = `600 ${fontSize / scale}px ${HUD_LABEL_FONT}`;
             ctx.fillStyle = color;
             ctx.globalAlpha = textOpacity;
             ctx.textAlign = "center";
-            
-            // 가시성을 위한 텍스트의 미세한 그림자 효과 추가 (프리미엄 디테일)
             ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
             ctx.shadowBlur = 4 / scale;
-            
-            ctx.fillText(`Community ${cid}${labelSuffix}`, cx, cy - radius - 8 / scale);
+            ctx.fillText(labelText, cx, cy - radius - 8 / scale);
             ctx.restore();
           }
         }
@@ -1466,112 +1443,33 @@ export function GraphCanvas({
         return;
       }
 
-      // 2. Timeline View일 때 가이드 라인 그리기
+      // 2. Timeline View 가이드 라인 — 축 격자는 데이터 변경 시 1회 계산해둔
+      // timelineGridRef를 읽는다 (이전 구현은 매 프레임 Math.min(...times) 스프레드와
+      // 격자 재생성을 수행했다).
       if (layoutMode === "timeline" && nodes.length > 0) {
         ctx.save();
         ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
         ctx.lineWidth = 0.8 / scale;
         ctx.font = `600 ${10 / scale}px ${HUD_LABEL_FONT}`;
         ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
-        
-        const typeYOffsets: Record<string, number> = {
-          concept: 150,
-          project: 75,
-          rule: 0,
-          journal: -75,
-          issue: -150,
-        };
-        
-        for (const [typeName, yVal] of Object.entries(typeYOffsets)) {
+
+        for (const [typeName, yVal] of Object.entries(TIMELINE_TYPE_LANES)) {
           ctx.beginPath();
           ctx.moveTo(-500, yVal);
           ctx.lineTo(500, yVal);
           ctx.stroke();
-          
+
           ctx.textAlign = "left";
           ctx.fillText(typeLabel(typeName) || typeName, -485, yVal - 8 / scale);
         }
 
-        const xStart = -450;
-        const xEnd = 450;
-        
-        const parseDate = (dateStr: string | undefined): number => {
-          if (!dateStr) return 0;
-          try {
-            const clean = dateStr.trim().substring(0, 10);
-            return Date.parse(clean) || 0;
-          } catch {
-            return 0;
-          }
-        };
-
-        const nowTime = Date.now();
-        const times = nodes.map(n => {
-          return parseDate(n.created) || parseDate(n.updated) || nowTime;
-        });
-        const minTime = Math.min(...times);
-        const maxTime = Math.max(...times);
-        const timeDiff = maxTime - minTime || 1;
-
-        // Adaptive Grid Scale 결정
-        let gridPoints: { x: number; label: string }[] = [];
-        
-        if (timeDiff <= 2 * 60 * 60 * 1000) {
-          // 2시간 이내: 15분 단위
-          const step = 15 * 60 * 1000;
-          const start = Math.floor(minTime / step) * step;
-          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
-            const ratio = (tVal - minTime) / timeDiff;
-            const x = xStart + ratio * (xEnd - xStart);
-            if (x >= xStart - 10 && x <= xEnd + 10) {
-              const d = new Date(tVal);
-              const label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-              gridPoints.push({ x, label });
-            }
-          }
-        } else if (timeDiff <= 24 * 60 * 60 * 1000) {
-          // 24시간 이내: 2시간 단위
-          const step = 2 * 60 * 60 * 1000;
-          const start = Math.floor(minTime / step) * step;
-          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
-            const ratio = (tVal - minTime) / timeDiff;
-            const x = xStart + ratio * (xEnd - xStart);
-            if (x >= xStart - 10 && x <= xEnd + 10) {
-              const d = new Date(tVal);
-              const label = `${d.getHours()}:00`;
-              gridPoints.push({ x, label });
-            }
-          }
-        } else if (timeDiff <= 7 * 24 * 60 * 60 * 1000) {
-          // 7일 이내: 1일 단위
-          const step = 24 * 60 * 60 * 1000;
-          const start = Math.floor(minTime / step) * step;
-          for (let tVal = start; tVal <= maxTime + step; tVal += step) {
-            const ratio = (tVal - minTime) / timeDiff;
-            const x = xStart + ratio * (xEnd - xStart);
-            if (x >= xStart - 10 && x <= xEnd + 10) {
-              const label = new Date(tVal).toISOString().split("T")[0].substring(5); // MM-DD
-              gridPoints.push({ x, label });
-            }
-          }
-        } else {
-          // 일반적인 경우: 5개 등분
-          for (let i = 0; i <= 4; i++) {
-            const ratio = i / 4;
-            const x = xStart + ratio * (xEnd - xStart);
-            const tVal = minTime + ratio * timeDiff;
-            const dateStr = new Date(tVal).toISOString().split("T")[0];
-            gridPoints.push({ x, label: dateStr });
-          }
-        }
-
         ctx.strokeStyle = "rgba(148, 163, 184, 0.06)";
-        gridPoints.forEach(({ x, label }) => {
+        timelineGridRef.current.forEach(({ x, label }) => {
           ctx.beginPath();
           ctx.moveTo(x, -250);
           ctx.lineTo(x, 200);
           ctx.stroke();
-          
+
           ctx.textAlign = "center";
           ctx.fillText(label, x, 215 / scale);
         });
@@ -1580,14 +1478,7 @@ export function GraphCanvas({
       }
 
       if (layoutMode === "layered" && nodes.length > 0) {
-        const currentNodes = graph.graphData().nodes as any[];
-        const layerSet = new Set<number>();
-        currentNodes.forEach((node: any) => {
-          if (typeof node.layer === "number" && Number.isFinite(node.layer)) {
-            layerSet.add(Math.max(0, Math.round(node.layer)));
-          }
-        });
-        const layers = [...layerSet].sort((a, b) => a - b);
+        const layers = layeredAxisRef.current;
         if (layers.length === 0) return;
 
         ctx.save();
@@ -1621,7 +1512,7 @@ export function GraphCanvas({
 
       const groupCoords: Record<string, { xSum: number; ySum: number; count: number; label: string }> = {};
       const currentNodes = graph.graphData().nodes;
-      
+
       for (const node of currentNodes) {
         if (typeof node.x !== "number" || typeof node.y !== "number" || !node.folder_group) continue;
         const gid = node.folder_group;
@@ -1649,9 +1540,9 @@ export function GraphCanvas({
         const isContent = gid === "content";
         const targetGroupAlpha = isContent ? 0.24 : 0.16;
         const textOpacity = labelOpacity * targetGroupAlpha;
-        
+
         const fontSize = Math.max(
-          isContent ? 12 : 14, 
+          isContent ? 12 : 14,
           (isContent ? 13 : HUD_LABEL_BASE_SIZE) / scale
         );
 
@@ -1681,26 +1572,39 @@ export function GraphCanvas({
     const scopeChanged = prevIsDenseRef.current !== isDense;
     const firstLoad = prevNodeCountRef.current === 0 && nodes.length > 0;
     if (scopeChanged || firstLoad) {
+      if (initialFitTimerRef.current !== null) {
+        window.clearTimeout(initialFitTimerRef.current);
+        initialFitTimerRef.current = null;
+      }
+      initialFitCancelledRef.current = false;
       if (nodes.length > 0) {
         const tryFit = (retryCount = 0) => {
+          initialFitTimerRef.current = null;
+          if (initialFitCancelledRef.current) return;
           const g = graphInstanceRef.current;
           if (!g) return;
           const w = g.width();
           const h = g.height();
           if (w > 0 && h > 0) {
-            g.zoomToFit(300, 96);
+            // 초기 맞춤은 애니메이션하지 않는다. 선택 직후 detail 패널이 캔버스 폭을
+            // 바꾸는 동안 진행 중인 zoomToFit 트윈이 카메라를 다시 덮어쓰지 않게 한다.
+            g.zoomToFit(0, 96);
           } else if (retryCount < 10) {
             // 크기 대기 재시도 (최대 10회, 1초)
-            setTimeout(() => tryFit(retryCount + 1), 100);
+            initialFitTimerRef.current = window.setTimeout(() => tryFit(retryCount + 1), 100);
           }
         };
-        setTimeout(() => tryFit(), 50);
+        initialFitTimerRef.current = window.setTimeout(() => tryFit(), 50);
       }
     }
     prevIsDenseRef.current = isDense;
     prevNodeCountRef.current = nodes.length;
 
     return () => {
+      if (initialFitTimerRef.current !== null) {
+        window.clearTimeout(initialFitTimerRef.current);
+        initialFitTimerRef.current = null;
+      }
       container?.removeEventListener("mousedown", handleMouseDown);
       container?.removeEventListener("touchstart", handleTouchStart);
       container?.removeEventListener("mouseup", handleMouseUp);
@@ -1714,9 +1618,10 @@ export function GraphCanvas({
     nodes,
     edges,
     isDense,
-    externalHighlightNodeId,
-    persistentHighlightNodeId,
-    externalHighlightType,
+    // A3: 하이라이트 3종은 deps에서 빠졌다 — 클릭/호버가 graphData 재설정과
+    // d3 리히트를 유발하지 않는다. 다만 concentric 뷰는 "선택 노드"를 중심으로
+    // 좌표를 다시 깔아야 하므로, 그 모드에서만 중심 id를 dep으로 남긴다.
+    concentricCenterDep,
     onNodeInspect,
     onPositionsChange,
     layoutMode,
@@ -1735,6 +1640,8 @@ export function GraphCanvas({
   // v0.7.139+: programmatic zoom (factor 1.6 / 0.625). force-graph의 zoom(k)는 중심을
   // 그대로 두고 배율만 바꿔 pan/zoom UX와 일관됨.
   const ZOOM_STEP = 1.6;
+  /** B4: 선택 노드로 줌할 때 최소 확보 배율 (이미 더 확대돼 있으면 유지). */
+  const ZOOM_TO_SELECTION_SCALE = 2.2;
   const zoomIn = () => {
     const g = graphInstanceRef.current;
     if (!g) return;
@@ -1745,6 +1652,26 @@ export function GraphCanvas({
     if (!g) return;
     g.zoom((g.zoom() ?? 1) / ZOOM_STEP, 400);
   };
+  /**
+   * B4: 선택(또는 현재 문서) 노드로 카메라를 옮기고 확대한다. 좌표는 그래프
+   * 인스턴스의 실제 노드에서 읽는다 — 드래그로 옮긴 위치까지 반영된다.
+   */
+  const zoomToSelection = () => {
+    const graph = graphInstanceRef.current;
+    if (!graph) return;
+    const targetId = focusNodeId ?? persistentHighlightNodeId ?? externalHighlightNodeId;
+    if (!targetId) return;
+    const liveNodes: any[] = Array.isArray(graph.graphData?.().nodes)
+      ? graph.graphData().nodes
+      : graphNodesRef.current;
+    const target = liveNodes.find((n) => n?.id === targetId);
+    if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.y)) return;
+    graph.centerAt(target.x, target.y, 450);
+    graph.zoom(Math.max(graph.zoom() ?? 1, ZOOM_TO_SELECTION_SCALE), 450);
+  };
+
+  const hasSelection = !!(focusNodeId ?? persistentHighlightNodeId ?? externalHighlightNodeId);
+
   // 배율 표시 — 1.0 = 100%. 줌이 1 근처일 때만 "100%"로 단순화, 그 외엔 백분율로 표시.
   const zoomPercent = Math.round(zoomLevel * 100);
   const zoomLabel = `${zoomPercent}%`;
@@ -1789,6 +1716,16 @@ export function GraphCanvas({
           title="배치를 초기화하고 모든 노드가 화면에 들어오도록 뷰를 맞춥니다"
         >
           맞춤
+        </button>
+        <button
+          type="button"
+          onClick={zoomToSelection}
+          className="graph-canvas-btn"
+          aria-label="선택한 문서로 이동"
+          title="선택한 문서를 화면 중앙으로 가져와 확대합니다"
+          disabled={!hasSelection}
+        >
+          선택 위치
         </button>
         {onResetLayout && (
           <button
