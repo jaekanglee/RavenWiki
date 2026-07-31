@@ -71,7 +71,7 @@ fun VaultListScreen(
                             if (vault.isDefault) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "default",
+                                    text = "기본",
                                     style = MaterialTheme.typography.caption,
                                     color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                                 )

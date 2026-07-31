@@ -234,6 +234,12 @@ class DocumentRepositoryImpl(
         flushPendingWrite(vault, id)
     }
 
+    override suspend fun toggleFavorite(vault: String, id: String) {
+        queries.toggleFavorite(vault, id)
+    }
+
+    override fun pendingWriteCount(): Int = pendingWrites().size
+
     override suspend fun flushPendingWrites() {
         pendingWrites().forEach { pending -> flushPendingWrite(pending.vault, pending.slug) }
     }

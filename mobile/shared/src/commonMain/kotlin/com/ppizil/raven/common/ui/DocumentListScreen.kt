@@ -21,6 +21,10 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,9 +34,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.AlertDialog
 import com.ppizil.raven.common.domain.model.Document
 
 private fun folderOf(slug: String): String = slug.substringBeforeLast('/', "")
+private fun filenameOf(slug: String): String = slug.substringAfterLast('/')
+
+private fun relativeTime(millis: Long): String {
+    if (millis <= 0L) return ""
+    val now = io.ktor.util.date.getTimeMillis()
+    val diff = (now - millis) / 1000
+    return when {
+        diff < 60 -> "방금 전"
+        diff < 3600 -> "${diff / 60}분 전"
+        diff < 86400 -> "${diff / 3600}시간 전"
+        diff < 604800 -> "${diff / 86400}일 전"
+        else -> "${diff / 604800}주 전"
+    }
+}
+
+enum class SortMode(val label: String) {
+    Recent("최신순"), Title("제목순"), Type("유형순")
+}
 
 @Composable
 fun DocumentListScreen(
@@ -42,9 +65,16 @@ fun DocumentListScreen(
     modifier: Modifier = Modifier,
 ) {
     var currentFolder by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<Document?>(null) }
+    var sortMode by remember { mutableStateOf(SortMode.Recent) }
+    var favoritesOnly by remember { mutableStateOf(false) }
 
-    val subFolders = remember(documents, currentFolder) {
-        documents
+    val filteredDocuments = remember(documents, favoritesOnly) {
+        if (favoritesOnly) documents.filter { it.isFavorite } else documents
+    }
+
+    val subFolders = remember(filteredDocuments, currentFolder) {
+        filteredDocuments
             .map { folderOf(it.id) }
             .filter { folder -> currentFolder.isEmpty() || folder.startsWith("$currentFolder/") }
             .mapNotNull { folder ->
@@ -55,17 +85,50 @@ fun DocumentListScreen(
             .distinct()
             .sorted()
     }
-    val currentDocuments = remember(documents, currentFolder) {
-        documents.filter { folderOf(it.id) == currentFolder }
+    val currentDocuments = remember(filteredDocuments, currentFolder, sortMode) {
+        val filtered = filteredDocuments.filter { folderOf(it.id) == currentFolder }
+        when (sortMode) {
+            SortMode.Recent -> filtered.sortedByDescending { it.lastUpdated }
+            SortMode.Title -> filtered.sortedBy { it.title.lowercase() }
+            SortMode.Type -> filtered.sortedBy { it.type ?: "zzz" }
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = if (currentFolder.isEmpty()) "/" else "/$currentFolder",
-            style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 12.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (currentFolder.isEmpty()) "/" else "/$currentFolder",
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { favoritesOnly = !favoritesOnly }) {
+                Icon(
+                    if (favoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "즐겨찾기 필터",
+                    tint = if (favoritesOnly) MaterialTheme.colors.error
+                    else MaterialTheme.colors.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Row {
+                SortMode.entries.forEach { mode ->
+                    TextButton(
+                        onClick = { sortMode = mode },
+                    ) {
+                        Text(
+                            text = mode.label,
+                            style = MaterialTheme.typography.caption,
+                            color = if (sortMode == mode) MaterialTheme.colors.primary
+                            else MaterialTheme.colors.onSurface.copy(alpha = 0.4f),
+                        )
+                    }
+                }
+            }
+        }
         if (currentFolder.isNotEmpty()) {
             Row(
                 modifier = Modifier
@@ -99,12 +162,22 @@ fun DocumentListScreen(
                         },
                     elevation = 1.dp,
                 ) {
-                    Text(
-                        text = "$folder/",
-                        style = MaterialTheme.typography.subtitle1,
-                        color = MaterialTheme.colors.onSurface,
+                    Row(
                         modifier = Modifier.padding(16.dp),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = "폴더",
+                            tint = MaterialTheme.colors.primary.copy(alpha = 0.7f),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = folder,
+                            style = MaterialTheme.typography.subtitle1,
+                            color = MaterialTheme.colors.onSurface,
+                        )
+                    }
                 }
             }
 
@@ -135,16 +208,25 @@ fun DocumentListScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
+                                val time = relativeTime(document.lastUpdated)
+                                if (time.isNotEmpty()) {
+                                    Text(
+                                        text = time,
+                                        style = MaterialTheme.typography.caption,
+                                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.5f),
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
                                 Text(
-                                    text = document.id,
+                                    text = filenameOf(document.id),
                                     style = MaterialTheme.typography.caption,
-                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.4f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
-                        IconButton(onClick = { onDeleteClick(document) }) {
+                        IconButton(onClick = { deleteTarget = document }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "삭제",
@@ -155,5 +237,27 @@ fun DocumentListScreen(
                 }
             }
         }
+    }
+
+    // 삭제 확인 다이얼로그
+    deleteTarget?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("문서 삭제") },
+            text = { Text("'${doc.title}'을(를) 삭제하시겠습니까?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteClick(doc)
+                    deleteTarget = null
+                }) {
+                    Text("삭제", color = MaterialTheme.colors.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("취소")
+                }
+            },
+        )
     }
 }

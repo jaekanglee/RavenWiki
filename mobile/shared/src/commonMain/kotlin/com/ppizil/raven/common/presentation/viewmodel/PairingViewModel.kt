@@ -2,6 +2,7 @@ package com.ppizil.raven.common.presentation.viewmodel
 
 import com.ppizil.raven.common.presentation.mvi.MviViewModel
 import com.ppizil.raven.common.domain.usecase.PairDeviceUseCase
+import com.ppizil.raven.common.domain.usecase.FetchVaultsUseCase
 import com.ppizil.raven.common.framework.qr.QrResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,8 @@ sealed class PairingSideEffect {
 
 class PairingViewModel(
     private val pairDeviceUseCase: PairDeviceUseCase,
-    private val settingsRepository: com.ppizil.raven.common.domain.repository.SettingsRepository
+    private val settingsRepository: com.ppizil.raven.common.domain.repository.SettingsRepository,
+    private val fetchVaultsUseCase: FetchVaultsUseCase,
 ) : MviViewModel<PairingIntent, PairingState, PairingSideEffect> {
 
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -86,10 +88,20 @@ class PairingViewModel(
 
     private fun pairManual(endpoint: String) {
         scope.launch {
+            _state.value = PairingState.Scanning
             val formattedEndpoint = formatEndpoint(endpoint)
             settingsRepository.saveEndpoint(formattedEndpoint)
-            _state.value = PairingState.Success
-            _sideEffect.emit(PairingSideEffect.NavigateToMain)
+            runCatching { fetchVaultsUseCase() }
+                .onSuccess {
+                    _state.value = PairingState.Success
+                    _sideEffect.emit(PairingSideEffect.NavigateToMain)
+                }
+                .onFailure { failure ->
+                    settingsRepository.saveEndpoint("")
+                    _state.value = PairingState.Error(
+                        "연결할 수 없습니다: ${failure.message ?: "서버에 닿지 않습니다"}"
+                    )
+                }
         }
     }
 }

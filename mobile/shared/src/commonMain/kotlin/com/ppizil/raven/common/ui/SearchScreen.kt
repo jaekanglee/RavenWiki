@@ -4,11 +4,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ppizil.raven.common.domain.model.SearchHit
@@ -26,8 +31,14 @@ fun SearchScreen(
 ) {
     var draft by remember { mutableStateOf(query) }
 
+    LaunchedEffect(query) {
+        if (query.isBlank() && draft.isNotBlank()) {
+            draft = ""
+        }
+    }
+
     LaunchedEffect(draft) {
-        delay(220) // 220ms debounce (aligned with desktop)
+        delay(220)
         onQueryChange(draft)
     }
 
@@ -37,8 +48,19 @@ fun SearchScreen(
             onValueChange = { draft = it },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("보관소 전체 검색") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
-            singleLine = true
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "검색") },
+            trailingIcon = {
+                if (draft.isNotEmpty()) {
+                    IconButton(onClick = { draft = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "지우기")
+                    }
+                }
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = { onQueryChange(draft) },
+            ),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -69,6 +91,12 @@ fun SearchScreen(
                 if (results.isEmpty()) {
                     Text("결과가 없습니다.", style = MaterialTheme.typography.body1)
                 } else {
+                    Text(
+                        text = "검색 결과 ${results.size}건",
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(results, key = { it.slug }) { hit ->
                             Card(

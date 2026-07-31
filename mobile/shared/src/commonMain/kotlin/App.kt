@@ -28,7 +28,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -39,10 +41,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import com.ppizil.raven.common.presentation.viewmodel.ConnectionStatus
 import com.ppizil.raven.common.presentation.viewmodel.MainIntent
@@ -53,6 +63,7 @@ import com.ppizil.raven.common.ui.DocumentEditScreen
 import com.ppizil.raven.common.ui.DocumentListScreen
 import com.ppizil.raven.common.ui.GraphScreen
 import com.ppizil.raven.common.ui.PairingScreen
+import com.ppizil.raven.common.ui.PlatformBackHandler
 import com.ppizil.raven.common.ui.SearchScreen
 import com.ppizil.raven.common.ui.SettingsScreen
 import com.ppizil.raven.common.ui.VaultListScreen
@@ -86,9 +97,34 @@ fun App() {
         var isCreating by remember { mutableStateOf(false) }
         var currentTab by remember { mutableStateOf(BottomTab.Home) }
         var browsingVaults by remember { mutableStateOf(settingsRepository.getVault().isNullOrBlank()) }
+        var deleteTarget by remember { mutableStateOf<String?>(null) }
+        var previousTab by remember { mutableStateOf<BottomTab?>(null) }
+        var showDiscardDialog by remember { mutableStateOf(false) }
+        var editHasChanges by remember { mutableStateOf(false) }
 
         val selectedDocument = state.documents.firstOrNull { it.id == selectedId }
         val activeVault = state.selectedVault
+
+        PlatformBackHandler(enabled = !browsingVaults) {
+            when {
+                isCreating || isEditing -> {
+                    if (editHasChanges) showDiscardDialog = true
+                    else {
+                        if (isCreating) isCreating = false
+                        if (isEditing) isEditing = false
+                        editHasChanges = false
+                    }
+                }
+                selectedId != null -> {
+                    selectedId = null
+                    if (previousTab != null) {
+                        currentTab = previousTab!!
+                        previousTab = null
+                    }
+                }
+                else -> browsingVaults = true
+            }
+        }
 
         LaunchedEffect(viewModel.sideEffect) {
             viewModel.sideEffect.collectLatest { effect ->
@@ -119,6 +155,7 @@ fun App() {
 
         val inDocument = selectedId != null || isEditing || isCreating
         val showChrome = !browsingVaults && !inDocument
+        val pullRefreshEnabled = browsingVaults || (showChrome && currentTab == BottomTab.Home)
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -131,7 +168,11 @@ fun App() {
                                 isCreating -> "새 문서"
                                 isEditing -> "문서 편집"
                                 selectedDocument != null -> selectedDocument.title
-                                else -> activeVault ?: "Raven"
+                                else -> {
+                                    val count = state.documents.size
+                                    if (count > 0) "${activeVault ?: "Raven"} ($count)"
+                                    else activeVault ?: "Raven"
+                                }
                             },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -143,9 +184,22 @@ fun App() {
                         {
                             IconButton(onClick = {
                                 when {
-                                    isCreating -> isCreating = false
-                                    isEditing -> isEditing = false
-                                    selectedId != null -> selectedId = null
+                                    isCreating || isEditing -> {
+                                        if (editHasChanges) {
+                                            showDiscardDialog = true
+                                        } else {
+                                            if (isCreating) isCreating = false
+                                            if (isEditing) isEditing = false
+                                            editHasChanges = false
+                                        }
+                                    }
+                                    selectedId != null -> {
+                                        selectedId = null
+                                        if (previousTab != null) {
+                                            currentTab = previousTab!!
+                                            previousTab = null
+                                        }
+                                    }
                                     else -> browsingVaults = true
                                 }
                             }) {
@@ -156,11 +210,42 @@ fun App() {
                         null
                     },
                     actions = {
+                        if (!browsingVaults && !isEditing && !isCreating && selectedDocument == null) {
+                            val statusColor = when (state.connectionStatus) {
+                                ConnectionStatus.Success -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                ConnectionStatus.Connecting -> androidx.compose.ui.graphics.Color(0xFFFFC107)
+                                ConnectionStatus.Error -> androidx.compose.ui.graphics.Color(0xFFF44336)
+                                ConnectionStatus.Idle -> MaterialTheme.colors.onSurface.copy(alpha = 0.3f)
+                            }
+                            if (state.pendingWriteCount > 0) {
+                                Text(
+                                    text = "↑${state.pendingWriteCount}",
+                                    style = MaterialTheme.typography.caption,
+                                    color = androidx.compose.ui.graphics.Color(0xFFFFC107),
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 12.dp)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(statusColor),
+                            )
+                        }
                         if (selectedDocument != null && !isEditing && !isCreating) {
                             IconButton(onClick = {
-                                viewModel.sendIntent(MainIntent.DeleteDocument(selectedDocument.id))
-                                selectedId = null
+                                viewModel.sendIntent(MainIntent.ToggleFavorite(selectedDocument.id))
                             }) {
+                                Icon(
+                                    if (selectedDocument.isFavorite) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                    contentDescription = "즐겨찾기",
+                                    tint = if (selectedDocument.isFavorite) MaterialTheme.colors.error
+                                    else MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                                )
+                            }
+                            IconButton(onClick = { deleteTarget = selectedDocument.id }) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "삭제",
@@ -194,7 +279,7 @@ fun App() {
                                         imageVector = when (tab) {
                                             BottomTab.Home -> Icons.Default.Home
                                             BottomTab.Search -> Icons.Default.Search
-                                            BottomTab.Graph -> Icons.Default.Share
+                                            BottomTab.Graph -> Icons.Default.Hub
                                             BottomTab.Settings -> Icons.Default.Settings
                                         },
                                         contentDescription = tab.label,
@@ -215,7 +300,7 @@ fun App() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .pullRefresh(pullRefreshState),
+                    .pullRefresh(pullRefreshState, enabled = pullRefreshEnabled),
             ) {
                 when {
                     browsingVaults -> {
@@ -256,8 +341,10 @@ fun App() {
                         onSave = { document ->
                             viewModel.sendIntent(MainIntent.SaveDocument(document))
                             isCreating = false
+                            editHasChanges = false
                             selectedId = document.id
                         },
+                        onHasChangesUpdate = { editHasChanges = it },
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -267,14 +354,53 @@ fun App() {
                         onSave = { document ->
                             viewModel.sendIntent(MainIntent.SaveDocument(document))
                             isEditing = false
+                            editHasChanges = false
                         },
+                        onHasChangesUpdate = { editHasChanges = it },
                         modifier = Modifier.fillMaxSize(),
                     )
 
-                    selectedDocument != null -> DocumentDetailScreen(
-                        document = selectedDocument,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    selectedDocument != null -> {
+                        if (selectedDocument.content.isBlank() && state.isLoadingDocument) {
+                            Loading("문서를 불러오는 중…", Modifier.align(Alignment.Center))
+                        } else {
+                            DocumentDetailScreen(
+                                document = selectedDocument,
+                                onWikilinkClick = { target ->
+                                    val slug = target.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-')
+                                    selectedId = slug
+                                    viewModel.sendIntent(MainIntent.OpenDocument(slug))
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+
+                    selectedId != null && selectedDocument == null && state.isLoadingDocument ->
+                        Loading("문서를 불러오는 중…", Modifier.align(Alignment.Center))
+
+                    selectedId != null && selectedDocument == null && !state.isLoadingDocument &&
+                        state.connectionStatus == ConnectionStatus.Error ->
+                        Column(
+                            modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = state.errorMessage ?: "문서를 불러오지 못했습니다.",
+                                style = MaterialTheme.typography.body2,
+                            )
+                            Button(onClick = {
+                                viewModel.sendIntent(MainIntent.OpenDocument(selectedId!!))
+                            }) { Text("다시 시도") }
+                            OutlinedButton(onClick = {
+                                selectedId = null
+                                if (previousTab != null) {
+                                    currentTab = previousTab!!
+                                    previousTab = null
+                                }
+                            }) { Text("돌아가기") }
+                        }
 
                     state.documents.isEmpty() &&
                         state.connectionStatus == ConnectionStatus.Connecting ->
@@ -291,17 +417,28 @@ fun App() {
                         )
 
                     else -> when (currentTab) {
-                        BottomTab.Home -> DocumentListScreen(
-                            documents = state.documents,
-                            onDocumentClick = { document ->
-                                selectedId = document.id
-                                viewModel.sendIntent(MainIntent.OpenDocument(document.id))
-                            },
-                            onDeleteClick = { document ->
-                                viewModel.sendIntent(MainIntent.DeleteDocument(document.id))
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        BottomTab.Home -> {
+                            if (state.documents.isEmpty() &&
+                                state.connectionStatus == ConnectionStatus.Success
+                            ) {
+                                EmptyVault(
+                                    onCreateClick = { isCreating = true },
+                                    modifier = Modifier.align(Alignment.Center),
+                                )
+                            } else {
+                                DocumentListScreen(
+                                    documents = state.documents,
+                                    onDocumentClick = { document ->
+                                        selectedId = document.id
+                                        viewModel.sendIntent(MainIntent.OpenDocument(document.id))
+                                    },
+                                    onDeleteClick = { document ->
+                                        viewModel.sendIntent(MainIntent.DeleteDocument(document.id))
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
 
                         BottomTab.Search -> SearchScreen(
                             query = state.searchQuery,
@@ -310,6 +447,7 @@ fun App() {
                             errorMessage = state.searchError,
                             onQueryChange = { viewModel.sendIntent(MainIntent.Search(it)) },
                             onHitClick = { hit ->
+                                previousTab = BottomTab.Search
                                 selectedId = hit.slug
                                 viewModel.sendIntent(MainIntent.OpenDocument(hit.slug))
                             },
@@ -319,6 +457,7 @@ fun App() {
                         BottomTab.Graph -> GraphScreen(
                             documents = state.documents,
                             onNodeClick = { document ->
+                                previousTab = BottomTab.Graph
                                 selectedId = document.id
                                 viewModel.sendIntent(MainIntent.OpenDocument(document.id))
                             },
@@ -346,6 +485,52 @@ fun App() {
                     )
                 }
             }
+        }
+
+        // 삭제 확인 다이얼로그
+        deleteTarget?.let { targetId ->
+            AlertDialog(
+                onDismissRequest = { deleteTarget = null },
+                title = { Text("문서 삭제") },
+                text = { Text("이 문서를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.sendIntent(MainIntent.DeleteDocument(targetId))
+                        deleteTarget = null
+                        if (selectedId == targetId) selectedId = null
+                    }) {
+                        Text("삭제", color = MaterialTheme.colors.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteTarget = null }) {
+                        Text("취소")
+                    }
+                },
+            )
+        }
+
+        if (showDiscardDialog) {
+            AlertDialog(
+                onDismissRequest = { showDiscardDialog = false },
+                title = { Text("편집 취소") },
+                text = { Text("저장하지 않은 변경사항이 있습니다. 나가시겠습니까?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDiscardDialog = false
+                        editHasChanges = false
+                        if (isCreating) isCreating = false
+                        if (isEditing) isEditing = false
+                    }) {
+                        Text("나가기")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDiscardDialog = false }) {
+                        Text("계속 편집")
+                    }
+                },
+            )
         }
     }
 }
@@ -380,6 +565,31 @@ private fun ConnectionProblem(
         Text(text = message, style = MaterialTheme.typography.body2)
         Button(onClick = onRetry) { Text("다시 시도") }
         OutlinedButton(onClick = onChangeEndpoint) { Text(changeLabel) }
+    }
+}
+
+@Composable
+private fun EmptyVault(
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "문서가 없습니다",
+            style = MaterialTheme.typography.h6,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+        )
+        Text(
+            text = "새 문서를 만들어 보세요.",
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.4f),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onCreateClick) { Text("새 문서 만들기") }
     }
 }
 

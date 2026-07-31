@@ -18,6 +18,7 @@ import com.ppizil.raven.common.presentation.viewmodel.MainViewModel
 import com.ppizil.raven.common.presentation.viewmodel.PairingViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.serialization.kotlinx.json.json
 import com.ppizil.raven.common.data.remote.ravenJson
 import org.koin.core.context.startKoin
@@ -37,6 +38,11 @@ val commonModule = module {
             install(ContentNegotiation) {
                 json(ravenJson)
             }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 15_000
+                connectTimeoutMillis = 10_000
+                socketTimeoutMillis = 15_000
+            }
         }
     }
 
@@ -54,6 +60,6 @@ val commonModule = module {
     factory { FetchVaultsUseCase(get()) }
     factory { FetchDocumentUseCase(get()) }
 
-    factory { PairingViewModel(get(), get()) }
-    factory { MainViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { PairingViewModel(get(), get(), get()) }
+    factory { MainViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 }

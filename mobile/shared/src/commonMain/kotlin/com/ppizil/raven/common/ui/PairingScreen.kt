@@ -49,7 +49,7 @@ fun PairingScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Connect to Raven",
+                text = "Raven 연결",
                 style = MaterialTheme.typography.h4,
                 color = MaterialTheme.colors.onSurface
             )
@@ -59,9 +59,9 @@ fun PairingScreen(
             OutlinedTextField(
                 value = manualEndpoint,
                 onValueChange = { manualEndpoint = it },
-                label = { Text("Tailscale IP / Endpoint") },
+                label = { Text("Tailscale IP / 서버 주소") },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g. http://100.x.y.z:8765") },
+                placeholder = { Text("예: http://100.x.y.z:8765") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
                     imeAction = ImeAction.Done
@@ -81,26 +81,34 @@ fun PairingScreen(
             Button(
                 onClick = { viewModel.sendIntent(PairingIntent.PairManual(manualEndpoint)) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                enabled = manualEndpoint.isNotBlank() && state != PairingState.Scanning
+                enabled = manualEndpoint.isNotBlank() && state !is PairingState.Scanning
             ) {
-                Text("Connect")
+                if (state == PairingState.Scanning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colors.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("연결")
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
             
-            Text(text = "OR", style = MaterialTheme.typography.subtitle1)
+            Text(text = "또는", style = MaterialTheme.typography.subtitle1)
             
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedButton(
                 onClick = { viewModel.sendIntent(PairingIntent.StartPairing) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                enabled = state != PairingState.Scanning
+                enabled = state !is PairingState.Scanning
             ) {
                 if (state == PairingState.Scanning) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Scan QR Code")
+                    Text("QR 코드 스캔")
                 }
             }
 

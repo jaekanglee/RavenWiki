@@ -25,4 +25,6 @@ interface DocumentRepository {
     suspend fun flushPendingWrites()
     suspend fun saveDocument(document: Document): WriteOutcome
     suspend fun deleteDocument(vault: String, id: String)
+    suspend fun toggleFavorite(vault: String, id: String)
+    fun pendingWriteCount(): Int
 }

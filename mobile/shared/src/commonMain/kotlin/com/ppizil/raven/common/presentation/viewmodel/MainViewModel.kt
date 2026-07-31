@@ -4,6 +4,7 @@ import com.ppizil.raven.common.domain.model.Document
 import com.ppizil.raven.common.domain.model.SearchHit
 import com.ppizil.raven.common.domain.model.VaultSummary
 import com.ppizil.raven.common.domain.model.WriteOutcome
+import com.ppizil.raven.common.domain.repository.DocumentRepository
 import com.ppizil.raven.common.domain.repository.SettingsRepository
 import com.ppizil.raven.common.domain.usecase.DeleteDocumentUseCase
 import com.ppizil.raven.common.domain.usecase.FetchDocumentUseCase
@@ -35,6 +36,7 @@ sealed class MainIntent {
     data class Search(val query: String) : MainIntent()
     data class SaveDocument(val document: Document) : MainIntent()
     data class DeleteDocument(val id: String) : MainIntent()
+    data class ToggleFavorite(val id: String) : MainIntent()
 }
 
 enum class ConnectionStatus {
@@ -49,6 +51,8 @@ data class MainState(
     val searchResults: List<SearchHit> = emptyList(),
     val isSearching: Boolean = false,
     val searchError: String? = null,
+    val isLoadingDocument: Boolean = false,
+    val pendingWriteCount: Int = 0,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
 )
@@ -68,6 +72,7 @@ class MainViewModel(
     private val fetchVaultsUseCase: FetchVaultsUseCase,
     private val fetchDocumentUseCase: FetchDocumentUseCase,
     private val settingsRepository: SettingsRepository,
+    private val documentRepository: DocumentRepository,
 ) : MviViewModel<MainIntent, MainState, MainSideEffect> {
 
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -104,6 +109,7 @@ class MainViewModel(
             is MainIntent.Search -> search(intent.query)
             is MainIntent.SaveDocument -> saveDocument(intent.document)
             is MainIntent.DeleteDocument -> deleteDocument(intent.id)
+            is MainIntent.ToggleFavorite -> toggleFavorite(intent.id)
         }
     }
 
@@ -119,8 +125,9 @@ class MainViewModel(
                         vaults = vaults,
                         connectionStatus = ConnectionStatus.Success,
                     )
+                    flushAndUpdatePending()
                 }
-                .onFailure { failure -> report(failure, "Failed to load vaults") }
+                .onFailure { failure -> report(failure, "보관소 목록을 불러오지 못했습니다") }
         }
     }
 
@@ -151,9 +158,12 @@ class MainViewModel(
             )
             runCatching { syncDocumentsUseCase(vault) }
                 .onSuccess {
-                    _state.value = _state.value.copy(connectionStatus = ConnectionStatus.Success)
+                    flushAndUpdatePending()
+                    _state.value = _state.value.copy(
+                        connectionStatus = ConnectionStatus.Success,
+                    )
                 }
-                .onFailure { failure -> report(failure, "Failed to sync documents") }
+                .onFailure { failure -> report(failure, "문서 동기화에 실패했습니다") }
         }
     }
 
@@ -192,8 +202,22 @@ class MainViewModel(
     private fun openDocument(id: String) {
         val vault = _state.value.selectedVault ?: return
         scope.launch {
+            _state.value = _state.value.copy(
+                isLoadingDocument = true,
+                connectionStatus = ConnectionStatus.Connecting,
+                errorMessage = null,
+            )
             runCatching { fetchDocumentUseCase(vault, id) }
-                .onFailure { failure -> report(failure, "Failed to open document") }
+                .onSuccess {
+                    _state.value = _state.value.copy(
+                        isLoadingDocument = false,
+                        connectionStatus = ConnectionStatus.Success,
+                    )
+                }
+                .onFailure { failure ->
+                    _state.value = _state.value.copy(isLoadingDocument = false)
+                    report(failure, "문서를 열지 못했습니다")
+                }
         }
     }
 
@@ -201,8 +225,13 @@ class MainViewModel(
         scope.launch {
             runCatching { saveDocumentUseCase(document) }
                 .onSuccess { outcome ->
+                    _state.value = _state.value.copy(
+                        pendingWriteCount = documentRepository.pendingWriteCount(),
+                    )
                     when (outcome) {
-                        WriteOutcome.Synced -> Unit
+                        WriteOutcome.Synced -> _sideEffect.emit(
+                            MainSideEffect.ShowNotice("저장 완료"),
+                        )
                         WriteOutcome.Queued -> _sideEffect.emit(
                             MainSideEffect.ShowNotice(
                                 "지금 PC에 닿지 않아 기기에만 저장했습니다. 재연결 후 당겼 내리면 올라가요.",
@@ -215,7 +244,7 @@ class MainViewModel(
                         )
                     }
                 }
-                .onFailure { failure -> report(failure, "Failed to save document") }
+                .onFailure { failure -> report(failure, "문서 저장에 실패했습니다") }
         }
     }
 
@@ -223,8 +252,21 @@ class MainViewModel(
         val vault = _state.value.selectedVault ?: return
         scope.launch {
             runCatching { deleteDocumentUseCase(vault, id) }
-                .onFailure { failure -> report(failure, "Failed to delete document") }
+                .onFailure { failure -> report(failure, "문서 삭제에 실패했습니다") }
         }
+    }
+
+    private fun toggleFavorite(id: String) {
+        val vault = _state.value.selectedVault ?: return
+        scope.launch {
+            runCatching { documentRepository.toggleFavorite(vault, id) }
+                .onFailure { failure -> report(failure, "즐겨찾기 변경에 실패했습니다") }
+        }
+    }
+
+    private suspend fun flushAndUpdatePending() {
+        runCatching { documentRepository.flushPendingWrites() }
+        _state.value = _state.value.copy(pendingWriteCount = documentRepository.pendingWriteCount())
     }
 
     private suspend fun report(failure: Throwable, fallback: String) {
