@@ -94,3 +94,11 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 - 데스크톱 앱 재설치(`make desktop-install`) 시 바이너리 내부 리소스는 갱신되지만, macOS 시스템 깊은 곳(`~/Library/WebKit/com.raven.local`)에 위치한 PWA 캐시가 신규 리소스 로딩을 방해하여 영구적인 "하얀 공백 화면"을 유발했다.
 - 해결 1 (수동): `rm -rf ~/Library/WebKit/com.raven.local ~/Library/Caches/com.raven.local "~/Library/Application Support/com.raven.local"` 명령으로 낡은 캐시를 강제 파기.
 - 해결 2 (영구 방지): 데스크톱 앱(Tauri) 환경에서는 로컬 파일을 직접 읽으므로 PWA 캐시가 불필요하다. `dashboard/src/main.tsx`에서 `__TAURI_INTERNALS__` 존재 시 `registerSW`를 건너뛰도록 구조를 개선했다.
+
+## 11. 모바일 dev 배포 컴파일 회귀 hotfix
+
+`make deploy-dev`가 `DocumentListScreen.kt`의 `Modifier.size()` 확장 import 누락으로 `:shared:compileDebugKotlinAndroid` 단계에서 실패했다. `androidx.compose.foundation.layout.size` import를 복구해 최소 수정으로 컴파일 회귀를 해소했다.
+
+실제 배포 재시도로 dev 빌드번호를 29까지 올렸고 Firebase App Distribution 업로드를 완료했다.
+
+검증: `:shared:compileDebugKotlinAndroid`, `:shared:testDebugUnitTest`, `:androidApp:assembleDevDebug`, `make deploy-dev` — 모두 통과. Fastlane `assembledevDebug`와 `firebase_app_distribution` 성공.
