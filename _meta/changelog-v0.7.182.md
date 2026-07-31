@@ -86,3 +86,11 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 구형 `wiki.db`의 `collection` 컬럼 누락 시 조용한 Markdown fallback으로 열화되던 그래프 경로도 canonical DB 연결·리빌드 경로를 사용하도록 수정했다. WebGL/3D 렌더러 전환은 별도 이슈로 보류했다.
 
 검증: `scripts/.venv/bin/python -m pytest tests/` — 771 passed, 1 skipped; Dashboard Vitest — 224 passed, 1 skipped; `npx tsc -b`; `npm run build`; Chrome `/graph` 실기 QA — `/tmp/ulw-graph-qa-final6/`.
+
+## 10. Tauri 데스크톱 앱 "하얀 화면" (PWA Service Worker 캐시) 이슈 수정
+
+이전 빌드 중 `dashboard/src/lib/api.ts` 구문 오류(P1, P2)로 인해 생성된 "깨진 React 번들" 혹은 빈 껍데기가 **Tauri 앱의 macOS WebKit Service Worker 캐시**에 남는 현상이 발생했다. 
+
+- 데스크톱 앱 재설치(`make desktop-install`) 시 바이너리 내부 리소스는 갱신되지만, macOS 시스템 깊은 곳(`~/Library/WebKit/com.raven.local`)에 위치한 PWA 캐시가 신규 리소스 로딩을 방해하여 영구적인 "하얀 공백 화면"을 유발했다.
+- 해결 1 (수동): `rm -rf ~/Library/WebKit/com.raven.local ~/Library/Caches/com.raven.local "~/Library/Application Support/com.raven.local"` 명령으로 낡은 캐시를 강제 파기.
+- 해결 2 (영구 방지): 데스크톱 앱(Tauri) 환경에서는 로컬 파일을 직접 읽으므로 PWA 캐시가 불필요하다. `dashboard/src/main.tsx`에서 `__TAURI_INTERNALS__` 존재 시 `registerSW`를 건너뛰도록 구조를 개선했다.

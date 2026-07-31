@@ -35,28 +35,31 @@ const endpointReady: Promise<void> = initDesktopEndpoint().catch((err) => {
 });
 
 // v0.6.10 (P16): PWA registerType="prompt" handler.
+// v0.7.183: Tauri desktop mode bypasses PWA Service Worker to avoid cache locking issues.
 import { registerSW } from "virtual:pwa-register";
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    if (
-      window.confirm(
-        "Raven에 새 버전이 있습니다. 지금 업데이트할까요?\n" +
-          "(취소하면 다음 새로고침/앱 재실행 때 적용됩니다.)"
-      )
-    ) {
-      updateSW(true);
-    }
-  },
-  onOfflineReady() {
-    // eslint-disable-next-line no-console
-    console.info("[Raven] 오프라인 캐시 준비 완료 — 네트워크 없이도 동작합니다.");
-  },
-  onRegisterError(error: unknown) {
-    // eslint-disable-next-line no-console
-    console.warn("[Raven] SW 등록 오류:", error);
-  },
-});
+if (!(window as any).__TAURI_INTERNALS__) {
+  const updateSW = registerSW({
+    onNeedRefresh() {
+      if (
+        window.confirm(
+          "Raven에 새 버전이 있습니다. 지금 업데이트할까요?\n" +
+            "(취소하면 다음 새로고침/앱 재실행 때 적용됩니다.)"
+        )
+      ) {
+        updateSW(true);
+      }
+    },
+    onOfflineReady() {
+      // eslint-disable-next-line no-console
+      console.info("[Raven] 오프라인 캐시 준비 완료 — 네트워크 없이도 동작합니다.");
+    },
+    onRegisterError(error: unknown) {
+      // eslint-disable-next-line no-console
+      console.warn("[Raven] SW 등록 오류:", error);
+    },
+  });
+}
 
 // ─── v0.6.10+ 개발 단계 throw/error catch (tmp/dashboard.log) ─────
 // mobile DevTools 못 볼 때 사용자가 `cat tmp/dashboard.log`로 직접 진단.
