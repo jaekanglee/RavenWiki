@@ -20,6 +20,7 @@ from raven.core import slug_module, frontmatter_module, archive_module
 from raven.core import log_module
 from raven.core import contracts
 from raven import migrate as migrate_module
+from raven import __version__ as RAVEN_VERSION
 from raven.core.vault import Vault
 
 app = typer.Typer(
@@ -27,7 +28,22 @@ app = typer.Typer(
     help="Multi-vault wiki engine — CLI for vault mgmt + page CRUD + linking.",
     no_args_is_help=True,
     add_completion=False,
+    # v0.7.183: root callback 옵션(`--version`)이 서브커맨드 없이도 동작하게.
+    invoke_without_command=True,
 )
+
+
+@app.callback()
+def _cli_main(
+    version: bool = typer.Option(
+        False, "--version", "-V", help="Show raven version and exit."
+    ),
+) -> None:
+    """v0.7.183: 설치본 CLI/MCP/DB 스키마 버전 불일치를 스스로 감지할 수 있게
+    `raven --version` → SOT(raven/__init__.py __version__) 출력."""
+    if version:
+        typer.echo(f"raven {RAVEN_VERSION}")
+        raise typer.Exit()
 
 vault_app = typer.Typer(help="Vault discovery / creation / registration.")
 page_app = typer.Typer(help="Page CRUD inside the active vault.")

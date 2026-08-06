@@ -121,3 +121,23 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 - **수정**: `desktop/src-tauri/Cargo.toml`의 `tauri` features에 `custom-protocol` 추가 (1줄).
 
 검증: 바이너리 에셋 키 25개 + `tauri-codegen-assets` 784파일 임베드 확인 (14.2MB → 15.0MB); `make desktop-install` 재설치 후 앱 실행 — 대시보드 전체 렌더 + 번들 Python Core 연동으로 vault 실데이터 로드 확인 (AX 트리 검증).
+## 14. 설치본 CLI ↔ MCP 스키마 불일치 수정 — `~/.local/bin/raven` 재배포 + drift 가드 (톡머리 vault 운영자 보고)
+
+톡머리(talkmmury) vault 운영자가 보고: `~/.local/bin/raven build`로 빌드한 vault를 MCP(`raven.mcp.cli`, 8766)로 조회하면 `no such column: contested` / `no such table: pages_fts`로 실패.
+
+**근본 원인 (실측)**:
+- `~/.local/bin/raven`은 2026-07-01자 **레거시 standalone 스크립트** (21KB, 소스 트리와 무관) — 자체 구버전 스키마(`pages`에 `contested` 없음, `tags(name,count)` 집계형, `pages_fts` 없음)로 wiki.db를 생성
+- 소스 트리 v0.7.182 (SCHEMA v2.4) MCP는 `pages.contested` + `pages_fts`를 기대 → 구버전 DB를 못 읽음
+- `raven.core.db.connect()`는 v0.7.119부터 `db_schema_drift()` 가드로 자동 재빌드하지만, **MCP read 경로(`raven/mcp/db.py get_db()`)는 raw connect라 가드가 없었다** — MCP만 조용히 깨지는 구멍
+
+**수정 (surgical)**:
+- **설치본 동기화**: `~/.local/bin/raven`을 소스 트리 CLI(`python -m raven.cli`)로 위임하는 thin wrapper로 교체 (`RAVEN_REPO` env 지원, 레거시는 `~/.local/bin/raven.standalone-legacy.bak`로 보존). 이후 build는 항상 최신 스키마 생성
+- **버전 표기**: CLI에 `--version`/`-V` 추가 — SOT(`raven/__init__.py __version__`) 출력. `invoke_without_command=True`로 root 옵션이 서브커맨드 없이 동작 (Typer 0.27.1 동작 확인)
+- **build drift 감지**: `raven/core/db.py build_db()`가 구버전 스키마 wiki.db를 감지하면 명시적 경고 후 재구축 (기존 unlink+재생성은 유지)
+- **drift 검사 보강**: `db_schema_drift()`에 `contested` 컬럼 체크 추가 (MCP가 읽는 정확한 컬럼 회귀 가드)
+- **MCP read 가드**: `raven/mcp/db.py get_db()`가 drift 감지 시 raw SQLite 에러 대신 `raven build --vault <name>` 힌트를 포함한 명확한 에러 (read-only 계층이라 auto-rebuild ❌ — MCP의 rebuild 도구는 명시 호출 유지)
+
+**검증**:
+- 신규 테스트 9건 (`test_cli_version.py` 3, `test_mcp_schema_drift.py` 3, `test_db_schema_drift_contested.py` 3) + 관련 그룹 107 passed
+- `~/.local/bin/raven --version` → `raven 0.7.182`, help 유지
+- talkmmury 재빌드 후 `.schema pages`에 `contested` + `pages_fts` 확인, MCP `wiki_get_page`/`wiki_search` 정상 동작

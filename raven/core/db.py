@@ -39,6 +39,23 @@ def build_db(vault: Vault, db_path: Optional[Path] = None, *, run_lint: bool = T
     Side effect: appends a `build` entry to log.md on success or failure.
     """
     db_path = Path(db_path) if db_path else vault.db_path
+
+    # v0.7.183 (톡머리 vault operator report): pre-v0.7.67 스키마 wiki.db
+    # (구버전 standalone CLI가 생성 — pages.contested / pages_fts 없음) 가
+    # 남아있으면 MCP/API read가 깨진다. build는 아래에서 unlink+재생성하므로
+    # 결과는 항상 최신 스키마지만, drift를 명시적으로 경고해 silent failure를
+    # 막는다. (custom --db 경로일 때는 vault 기본 DB 기준 drift 검사 생략)
+    if (
+        db_path.resolve() == vault.db_path.resolve()
+        and db_path.exists()
+        and db_schema_drift(vault)
+    ):
+        import sys as _sys
+        _sys.stderr.write(
+            f"⚠️  {vault.meta.name}: wiki.db 스키마가 구버전입니다 — "
+            f"최신 스키마(SCHEMA v2.4)로 재구축합니다.\n"
+        )
+
     repo_root = _repo_root()
     script = repo_root / "scripts" / "build_db.py" if repo_root else None
 
@@ -163,9 +180,11 @@ def db_schema_drift(vault: Vault) -> bool:
             if fts_exists is None:
                 return True
             # 4. pages table must have minimal node meta + analytics columns.
+            #    `contested` 추가 (v0.7.183): MCP wiki_get_page가 읽는 컬럼 —
+            #    구버전 standalone CLI 스키마엔 없어 `no such column` 발생.
             pages_cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)").fetchall()}
             if not {
-                "collection", "status", "aliases",
+                "collection", "status", "aliases", "contested",
                 "importance", "centrality", "community", "layer", "freshness",
             }.issubset(pages_cols):
                 return True

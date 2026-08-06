@@ -40,17 +40,54 @@ def _resolve_vault(vault: Optional[Path | str]) -> Path:
     return p
 
 
+def _schema_drifted(db_path: Path) -> bool:
+    """True when wiki.db schema no longer matches the SCHEMA v2.4 MCP contract.
+
+    v0.7.183 (톡머리 vault operator report): the legacy standalone CLI
+    (2026-07-01, pre-v0.7.67) built wiki.db without `pages.contested` and
+    `pages_fts`, so MCP reads failed with cryptic SQLite errors
+    (`no such column: contested`, `no such table: pages_fts`). The read
+    path must surface a clear rebuild hint instead. Never raises — returns
+    True on any inspection error (AGENTS.md §9 silent failure policy).
+    """
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(pages)").fetchall()}
+            if "contested" not in cols:
+                return True
+            fts = conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='pages_fts' LIMIT 1"
+            ).fetchone()
+            return fts is None
+        finally:
+            conn.close()
+    except Exception:
+        return True
+
+
 def get_db(vault: Optional[Path | str] = None) -> sqlite3.Connection:
     """Open a connection to <vault>/wiki.db with row_factory=Row.
 
     Raises FileNotFoundError if wiki.db does not exist (caller should
     run build_db.py first).
+
+    v0.7.183: raises a clear RuntimeError instead of a cryptic SQLite
+    error when the DB was built with an outdated schema (pre-v0.7.67
+    standalone CLI). Rebuild hint included.
     """
     root = _resolve_vault(vault)
     db_path = root / "wiki.db"
     if not db_path.exists():
         raise FileNotFoundError(
             f"wiki.db not found at {db_path}. Run scripts/build_db.py first."
+        )
+    if _schema_drifted(db_path):
+        raise RuntimeError(
+            f"wiki.db at {db_path} uses an outdated schema (missing "
+            f"pages.contested / pages_fts — built by a pre-v0.7.67 raven CLI). "
+            f"Rebuild it with: raven build --vault {root.name}"
         )
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
