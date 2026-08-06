@@ -111,3 +111,13 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 - **mcp pin**: `mcp>=1.12` → `mcp>=1.12,<2.0`. mcp 2.0.0이 `mcp.server.fastmcp` 모듈을 제거해 `raven/mcp/cli.py`, `raven/desktop/runtime.py`, MCP 테스트 2건이 깨졌다 (ADR v0.6.0에서 예견된 pin 리스크 — 신규 설치가 2.0.0을 받는 순간 파이썬 버전과 무관하게 발생)
 
 검증: pytest 771 passed / 1 skipped (3.14.2), API 8765 → 200, MCP 8766 → initialize + 23개 도구 응답 (streamable HTTP는 세션 기반 — 빈 응답이 아니라 정상), Dashboard 5173 → 200.
+
+## 13. 데스크톱 앱 "하얀 화면" 근본 원인 수정 — `custom-protocol` 피처 누락
+
+`make desktop-install`로 설치한 Raven.app이 열리지만 빈 하얀 화면만 표시되던 문제의 근본 원인을 찾아 수정했다. 기존 §10(SW 캐시)은 빌드 실패 시의 2차 요인이었고, 실제 원인은 **릴리스 바이너리에 프론트엔드 에셋이 0개 임베드**된 것이었다.
+
+- **원인**: tauri 2.6.3+ 코드젠은 `custom-protocol` 피처가 없으면 `dev = cfg!(not(feature = "custom-protocol"))` 판정으로 **dev 모드**로 동작한다. dev 모드 + `devUrl` 존재 시 `EmbeddedAssets::default()`가 선택되어 프론트엔드 에셋이 전혀 임베드되지 않는다. 웹뷰는 index.html조차 받지 못해 빈 화면. tauri 업그레이드(Jul 23 이후)로 이 게이트가 생겨 모든 데스크톱 릴리스 빌드가 조용히 깨져 있었다.
+- **증거**: 정상 바이너리 대비 `assets/` 키 0개, `tauri-codegen-assets` 산출물 0개, "Raven Dashboard" 타이틀 문자열 부재. 동일 번들은 일반 브라우저에서 정상 렌더 (셸 문제 배제).
+- **수정**: `desktop/src-tauri/Cargo.toml`의 `tauri` features에 `custom-protocol` 추가 (1줄).
+
+검증: 바이너리 에셋 키 25개 + `tauri-codegen-assets` 784파일 임베드 확인 (14.2MB → 15.0MB); `make desktop-install` 재설치 후 앱 실행 — 대시보드 전체 렌더 + 번들 Python Core 연동으로 vault 실데이터 로드 확인 (AX 트리 검증).
