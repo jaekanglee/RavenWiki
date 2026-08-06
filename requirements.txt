@@ -1,7 +1,7 @@
 # Raven Python dependencies (direct)
 fastapi>=0.115
 uvicorn[standard]>=0.34
-mcp>=1.12
+mcp>=1.12,<2.0  # mcp 2.0 removed mcp.server.fastmcp (ADR v0.6.0 anticipated pin)
 starlette>=0.46
 pydantic>=2.11
 httpx>=0.28
