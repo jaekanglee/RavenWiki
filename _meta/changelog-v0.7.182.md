@@ -102,3 +102,12 @@ DB에 `failureKind=CONFLICT`만 적고 끝내면, 사용자 입장에서는 "저
 실제 배포 재시도로 dev 빌드번호를 29까지 올렸고 Firebase App Distribution 업로드를 완료했다.
 
 검증: `:shared:compileDebugKotlinAndroid`, `:shared:testDebugUnitTest`, `:androidApp:assembleDevDebug`, `make deploy-dev` — 모두 통과. Fastlane `assembledevDebug`와 `firebase_app_distribution` 성공.
+
+## 12. Python 3.14 전환 + mcp<2.0 pin
+
+`scripts/.venv`의 python 심링크가 `/Users/jaekanglee/miniconda3/bin/python3`을 가리켰는데 miniconda 제거로 끊겨 새 프로세스 실행이 불가했다. 실행 중이던 API/MCP/Dashboard는 이미 로드된 상태라 살아있어 증상이 늦게 드러났다.
+
+- **venv 재생성**: `uv venv --python 3.14` + `-r requirements.txt -e scripts` — Python 3.14.2 기준
+- **mcp pin**: `mcp>=1.12` → `mcp>=1.12,<2.0`. mcp 2.0.0이 `mcp.server.fastmcp` 모듈을 제거해 `raven/mcp/cli.py`, `raven/desktop/runtime.py`, MCP 테스트 2건이 깨졌다 (ADR v0.6.0에서 예견된 pin 리스크 — 신규 설치가 2.0.0을 받는 순간 파이썬 버전과 무관하게 발생)
+
+검증: pytest 771 passed / 1 skipped (3.14.2), API 8765 → 200, MCP 8766 → initialize + 23개 도구 응답 (streamable HTTP는 세션 기반 — 빈 응답이 아니라 정상), Dashboard 5173 → 200.
