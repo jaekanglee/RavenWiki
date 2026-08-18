@@ -39,6 +39,8 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 	<key>CFBundleShortVersionString</key><string>0.1.0</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleExecutable</key><string>Raven</string>
+	<key>CFBundleIconFile</key><string>icon.icns</string>
+	<key>CFBundleIconName</key><string>icon</string>
 	<key>LSMinimumSystemVersion</key><string>10.15</string>
 	<key>NSHighResolutionCapable</key><true/>
 </dict>

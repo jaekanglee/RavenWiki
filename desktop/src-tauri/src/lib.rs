@@ -1,9 +1,21 @@
 mod core;
 
 use std::sync::Mutex;
-use tauri::{command, Manager, RunEvent, State, WindowEvent};
+use tauri::{command, Manager, RunEvent, State, WebviewWindow, WindowEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+
+/// Reveals the window and, if the webview's content process died while the
+/// window was hidden (macOS reclaims suspended WKWebView renderers, leaving
+/// the window permanently blank on redisplay), forces a reload to recover.
+const RECOVER_IF_BLANK_JS: &str =
+    "if (!document.getElementById('root')?.hasChildNodes()) { location.reload(); }";
+
+fn show_and_recover(window: &WebviewWindow) {
+    window.show().unwrap();
+    window.set_focus().unwrap();
+    let _ = window.eval(RECOVER_IF_BLANK_JS);
+}
 
 #[derive(Default)]
 struct CoreState(Mutex<Option<core::ManagedCore>>);
@@ -125,8 +137,7 @@ pub fn run() {
                     }
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
+                            show_and_recover(&window);
                         }
                     }
                     _ => {}
@@ -136,9 +147,22 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                window.hide().unwrap();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    window.hide().unwrap();
+                }
+                // macOS can silently kill/suspend the WKWebView content process
+                // (e.g. memory pressure, long time hidden) while the window
+                // itself survives — the next time the window is actually
+                // looked at is when it regains focus, so recover-check there
+                // rather than only on the tray/dock show path.
+                WindowEvent::Focused(true) => {
+                    if let Some(webview) = window.app_handle().get_webview_window("main") {
+                        let _ = webview.eval(RECOVER_IF_BLANK_JS);
+                    }
+                }
+                _ => {}
             }
         })
         .build(tauri::generate_context!());
@@ -152,8 +176,7 @@ pub fn run() {
                 RunEvent::Reopen { has_visible_windows, .. } => {
                     if !has_visible_windows {
                         if let Some(window) = app.get_webview_window("main") {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
+                            show_and_recover(&window);
                         }
                     }
                 }

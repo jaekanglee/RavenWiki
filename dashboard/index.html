@@ -14,6 +14,42 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      React가 core_endpoint를 확보할 때까지(main.tsx) #root는 비어 있다.
+      그 구간에 아무 표시가 없으면 "흰 화면에 멈췄다"와 구분이 안 되므로,
+      React 마운트 전에도 보이는 정적 로더를 둔다. 테마는 마운트 전이라
+      localStorage를 동기적으로 읽어 맞춰준다(다크 유저에게 흰 배경 노출 방지).
+    -->
+    <script>
+      (function () {
+        var dark = false;
+        try {
+          var t = localStorage.getItem("theme");
+          dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches);
+        } catch (e) {}
+        document.documentElement.style.background = dark ? "#0f172a" : "#f8fafc";
+      })();
+    </script>
+    <div
+      id="boot-loader"
+      style="
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--fg-default, #475569);
+        background: inherit;
+      "
+    >
+      <div
+        style="
+          width: 28px; height: 28px; border-radius: 50%;
+          border: 3px solid rgba(128,128,128,0.25); border-top-color: #1c69d4;
+          animation: boot-spin 0.8s linear infinite;
+        "
+      ></div>
+      <div id="boot-loader-text" style="font-size: 13px;">Raven 시작 중…</div>
+    </div>
+    <style>@keyframes boot-spin { to { transform: rotate(360deg); } }</style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

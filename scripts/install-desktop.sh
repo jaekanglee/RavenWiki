@@ -55,6 +55,11 @@ cp -R "$MOUNT_POINT/Raven.app" /Applications/Raven.app
 hdiutil detach "$MOUNT_POINT" -quiet
 trap - EXIT
 
+# Nudge Spotlight to index the freshly-replaced bundle now instead of waiting
+# for its own backlog — rm -rf + cp -R looks like a brand-new file to mds,
+# so a fresh install would otherwise be un-searchable for a while.
+mdimport -f /Applications/Raven.app >/dev/null 2>&1 || true
+
 echo ""
 echo "✅ Raven.app installed to /Applications/Raven.app"
 echo "   Launch: open /Applications/Raven.app"

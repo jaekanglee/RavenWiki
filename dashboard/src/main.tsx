@@ -156,6 +156,7 @@ if (typeof window !== "undefined") {
 }
 
 endpointReady.then(() => {
+  document.getElementById("boot-loader")?.remove();
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <App />
