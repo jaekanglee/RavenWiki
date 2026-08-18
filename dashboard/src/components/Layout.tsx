@@ -314,32 +314,45 @@ export function Layout() {
             padding: "0 16px 0 20px",
             background: "var(--color-canvas)",
             borderBottom: "1px solid var(--color-hairline)",
-            overflowX: "auto",
-            overflowY: "hidden",
             flexShrink: 0,
             position: "sticky",
             top: 52,
             zIndex: 49,
           }}
         >
-          {navPlan.primary.map((t) => {
-            const isActive = t.match(location.pathname);
-            const showLabel = !navPlan.compact || isActive;
-            return (
-              <Link
-                key={t.to}
-                to={t.to}
-                className={clsx("section-nav-tab", isActive && "section-nav-tab-active")}
-                aria-current={isActive ? "page" : undefined}
-                aria-label={showLabel ? undefined : t.label}
-                title={showLabel ? undefined : t.label}
-                style={{ flexShrink: 0 }}
-              >
-                <span aria-hidden style={{ fontSize: 14 }}>{t.icon}</span>
-                {showLabel && <span>{t.label}</span>}
-              </Link>
-            );
-          })}
+          {/* 탐색 탭만 가로 스크롤 대상 — 이 wrapper에만 overflow를 건다.
+              (예전엔 overflowY:hidden이 <nav> 전체에 걸려 있어, position:absolute인
+              더보기 드롭다운이 44px 높이 밖으로 나가는 순간 통째로 잘려 안 보였음.) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              height: "100%",
+              overflowX: "auto",
+              overflowY: "hidden",
+              minWidth: 0,
+            }}
+          >
+            {navPlan.primary.map((t) => {
+              const isActive = t.match(location.pathname);
+              const showLabel = !navPlan.compact || isActive;
+              return (
+                <Link
+                  key={t.to}
+                  to={t.to}
+                  className={clsx("section-nav-tab", isActive && "section-nav-tab-active")}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={showLabel ? undefined : t.label}
+                  title={showLabel ? undefined : t.label}
+                  style={{ flexShrink: 0 }}
+                >
+                  <span aria-hidden style={{ fontSize: 14 }}>{t.icon}</span>
+                  {showLabel && <span>{t.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
 
           <div style={{ position: "relative", flexShrink: 0 }}>
             <button
